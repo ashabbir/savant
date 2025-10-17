@@ -1,129 +1,21 @@
 # Savant
 
-Version 1 — Local repo indexer + MCP search layer (Ruby + Docker, Postgres FTS). This README provides a high-level overview, an architecture diagram, the end-to-end flow, and pointers for development.
+Local repo indexer + MCP search layer (Ruby + Postgres FTS, optional Docker).
 
 ## Overview
-- **Purpose:** Index local repositories, chunk content, store in FTS-backed DB, and expose fast search via an MCP WebSocket tool.
-- **Core Pieces:** Indexer CLI, Postgres 16 + FTS (tsvector + GIN), MCP server exposing `search`, containerized via Docker Compose.
-- **Docs:** See `docs/README.md` for epics, stories, and PRD.
+- Index local repos, store chunks in Postgres FTS, and expose fast search via MCP.
+- Components: Indexer CLI, Postgres 16 (GIN/tsvector), MCP servers for Context and Jira.
+- Docs: see `docs/README.md` and `config/` examples.
 
-## Problem
-- Codebases are large and change frequently; AI tools need fast, accurate, and privacy‑preserving access to local code.
-- Remote embeddings or cloud search increase latency, cost, and risk exposure of proprietary code.
-- Developers need a simple, repeatable way to index repos and query them through standard MCP clients.
-
-## Solution
-- A local, containerized pipeline that scans repos, chunks content with language‑aware heuristics, and stores data in a single FTS index.
-- A minimal MCP server that exposes a `search` tool over WebSocket, returning ranked hits and optional snippets.
-- A single `settings.json` drives configuration across services for predictable, reproducible results.
-
-## How It Works
-- Scan: indexer reads repo paths from config, applies ignore rules, and detects changes via size/mtime.
-- Normalize: compute hashes, deduplicate blobs, and create chunks with overlap to preserve context boundaries.
-- Store: upsert blobs/chunks/mappings and populate FTS tables for fast ranking.
-- Serve: MCP server connects to the DB, executes FTS queries, and returns results to the client.
-
-## Architecture
-```mermaid
-flowchart LR
-  subgraph Host
-    W[Editor / Client]
-  end
-
-  subgraph Compose Stack
-    I[Index-er CLI\nscan → hash → chunk]
-    DB[(DB + FTS Index)]
-    MCP[MCP Server\nWebSocket + tool: search]
-  end
-
-  Repo[Local Repo Files]
-
-  Repo -->|scan| I
-  I -->|blobs/chunks + metadata| DB
-  W <-->|MCP protocol| MCP
-  MCP -->|query FTS| DB
-  MCP -->|ranked results| W
-
-  classDef svc fill:#f0f7ff,stroke:#1e88e5,color:#0d47a1,stroke-width:1px
-  classDef data fill:#f9fbe7,stroke:#7cb342,color:#33691e,stroke-width:1px
-  class I,MCP svc
-  class DB data
-```
-
-## Flow Diagram
-```mermaid
-sequenceDiagram
-  participant Dev as Developer
-  participant IDX as Indexer CLI
-  participant DB as DB + FTS
-  participant MCP as MCP Server
-  participant IDE as Editor/Client
-
-  Dev->>IDX: run index (scan/hash/chunk)
-  IDX->>DB: upsert blobs/chunks + maps
-  Dev->>MCP: start server (ws)
-  IDE->>MCP: tool.search(query)
-  MCP->>DB: FTS query + rank
-  DB-->>MCP: hits + snippets
-  MCP-->>IDE: results
-```
-
-## Configuration Examples
-- Primary configuration lives in `config/settings.json` (see example below). The stack reads it via `SETTINGS_PATH`.
-
-Minimal `config/settings.json` example (top-level sections):
-
-```json
-{
-  "indexer": {
-    "maxFileSizeKB": 512,
-    "languages": ["rb", "ts", "tsx", "js", "md", "yml", "yaml", "json"],
-    "chunk": { "mdMaxChars": 1200, "codeMaxLines": 200, "overlapLines": 3 },
-    "repos": [
-      { "name": "example", "path": "/host/example-repo", "ignore": ["node_modules/**", "tmp/**", ".git/**"] }
-    ]
-  },
-  "mcp": {
-    "context": { "listenHost": "0.0.0.0", "listenPort": 8765, "allowOrigins": ["*"] },
-    "jira":    { "listenHost": "0.0.0.0", "listenPort": 8766, "allowOrigins": ["*"] }
-  },
-  "database": { "host": "postgres", "port": 5432, "db": "contextdb", "user": "context", "password": "contextpw" }
-}
-```
-
-Notes:
-- Full schema: `config/schema.json`; reference example: `config/settings.example.json`.
-- Mount your host repo into the compose stack so the indexer can read it (see `docker-compose.yml`).
+## Configuration
+- Provide `config/settings.json` (see `config/settings.example.json`, schema in `config/schema.json`).
+- Mount host repos in `docker-compose.yml` so the indexer can read them.
 
 ## Project Layout
-- **Docs:** `docs/` — epics, PRD, and ops notes.
-- **Config:** `config/` — settings and loaders (see `settings.example.json`).
-- **Scripts:** `bin/` — Ruby CLIs for index and DB ops.
-- **Compose:** `docker-compose.yml` — services, networks, and volumes.
-
-## Development
-- **Dev:** `make dev` (compose up)
-- **Logs:** `make logs`
-- **Down:** `make down`
-- **PS:** `make ps`
-
-## MCP Servers
-Context MCP
-- Start (background): `make mcp-context`
-- Run (foreground, debug): `make mcp-context-run`
-- Connect client: `ws://localhost:<contextPort>` (from `mcp.context.listenPort` in settings)
-- Test: ``make mcp-test q='User' limit=5 repo=crawler``
-
-Jira MCP
-- Start (background): `make mcp-jira`
-- Run (foreground, debug): `make mcp-jira-run`
-- Connect client: `ws://localhost:<jiraPort>` (from `mcp.jira.listenPort` in settings)
-- Test: ``make jira-test jql='project = ABC order by updated desc' limit=5``
-
-Logging
-- Default log level can be set via `LOG_LEVEL` env (`debug`|`info`|`warn`|`error`).
-- `make mcp-run` sets `LOG_LEVEL=debug` for verbose output.
-- MCP logs include: startup tools list, per-request timings, request/response sizes, and error reasons.
+- `docs/`: epics, PRD, ops notes
+- `config/`: settings and examples
+- `bin/`: CLIs for index/DB/MCP
+- `docker-compose.yml`: services and volumes
 
 ## Jira Configuration
 - Option A: Env vars (quick start)
@@ -139,84 +31,150 @@ Logging
     - `fields`: optional list of fields to return
   - Env vars still work and are used as fallback. Precedence: config file > env > defaults.
 
-Example `config/jira.json`:
+Example file is provided at `config/jira.example.json`.
 
+
+
+## Indexer
+
+### Problem
+- Large, evolving repos need fast local indexing with minimal overhead and zero data exfiltration.
+- Keeping search results fresh requires reliable change detection and efficient upserts.
+
+### Solution
+- A Ruby indexer that scans configured repos, hashes and deduplicates content, chunks intelligently, and stores everything in Postgres with FTS.
+
+### Approach
+- Ignore rules and size limits keep noise low and runs deterministic.
+- Hash + dedupe at blob level minimizes DB churn; chunking preserves context with overlaps.
+- Postgres FTS (`tsvector` + GIN) powers ranking; counters and timestamps help status/health.
+- Config-driven: repos and rules live in `config/settings.json`.
+
+### Diagram
+```mermaid
+flowchart LR
+  R["Repos (host mounts)"] --> I["Indexer CLI<br/>scan → hash → chunk"]
+  I --> DB["Postgres 16<br/>FTS tsvector + GIN"]
+
+  classDef svc fill:#f0f7ff,stroke:#1e88e5,color:#0d47a1,stroke-width:1px
+  classDef data fill:#f9fbe7,stroke:#7cb342,color:#33691e,stroke-width:1px
+  class I svc
+  class DB data
 ```
-{
-  "baseUrl": "https://your-domain.atlassian.net",
-  "email": "you@company.com",
-  "apiToken": "your_api_token",
-  "fields": ["key", "summary", "status", "assignee", "updated"]
-}
+
+### Commands
+
+Without Docker
+- Migrate: `DATABASE_URL=postgres://context:contextpw@localhost:5432/contextdb SETTINGS_PATH=config/settings.json ruby ./bin/db_migrate`
+- FTS: `DATABASE_URL=... SETTINGS_PATH=... ruby ./bin/db_fts`
+- Smoke: `DATABASE_URL=... SETTINGS_PATH=... ruby ./bin/db_smoke`
+- Index all: `DATABASE_URL=... SETTINGS_PATH=... ruby ./bin/index all`
+- Index repo: `DATABASE_URL=... SETTINGS_PATH=... ruby ./bin/index <repo>`
+- Delete all: `DATABASE_URL=... SETTINGS_PATH=... ruby ./bin/index delete all`
+- Delete repo: `DATABASE_URL=... SETTINGS_PATH=... ruby ./bin/index delete <repo>`
+- Status: `DATABASE_URL=... SETTINGS_PATH=... ruby ./bin/status`
+
+With Docker
+- Migrate: `docker compose exec -T indexer-ruby ./bin/db_migrate`
+- FTS: `docker compose exec -T indexer-ruby ./bin/db_fts`
+- Smoke: `docker compose exec -T indexer-ruby ./bin/db_smoke`
+- Index all: `docker compose exec -T indexer-ruby ./bin/index all`
+- Index repo: `docker compose exec -T indexer-ruby ./bin/index <repo>`
+- Delete all: `docker compose exec -T indexer-ruby ./bin/index delete all`
+- Delete repo: `docker compose exec -T indexer-ruby ./bin/index delete <repo>`
+- Status: `docker compose exec -T indexer-ruby ./bin/status`
+
+With Make
+- `make migrate` · `make fts` · `make smoke`
+- `make index-all` · ``make index-repo repo=<name>``
+- ``make delete-all`` · ``make delete-repo repo=<name>``
+- `make status`
+
+---
+
+## MCP
+
+### Problem
+- Tools and editors need a standard interface to local context search and Jira without exposing secrets or raw DB access.
+
+### Solution
+- Two Ruby MCP servers: Context (search via Postgres FTS) and Jira (JQL via Jira REST), each exposed over WebSocket/stdin for easy client integration.
+
+### Approach
+- Config-driven ports and credentials; strict outputs; timing + size logging for observability.
+- Context MCP depends on DB; Jira MCP depends on Jira credentials or config file.
+
+
+
+### Context MCP
+
+Problem
+- Expose fast, ranked repo search to MCP-aware clients.
+
+Solution
+- `tool: search` backed by Postgres FTS in the same DB the indexer maintains.
+
+Approach
+- Accept requests over ws/stdin; sanitize inputs; log timings and payload sizes; return hits with metadata/snippets.
+
+Diagram
+```mermaid
+sequenceDiagram
+  participant IDE as Client
+  participant MCP as Context MCP
+  participant DB as Postgres + FTS
+  IDE->>MCP: tool.search(q, repo?, limit)
+  MCP->>DB: FTS query + rank
+  DB-->>MCP: hits + snippets
+  MCP-->>IDE: results
 ```
 
-Common ops:
-- Tail logs: `docker compose logs -f indexer-ruby mcp-ruby`
-- Readiness grep: `docker compose logs mcp-ruby | rg '^READY'`
+Commands
+- Docker: `docker compose up -d mcp-context` · Logs: `docker compose logs -f mcp-context`
+- Make: `make mcp-context` · Debug: `make mcp-context-run`
+- No Docker: `MCP_SERVICE=context DATABASE_URL=... SETTINGS_PATH=... ruby ./bin/mcp_server`
+- Test: ``make mcp-test q='User' repo=<name> limit=5``
 
-## Configuration
-- Provide `config/settings.json` (see `config/settings.example.json`).
-- Single source of truth includes:
-  - `search`: indexer, repos, database, and MCP listen settings for the search MCP.
-  - `jira`: Jira MCP configuration (`baseUrl`, auth, optional `fields`).
-- The compose stack mounts `settings.json` and services read via `SETTINGS_PATH`.
+### Jira MCP
 
-## Usage Summary
-- Start services: `docker compose up -d`
-- Run indexer: `bin/index` (or via compose service command)
-- Query via MCP: connect your MCP‑aware client to `ws://localhost:8765` and call `search`.
+Problem
+- Query Jira issues via JQL from the same client environment, with auth handled locally.
 
-Database
-- Version 1 uses Postgres 16 with built-in FTS (tsvector + GIN). No embeddings or vector search are used.
+Solution
+- `tool: jira_search` and `tool: jira_self` proxied to Jira REST with credentials from env or `config/jira.json`.
 
-## Make Commands
-- `make dev`: start the stack
-- `make migrate`: create/upgrade tables
-- `make fts`: ensure FTS index exists
-- `make smoke`: quick DB check (migrate + FTS ok)
-- `make index-all`: run indexer for all repos and append output to `logs/indexer.log`
-- ``make index-repo repo=<name>``: index a single repo
-- ``make delete-all``: delete all indexed data
-- ``make delete-repo repo=<name>``: delete a single repo’s indexed data
-- `make status`: show per‑repo files/blobs/chunks counters
-- `make mcp`: start MCP containers (context + jira)
-- ``make mcp-test q='<term>' repo=<name> limit=5``: run a search against MCP
-- ``make jira-test jql='<JQL query>' limit=10``: run a Jira search via MCP
-- `make jira-self`: quick auth check for Jira credentials
-- `make mcp-context`: start Context MCP (background)
-- `make mcp-context-run`: run Context MCP in foreground (debug)
-- `make mcp-jira`: start Jira MCP (background)
-- `make mcp-jira-run`: run Jira MCP in foreground (debug)
-- `make logs`: follow indexer + MCP logs
-- `make ps`: list service status
-- `make down`: stop stack and remove containers (keeps volume)
+Approach
+- Validate config on boot; map JQL + pagination to REST; limit fields; return concise JSON to clients.
+
+Diagram
+```mermaid
+sequenceDiagram
+  participant IDE as Client
+  participant J as Jira MCP
+  participant API as Jira API
+  IDE->>J: tool.jira_search(jql, limit)
+  J->>API: REST JQL search
+  API-->>J: issues
+  J-->>IDE: results
+```
+
+Commands
+- Docker: `docker compose up -d mcp-jira` · Logs: `docker compose logs -f mcp-jira`
+- Make: `make mcp-jira` · Debug: `make mcp-jira-run` · Auth check: `make jira-self`
+- No Docker: `MCP_SERVICE=jira DATABASE_URL=... SETTINGS_PATH=... ruby ./bin/mcp_server`
+- Test: ``make jira-test jql='project = ABC order by updated desc' limit=10``
+
+## Utility Targets
+- `make dev`: start stack · `make logs`: tail logs · `make ps`: status · `make down`: stop stack
+- `make mcp`: start both MCPs (context + jira)
 
 ## MCP Testing
-- Quick test: ``make mcp-test q='User'``
-- With repo filter: ``make mcp-test q='Orchestrator' repo=crawler``
-- From inside the container: `./bin/mcp_server` (reads JSON on stdin, prints JSON)
+- Quick: ``make mcp-test q='User'`` · Repo filter: ``make mcp-test q='Foo' repo=<name>``
+- Jira: ``make jira-test jql='project = ABC order by updated desc' limit=10`` · Auth: `make jira-self`
 
 ## Troubleshooting
-- No files indexed:
-  - Ensure `config/settings.json` uses container paths (e.g., `/host/crawler`).
-  - Mount your host repo in `docker-compose.yml`, e.g., `- /ABSOLUTE/HOST/PATH:/host/crawler:ro`.
-  - Clear cache on host: `rm -f .cache/indexer.json`, then re‑run indexing.
-- Nothing in `logs/indexer.log` while running:
-  - Use: `docker compose exec -T indexer-ruby ./bin/index all 2>&1 | tee -a logs/indexer.log`
-  - Tail: `tail -F logs/indexer.log`
-- Permission denied on scripts:
-  - `chmod +x bin/index bin/status bin/mcp_server`
-- Docker warnings like `LISTEN_HOST/PORT not set`:
-  - Harmless; compose uses defaults. Confirm with `docker compose ps`.
-- Reset DB to a clean state:
-  - `docker compose down -v` (drops the Postgres volume), then `make dev && make migrate && make fts`.
-- Large/binary/unwanted files:
-  - Indexer skips `.git`, dotfiles, `.gitignore`d paths, binaries (NUL bytes), and files above `indexer.maxFileSizeKB`.
-  - Adjust limits in `config/settings.json`.
-- MCP returns empty results:
-  - Ensure indexing completed (`make status` shows non‑zero counts) and try broader `q`.
-
-## Roadmap & References
-- **Epics & Stories:** `docs/README.md`
-- **PRD:** `docs/prds/prd.md`
-- **Health & Logs:** `docs/epics/01-setup/s-3-logs-health.md`
+- Indexer sees no files: use container paths in `config/settings.json` (e.g., `/host/...`) and mount repos in `docker-compose.yml`.
+- Logs/permissions: tail with `make logs`; ensure `chmod +x bin/*`; check `logs/indexer.log`.
+- Reset DB: `docker compose down -v` then `make dev && make migrate && make fts`.
+- Skips: indexer ignores `.git`, ignored/binary/oversize files; tune limits in `config/settings.json`.
+- Empty search results: confirm indexing finished (`make status`) and loosen `q`.
