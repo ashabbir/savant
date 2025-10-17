@@ -24,7 +24,7 @@ module Savant
         'indexer' => %w[maxFileSizeKB languages chunk],
         'repos' => nil,
         'mcp' => %w[listenHost listenPort],
-        'database' => %w[host port db user password useVectors]
+        'database' => %w[host port db user password]
       }
 
       req.each do |key, inner|
@@ -50,4 +50,3 @@ module Savant
     end
   end
 end
-

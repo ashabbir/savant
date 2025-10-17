@@ -6,15 +6,7 @@
   "required": ["indexer", "repos", "mcp", "database"],
   "additionalProperties": false,
   "properties": {
-    "api": {
-      "type": "object",
-      "additionalProperties": true,
-      "properties": {
-        "token": { "type": ["string", "null"] },
-        "provider": { "type": ["string", "null"] },
-        "useForEmbeddings": { "type": ["boolean", "null"] }
-      }
-    },
+    
     "indexer": {
       "type": "object",
       "required": ["maxFileSizeKB", "languages", "chunk"],
@@ -72,17 +64,15 @@
     },
     "database": {
       "type": "object",
-      "required": ["host", "port", "db", "user", "password", "useVectors"],
+      "required": ["host", "port", "db", "user", "password"],
       "additionalProperties": false,
       "properties": {
         "host": { "type": "string" },
         "port": { "type": "integer", "minimum": 1 },
         "db": { "type": "string" },
         "user": { "type": "string" },
-        "password": { "type": "string" },
-        "useVectors": { "type": "boolean" }
+        "password": { "type": "string" }
       }
     }
   }
 }
-
