@@ -35,13 +35,13 @@ services:
       - ./config/settings.json:/app/settings.json:ro
     command: >-
       /bin/sh -lc '
-        if [ ! -f "$SETTINGS_PATH" ]; then
-          echo "ERROR: missing settings.json at $SETTINGS_PATH" >&2; exit 1; fi;
+        if [ ! -f /app/settings.json ]; then
+          echo "ERROR: missing settings.json at /app/settings.json" >&2; exit 1; fi;
         echo "INDEXER READY";
         tail -f /dev/null
       '
     healthcheck:
-      test: ["CMD-SHELL", "[ -f \"$${SETTINGS_PATH}\" ]"]
+      test: ["CMD-SHELL", "[ -f /app/settings.json ]"]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -64,8 +64,8 @@ services:
       - ./config/settings.json:/app/settings.json:ro
     command: >-
       /bin/sh -lc '
-        if [ ! -f "$SETTINGS_PATH" ]; then
-          echo "ERROR: missing settings.json at $SETTINGS_PATH" >&2; exit 1; fi;
+        if [ ! -f /app/settings.json ]; then
+          echo "ERROR: missing settings.json at /app/settings.json" >&2; exit 1; fi;
         if [ -x ./bin/mcp_server ]; then
           exec ./bin/mcp_server;
         else
@@ -76,7 +76,7 @@ services:
     ports:
       - "8765:8765"
     healthcheck:
-      test: ["CMD-SHELL", "[ -f \"$${SETTINGS_PATH}\" ]"]
+      test: ["CMD-SHELL", "[ -f /app/settings.json ]"]
       interval: 5s
       timeout: 3s
       retries: 5
