@@ -1,10 +1,10 @@
 # Savant
 
-Local repo indexer + MCP search layer (Ruby + Docker, FTS-only). This README provides a high-level overview, an architecture diagram, the end-to-end flow, and pointers for development.
+Version 1 — Local repo indexer + MCP search layer (Ruby + Docker, Postgres FTS). This README provides a high-level overview, an architecture diagram, the end-to-end flow, and pointers for development.
 
 ## Overview
 - **Purpose:** Index local repositories, chunk content, store in FTS-backed DB, and expose fast search via an MCP WebSocket tool.
-- **Core Pieces:** Indexer CLI, SQLite/Postgres + FTS, MCP server exposing `search`, containerized via Docker Compose.
+- **Core Pieces:** Indexer CLI, Postgres 16 + FTS (tsvector + GIN), MCP server exposing `search`, containerized via Docker Compose.
 - **Docs:** See `docs/README.md` for epics, stories, and PRD.
 
 ## Problem
@@ -75,7 +75,6 @@ Minimal `config/settings.json` example:
 
 ```json
 {
-  "api": { "provider": "none", "useForEmbeddings": false },
   "indexer": {
     "maxFileSizeKB": 512,
     "languages": ["rb", "ts", "tsx", "js", "md", "yml", "yaml", "json"],
@@ -85,7 +84,7 @@ Minimal `config/settings.json` example:
     { "name": "example", "path": "/host/example-repo", "ignore": ["node_modules/**", "tmp/**", ".git/**"] }
   ],
   "mcp": { "listenHost": "0.0.0.0", "listenPort": 8765, "allowOrigins": ["*"] },
-  "database": { "host": "postgres", "port": 5432, "db": "contextdb", "user": "context", "password": "contextpw", "useVectors": false }
+  "database": { "host": "postgres", "port": 5432, "db": "contextdb", "user": "context", "password": "contextpw" }
 }
 ```
 
@@ -100,10 +99,10 @@ Notes:
 - **Compose:** `docker-compose.yml` — services, networks, and volumes.
 
 ## Development
-- **Setup:** `make setup`
-- **Lint:** `make lint`
-- **Test:** `make test`
-- **Dev:** `make dev` (compose up + watch, if configured)
+- **Dev:** `make dev` (compose up)
+- **Logs:** `make logs`
+- **Down:** `make down`
+- **PS:** `make ps`
 
 Common ops:
 - Tail logs: `docker compose logs -f indexer-ruby mcp-ruby`
@@ -117,6 +116,9 @@ Common ops:
 - Start services: `docker compose up -d`
 - Run indexer: `bin/index` (or via compose service command)
 - Query via MCP: connect your MCP‑aware client to `ws://localhost:8765` and call `search`.
+
+Database
+- Version 1 uses Postgres 16 with built-in FTS (tsvector + GIN). No embeddings or vector search are used.
 
 ## Roadmap & References
 - **Epics & Stories:** `docs/README.md`
