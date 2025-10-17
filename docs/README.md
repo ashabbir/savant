@@ -22,17 +22,17 @@ This repository implements the "AI Context System — Local Repo Indexer + MCP S
   - ✅ [S-3: FTS Index](epics/03-database/s-3-fts-index.md)
   - ✅ [S-4: Minimal Seed/Smoke Check](epics/03-database/s-4-smoke-seed.md)
 - MCP Server (`search`) — WebSocket tool exposing FTS results
-  - [S-1: WebSocket Server Scaffolding](epics/04-mcp-api/s-1-server-scaffold.md)
-  - [S-2: Tool Contract `search`](epics/04-mcp-api/s-2-tool-contract.md)
-  - [S-3: FTS Query and Ranking](epics/04-mcp-api/s-3-fts-ranking.md)
-  - [S-4: Container Integration](epics/04-mcp-api/s-4-container-integr.md)
+  - ✅ [S-1: WebSocket Server Scaffolding](epics/04-mcp-api/s-1-server-scaffold.md)
+  - ✅ [S-2: Tool Contract `search`](epics/04-mcp-api/s-2-tool-contract.md)
+  - ✅ [S-3: FTS Query and Ranking](epics/04-mcp-api/s-3-fts-ranking.md)
+  - ✅ [S-4: Container Integration](epics/04-mcp-api/s-4-container-integr.md)
 - Configuration (`settings.json`) — Single source of truth for runtime
   - ✅ [S-1: Schema Definition](epics/05-configuration/s-1-schema.md)
   - ✅ [S-2: Loader and Validation](epics/05-configuration/s-2-loader-validate.md)
   - ✅ [S-3: Example and Docs](epics/05-configuration/s-3-example-docs.md)
 - Usage & Integration — End-to-end steps and troubleshooting
-  - [S-1: Usage Flow](epics/06-usage/s-1-usage-flow.md)
-  - [S-2: Quick Troubleshooting](epics/06-usage/s-2-troubleshoot.md)
+  - ✅ [S-1: Usage Flow](epics/06-usage/s-1-usage-flow.md)
+  - ✅ [S-2: Quick Troubleshooting](epics/06-usage/s-2-troubleshoot.md)
 
 ## Conventions
 - Keep epics small and shippable; stories include tasks + acceptance.
