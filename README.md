@@ -120,6 +120,45 @@ Common ops:
 Database
 - Version 1 uses Postgres 16 with built-in FTS (tsvector + GIN). No embeddings or vector search are used.
 
+## Make Commands
+- `make dev`: start the stack
+- `make migrate`: create/upgrade tables
+- `make fts`: ensure FTS index exists
+- `make smoke`: quick DB check (migrate + FTS ok)
+- `make index-all`: run indexer for all repos and append output to `logs/indexer.log`
+- ``make index-repo repo=<name>``: index a single repo
+- `make status`: show per‑repo files/blobs/chunks counters
+- `make mcp`: start the MCP container
+- ``make mcp-test q='<term>' repo=<name> limit=5``: run a search against MCP
+- `make logs`: follow indexer + MCP logs
+- `make ps`: list service status
+- `make down`: stop stack and remove containers (keeps volume)
+
+## MCP Testing
+- Quick test: ``make mcp-test q='User'``
+- With repo filter: ``make mcp-test q='Orchestrator' repo=crawler``
+- From inside the container: `./bin/mcp_server` (reads JSON on stdin, prints JSON)
+
+## Troubleshooting
+- No files indexed:
+  - Ensure `config/settings.json` uses container paths (e.g., `/host/crawler`).
+  - Mount your host repo in `docker-compose.yml`, e.g., `- /ABSOLUTE/HOST/PATH:/host/crawler:ro`.
+  - Clear cache on host: `rm -f .cache/indexer.json`, then re‑run indexing.
+- Nothing in `logs/indexer.log` while running:
+  - Use: `docker compose exec -T indexer-ruby ./bin/index all 2>&1 | tee -a logs/indexer.log`
+  - Tail: `tail -F logs/indexer.log`
+- Permission denied on scripts:
+  - `chmod +x bin/index bin/status bin/mcp_server`
+- Docker warnings like `LISTEN_HOST/PORT not set`:
+  - Harmless; compose uses defaults. Confirm with `docker compose ps`.
+- Reset DB to a clean state:
+  - `docker compose down -v` (drops the Postgres volume), then `make dev && make migrate && make fts`.
+- Large/binary/unwanted files:
+  - Indexer skips `.git`, dotfiles, `.gitignore`d paths, binaries (NUL bytes), and files above `indexer.maxFileSizeKB`.
+  - Adjust limits in `config/settings.json`.
+- MCP returns empty results:
+  - Ensure indexing completed (`make status` shows non‑zero counts) and try broader `q`.
+
 ## Roadmap & References
 - **Epics & Stories:** `docs/README.md`
 - **PRD:** `docs/prds/prd.md`
