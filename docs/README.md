@@ -17,10 +17,10 @@ This repository implements the "AI Context System — Local Repo Indexer + MCP S
   - [S-5: Chunking](epics/02-indexer/s-5-chunking.md)
   - [S-6: Mapping and Garbage Collection](epics/02-indexer/s-6-mapping-gc.md)
 - Database & FTS — Schema and full-text search index
-  - [S-1: Connection and Migrations](epics/03-database/s-1-migrations.md)
-  - [S-2: Tables](epics/03-database/s-2-tables.md)
-  - [S-3: FTS Index](epics/03-database/s-3-fts-index.md)
-  - [S-4: Minimal Seed/Smoke Check](epics/03-database/s-4-smoke-seed.md)
+  - ✅ [S-1: Connection and Migrations](epics/03-database/s-1-migrations.md)
+  - ✅ [S-2: Tables](epics/03-database/s-2-tables.md)
+  - ✅ [S-3: FTS Index](epics/03-database/s-3-fts-index.md)
+  - ✅ [S-4: Minimal Seed/Smoke Check](epics/03-database/s-4-smoke-seed.md)
 - MCP Server (`search`) — WebSocket tool exposing FTS results
   - [S-1: WebSocket Server Scaffolding](epics/04-mcp-api/s-1-server-scaffold.md)
   - [S-2: Tool Contract `search`](epics/04-mcp-api/s-2-tool-contract.md)
