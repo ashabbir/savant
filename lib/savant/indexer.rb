@@ -1,6 +1,7 @@
 require 'json'
 require 'digest'
 require_relative 'config'
+require_relative 'db'
 
 module Savant
   class Indexer
@@ -16,6 +17,7 @@ module Savant
       total = 0
       changed = 0
       skipped = 0
+      db = Savant::DB.new
       targets.each do |repo|
         root = repo['path']
         ignores = Array(repo['ignore'])
@@ -33,8 +35,10 @@ module Savant
             puts "UNCHANGED #{repo['name']}:#{rel}" if verbose
             next
           end
-          # Hash now; DB persistence and chunking handled in later stories
-          Digest::SHA256.file(abs).hexdigest
+          # Compute hash and ensure blob exists (dedupe by content)
+          hash = Digest::SHA256.file(abs).hexdigest
+          Savant::DB.new # ensure class loaded
+          blob_id = db.find_or_create_blob(hash, stat.size)
           @cache[key] = meta
           changed += 1
         end

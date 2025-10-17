@@ -68,5 +68,12 @@ module Savant
       SQL
       true
     end
+
+    def find_or_create_blob(hash, byte_len)
+      res = @conn.exec_params('SELECT id FROM blobs WHERE hash=$1', [hash])
+      return res[0]['id'].to_i if res.ntuples > 0
+      res = @conn.exec_params('INSERT INTO blobs(hash, byte_len) VALUES($1,$2) RETURNING id', [hash, byte_len])
+      res[0]['id'].to_i
+    end
   end
 end
