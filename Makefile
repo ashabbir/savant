@@ -1,4 +1,4 @@
-.PHONY: dev logs down ps migrate fts smoke index-all index-repo mcp status
+.PHONY: dev logs down ps migrate fts smoke index-all index-repo mcp status mcp-test
 
 dev:
 	@docker compose up -d
@@ -35,3 +35,8 @@ mcp:
 
 status:
 	@docker compose exec -T indexer-ruby ./bin/status
+
+# Usage: make mcp-test q='User' limit=5 repo=crawler
+mcp-test:
+	@docker compose exec -T mcp-ruby sh -lc 'Q="$(q)"; R="$(repo)"; L="$(limit)"; [ -n "$$Q" ] || Q="User"; [ -n "$$L" ] || L=5; if [ -n "$$R" ]; then RJSON="\"$$R\""; else RJSON=null; fi; \
+	  printf "{\"tool\":\"search\",\"q\":\"%s\",\"repo\":%s,\"limit\":%s}\n" "$$Q" "$$RJSON" "$$L" | ruby ./bin/mcp_server'
