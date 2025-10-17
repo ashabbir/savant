@@ -2,6 +2,7 @@ require 'json'
 require 'digest'
 require_relative 'config'
 require_relative 'db'
+require_relative 'logger'
 
 module Savant
   class Indexer
@@ -13,6 +14,7 @@ module Savant
     end
 
     def run(repo_name = nil, verbose: true)
+      log = Savant::Logger.new(component: 'indexer')
       targets = select_repos(repo_name)
       total = 0
       changed = 0
@@ -24,10 +26,16 @@ module Savant
         files = Dir.glob(File.join(root, '**', '*'), File::FNM_DOTMATCH)
                    .select { |p| File.file?(p) }
         repo_id = db.find_or_create_repo(repo['name'], root)
+        log.info("start: repo=#{repo['name']} total=#{files.length}")
         kept = []
+        processed = 0
+        kind_counts = Hash.new(0)
         files.each do |abs|
           rel = abs.sub(/^#{Regexp.escape(root)}\/?/, '')
-          next if ignored?(rel, ignores)
+          if ignored?(rel, ignores)
+            log.debug("skip: item=#{rel} reason=ignored") if verbose
+            next
+          end
           kept << rel
           total += 1
           stat = File.stat(abs)
@@ -35,7 +43,7 @@ module Savant
           meta = { 'size' => stat.size, 'mtime_ns' => (stat.mtime.nsec + stat.mtime.to_i * 1_000_000_000) }
           if unchanged?(key, meta)
             skipped += 1
-            puts "UNCHANGED #{repo['name']}:#{rel}" if verbose
+            log.debug("skip: item=#{rel} reason=unchanged") if verbose
             next
           end
           # Compute hash and ensure blob exists (dedupe by content)
@@ -43,18 +51,30 @@ module Savant
           Savant::DB.new # ensure class loaded
           blob_id = db.find_or_create_blob(hash, stat.size)
           # Chunk file content according to settings
-          chunks = build_chunks(abs, lang_for(rel))
+          lang = lang_for(rel)
+          log.debug("classify: item=#{rel} kind=#{lang}") if verbose
+          kind_counts[lang] += 1
+          chunks = build_chunks(abs, lang)
           db.replace_chunks(blob_id, chunks)
           file_id = db.upsert_file(repo_id, rel, stat.size, meta['mtime_ns'])
           db.map_file_to_blob(file_id, blob_id)
           @cache[key] = meta
           changed += 1
+          processed += 1
+          pct = files.length > 0 ? ((processed.to_f / files.length) * 100).round : 100
+          log.info("progress: repo=#{repo['name']} item=#{rel} done=#{processed}/#{files.length} (~#{pct}%)") if verbose
         end
         # Remove files no longer present
         db.delete_missing_files(repo_id, kept)
+        # Emit counts summary
+        if kind_counts.any?
+          counts_line = kind_counts.map { |k,v| "#{k}=#{v}" }.join(' ')
+          log.info("counts: #{counts_line}")
+        end
+        log.info("complete: repo=#{repo['name']} total=#{files.length}")
       end
       save_cache
-      puts "scanned=#{total} changed=#{changed} skipped=#{skipped}" if verbose
+      log.info("summary: scanned=#{total} changed=#{changed} skipped=#{skipped}") if verbose
       { total: total, changed: changed, skipped: skipped }
     end
 

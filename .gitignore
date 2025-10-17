@@ -1,0 +1,11 @@
+.cache
+# Sensitive/local config
+settings.json
+.env
+.env.local
+.env.*.local
+
+# System/editor noise
+.DS_Store
+*~
+tmp/

@@ -37,6 +37,9 @@ This repository implements the "AI Context System — Local Repo Indexer + MCP S
 - Postgres Only — Simplify to a single datastore
   - ✅ [S-1: Postgres-Only Simplification](epics/07-postgres-only/s-1-postgres-only.md)
 
+- Observability & Logging — Human-friendly console logs across components
+  - ✅ [Epic 08: Observability & Logging](epics/08-logging.md)
+
 ## Conventions
 - Keep epics small and shippable; stories include tasks + acceptance.
 - Link code and docs changes in PRs to the relevant epic.

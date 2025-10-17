@@ -1,0 +1,54 @@
+module Savant
+  class Logger
+    LEVELS = %w[debug info warn error].freeze
+
+    def initialize(component:, out: $stdout)
+      @component = component
+      @out = out
+      @level = (ENV["LOG_LEVEL"] || "debug").downcase
+      @slow_threshold_ms = (ENV["SLOW_THRESHOLD_MS"] || "2000").to_i
+    end
+
+    def level_enabled?(lvl)
+      LEVELS.index(lvl) >= LEVELS.index(@level)
+    end
+
+    def debug(msg)
+      log("debug", msg) if level_enabled?("debug")
+    end
+
+    def info(msg)
+      log("info", msg) if level_enabled?("info")
+    end
+
+    def warn(msg)
+      log("warn", msg) if level_enabled?("warn")
+    end
+
+    def error(msg)
+      log("error", msg)
+    end
+
+    def with_timing(label: nil)
+      start = current_time_ms
+      result = yield
+      dur = current_time_ms - start
+      slow = dur > @slow_threshold_ms
+      suffix = " dur=#{dur}ms"
+      suffix += " slow=true threshold_ms=#{@slow_threshold_ms}" if slow
+      info([label, suffix].compact.join(":")) if label
+      [result, dur]
+    end
+
+    private
+
+    def log(level, msg)
+      ts = Time.now.utc.strftime("%H:%M:%SZ")
+      @out.puts("[#{@component}] #{level}: #{msg} @#{ts}")
+    end
+
+    def current_time_ms
+      (Process.clock_gettime(Process::CLOCK_MONOTONIC) * 1000).to_i
+    end
+  end
+end
