@@ -39,6 +39,9 @@ module Savant
           hash = Digest::SHA256.file(abs).hexdigest
           Savant::DB.new # ensure class loaded
           blob_id = db.find_or_create_blob(hash, stat.size)
+          # Chunk file content according to settings
+          chunks = build_chunks(abs, lang_for(rel))
+          db.replace_chunks(blob_id, chunks)
           @cache[key] = meta
           changed += 1
         end
@@ -78,6 +81,39 @@ module Savant
       dir = File.dirname(CACHE_PATH)
       Dir.mkdir(dir) unless Dir.exist?(dir)
       File.write(CACHE_PATH, JSON.pretty_generate(@cache))
+    end
+
+    def lang_for(rel)
+      ext = File.extname(rel).downcase.sub('.', '')
+      ext.empty? ? 'txt' : ext
+    end
+
+    def build_chunks(path, lang)
+      data = File.read(path)
+      c = @cfg['indexer']['chunk']
+      if %w[md mdx].include?(lang)
+        max = c['mdMaxChars']
+        slices = []
+        i = 0
+        while i < data.length
+          j = [i + max, data.length].min
+          slices << data[i...j]
+          i = j
+        end
+      else
+        max_lines = c['codeMaxLines']
+        overlap = c['overlapLines']
+        lines = data.lines
+        slices = []
+        i = 0
+        while i < lines.length
+          j = [i + max_lines, lines.length].min
+          slices << lines[i...j].join
+          i = j - overlap
+          i = i <= 0 ? j : i
+        end
+      end
+      slices.each_with_index.map { |chunk, idx| [idx, lang, chunk] }
     end
   end
 end

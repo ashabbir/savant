@@ -75,5 +75,13 @@ module Savant
       res = @conn.exec_params('INSERT INTO blobs(hash, byte_len) VALUES($1,$2) RETURNING id', [hash, byte_len])
       res[0]['id'].to_i
     end
+
+    def replace_chunks(blob_id, chunks)
+      @conn.exec_params('DELETE FROM chunks WHERE blob_id=$1', [blob_id])
+      chunks.each do |idx, lang, text|
+        @conn.exec_params('INSERT INTO chunks(blob_id, idx, lang, chunk_text) VALUES($1,$2,$3,$4)', [blob_id, idx, lang, text])
+      end
+      true
+    end
   end
 end
