@@ -62,9 +62,12 @@ services:
       /bin/sh -lc '
         if [ ! -f "$SETTINGS_PATH" ]; then
           echo "ERROR: missing settings.json at $SETTINGS_PATH" >&2; exit 1; fi;
-        echo "MCP READY (listening on $LISTEN_HOST:$LISTEN_PORT)";
-        # Placeholder for server; keep container alive for now
-        tail -f /dev/null
+        if [ -x ./bin/mcp_server ]; then
+          exec ./bin/mcp_server;
+        else
+          echo "MCP READY (listening on $LISTEN_HOST:$LISTEN_PORT)";
+          tail -f /dev/null;
+        fi
       '
     ports:
       - "8765:8765"
@@ -76,4 +79,3 @@ services:
 
 volumes:
   pgdata:
-

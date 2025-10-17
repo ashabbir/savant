@@ -1,0 +1,28 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require_relative '../lib/savant/indexer'
+
+cmd = ARGV[0]
+settings_path = ENV['SETTINGS_PATH'] || 'config/settings.json'
+
+if cmd.nil?
+  warn "usage: index all | index <repo>"
+  exit 2
+end
+
+repo = (cmd == 'all') ? nil : cmd
+
+begin
+  idx = Savant::Indexer.new(settings_path)
+  res = idx.run(repo)
+  puts "INDEX DONE total=#{res[:total]} changed=#{res[:changed]} skipped=#{res[:skipped]}"
+  exit 0
+rescue Savant::ConfigError => e
+  warn "CONFIG ERROR: #{e.message}"
+  exit 1
+rescue => e
+  warn "INDEX ERROR: #{e.class}: #{e.message}"
+  exit 1
+end
+

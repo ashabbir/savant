@@ -1,0 +1,15 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require_relative '../lib/savant/config'
+
+begin
+  settings_path = ENV['SETTINGS_PATH'] || ARGV[0] || 'config/settings.json'
+  cfg = Savant::Config.load(settings_path)
+  puts "CONFIG OK: repos=#{cfg['repos'].size']} mcp=#{cfg['mcp']['listenHost']}:#{cfg['mcp']['listenPort']}"
+  exit 0
+rescue Savant::ConfigError => e
+  warn "CONFIG ERROR: #{e.message}"
+  exit 1
+end
+

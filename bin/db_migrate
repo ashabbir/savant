@@ -1,0 +1,14 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require_relative '../lib/savant/db'
+
+begin
+  db = Savant::DB.new
+  db.migrate_tables
+  puts 'DB TABLES READY'
+  exit 0
+rescue => e
+  warn "DB ERROR: #{e.class}: #{e.message}"
+  exit 1
+end
