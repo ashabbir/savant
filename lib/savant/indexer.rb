@@ -122,5 +122,11 @@ module Savant
       end
       slices.each_with_index.map { |chunk, idx| [idx, lang, chunk] }
     end
+
+    def unchanged?(key, meta)
+      prev = @cache[key]
+      return false unless prev.is_a?(Hash)
+      prev['size'] == meta['size'] && prev['mtime_ns'] == meta['mtime_ns']
+    end
   end
 end
