@@ -5,11 +5,10 @@ require_relative '../lib/savant/db'
 
 begin
   db = Savant::DB.new
-  db.migrate_connection_only
-  puts 'DB CONNECTED'
+  db.migrate_tables
+  puts 'DB TABLES READY'
   exit 0
 rescue => e
   warn "DB ERROR: #{e.class}: #{e.message}"
   exit 1
 end
-
