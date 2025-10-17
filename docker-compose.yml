@@ -1,0 +1,79 @@
+version: "3.9"
+
+name: savant
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: contextdb
+      POSTGRES_USER: context
+      POSTGRES_PASSWORD: contextpw
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U context -d contextdb"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  indexer-ruby:
+    image: ruby:3.3-alpine
+    depends_on:
+      postgres:
+        condition: service_healthy
+    working_dir: /app
+    environment:
+      SETTINGS_PATH: /app/settings.json
+      DATABASE_URL: postgres://context:contextpw@postgres:5432/contextdb
+    volumes:
+      - ./:/app:rw
+      - ./config/settings.json:/app/settings.json:ro
+    command: >-
+      /bin/sh -lc '
+        if [ ! -f "$SETTINGS_PATH" ]; then
+          echo "ERROR: missing settings.json at $SETTINGS_PATH" >&2; exit 1; fi;
+        echo "INDEXER READY";
+        tail -f /dev/null
+      '
+    healthcheck:
+      test: ["CMD-SHELL", "[ -f \"$${SETTINGS_PATH}\" ]"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  mcp-ruby:
+    image: ruby:3.3-alpine
+    depends_on:
+      postgres:
+        condition: service_healthy
+    working_dir: /app
+    environment:
+      SETTINGS_PATH: /app/settings.json
+      LISTEN_HOST: 0.0.0.0
+      LISTEN_PORT: 8765
+      DATABASE_URL: postgres://context:contextpw@postgres:5432/contextdb
+    volumes:
+      - ./:/app:rw
+      - ./config/settings.json:/app/settings.json:ro
+    command: >-
+      /bin/sh -lc '
+        if [ ! -f "$SETTINGS_PATH" ]; then
+          echo "ERROR: missing settings.json at $SETTINGS_PATH" >&2; exit 1; fi;
+        echo "MCP READY (listening on $LISTEN_HOST:$LISTEN_PORT)";
+        # Placeholder for server; keep container alive for now
+        tail -f /dev/null
+      '
+    ports:
+      - "8765:8765"
+    healthcheck:
+      test: ["CMD-SHELL", "[ -f \"$${SETTINGS_PATH}\" ]"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  pgdata:
+

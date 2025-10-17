@@ -1,0 +1,45 @@
+{
+  "api": {
+    "token": "OPTIONAL_FOR_LATER",
+    "provider": "none",
+    "useForEmbeddings": false
+  },
+  "indexer": {
+    "maxFileSizeKB": 512,
+    "languages": ["rb", "ts", "tsx", "js", "md", "mdx", "yml", "yaml", "json"],
+    "chunk": {
+      "mdMaxChars": 1200,
+      "codeMaxLines": 200,
+      "overlapLines": 3
+    }
+  },
+  "repos": [
+    {
+      "name": "example",
+      "path": "/host/example-repo",
+      "ignore": [
+        "node_modules/**",
+        "tmp/**",
+        "vendor/**",
+        "log/**",
+        ".git/**",
+        ".next/**",
+        "dist/**"
+      ]
+    }
+  ],
+  "mcp": {
+    "listenHost": "0.0.0.0",
+    "listenPort": 8765,
+    "allowOrigins": ["*"]
+  },
+  "database": {
+    "host": "postgres",
+    "port": 5432,
+    "db": "contextdb",
+    "user": "context",
+    "password": "contextpw",
+    "useVectors": false
+  }
+}
+
