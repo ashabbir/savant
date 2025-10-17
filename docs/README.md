@@ -35,7 +35,7 @@ This repository implements the "AI Context System — Local Repo Indexer + MCP S
   - ✅ [S-2: Quick Troubleshooting](epics/06-usage/s-2-troubleshoot.md)
 
 - Postgres Only — Simplify to a single datastore
-  - [S-1: Postgres-Only Simplification](epics/07-postgres-only/s-1-postgres-only.md)
+  - ✅ [S-1: Postgres-Only Simplification](epics/07-postgres-only/s-1-postgres-only.md)
 
 ## Conventions
 - Keep epics small and shippable; stories include tasks + acceptance.
