@@ -28,7 +28,7 @@ This repository implements the "AI Context System — Local Repo Indexer + MCP S
   - [S-4: Container Integration](epics/04-mcp-api/s-4-container-integr.md)
 - Configuration (`settings.json`) — Single source of truth for runtime
   - ✅ [S-1: Schema Definition](epics/05-configuration/s-1-schema.md)
-  - [S-2: Loader and Validation](epics/05-configuration/s-2-loader-validate.md)
+  - ✅ [S-2: Loader and Validation](epics/05-configuration/s-2-loader-validate.md)
   - [S-3: Example and Docs](epics/05-configuration/s-3-example-docs.md)
 - Usage & Integration — End-to-end steps and troubleshooting
   - [S-1: Usage Flow](epics/06-usage/s-1-usage-flow.md)
