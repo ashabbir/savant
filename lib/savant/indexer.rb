@@ -30,6 +30,7 @@ module Savant
           meta = { 'size' => stat.size, 'mtime_ns' => (stat.mtime.nsec + stat.mtime.to_i * 1_000_000_000) }
           if unchanged?(key, meta)
             skipped += 1
+            puts "UNCHANGED #{repo['name']}:#{rel}" if verbose
             next
           end
           # Hash now; DB persistence and chunking handled in later stories
