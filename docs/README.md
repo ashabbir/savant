@@ -63,18 +63,6 @@ flowchart LR
   class S1,S2,S3 hard
 ```
 
-## Parallel Work Streams (2)
-- **Stream A — Platform & Config (S-1, S-2):**
-  - Deliver `docker-compose.yml`, shared network, volumes, healthchecks, and Makefile targets (`dev`, `logs`, `down`).
-  - Define `config/settings.example.json` and validation rules; mount `settings.json` into services and wire `SETTINGS_PATH`.
-  - Assigned stories: [S-1](epics/01-setup/s-1-compose.md), [S-2](epics/01-setup/s-2-config.md).
-- **Stream B — Readiness & Ops (S-3):**
-  - Implement clear single-line READY logs for `indexer-ruby` and `mcp-ruby`; ensure MCP listens on `0.0.0.0:8765`.
-  - Update README with tailing commands and expected readiness output; optional lightweight healthchecks.
-  - Assigned story: [S-3](epics/01-setup/s-3-logs-health.md).
-
-Notes:
-- Streams A and B can proceed in parallel once the minimal compose scaffold exists; Stream B can stub service commands if app code is pending.
 
 ## Ops: Tailing & Readiness (S-3)
 - Tail logs for both services:
