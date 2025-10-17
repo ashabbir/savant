@@ -22,11 +22,13 @@ smoke:
 	@docker compose exec -T indexer-ruby ./bin/db_smoke || true
 
 index-all:
-	@docker compose exec -T indexer-ruby ./bin/index all || true
+	@mkdir -p logs
+	@docker compose exec -T indexer-ruby ./bin/index all | tee logs/indexer.log || true
 
 index-repo:
 	@test -n "$(repo)" || (echo "usage: make index-repo repo=<name>" && exit 2)
-	@docker compose exec -T indexer-ruby ./bin/index $(repo) || true
+	@mkdir -p logs
+	@docker compose exec -T indexer-ruby ./bin/index $(repo) | tee logs/indexer.log || true
 
 mcp:
 	@docker compose up -d mcp-ruby

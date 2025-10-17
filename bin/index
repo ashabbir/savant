@@ -14,9 +14,14 @@ end
 repo = (cmd == 'all') ? nil : cmd
 
 begin
+  started = Time.now
+  mode = repo ? "repo=#{repo}" : "all"
+  puts "INDEX START ts=#{started.utc.iso8601} settings=#{settings_path} mode=#{mode}"
   idx = Savant::Indexer.new(settings_path)
   res = idx.run(repo)
-  puts "INDEX DONE total=#{res[:total]} changed=#{res[:changed]} skipped=#{res[:skipped]}"
+  finished = Time.now
+  dur = (finished - started).round(3)
+  puts "INDEX DONE ts=#{finished.utc.iso8601} duration_s=#{dur} total=#{res[:total]} changed=#{res[:changed]} skipped=#{res[:skipped]}"
   exit 0
 rescue Savant::ConfigError => e
   warn "CONFIG ERROR: #{e.message}"
@@ -25,4 +30,3 @@ rescue => e
   warn "INDEX ERROR: #{e.class}: #{e.message}"
   exit 1
 end
-
