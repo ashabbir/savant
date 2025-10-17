@@ -56,6 +56,16 @@ module Savant
           chunk_text TEXT NOT NULL
         );
       SQL
+      @conn.exec(<<~SQL)
+        CREATE INDEX IF NOT EXISTS idx_chunks_blob ON chunks(blob_id);
+      SQL
+      true
+    end
+
+    def ensure_fts
+      @conn.exec(<<~SQL)
+        CREATE INDEX IF NOT EXISTS idx_chunks_fts ON chunks USING GIN (to_tsvector('english', chunk_text));
+      SQL
       true
     end
   end

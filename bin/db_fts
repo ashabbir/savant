@@ -1,0 +1,15 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require_relative '../lib/savant/db'
+
+begin
+  db = Savant::DB.new
+  db.ensure_fts
+  puts 'DB FTS READY'
+  exit 0
+rescue => e
+  warn "DB FTS ERROR: #{e.class}: #{e.message}"
+  exit 1
+end
+
