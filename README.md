@@ -176,9 +176,17 @@ Database
 - `make smoke`: quick DB check (migrate + FTS ok)
 - `make index-all`: run indexer for all repos and append output to `logs/indexer.log`
 - ``make index-repo repo=<name>``: index a single repo
+- ``make delete-all``: delete all indexed data
+- ``make delete-repo repo=<name>``: delete a single repo’s indexed data
 - `make status`: show per‑repo files/blobs/chunks counters
-- `make mcp`: start the MCP container
+- `make mcp`: start MCP containers (context + jira)
 - ``make mcp-test q='<term>' repo=<name> limit=5``: run a search against MCP
+- ``make jira-test jql='<JQL query>' limit=10``: run a Jira search via MCP
+- `make jira-self`: quick auth check for Jira credentials
+- `make mcp-context`: start Context MCP (background)
+- `make mcp-context-run`: run Context MCP in foreground (debug)
+- `make mcp-jira`: start Jira MCP (background)
+- `make mcp-jira-run`: run Jira MCP in foreground (debug)
 - `make logs`: follow indexer + MCP logs
 - `make ps`: list service status
 - `make down`: stop stack and remove containers (keeps volume)
