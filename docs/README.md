@@ -15,7 +15,7 @@ This repository implements the "AI Context System — Local Repo Indexer + MCP S
   - ✅ [S-3: Change Detection via mtime+size](epics/02-indexer/s-3-change-detection.md)
   - ✅ [S-4: Hash + Blob Deduplication](epics/02-indexer/s-4-dedupe-hash.md)
   - ✅ [S-5: Chunking](epics/02-indexer/s-5-chunking.md)
-  - [S-6: Mapping and Garbage Collection](epics/02-indexer/s-6-mapping-gc.md)
+  - ✅ [S-6: Mapping and Garbage Collection](epics/02-indexer/s-6-mapping-gc.md)
 - Database & FTS — Schema and full-text search index
   - ✅ [S-1: Connection and Migrations](epics/03-database/s-1-migrations.md)
   - ✅ [S-2: Tables](epics/03-database/s-2-tables.md)
