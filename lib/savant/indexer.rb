@@ -11,7 +11,7 @@ module Savant
       @cache = load_cache
     end
 
-    def run(repo_name = nil)
+    def run(repo_name = nil, verbose: true)
       targets = select_repos(repo_name)
       total = 0
       changed = 0
@@ -39,6 +39,7 @@ module Savant
         end
       end
       save_cache
+      puts "scanned=#{total} changed=#{changed} skipped=#{skipped}" if verbose
       { total: total, changed: changed, skipped: skipped }
     end
 
@@ -75,4 +76,3 @@ module Savant
     end
   end
 end
-
