@@ -83,5 +83,48 @@ module Savant
       end
       true
     end
+
+    def find_or_create_repo(name, root)
+      res = @conn.exec_params('SELECT id FROM repos WHERE name=$1', [name])
+      return res[0]['id'].to_i if res.ntuples > 0
+      res = @conn.exec_params('INSERT INTO repos(name, root_path) VALUES($1,$2) RETURNING id', [name, root])
+      res[0]['id'].to_i
+    end
+
+    def upsert_file(repo_id, rel_path, size_bytes, mtime_ns)
+      res = @conn.exec_params(
+        <<~SQL, [repo_id, rel_path, size_bytes, mtime_ns]
+          INSERT INTO files(repo_id, rel_path, size_bytes, mtime_ns)
+          VALUES($1,$2,$3,$4)
+          ON CONFLICT (repo_id, rel_path)
+          DO UPDATE SET size_bytes=EXCLUDED.size_bytes, mtime_ns=EXCLUDED.mtime_ns
+          RETURNING id
+        SQL
+      )
+      res[0]['id'].to_i
+    end
+
+    def map_file_to_blob(file_id, blob_id)
+      @conn.exec_params(
+        <<~SQL, [file_id, blob_id]
+          INSERT INTO file_blob_map(file_id, blob_id)
+          VALUES($1,$2)
+          ON CONFLICT (file_id) DO UPDATE SET blob_id=EXCLUDED.blob_id
+        SQL
+      )
+      true
+    end
+
+    def delete_missing_files(repo_id, keep_rels)
+      if keep_rels.empty?
+        @conn.exec_params('DELETE FROM files WHERE repo_id=$1', [repo_id])
+      else
+        @conn.exec_params(
+          'DELETE FROM files WHERE repo_id=$1 AND rel_path <> ALL($2)',
+          [repo_id, keep_rels]
+        )
+      end
+      true
+    end
   end
 end

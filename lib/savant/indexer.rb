@@ -23,9 +23,12 @@ module Savant
         ignores = Array(repo['ignore'])
         files = Dir.glob(File.join(root, '**', '*'), File::FNM_DOTMATCH)
                    .select { |p| File.file?(p) }
+        repo_id = db.find_or_create_repo(repo['name'], root)
+        kept = []
         files.each do |abs|
           rel = abs.sub(/^#{Regexp.escape(root)}\/?/, '')
           next if ignored?(rel, ignores)
+          kept << rel
           total += 1
           stat = File.stat(abs)
           key = cache_key(repo['name'], rel)
@@ -42,9 +45,13 @@ module Savant
           # Chunk file content according to settings
           chunks = build_chunks(abs, lang_for(rel))
           db.replace_chunks(blob_id, chunks)
+          file_id = db.upsert_file(repo_id, rel, stat.size, meta['mtime_ns'])
+          db.map_file_to_blob(file_id, blob_id)
           @cache[key] = meta
           changed += 1
         end
+        # Remove files no longer present
+        db.delete_missing_files(repo_id, kept)
       end
       save_cache
       puts "scanned=#{total} changed=#{changed} skipped=#{skipped}" if verbose
