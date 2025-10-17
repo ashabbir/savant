@@ -1,4 +1,4 @@
-.PHONY: dev logs down ps migrate fts smoke index-all index-repo mcp
+.PHONY: dev logs down ps migrate fts smoke index-all index-repo mcp status
 
 dev:
 	@docker compose up -d
@@ -23,12 +23,15 @@ smoke:
 
 index-all:
 	@mkdir -p logs
-	@docker compose exec -T indexer-ruby ./bin/index all | tee logs/indexer.log || true
+	@docker compose exec -T indexer-ruby ./bin/index all 2>&1 | tee -a logs/indexer.log
 
 index-repo:
 	@test -n "$(repo)" || (echo "usage: make index-repo repo=<name>" && exit 2)
 	@mkdir -p logs
-	@docker compose exec -T indexer-ruby ./bin/index $(repo) | tee logs/indexer.log || true
+	@docker compose exec -T indexer-ruby ./bin/index $(repo) 2>&1 | tee -a logs/indexer.log
 
 mcp:
 	@docker compose up -d mcp-ruby
+
+status:
+	@docker compose exec -T indexer-ruby ./bin/status

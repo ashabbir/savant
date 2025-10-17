@@ -1,0 +1,48 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'time'
+require_relative '../lib/savant/db'
+
+begin
+  db = Savant::DB.new
+  conn = db.instance_variable_get(:@conn)
+
+  rows = conn.exec(<<~SQL)
+    SELECT r.id, r.name,
+           COUNT(DISTINCT f.id)  AS files,
+           COUNT(DISTINCT b.id)  AS blobs,
+           COUNT(c.id)           AS chunks,
+           MAX(f.mtime_ns)       AS max_mtime_ns
+    FROM repos r
+    LEFT JOIN files f        ON f.repo_id = r.id
+    LEFT JOIN file_blob_map fb ON fb.file_id = f.id
+    LEFT JOIN blobs b        ON b.id = fb.blob_id
+    LEFT JOIN chunks c       ON c.blob_id = b.id
+    GROUP BY r.id, r.name
+    ORDER BY r.name;
+  SQL
+
+  total_files = 0
+  total_blobs = 0
+  total_chunks = 0
+
+  puts "STATUS ts=#{Time.now.utc.iso8601} repos=#{rows.ntuples}"
+  rows.each do |r|
+    max_ns = r['max_mtime_ns']
+    last_ts = max_ns ? Time.at(max_ns.to_i / 1_000_000_000.0).utc.iso8601 : '-'
+    files  = r['files'].to_i
+    blobs  = r['blobs'].to_i
+    chunks = r['chunks'].to_i
+    total_files  += files
+    total_blobs  += blobs
+    total_chunks += chunks
+    puts "repo=#{r['name']} files=#{files} blobs=#{blobs} chunks=#{chunks} last_mtime=#{last_ts}"
+  end
+  puts "TOTAL files=#{total_files} blobs=#{total_blobs} chunks=#{total_chunks}"
+  exit 0
+rescue => e
+  warn "STATUS ERROR: #{e.class}: #{e.message}"
+  exit 1
+end
+

@@ -23,6 +23,8 @@ module Savant
       targets.each do |repo|
         root = repo['path']
         ignores = Array(repo['ignore'])
+        # Merge patterns from .gitignore and .git/info/exclude
+        ignores.concat(load_gitignore_patterns(root))
         files = Dir.glob(File.join(root, '**', '*'), File::FNM_DOTMATCH)
                    .select { |p| File.file?(p) }
         repo_id = db.find_or_create_repo(repo['name'], root)
@@ -38,34 +40,67 @@ module Savant
           end
           kept << rel
           total += 1
-          stat = File.stat(abs)
-          key = cache_key(repo['name'], rel)
-          meta = { 'size' => stat.size, 'mtime_ns' => (stat.mtime.nsec + stat.mtime.to_i * 1_000_000_000) }
-          if unchanged?(key, meta)
-            skipped += 1
-            log.debug("skip: item=#{rel} reason=unchanged") if verbose
-            next
-          end
+          begin
+            stat = File.stat(abs)
+            # Skip files larger than configured max size (KB)
+            max_bytes = (@cfg['indexer']['maxFileSizeKB'].to_i) * 1024
+            if max_bytes > 0 && stat.size > max_bytes
+              skipped += 1
+              log.debug("skip: item=#{rel} reason=too_large size=#{stat.size}B max=#{max_bytes}B") if verbose
+              next
+            end
+            key = cache_key(repo['name'], rel)
+            meta = { 'size' => stat.size, 'mtime_ns' => (stat.mtime.nsec + stat.mtime.to_i * 1_000_000_000) }
+            if unchanged?(key, meta)
+              skipped += 1
+              log.debug("skip: item=#{rel} reason=unchanged") if verbose
+              next
+            end
           # Compute hash and ensure blob exists (dedupe by content)
           hash = Digest::SHA256.file(abs).hexdigest
           Savant::DB.new # ensure class loaded
           blob_id = db.find_or_create_blob(hash, stat.size)
           # Chunk file content according to settings
           lang = lang_for(rel)
+          # Skip files with extensions not in allowed language list (if provided)
+          allowed = Array(@cfg.dig('indexer', 'languages')).map { |s| s.to_s.downcase }
+          if !allowed.empty? && !allowed.include?(lang)
+            skipped += 1
+            log.debug("skip: item=#{rel} reason=unsupported_lang lang=#{lang}") if verbose
+            next
+          end
+          # Quick binary detection — skip if head contains NUL byte
+          File.open(abs, 'rb') do |f|
+            head = f.read(4096) || ""
+            if head.include?("\x00")
+              skipped += 1
+              log.debug("skip: item=#{rel} reason=binary") if verbose
+              next
+            end
+          end
           log.debug("classify: item=#{rel} kind=#{lang}") if verbose
           kind_counts[lang] += 1
           chunks = build_chunks(abs, lang)
-          db.replace_chunks(blob_id, chunks)
-          file_id = db.upsert_file(repo_id, rel, stat.size, meta['mtime_ns'])
-          db.map_file_to_blob(file_id, blob_id)
-          @cache[key] = meta
-          changed += 1
-          processed += 1
-          pct = files.length > 0 ? ((processed.to_f / files.length) * 100).round : 100
-          log.info("progress: repo=#{repo['name']} item=#{rel} done=#{processed}/#{files.length} (~#{pct}%)") if verbose
+            db.replace_chunks(blob_id, chunks)
+            file_id = db.upsert_file(repo_id, rel, stat.size, meta['mtime_ns'])
+            db.map_file_to_blob(file_id, blob_id)
+            @cache[key] = meta
+            changed += 1
+            processed += 1
+            pct = files.length > 0 ? ((processed.to_f / files.length) * 100).round : 100
+            log.info("progress: repo=#{repo['name']} item=#{rel} done=#{processed}/#{files.length} (~#{pct}%)") if verbose
+          rescue => e
+            skipped += 1
+            log.info("skip: item=#{rel} reason=error class=#{e.class} msg=#{e.message.inspect}") if verbose
+            next
+          end
         end
         # Remove files no longer present
-        db.delete_missing_files(repo_id, kept)
+        begin
+          db.delete_missing_files(repo_id, kept)
+        rescue => e
+          log.info("skip: repo=#{repo['name']} reason=cleanup_error class=#{e.class} msg=#{e.message.inspect}") if verbose
+        end
         # Emit counts summary
         if kind_counts.any?
           counts_line = kind_counts.map { |k,v| "#{k}=#{v}" }.join(' ')
@@ -89,7 +124,12 @@ module Savant
     end
 
     def ignored?(rel, patterns)
-      patterns.any? { |g| File.fnmatch?(g, rel, File::FNM_PATHNAME | File::FNM_DOTMATCH | File::FNM_EXTGLOB) }
+      # Always skip .git and any hidden (dot) files or directories
+      return true if rel == '.git' || rel.start_with?('.git/')
+      return true if rel.split('/').any? { |part| part.start_with?('.') }
+      patterns.any? { |g|
+        File.fnmatch?(g, rel, File::FNM_PATHNAME | File::FNM_DOTMATCH | File::FNM_EXTGLOB)
+      }
     end
 
     def cache_key(repo, rel)
@@ -108,6 +148,25 @@ module Savant
       dir = File.dirname(CACHE_PATH)
       Dir.mkdir(dir) unless Dir.exist?(dir)
       File.write(CACHE_PATH, JSON.pretty_generate(@cache))
+    end
+
+    def load_gitignore_patterns(root)
+      patterns = []
+      [File.join(root, '.gitignore'), File.join(root, '.git', 'info', 'exclude')].each do |path|
+        next unless File.file?(path)
+        File.readlines(path, chomp: true).each do |line|
+          line = line.strip
+          next if line.empty? || line.start_with?('#')
+          next if line.start_with?('!') # negation not supported in this simple matcher
+          pat = line
+          # Treat patterns without '/' as matching in any subdirectory
+          pat = "**/#{pat}" unless pat.include?('/')
+          # Ensure directories ending with '/' match all under them
+          pat = "#{pat}**" if pat.end_with?('/')
+          patterns << pat
+        end
+      end
+      patterns
     end
 
     def lang_for(rel)
@@ -136,8 +195,10 @@ module Savant
         while i < lines.length
           j = [i + max_lines, lines.length].min
           slices << lines[i...j].join
-          i = j - overlap
-          i = i <= 0 ? j : i
+          break if j >= lines.length
+          next_i = j - overlap
+          # Ensure forward progress; if overlap would stall, advance to j
+          i = next_i <= i ? j : next_i
         end
       end
       slices.each_with_index.map { |chunk, idx| [idx, lang, chunk] }

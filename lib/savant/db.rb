@@ -119,10 +119,10 @@ module Savant
       if keep_rels.empty?
         @conn.exec_params('DELETE FROM files WHERE repo_id=$1', [repo_id])
       else
-        @conn.exec_params(
-          'DELETE FROM files WHERE repo_id=$1 AND rel_path <> ALL($2)',
-          [repo_id, keep_rels]
-        )
+        # Use a dynamic parameter list to avoid malformed array literals
+        placeholders = keep_rels.each_index.map { |i| "$#{i + 2}" }.join(',')
+        sql = "DELETE FROM files WHERE repo_id=$1 AND rel_path NOT IN (#{placeholders})"
+        @conn.exec_params(sql, [repo_id] + keep_rels)
       end
       true
     end

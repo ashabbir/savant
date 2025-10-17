@@ -1,1 +1,134 @@
-{}
+{
+  "crawler::AGENTS.md": {
+    "size": 2673,
+    "mtime_ns": 1756738896652159438
+  },
+  "crawler::Gemfile": {
+    "size": 294,
+    "mtime_ns": 1756699255077150594
+  },
+  "crawler::README.md": {
+    "size": 1679,
+    "mtime_ns": 1756738885168531687
+  },
+  "crawler::Rakefile": {
+    "size": 591,
+    "mtime_ns": 1756738985286150771
+  },
+  "crawler::bin/crawl": {
+    "size": 3492,
+    "mtime_ns": 1756738817393045991
+  },
+  "crawler::bin/setup": {
+    "size": 272,
+    "mtime_ns": 1756698820909906611
+  },
+  "crawler::config/crawler.yml.sample": {
+    "size": 170,
+    "mtime_ns": 1760668253504531181
+  },
+  "crawler::docs/DEVELOPMENT_CHRONICLE.md": {
+    "size": 4600,
+    "mtime_ns": 1756739468457882258
+  },
+  "crawler::docs/PRD.md": {
+    "size": 2556,
+    "mtime_ns": 1756739207739249954
+  },
+  "crawler::docs/status.md": {
+    "size": 1871,
+    "mtime_ns": 1756742680700365388
+  },
+  "crawler::docs/workflows.md": {
+    "size": 1922,
+    "mtime_ns": 1756762531483990837
+  },
+  "crawler::lib/crawler/config.rb": {
+    "size": 584,
+    "mtime_ns": 1756738633383450920
+  },
+  "crawler::lib/crawler/extractor.rb": {
+    "size": 881,
+    "mtime_ns": 1756699259043245292
+  },
+  "crawler::lib/crawler/log.rb": {
+    "size": 991,
+    "mtime_ns": 1756762799357112348
+  },
+  "crawler::lib/crawler/orchestrator.rb": {
+    "size": 3756,
+    "mtime_ns": 1756762786786434781
+  },
+  "crawler::lib/crawler/page_fetcher.rb": {
+    "size": 1755,
+    "mtime_ns": 1756762794490967634
+  },
+  "crawler::lib/crawler/robots.rb": {
+    "size": 1933,
+    "mtime_ns": 1756762797919301076
+  },
+  "crawler::lib/crawler/search/google.rb": {
+    "size": 1540,
+    "mtime_ns": 1756738637428869713
+  },
+  "crawler::lib/crawler/search/reddit.rb": {
+    "size": 1710,
+    "mtime_ns": 1756738644140946118
+  },
+  "crawler::lib/crawler/summarizer.rb": {
+    "size": 1632,
+    "mtime_ns": 1756699284826396219
+  },
+  "crawler::lib/crawler/version.rb": {
+    "size": 71,
+    "mtime_ns": 1756698827282933713
+  },
+  "crawler::lib/crawler.rb": {
+    "size": 649,
+    "mtime_ns": 1756699223812589417
+  },
+  "crawler::spec/crawler/config_spec.rb": {
+    "size": 720,
+    "mtime_ns": 1756738626314316699
+  },
+  "crawler::spec/crawler/extractor_spec.rb": {
+    "size": 900,
+    "mtime_ns": 1756699262544207589
+  },
+  "crawler::spec/crawler/log_spec.rb": {
+    "size": 963,
+    "mtime_ns": 1756738778882036343
+  },
+  "crawler::spec/crawler/orchestrator_spec.rb": {
+    "size": 4144,
+    "mtime_ns": 1756738801215018365
+  },
+  "crawler::spec/crawler/page_fetcher_spec.rb": {
+    "size": 1835,
+    "mtime_ns": 1756738797662570852
+  },
+  "crawler::spec/crawler/robots_spec.rb": {
+    "size": 755,
+    "mtime_ns": 1756738497593511493
+  },
+  "crawler::spec/crawler/search/google_spec.rb": {
+    "size": 1426,
+    "mtime_ns": 1756738646761365571
+  },
+  "crawler::spec/crawler/search/reddit_spec.rb": {
+    "size": 1486,
+    "mtime_ns": 1756738652040308926
+  },
+  "crawler::spec/crawler/summarizer_spec.rb": {
+    "size": 688,
+    "mtime_ns": 1756699288813793329
+  },
+  "crawler::spec/quality/rake_tasks_spec.rb": {
+    "size": 546,
+    "mtime_ns": 1756738990734076256
+  },
+  "crawler::spec/spec_helper.rb": {
+    "size": 457,
+    "mtime_ns": 1756739034873894896
+  }
+}
