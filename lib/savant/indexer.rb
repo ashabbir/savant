@@ -63,7 +63,7 @@ module Savant
           # Chunk file content according to settings
           lang = lang_for(rel)
           # Skip files with extensions not in allowed language list (if provided)
-          allowed = Array(@cfg.dig('indexer', 'languages')).map { |s| s.to_s.downcase }
+          allowed = Array(@cfg.dig('indexer','languages')).map { |s| s.to_s.downcase }
           if !allowed.empty? && !allowed.include?(lang)
             skipped += 1
             log.debug("skip: item=#{rel} reason=unsupported_lang lang=#{lang}") if verbose
@@ -117,9 +117,9 @@ module Savant
 
     def select_repos(name)
       if name
-        @cfg['repos'].select { |r| r['name'] == name }
+        @cfg['indexer']['repos'].select { |r| r['name'] == name }
       else
-        @cfg['repos']
+        @cfg['indexer']['repos']
       end
     end
 

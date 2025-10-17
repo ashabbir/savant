@@ -1,3 +1,4 @@
 /logs/
-settings.json
+config/settings.json
+.env
 .cache

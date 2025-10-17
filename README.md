@@ -71,19 +71,22 @@ sequenceDiagram
 ## Configuration Examples
 - Primary configuration lives in `config/settings.json` (see example below). The stack reads it via `SETTINGS_PATH`.
 
-Minimal `config/settings.json` example:
+Minimal `config/settings.json` example (top-level sections):
 
 ```json
 {
   "indexer": {
     "maxFileSizeKB": 512,
     "languages": ["rb", "ts", "tsx", "js", "md", "yml", "yaml", "json"],
-    "chunk": { "mdMaxChars": 1200, "codeMaxLines": 200, "overlapLines": 3 }
+    "chunk": { "mdMaxChars": 1200, "codeMaxLines": 200, "overlapLines": 3 },
+    "repos": [
+      { "name": "example", "path": "/host/example-repo", "ignore": ["node_modules/**", "tmp/**", ".git/**"] }
+    ]
   },
-  "repos": [
-    { "name": "example", "path": "/host/example-repo", "ignore": ["node_modules/**", "tmp/**", ".git/**"] }
-  ],
-  "mcp": { "listenHost": "0.0.0.0", "listenPort": 8765, "allowOrigins": ["*"] },
+  "mcp": {
+    "context": { "listenHost": "0.0.0.0", "listenPort": 8765, "allowOrigins": ["*"] },
+    "jira":    { "listenHost": "0.0.0.0", "listenPort": 8766, "allowOrigins": ["*"] }
+  },
   "database": { "host": "postgres", "port": 5432, "db": "contextdb", "user": "context", "password": "contextpw" }
 }
 ```
@@ -104,12 +107,58 @@ Notes:
 - **Down:** `make down`
 - **PS:** `make ps`
 
+## MCP Servers
+Context MCP
+- Start (background): `make mcp-context`
+- Run (foreground, debug): `make mcp-context-run`
+- Connect client: `ws://localhost:<contextPort>` (from `mcp.context.listenPort` in settings)
+- Test: ``make mcp-test q='User' limit=5 repo=crawler``
+
+Jira MCP
+- Start (background): `make mcp-jira`
+- Run (foreground, debug): `make mcp-jira-run`
+- Connect client: `ws://localhost:<jiraPort>` (from `mcp.jira.listenPort` in settings)
+- Test: ``make jira-test jql='project = ABC order by updated desc' limit=5``
+
+Logging
+- Default log level can be set via `LOG_LEVEL` env (`debug`|`info`|`warn`|`error`).
+- `make mcp-run` sets `LOG_LEVEL=debug` for verbose output.
+- MCP logs include: startup tools list, per-request timings, request/response sizes, and error reasons.
+
+## Jira Configuration
+- Option A: Env vars (quick start)
+  - `JIRA_BASE_URL`, and either `JIRA_EMAIL` + `JIRA_API_TOKEN` (Cloud) or `JIRA_USERNAME` + `JIRA_PASSWORD` (Server).
+  - Add to your shell or `.env` (Compose auto-loads `.env`).
+
+- Option B: Config file (recommended)
+  - Create `config/jira.json` from `config/jira.example.json`.
+  - Compose mounts it and sets `JIRA_CONFIG_PATH=/app/config/jira.json` automatically.
+  - File schema:
+    - `baseUrl`: Jira base URL
+    - `email` + `apiToken` (Cloud) or `username` + `password` (Server)
+    - `fields`: optional list of fields to return
+  - Env vars still work and are used as fallback. Precedence: config file > env > defaults.
+
+Example `config/jira.json`:
+
+```
+{
+  "baseUrl": "https://your-domain.atlassian.net",
+  "email": "you@company.com",
+  "apiToken": "your_api_token",
+  "fields": ["key", "summary", "status", "assignee", "updated"]
+}
+```
+
 Common ops:
 - Tail logs: `docker compose logs -f indexer-ruby mcp-ruby`
 - Readiness grep: `docker compose logs mcp-ruby | rg '^READY'`
 
 ## Configuration
 - Provide `config/settings.json` (see `config/settings.example.json`).
+- Single source of truth includes:
+  - `search`: indexer, repos, database, and MCP listen settings for the search MCP.
+  - `jira`: Jira MCP configuration (`baseUrl`, auth, optional `fields`).
 - The compose stack mounts `settings.json` and services read via `SETTINGS_PATH`.
 
 ## Usage Summary

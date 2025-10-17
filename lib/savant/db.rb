@@ -126,5 +126,22 @@ module Savant
       end
       true
     end
+
+    def delete_repo_by_name(name)
+      res = @conn.exec_params('SELECT id FROM repos WHERE name=$1', [name])
+      return 0 if res.ntuples.zero?
+      rid = res[0]['id']
+      @conn.exec_params('DELETE FROM repos WHERE id=$1', [rid])
+      1
+    end
+
+    def delete_all_data
+      @conn.exec('DELETE FROM file_blob_map')
+      @conn.exec('DELETE FROM files')
+      @conn.exec('DELETE FROM chunks')
+      @conn.exec('DELETE FROM blobs')
+      @conn.exec('DELETE FROM repos')
+      true
+    end
   end
 end

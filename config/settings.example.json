@@ -7,27 +7,34 @@
       "mdMaxChars": 1200,
       "codeMaxLines": 200,
       "overlapLines": 3
-    }
+    },
+    "repos": [
+      {
+        "name": "example",
+        "path": "/host/example-repo",
+        "ignore": [
+          "node_modules/**",
+          "tmp/**",
+          "vendor/**",
+          "log/**",
+          ".git/**",
+          ".next/**",
+          "dist/**"
+        ]
+      }
+    ]
   },
-  "repos": [
-    {
-      "name": "example",
-      "path": "/host/example-repo",
-      "ignore": [
-        "node_modules/**",
-        "tmp/**",
-        "vendor/**",
-        "log/**",
-        ".git/**",
-        ".next/**",
-        "dist/**"
-      ]
-    }
-  ],
   "mcp": {
-    "listenHost": "0.0.0.0",
-    "listenPort": 8765,
-    "allowOrigins": ["*"]
+    "context": { "listenHost": "0.0.0.0", "listenPort": 8765, "allowOrigins": ["*"] },
+    "jira":    { "listenHost": "0.0.0.0", "listenPort": 8766, "allowOrigins": ["*"] }
+  },
+  "jira": {
+    "baseUrl": "https://your-domain.atlassian.net",
+    "email": "you@company.com",
+    "apiToken": "your_api_token",
+    "username": "",
+    "password": "",
+    "fields": ["key", "summary", "status", "assignee", "updated"]
   },
   "database": {
     "host": "postgres",

@@ -20,10 +20,10 @@ module Savant
     end
 
     def self.validate!(cfg)
+      # Validate new layout: indexer + repos + mcp + database at root
       req = {
-        'indexer' => %w[maxFileSizeKB languages chunk],
-        'repos' => nil,
-        'mcp' => %w[listenHost listenPort],
+        'indexer' => %w[maxFileSizeKB languages chunk repos],
+        'mcp' => nil,
         'database' => %w[host port db user password]
       }
 
@@ -36,10 +36,10 @@ module Savant
         end
       end
 
-      unless cfg['repos'].is_a?(Array) && cfg['repos'].any?
+      unless cfg.dig('indexer','repos').is_a?(Array) && cfg['indexer']['repos'].any?
         raise ConfigError, "repos must be a non-empty array"
       end
-      cfg['repos'].each do |r|
+      cfg['indexer']['repos'].each do |r|
         raise ConfigError, "repo missing name" unless r['name'].is_a?(String) && !r['name'].empty?
         raise ConfigError, "repo #{r['name']} missing path" unless r['path'].is_a?(String) && !r['path'].empty?
         if r['ignore'] && !r['ignore'].is_a?(Array)
