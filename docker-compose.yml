@@ -12,7 +12,7 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - "5433:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U context -d contextdb"]
       interval: 5s
@@ -28,21 +28,19 @@ services:
         condition: service_healthy
     working_dir: /app
     environment:
-      SETTINGS_PATH: /app/settings.json
       DATABASE_URL: postgres://context:contextpw@postgres:5432/contextdb
     volumes:
       - ./:/app:rw
-      - ./config/settings.json:/app/settings.json:ro
-      - /Users/home/code/ruby/crawler:/host/crawler:ro
+      - ../:/host:ro
     command: >-
       /bin/sh -lc '
-        if [ ! -f /app/settings.json ]; then
-          echo "ERROR: missing settings.json at /app/settings.json" >&2; exit 1; fi;
+        if [ ! -f /app/config/settings.json ]; then
+          echo "ERROR: missing settings.json at /app/config/settings.json" >&2; exit 1; fi;
         echo "INDEXER READY";
         tail -f /dev/null
       '
     healthcheck:
-      test: ["CMD-SHELL", "[ -f /app/settings.json ]"]
+      test: ["CMD-SHELL", "[ -f /app/config/settings.json ]"]
       interval: 5s
       timeout: 3s
       retries: 5
