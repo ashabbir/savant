@@ -164,9 +164,135 @@ Commands
 - No Docker: `MCP_SERVICE=jira DATABASE_URL=... SETTINGS_PATH=... ruby ./bin/mcp_server`
 - Test: ``make jira-test jql='project = ABC order by updated desc' limit=10``
 
-## Utility Targets
-- `make dev`: start stack · `make logs`: tail logs · `make ps`: status · `make down`: stop stack
-- `make mcp`: start both MCPs (context + jira)
+## Make Targets
+
+| Target | Description | Variables / Usage |
+|---|---|---|
+| `dev` | Start Docker stack (Postgres + services) | `make dev` |
+| `logs` | Follow indexer + MCP logs | `make logs` |
+| `ps` | List compose services | `make ps` |
+| `down` | Stop stack and remove containers (keep volume) | `make down` |
+| `migrate` | Create/upgrade tables | `make migrate` |
+| `fts` | Ensure FTS index exists | `make fts` |
+| `smoke` | Quick DB check (migrate + FTS ok) | `make smoke` |
+| `index-all` | Index all repos; append to `logs/indexer.log` | `make index-all` |
+| `index-repo` | Index a single repo | `make index-repo repo=<name>` |
+| `delete-all` | Delete all indexed data | `make delete-all` |
+| `delete-repo` | Delete one repo’s indexed data | `make delete-repo repo=<name>` |
+| `status` | Per‑repo files/blobs/chunks counters | `make status` |
+| `mcp` | Start both MCPs (context + jira) | `make mcp` |
+| `mcp-test` | Test Context MCP `search` | `make mcp-test q='<term>' [repo=<name>] [limit=5]` |
+| `mcp-context` | Start Context MCP (background) | `make mcp-context` |
+| `mcp-context-run` | Run Context MCP in foreground (debug) | `make mcp-context-run` |
+| `mcp-jira` | Start Jira MCP (background) | `make mcp-jira` |
+| `mcp-jira-run` | Run Jira MCP in foreground (debug) | `make mcp-jira-run` |
+| `jira-test` | Test Jira MCP JQL search | `make jira-test jql='<JQL>' [limit=10]` |
+| `jira-self` | Quick Jira auth check | `make jira-self` |
+
+## Make Variables
+
+| Variable | Description | Example |
+|---|---|---|
+| `repo` | Repository name from `config/settings.json` | `make index-repo repo=crawler` |
+| `q` | Search query string for Context MCP | `make mcp-test q='User'` |
+| `limit` | Max results for MCP tools | `make mcp-test q='User' limit=5` |
+| `jql` | Jira JQL query string | `make jira-test jql='project = ABC order by updated desc'` |
+
+## Environment Variables
+
+| Env Var | Purpose | Default |
+|---|---|---|
+| `SETTINGS_PATH` | Path to settings JSON | `config/settings.json` (host) / `/app/settings.json` (container) |
+| `DATABASE_URL` | Postgres connection string | `postgres://context:contextpw@localhost:5432/contextdb` (host) |
+| `MCP_SERVICE` | Select MCP profile (`context` or `jira`) | `context` |
+| `LISTEN_HOST` | MCP listen host | `0.0.0.0` |
+| `LISTEN_PORT` | MCP listen port | `8765` (context), `8766` (jira) |
+| `LOG_LEVEL` | Logging level | `info` |
+| `JIRA_BASE_URL` | Jira base URL | — |
+| `JIRA_EMAIL` / `JIRA_API_TOKEN` | Jira Cloud credentials | — |
+| `JIRA_USERNAME` / `JIRA_PASSWORD` | Jira Server credentials | — |
+| `JIRA_CONFIG_PATH` | Optional Jira config file path | Set by compose to `/app/config/jira.json` if provided |
+
+## Ports
+
+| Service | Port |
+|---|---|
+| Context MCP | `8765` |
+| Jira MCP | `8766` |
+
+## IDE Integration
+
+### VS Code (Cline)
+- Install the Cline extension and open Settings (JSON).
+- Add MCP servers under `cline.mcpServers` using stdio launch:
+
+```jsonc
+{
+  "cline.mcpServers": {
+    "savant-context": {
+      "command": "ruby",
+      "args": ["./bin/mcp_server"],
+      "env": {
+        "MCP_SERVICE": "context",
+        "SETTINGS_PATH": "${workspaceFolder}/config/settings.json",
+        "DATABASE_URL": "postgres://context:contextpw@localhost:5432/contextdb"
+      }
+    },
+    "savant-jira": {
+      "command": "ruby",
+      "args": ["./bin/mcp_server"],
+      "env": {
+        "MCP_SERVICE": "jira",
+        "SETTINGS_PATH": "${workspaceFolder}/config/settings.json",
+        "DATABASE_URL": "postgres://context:contextpw@localhost:5432/contextdb",
+        "JIRA_BASE_URL": "https://your-domain.atlassian.net",
+        "JIRA_EMAIL": "you@company.com",
+        "JIRA_API_TOKEN": "<token>"
+      }
+    }
+  }
+}
+```
+
+Notes
+- Use your actual DB URL if different; Cline launches the process and communicates via stdio, so no port mapping is required.
+- To use Docker instead, point `command` to `docker` and `args` to a `compose run --rm mcp-context ruby ./bin/mcp_server` equivalent.
+
+### Claude Code (VS Code)
+- Install the Claude Code extension and open its Settings (JSON).
+- Add MCP servers similarly (exact setting name may vary by version):
+
+```jsonc
+{
+  "claudeCode.mcpServers": {
+    "savant-context": {
+      "command": "ruby",
+      "args": ["./bin/mcp_server"],
+      "env": {
+        "MCP_SERVICE": "context",
+        "SETTINGS_PATH": "${workspaceFolder}/config/settings.json",
+        "DATABASE_URL": "postgres://context:contextpw@localhost:5432/contextdb"
+      }
+    },
+    "savant-jira": {
+      "command": "ruby",
+      "args": ["./bin/mcp_server"],
+      "env": {
+        "MCP_SERVICE": "jira",
+        "SETTINGS_PATH": "${workspaceFolder}/config/settings.json",
+        "DATABASE_URL": "postgres://context:contextpw@localhost:5432/contextdb",
+        "JIRA_BASE_URL": "https://your-domain.atlassian.net",
+        "JIRA_EMAIL": "you@company.com",
+        "JIRA_API_TOKEN": "<token>"
+      }
+    }
+  }
+}
+```
+
+Verify
+- In the extension, open the MCP/Tools panel and confirm tools are listed: `search` for Context; `jira_search` and `jira_self` for Jira.
+- Run a quick test: ask the assistant to use `search` for a term in your repo, or run the provided Make tests.
 
 ## MCP Testing
 - Quick: ``make mcp-test q='User'`` · Repo filter: ``make mcp-test q='Foo' repo=<name>``
