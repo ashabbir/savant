@@ -98,10 +98,10 @@ With Make
 - Tools and editors need a standard interface to local context search and Jira without exposing secrets or raw DB access.
 
 ### Solution
-- Two Ruby MCP servers: Context (search via Postgres FTS) and Jira (JQL via Jira REST), each exposed over WebSocket/stdin for easy client integration.
+- Two Ruby MCP servers: Context (search via Postgres FTS) and Jira (JQL via Jira REST), both speaking MCP over stdio (JSON‑RPC 2.0) for easy client integration.
 
 ### Approach
-- Config-driven ports and credentials; strict outputs; timing + size logging for observability.
+- Stdio JSON‑RPC transport; strict schemas; timing + size logging for observability.
 - Context MCP depends on DB; Jira MCP depends on Jira credentials or config file.
 
 
@@ -115,7 +115,7 @@ Solution
 - `tool: search` backed by Postgres FTS in the same DB the indexer maintains.
 
 Approach
-- Accept requests over ws/stdin; sanitize inputs; log timings and payload sizes; return hits with metadata/snippets.
+- Accept requests over stdio (JSON‑RPC); sanitize inputs; log timings and payload sizes; return hits with metadata/snippets.
 
 Diagram
 ```mermaid
@@ -205,8 +205,8 @@ Commands
 | `SETTINGS_PATH` | Path to settings JSON | `config/settings.json` (host) / `/app/settings.json` (container) |
 | `DATABASE_URL` | Postgres connection string | `postgres://context:contextpw@localhost:5432/contextdb` (host) |
 | `MCP_SERVICE` | Select MCP profile (`context` or `jira`) | `context` |
-| `LISTEN_HOST` | MCP listen host | `0.0.0.0` |
-| `LISTEN_PORT` | MCP listen port | `8765` (context), `8766` (jira) |
+| `LISTEN_HOST` | Optional future network mode | `0.0.0.0` |
+| `LISTEN_PORT` | Optional future network mode | `8765` (context), `8766` (jira) |
 | `LOG_LEVEL` | Logging level | `info` |
 | `JIRA_BASE_URL` | Jira base URL | — |
 | `JIRA_EMAIL` / `JIRA_API_TOKEN` | Jira Cloud credentials | — |
@@ -215,16 +215,55 @@ Commands
 
 ## Ports
 
+These are for Docker debugging only. Cline uses stdio and does not require ports.
+
 | Service | Port |
 |---|---|
 | Context MCP | `8765` |
 | Jira MCP | `8766` |
 
+## Local PostgreSQL
+
+- You can point Indexer and MCP to a Postgres running on your machine.
+- Cline + Docker containers: set `DATABASE_URL` host to `host.docker.internal` (Linux: add `extra_hosts: ["host.docker.internal:host-gateway"]` under each service in `docker-compose.yml`).
+- Cline without Docker: use `localhost` in `DATABASE_URL`.
+- Indexer via Make (containers): either override per call
+  - `docker compose exec -e DATABASE_URL=postgres://USER:PASS@host.docker.internal:5432/DBNAME -T indexer-ruby ./bin/db_migrate`
+  - and similarly for `./bin/db_fts`, `./bin/index all`, `./bin/status`
+  - or set `DATABASE_URL` in `docker-compose.yml` for `indexer-ruby`, `mcp-context`, and `mcp-jira`.
+- If SSL interferes locally, append `?sslmode=disable` to `DATABASE_URL`.
+
 ## IDE Integration
 
+### Cline (Docker, preferred)
+- Open this repo folder in VS Code (workspace root must contain `docker-compose.yml`).
+- Prepare services: `docker compose build` then `make dev` (starts Postgres). Ensure `config/settings.json` exists; Jira creds can be in `settings.json` (jira section), `.env`, or env vars.
+- In Settings (JSON), add:
+
+```jsonc
+{
+  "cline.mcpServers": {
+    "savant-context": {
+      "command": "docker",
+      "args": ["compose", "run", "--rm", "-T", "mcp-context"]
+    },
+    "savant-jira": {
+      "command": "docker",
+      "args": ["compose", "run", "--rm", "-T", "mcp-jira"]
+      // Optionally surface Jira creds to compose via this process env:
+      // "env": { "JIRA_BASE_URL": "https://...", "JIRA_EMAIL": "you@company.com", "JIRA_API_TOKEN": "..." }
+    }
+  }
+}
+```
+
+Notes
+- Cline talks via stdio, so no ports are required. `compose run` launches a fresh container per session using the service env/volumes defined in `docker-compose.yml`.
+- If your Jira config lives in `config/settings.json`, you don’t need to set `JIRA_*` env. If you prefer `.env`, keep it at repo root so compose picks it up.
+
 ### VS Code (Cline)
-- Install the Cline extension and open Settings (JSON).
-- Add MCP servers under `cline.mcpServers` using stdio launch:
+- Cline launches MCP servers as child processes and communicates over stdio (no ports).
+- Install Cline and add entries under `cline.mcpServers`:
 
 ```jsonc
 {
@@ -255,12 +294,11 @@ Commands
 ```
 
 Notes
-- Use your actual DB URL if different; Cline launches the process and communicates via stdio, so no port mapping is required.
-- To use Docker instead, point `command` to `docker` and `args` to a `compose run --rm mcp-context ruby ./bin/mcp_server` equivalent.
+- Use your actual DB URL if different; Cline talks via stdio, so no port mapping is required.
+- Docker alternative: set `command` to `docker` and `args` to `compose run --rm -T mcp-context` (or `mcp-jira`).
 
 ### Claude Code (VS Code)
-- Install the Claude Code extension and open its Settings (JSON).
-- Add MCP servers similarly (exact setting name may vary by version):
+- Claude Code also launches servers via stdio; add entries similarly (setting name may vary by version):
 
 ```jsonc
 {
