@@ -1,5 +1,8 @@
 .PHONY: dev logs down ps migrate fts smoke index-all index-repo status mcp-test jira-test jira-self delete-all delete-repo
 
+# Ensure rbenv shims take precedence in Make subshells
+export PATH := $(HOME)/.rbenv/shims:$(PATH)
+
 dev:
 	@docker compose up -d
 
