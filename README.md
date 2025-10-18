@@ -136,7 +136,7 @@ sequenceDiagram
 ```
 
 Commands
-- Run on host: `MCP_SERVICE=context SAVANT_PATH=$(pwd) DATABASE_URL=postgres://context:contextpw@localhost:5432/contextdb SETTINGS_PATH=config/settings.json ruby ./bin/mcp_server`
+- Run on host: `MCP_SERVICE=context SAVANT_PATH=$(pwd) DATABASE_URL=postgres://context:contextpw@localhost:5433/contextdb SETTINGS_PATH=config/settings.json ruby ./bin/mcp_server`
 - Test: ``make mcp-test q='User' repo=<name> limit=5`` (runs host MCP against Docker Postgres)
 
 Memory Bank tools (additive)
