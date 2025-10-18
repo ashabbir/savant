@@ -1,7 +1,7 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- **Docs:** `docs/epics/` for roadmap epics; `docs/prds/prd.md` for product requirements.
+- **Docs:** `docs/prds/` for product requirements.
 - **Planned code:** add runtime code in `src/` and tests in `tests/`. Use `examples/` for runnable snippets and `scripts/` for helper tooling.
 - **Naming:** prefer lowercase, hyphenated directory names (e.g., `model-server/`) and snake_case for files unless language norms differ.
 
