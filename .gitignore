@@ -2,3 +2,7 @@
 config/settings.json
 .env
 .cache
+.claude
+.cline
+.clinerules
+CLAUDE.md

@@ -7,6 +7,11 @@ Local repo indexer + MCP search layer (Ruby + Postgres FTS, optional Docker).
 - Components: Indexer CLI, Postgres 16 (GIN/tsvector), MCP servers for Context and Jira.
 - Docs: see `docs/README.md` and `config/` examples.
 
+Postgres
+- Run Postgres via Docker; it is exposed on host port `5433`.
+- You can run the Indexer either inside Docker (via `docker compose`) or directly on your host.
+- For MCP in editors (e.g., Cline), Docker is optional: configure env and Cline runs the MCP server as a child process over stdio.
+
 ## Configuration
 - Provide `config/settings.json` (see `config/settings.example.json`, schema in `config/schema.json`).
 - Mount host repos in `docker-compose.yml` so the indexer can read them.
@@ -132,7 +137,7 @@ sequenceDiagram
 Commands
 - Docker: `docker compose up -d mcp-context` · Logs: `docker compose logs -f mcp-context`
 - Make: `make mcp-context` · Debug: `make mcp-context-run`
-- No Docker: `MCP_SERVICE=context DATABASE_URL=... SETTINGS_PATH=... ruby ./bin/mcp_server`
+- No Docker: `MCP_SERVICE=context SAVANT_PATH=/absolute/path/to/savant DATABASE_URL=... ruby ./bin/mcp_server`
 - Test: ``make mcp-test q='User' repo=<name> limit=5``
 
 ### Jira MCP
@@ -161,7 +166,7 @@ sequenceDiagram
 Commands
 - Docker: `docker compose up -d mcp-jira` · Logs: `docker compose logs -f mcp-jira`
 - Make: `make mcp-jira` · Debug: `make mcp-jira-run` · Auth check: `make jira-self`
-- No Docker: `MCP_SERVICE=jira DATABASE_URL=... SETTINGS_PATH=... ruby ./bin/mcp_server`
+- No Docker: `MCP_SERVICE=jira SAVANT_PATH=/absolute/path/to/savant DATABASE_URL=... ruby ./bin/mcp_server`
 - Test: ``make jira-test jql='project = ABC order by updated desc' limit=10``
 
 ## Make Targets
@@ -205,6 +210,7 @@ Commands
 | `SETTINGS_PATH` | Path to settings JSON | `config/settings.json` (host) / `/app/settings.json` (container) |
 | `DATABASE_URL` | Postgres connection string | `postgres://context:contextpw@localhost:5432/contextdb` (host) |
 | `MCP_SERVICE` | Select MCP profile (`context` or `jira`) | `context` |
+| `SAVANT_PATH` | Base path to Savant repo (used to derive `config/settings.json` and `logs/`) | `./` |
 | `LISTEN_HOST` | Optional future network mode | `0.0.0.0` |
 | `LISTEN_PORT` | Optional future network mode | `8765` (context), `8766` (jira) |
 | `LOG_LEVEL` | Logging level | `info` |
@@ -270,19 +276,19 @@ Notes
   "cline.mcpServers": {
     "savant-context": {
       "command": "ruby",
-      "args": ["./bin/mcp_server"],
+      "args": ["/absolute/path/to/savant/bin/mcp_server"],
       "env": {
         "MCP_SERVICE": "context",
-        "SETTINGS_PATH": "${workspaceFolder}/config/settings.json",
+        "SAVANT_PATH": "/absolute/path/to/savant",
         "DATABASE_URL": "postgres://context:contextpw@localhost:5432/contextdb"
       }
     },
     "savant-jira": {
       "command": "ruby",
-      "args": ["./bin/mcp_server"],
+      "args": ["/absolute/path/to/savant/bin/mcp_server"],
       "env": {
         "MCP_SERVICE": "jira",
-        "SETTINGS_PATH": "${workspaceFolder}/config/settings.json",
+        "SAVANT_PATH": "/absolute/path/to/savant",
         "DATABASE_URL": "postgres://context:contextpw@localhost:5432/contextdb",
         "JIRA_BASE_URL": "https://your-domain.atlassian.net",
         "JIRA_EMAIL": "you@company.com",
@@ -296,6 +302,10 @@ Notes
 Notes
 - Use your actual DB URL if different; Cline talks via stdio, so no port mapping is required.
 - Docker alternative: set `command` to `docker` and `args` to `compose run --rm -T mcp-context` (or `mcp-jira`).
+
+SAVANT_PATH notes
+- Set `SAVANT_PATH` to the base directory of the Savant repo. The server derives `config/settings.json` and `logs/<service>.log` from this path.
+- If you need a custom config location, set `SETTINGS_PATH` explicitly; `SAVANT_PATH` can still be used for logs. Example: `SETTINGS_PATH=/path/to/custom/settings.json`.
 
 ### Claude Code (VS Code)
 - Claude Code also launches servers via stdio; add entries similarly (setting name may vary by version):
