@@ -47,63 +47,7 @@ services:
       timeout: 3s
       retries: 5
 
-  mcp-context:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    depends_on:
-      postgres:
-        condition: service_healthy
-    working_dir: /app
-    environment:
-      MCP_SERVICE: context
-      SETTINGS_PATH: /app/settings.json
-      DATABASE_URL: postgres://context:contextpw@postgres:5432/contextdb
-      JIRA_BASE_URL: ${JIRA_BASE_URL}
-      JIRA_EMAIL: ${JIRA_EMAIL}
-      JIRA_API_TOKEN: ${JIRA_API_TOKEN}
-      JIRA_USERNAME: ${JIRA_USERNAME}
-      JIRA_PASSWORD: ${JIRA_PASSWORD}
-    volumes:
-      - ./:/app:rw
-      - ./config/settings.json:/app/settings.json:ro
-    command: ["ruby", "./bin/mcp_server"]
-    ports:
-      - "8765:8765"
-    healthcheck:
-      test: ["CMD-SHELL", "[ -f /app/settings.json ]"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-
-  mcp-jira:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    depends_on:
-      postgres:
-        condition: service_healthy
-    working_dir: /app
-    environment:
-      MCP_SERVICE: jira
-      SETTINGS_PATH: /app/settings.json
-      DATABASE_URL: postgres://context:contextpw@postgres:5432/contextdb
-      JIRA_BASE_URL: ${JIRA_BASE_URL}
-      JIRA_EMAIL: ${JIRA_EMAIL}
-      JIRA_API_TOKEN: ${JIRA_API_TOKEN}
-      JIRA_USERNAME: ${JIRA_USERNAME}
-      JIRA_PASSWORD: ${JIRA_PASSWORD}
-    volumes:
-      - ./:/app:rw
-      - ./config/settings.json:/app/settings.json:ro
-    command: ["ruby", "./bin/mcp_server"]
-    ports:
-      - "8766:8766"
-    healthcheck:
-      test: ["CMD-SHELL", "[ -f /app/settings.json ]"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
+  # MCP servers now run on host (not in Docker). Use DATABASE_URL to connect to this Postgres.
 
 volumes:
   pgdata:

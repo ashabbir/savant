@@ -7,10 +7,9 @@ Local repo indexer + MCP search layer (Ruby + Postgres FTS, optional Docker).
 - Components: Indexer CLI, Postgres 16 (GIN/tsvector), MCP servers for Context and Jira.
 - Docs: see `docs/README.md` and `config/` examples.
 
-Postgres
-- Run Postgres via Docker; it is exposed on host port `5433`.
-- You can run the Indexer either inside Docker (via `docker compose`) or directly on your host.
-- For MCP in editors (e.g., Cline), Docker is optional: configure env and Cline runs the MCP server as a child process over stdio.
+Runtime modes
+- Docker (Postgres + Indexer), host (MCP servers): Postgres and the indexer run in Docker; MCP servers run on your host.
+- Host-only (advanced): You may run everything on host if you configure Postgres separately.
 
 ## Configuration
 - Provide `config/settings.json` (see `config/settings.example.json`, schema in `config/schema.json`).
@@ -18,6 +17,7 @@ Postgres
 
 ## Project Layout
 - `docs/`: epics, PRD, ops notes
+  - Memory Bank: see `docs/prds/memory-bank-resources.md`
 - `config/`: settings and examples
 - `bin/`: CLIs for index/DB/MCP
 - `docker-compose.yml`: services and volumes
@@ -79,15 +79,16 @@ Without Docker
 - Delete repo: `DATABASE_URL=... SETTINGS_PATH=... ruby ./bin/index delete <repo>`
 - Status: `DATABASE_URL=... SETTINGS_PATH=... ruby ./bin/status`
 
-With Docker
-- Migrate: `docker compose exec -T indexer-ruby ./bin/db_migrate`
-- FTS: `docker compose exec -T indexer-ruby ./bin/db_fts`
-- Smoke: `docker compose exec -T indexer-ruby ./bin/db_smoke`
-- Index all: `docker compose exec -T indexer-ruby ./bin/index all`
-- Index repo: `docker compose exec -T indexer-ruby ./bin/index <repo>`
-- Delete all: `docker compose exec -T indexer-ruby ./bin/index delete all`
-- Delete repo: `docker compose exec -T indexer-ruby ./bin/index delete <repo>`
-- Status: `docker compose exec -T indexer-ruby ./bin/status`
+With Docker (Postgres + Indexer only)
+- Start stack: `make dev` (starts Postgres + indexer container idle)
+- Migrate: `make migrate`
+- FTS: `make fts`
+- Smoke: `make smoke`
+- Index all: `make index-all`
+- Index repo: `make index-repo repo=<name>`
+- Delete all: `make delete-all`
+- Delete repo: `make delete-repo repo=<name>`
+- Status: `make status`
 
 With Make
 - `make migrate` · `make fts` · `make smoke`
@@ -97,7 +98,7 @@ With Make
 
 ---
 
-## MCP
+## MCP (Host)
 
 ### Problem
 - Tools and editors need a standard interface to local context search and Jira without exposing secrets or raw DB access.
@@ -135,10 +136,13 @@ sequenceDiagram
 ```
 
 Commands
-- Docker: `docker compose up -d mcp-context` · Logs: `docker compose logs -f mcp-context`
-- Make: `make mcp-context` · Debug: `make mcp-context-run`
-- No Docker: `MCP_SERVICE=context SAVANT_PATH=/absolute/path/to/savant DATABASE_URL=... ruby ./bin/mcp_server`
-- Test: ``make mcp-test q='User' repo=<name> limit=5``
+- Run on host: `MCP_SERVICE=context SAVANT_PATH=$(pwd) DATABASE_URL=postgres://context:contextpw@localhost:5432/contextdb SETTINGS_PATH=config/settings.json ruby ./bin/mcp_server`
+- Test: ``make mcp-test q='User' repo=<name> limit=5`` (runs host MCP against Docker Postgres)
+
+Memory Bank tools (additive)
+- `tool: search_memory` — search markdown under `**/memory_bank/**` with snippets and summaries.
+- `tool: resources/list` — list memory bank resources with metadata and summaries.
+- `tool: resources/read` — read a memory bank resource via `repo://<repo>/memory-bank/<path>`.
 
 ### Jira MCP
 
@@ -164,9 +168,7 @@ sequenceDiagram
 ```
 
 Commands
-- Docker: `docker compose up -d mcp-jira` · Logs: `docker compose logs -f mcp-jira`
-- Make: `make mcp-jira` · Debug: `make mcp-jira-run` · Auth check: `make jira-self`
-- No Docker: `MCP_SERVICE=jira SAVANT_PATH=/absolute/path/to/savant DATABASE_URL=... ruby ./bin/mcp_server`
+- Run on host: `MCP_SERVICE=jira SAVANT_PATH=$(pwd) SETTINGS_PATH=config/settings.json ruby ./bin/mcp_server`
 - Test: ``make jira-test jql='project = ABC order by updated desc' limit=10``
 
 ## Make Targets

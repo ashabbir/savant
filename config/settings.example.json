@@ -28,6 +28,14 @@
     "context": { "listenHost": "0.0.0.0", "listenPort": 8765, "allowOrigins": ["*"] },
     "jira":    { "listenHost": "0.0.0.0", "listenPort": 8766, "allowOrigins": ["*"] }
   },
+  "memory_bank": {
+    "enabled": true,
+    "patterns": ["**/memory_bank/**/*.md"],
+    "follow_symlinks": false,
+    "max_bytes_index": 2000000,
+    "summary_max_length": 300,
+    "summarize_enabled": true
+  },
   "jira": {
     "baseUrl": "https://your-domain.atlassian.net",
     "email": "you@company.com",

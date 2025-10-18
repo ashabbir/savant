@@ -36,7 +36,7 @@ module Savant
       log_io.sync = true
       log = Savant::Logger.new(component: 'mcp', out: log_io)
       log.info("=" * 80)
-      log.info("start: mode=stdio service=#{@service} tools=[search,jira_search,jira_self]")
+      log.info("start: mode=stdio service=#{@service} tools=[search,jira_search,jira_self,search_memory,resources]")
       log.info("pwd=#{Dir.pwd}")
       log.info("settings_path=#{settings_path}")
       log.info("log_path=#{log_path}")
@@ -113,6 +113,29 @@ module Savant
             }
           },
           {
+            name: 'search_memory',
+            description: 'Search memory_bank markdown resources',
+            inputSchema: {
+              type: 'object',
+              properties: {
+                q: { type: 'string' },
+                repo: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+                limit: { type: 'integer', minimum: 1, maximum: 100 }
+              },
+              required: ['q']
+            }
+          },
+          {
+            name: 'resources/list',
+            description: 'List memory_bank resources',
+            inputSchema: { type: 'object', properties: { repo: { type: 'string' } } }
+          },
+          {
+            name: 'resources/read',
+            description: 'Read a memory_bank resource by URI',
+            inputSchema: { type: 'object', properties: { uri: { type: 'string' } }, required: ['uri'] }
+          },
+          {
             name: 'jira_search',
             description: 'Run a Jira JQL search',
             inputSchema: {
@@ -135,7 +158,7 @@ module Savant
         tools = if @service == 'jira'
           all_tools.select { |t| t[:name].to_s.start_with?('jira') }
         else
-          all_tools.select { |t| t[:name].to_s.start_with?('search') }
+          all_tools.reject { |t| t[:name].to_s.start_with?('jira') }
         end
 
         log.info("tools/list: service=#{@service} tool_count=#{tools.length}")
@@ -158,6 +181,65 @@ module Savant
           }
           content = [{ type: 'text', text: JSON.pretty_generate(data) }]
           puts({ jsonrpc: '2.0', id: id, result: { content: content } }.to_json)
+        when 'search_memory'
+          begin
+            require_relative 'memory_bank/indexer'
+            settings_path = ENV['SETTINGS_PATH'] || 'config/settings.json'
+            cfg = JSON.parse(File.read(settings_path)) rescue {}
+            repos = cfg.dig('indexer','repos') || []
+            repo_name = args['repo'] || repos.dig(0, 'name')
+            repo = repos.find { |r| r['name'] == repo_name } || repos.first
+            raise 'no repos configured' unless repo
+            mbi = Savant::MemoryBank::Indexer.new(repo_name: repo['name'], repo_root: repo['path'], config: cfg)
+            idx = mbi.scan
+            q = (args['q'] || '').to_s
+            limit = Integer(args['limit'] || (cfg.dig('search','max_results') || 20)) rescue 20
+            window = Integer(cfg.dig('search','snippet_window') || 160) rescue 160
+            windows = Integer(cfg.dig('search','snippet_windows_per_doc') || 2) rescue 2
+            data = mbi.search(idx, q, max_results: limit, snippet_window: window, windows_per_doc: windows)
+            content = [{ type: 'text', text: JSON.pretty_generate(data) }]
+            puts({ jsonrpc: '2.0', id: id, result: { content: content } }.to_json)
+          rescue => e
+            puts({ jsonrpc: '2.0', id: id, error: { code: -32002, message: e.message } }.to_json)
+          end
+        when 'resources/list'
+          begin
+            settings_path = ENV['SETTINGS_PATH'] || 'config/settings.json'
+            cfg = JSON.parse(File.read(settings_path)) rescue {}
+            repos = cfg.dig('indexer','repos') || []
+            repo_name = args['repo'] || repos.dig(0, 'name')
+            repo = repos.find { |r| r['name'] == repo_name } || repos.first
+            raise 'no repos configured' unless repo
+            require_relative 'memory_bank/indexer'
+            mbi = Savant::MemoryBank::Indexer.new(repo_name: repo['name'], repo_root: repo['path'], config: cfg)
+            idx = mbi.scan
+            items = idx.resources.map do |r|
+              { uri: r.uri, mimeType: r.mime_type, metadata: { path: r.path, title: r.title, size_bytes: r.size_bytes, modified_at: r.modified_at, source: r.source, summary: r.summary } }
+            end
+            content = [{ type: 'text', text: JSON.pretty_generate(items) }]
+            puts({ jsonrpc: '2.0', id: id, result: { content: content } }.to_json)
+          rescue => e
+            puts({ jsonrpc: '2.0', id: id, error: { code: -32003, message: e.message } }.to_json)
+          end
+        when 'resources/read'
+          begin
+            uri = (args['uri'] || '').to_s
+            unless uri.start_with?('repo://') && uri.include?('/memory-bank/')
+              raise 'unsupported uri'
+            end
+            repo_name = uri.sub(/^repo:\/\//,'').split('/').first
+            settings_path = ENV['SETTINGS_PATH'] || 'config/settings.json'
+            cfg = JSON.parse(File.read(settings_path)) rescue {}
+            repo = (cfg.dig('indexer','repos') || []).find { |r| r['name'] == repo_name }
+            raise 'repo not found' unless repo
+            rel = uri.split('/memory-bank/',2)[1]
+            abs = File.join(repo['path'], rel)
+            text = File.read(abs)
+            content = [{ type: 'text', text: text }]
+            puts({ jsonrpc: '2.0', id: id, result: { content: content } }.to_json)
+          rescue => e
+            puts({ jsonrpc: '2.0', id: id, error: { code: -32004, message: e.message } }.to_json)
+          end
         when 'jira_search'
           begin
             require_relative 'jira' unless defined?(Savant::Jira)

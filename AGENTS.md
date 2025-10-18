@@ -1,37 +1,79 @@
-# Repository Guidelines
+Savant Codebase Overview
 
-## Project Structure & Module Organization
-- **Docs:** `docs/prds/` for product requirements.
-- **Planned code:** add runtime code in `src/` and tests in `tests/`. Use `examples/` for runnable snippets and `scripts/` for helper tooling.
-- **Naming:** prefer lowercase, hyphenated directory names (e.g., `model-server/`) and snake_case for files unless language norms differ.
+Purpose
+- Local repository indexer and MCP servers for fast, private code search and Jira access. Ruby services store chunked repo content in Postgres with FTS and expose tools over MCP stdio for editors.
 
-## Build, Test, and Development Commands
-- This repo currently ships documentation only. When adding code, standardize on a `Makefile` for a consistent DX.
-- Example targets to include:
-  - `make setup`: install dependencies (language-specific).
-  - `make lint`: run formatters/linters.
-  - `make test`: run unit tests with coverage.
-  - `make dev`: start a local dev server or watcher.
+Architecture
+- Indexer: scans configured repos, hashes/dedupes files, chunks content, and writes to Postgres tables (`repos`, `files`, `blobs`, `file_blob_map`, `chunks`). FTS index on `chunks.chunk_text` powers ranked search.
+- MCP servers: stdio JSON-RPC interface with tools:
+  - `search`: queries Postgres FTS across indexed chunks, optional `repo` filter, `limit`.
+  - `jira_search` and `jira_self`: proxy Jira REST using local credentials or config.
+- Config: `config/settings.json` drives indexer limits, repo list, MCP listen options, and DB connection defaults (see `config/schema.json`, `config/settings.example.json`).
+- Docker: `docker-compose.yml` runs Postgres and optional Ruby services; Makefile wraps common flows.
 
-## Coding Style & Naming Conventions
-- **Formatting:** enforce an auto-formatter per language (e.g., Python: `black`/`isort`; JS/TS: `prettier` + `eslint`; Rust: `rustfmt` + `clippy`).
-- **Indentation:** 2 spaces for web code, 4 spaces for Python; no tabs.
-- **APIs:** use explicit, descriptive names; avoid abbreviations; prefer small modules with single responsibility.
+Key Components (Ruby)
+- `lib/savant/config.rb`:
+  - `Savant::Config.load(path)`: loads/validates `settings.json`. Ensures presence of `indexer`, `database`, and `mcp` keys; validates repo entries and indexer fields.
+  - Raises `Savant::ConfigError` on missing/invalid config.
+- `lib/savant/db.rb`:
+  - Connection wrapper over `pg`. Schema helpers: `migrate_tables`, `ensure_fts`.
+  - CRUD helpers: `find_or_create_repo`, `find_or_create_blob`, `replace_chunks`, `upsert_file`, `map_file_to_blob`, `delete_missing_files`, `delete_repo_by_name`, `delete_all_data`.
+- `lib/savant/logger.rb`:
+  - Lightweight logger with levels, timing helper `with_timing(label:)`, and slow-op flag via `SLOW_THRESHOLD_MS`.
+- `lib/savant/indexer.rb`:
+  - Scans repos from config; merges `.gitignore` and `.git/info/exclude` patterns; skips hidden, binary, oversized, or unchanged files (tracked in `.cache/indexer.json`).
+  - Dedupes by SHA256 at blob level; chunks code by lines with overlap; markdown by chars; language derived from file extension with optional allowlist.
+  - Upserts file metadata, maps file→blob, replaces blob chunks, and cleans up missing files per repo.
+- `lib/savant/search.rb`:
+  - Executes ranked FTS query over `chunks` joining back to file paths; optional repo filter; returns `[rel_path, chunk, lang, score]`.
+- `lib/savant/mcp_server.rb`:
+  - Stdio JSON-RPC 2.0 server with legacy compatibility. Selects service via `MCP_SERVICE` (`context` or `jira`).
+  - Tools advertised via `tools/list`; `tools/call` routes to search or Jira. Logs to `logs/<service>.log` under `SAVANT_PATH` (or repo root fallback).
+- `lib/savant/jira.rb`:
+  - Minimal Jira client using Net::HTTP. Reads config from `SETTINGS_PATH` jira section or env vars. Provides `search(jql:, ...)` and `self_test` with Basic auth; maps results to concise fields.
 
-## Testing Guidelines
-- **Layout:** mirror `src/` under `tests/`.
-- **Naming:** Python `test_*.py`; JS/TS `*.spec.ts`/`*.test.ts`.
-- **Coverage:** add a minimal threshold (e.g., 80%) once tests exist.
-- **Execution:** run via `make test`; add fast, deterministic tests. Include one end-to-end example in `examples/` when applicable.
+CLI Entrypoints (`bin/`)
+- `bin/index`: index or delete data. Commands:
+  - `index all` | `index <repo>`
+  - `delete all` | `delete <repo>`
+- `bin/status`: prints per-repo counts and last mtime.
+- `bin/db_migrate`, `bin/db_fts`, `bin/db_smoke`: setup/verify DB and FTS.
+- `bin/mcp_server`: launches MCP server (stdio).
+- `bin/config_validate`: validates `settings.json` against required structure.
 
-## Commit & Pull Request Guidelines
-- **Commits:** use Conventional Commits (e.g., `feat: add session store`, `fix: handle null IDs`).
-- **PRs:** include a clear description, linked issue/epic, screenshots for UX changes, and notes on tests/docs updated. Keep PRs focused and under ~300 lines when possible.
+Configuration
+- Primary: `config/settings.json` (see `config/settings.example.json` and `config/schema.json`). Required top-level keys:
+  - `indexer`: `maxFileSizeKB`, `languages`, `chunk` ({`codeMaxLines`,`overlapLines`,`mdMaxChars`}), `repos` (name, path, optional ignore).
+  - `database`: `host`, `port`, `db`, `user`, `password` (or supply `DATABASE_URL`).
+  - `mcp`: per-service options like `listenHost`/`listenPort`.
+- Env vars: `DATABASE_URL`, `SETTINGS_PATH`, `SAVANT_PATH`, `LOG_LEVEL`, Jira creds (`JIRA_*`).
 
-## Security & Configuration
-- Never commit secrets. Use `.env.example` and document required variables in PRs.
-- Prefer least-privilege configs and avoid production endpoints in examples.
+Runtime Modes
+- Direct (host): run Ruby scripts with `DATABASE_URL` and `SETTINGS_PATH` set.
+- Docker: use `docker compose` services; Postgres exposed on 5433; volumes mount host repos for indexing.
+- MCP editors (Cline/Claude Code): run via stdio; configure commands and env per README examples.
 
-## Agent-Specific Instructions
-- Read the tree before edits; prefer small, atomic patches.
-- Do not invent files—propose structure and add minimal scaffolding with `Makefile`, `src/`, and `tests/` only when justified in the PR description.
+Makefile Highlights
+- Dev lifecycle: `make dev`, `make logs`, `make down`, `make ps`.
+- DB: `make migrate`, `make fts`, `make smoke`.
+- Indexing: `make index-all`, `make index-repo repo=<name>`, deletes and status targets.
+- MCP: `make mcp`, `make mcp-context(-run)`, `make mcp-jira(-run)`, tests (`make mcp-test`, `make jira-test`, `make jira-self`).
+
+Data Model (Postgres)
+- `repos(id,name,root_path)`
+- `files(id,repo_id,rel_path,size_bytes,mtime_ns)` with unique `(repo_id, rel_path)`
+- `blobs(id,hash,byte_len)` unique `hash`
+- `file_blob_map(file_id,blob_id)` primary key `file_id`
+- `chunks(id,blob_id,idx,lang,chunk_text)` with GIN FTS index on `to_tsvector('english', chunk_text)`
+
+Logs
+- Text logs written via `Savant::Logger` to stdout for CLIs and to `logs/<service>.log` for MCP. Timing info and slow-operation flags included.
+
+Security & Secrets
+- No secrets stored in repo. Jira credentials via env or optional config file. Avoid committing `.env`; `.env.example` is provided.
+
+Getting Started
+- Configure `config/settings.json` (copy from example), start Postgres (`make dev`), migrate and FTS (`make migrate && make fts`), index repos (`make index-all`), then query via MCP (`make mcp-test q='term'`).
+
+Not In Scope
+- This overview excludes the Memory Bank Resource PRD; see docs for broader product context.
