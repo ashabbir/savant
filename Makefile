@@ -1,10 +1,10 @@
-.PHONY: dev logs down ps migrate fts smoke index-all index-repo mcp status mcp-test jira-test mcp-run mcp-context mcp-context-run mcp-jira mcp-jira-run delete-all delete-repo
+.PHONY: dev logs down ps migrate fts smoke index-all index-repo mcp status mcp-test jira-test mcp-context mcp-context-run mcp-jira mcp-jira-run delete-all delete-repo
 
 dev:
 	@docker compose up -d
 
 logs:
-	@docker compose logs -f indexer-ruby mcp-ruby
+	@docker compose logs -f indexer-ruby mcp-context mcp-jira
 
 down:
 	@docker compose down -v
