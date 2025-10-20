@@ -15,6 +15,17 @@ Runtime modes
 - Provide `config/settings.json` (see `config/settings.example.json`, schema in `config/schema.json`).
 - Mount host repos in `docker-compose.yml` so the indexer can read them.
 
+Indexer-specific settings
+- `indexer.maxFileSizeKB`: skip files larger than this (KB)
+- `indexer.languages`: allowed file extensions (lowercase); others are skipped
+- `indexer.chunk`: `{ mdMaxChars, codeMaxLines, overlapLines }`
+- `indexer.repos`: list of repos (`{ name, path, ignore[] }`)
+- `indexer.scanMode` (optional): `auto | git | walk` (default `auto`)
+  - `auto`: prefer Git if the repo has a `.git` directory and `git` is available; else walk the filesystem
+  - `git`: force Git enumeration; falls back to walking if git fails
+  - `walk`: force filesystem walk
+- Per-repo override: each repo can optionally set its own `scanMode`
+
 ### Environment Variables
 - Common
   - `SAVANT_PATH`: project root (for logs); defaults to repo root if not set
@@ -93,6 +104,10 @@ Without Docker
 - Delete repo: `DATABASE_URL=... SETTINGS_PATH=... ruby ./bin/index delete <repo>`
 - Status: `DATABASE_URL=... SETTINGS_PATH=... ruby ./bin/status`
 
+Notes
+- CLI start line shows configured `scanMode`.
+- Per-repo start line shows actual enumeration used: `using=gitls` (Git) or `using=ls` (filesystem).
+
 With Docker (Postgres + Indexer only)
 - Start stack: `make dev` (starts Postgres + indexer container idle)
 - Migrate: `make migrate`
@@ -103,6 +118,9 @@ With Docker (Postgres + Indexer only)
 - Delete all: `make delete-all`
 - Delete repo: `make delete-repo repo=<name>`
 - Status: `make status`
+
+Docker image
+- Includes `git` to enable Git-based enumeration in containers.
 
 With Make
 - `make migrate` · `make fts` · `make smoke`
@@ -258,6 +276,17 @@ Tools (REST API v3)
 | `fts` | Ensure FTS index exists | `make fts` |
 | `smoke` | Quick DB check (migrate + FTS ok) | `make smoke` |
 | `index-all` | Index all repos; append to `logs/indexer.log` | `make index-all` |
+
+## Development & Tests
+
+Run tests (host):
+- Install dev/test gems: `bundle install --with development test`
+- Run: `bundle exec rspec` (or `make test`)
+
+Test philosophy:
+- No real DB or filesystem calls in unit specs. The indexer is tested with fakes and stubs.
+- Runner: verifies unchanged cache, language allowlist, logging (including `using=gitls`).
+- RepositoryScanner: verifies Git path and config ignores are applied; falls back to walk on failure.
 | `index-repo` | Index a single repo | `make index-repo repo=<name>` |
 | `delete-all` | Delete all indexed data | `make delete-all` |
 | `delete-repo` | Delete one repo’s indexed data | `make delete-repo repo=<name>` |
