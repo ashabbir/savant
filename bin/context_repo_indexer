@@ -1,0 +1,53 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'time'
+require_relative '../lib/savant/context/fs/repo_indexer'
+
+def usage!
+  warn 'usage: context_repo_indexer index all | index <repo> | delete all | delete <repo> | status'
+  exit 2
+end
+
+cmd = ARGV.shift
+usage! unless cmd
+
+repo_indexer = Savant::Context::FS::RepoIndexer.new
+
+begin
+  case cmd
+  when 'index'
+    target = ARGV.shift
+    repo = (target == 'all' || target.nil?) ? nil : target
+    started = Time.now
+    mode = repo ? "repo=#{repo}" : 'all'
+    puts "CTX INDEX START ts=#{started.utc.iso8601} mode=#{mode}"
+    res = repo_indexer.index(repo: repo, verbose: true)
+    finished = Time.now
+    dur = (finished - started).round(3)
+    puts "CTX INDEX DONE ts=#{finished.utc.iso8601} duration_s=#{dur} total=#{res[:total]} changed=#{res[:changed]} skipped=#{res[:skipped]}"
+  when 'delete'
+    target = ARGV.shift
+    usage! unless target
+    repo = (target == 'all') ? nil : target
+    started = Time.now
+    mode = repo ? "repo=#{repo}" : 'all'
+    puts "CTX DELETE START ts=#{started.utc.iso8601} mode=#{mode}"
+    res = repo_indexer.delete(repo: repo)
+    finished = Time.now
+    dur = (finished - started).round(3)
+    puts "CTX DELETE DONE ts=#{finished.utc.iso8601} duration_s=#{dur} deleted=#{res[:deleted]} count=#{res[:count]}"
+  when 'status'
+    rows = repo_indexer.status
+    puts "CTX STATUS ts=#{Time.now.utc.iso8601} repos=#{rows.length}"
+    rows.each do |r|
+      puts "repo=#{r['name']} files=#{r['files']} blobs=#{r['blobs']} chunks=#{r['chunks']} last_mtime=#{r['last_mtime'] || '-'}"
+    end
+  else
+    usage!
+  end
+  exit 0
+rescue => e
+  warn "CTX INDEXER ERROR: #{e.class}: #{e.message}"
+  exit 1
+end

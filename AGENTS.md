@@ -22,7 +22,7 @@ Key Components (Ruby)
   - Facade `Savant::Indexer` delegates to namespaced modules under `lib/savant/indexer/` (Runner, RepositoryScanner, BlobStore, Chunkers, Cache, Config, Instrumentation, Admin, CLI).
   - Runner scans repos from config; merges `.gitignore` and `.git/info/exclude` patterns; skips hidden, binary, oversized, or unchanged files (tracked in `.cache/indexer.json`).
   - Dedupes by SHA256 at blob level; chunks code by lines with overlap; markdown by chars; language derived from file extension with optional allowlist.
-  - Upserts file metadata, maps file→blob, replaces blob chunks, and cleans up missing files per repo. `bin/index` and `bin/status` route through the namespace.
+  - Upserts file metadata, maps file→blob, replaces blob chunks, and cleans up missing files per repo. Use `bin/context_repo_indexer` or Make `repo-*` targets.
 - `lib/savant/context` Engine:
   - `lib/savant/context/engine.rb`: orchestrates context tools
   - `lib/savant/context/ops.rb`: implements search, memory_bank, resources
@@ -35,10 +35,10 @@ Key Components (Ruby)
   - `lib/savant/jira/engine.rb`, `lib/savant/jira/ops.rb`, `lib/savant/jira/client.rb`, and `lib/savant/jira/tools.rb` implement Jira REST v3 tools and registrar.
 
 CLI Entrypoints (`bin/`)
-- `bin/index`: index or delete data. Commands:
+- `bin/context_repo_indexer`: index or delete data, or show status. Commands:
   - `index all` | `index <repo>`
   - `delete all` | `delete <repo>`
-- `bin/status`: prints per-repo counts and last mtime.
+  - `status`: prints per-repo counts and last mtime.
 - `bin/db_migrate`, `bin/db_fts`, `bin/db_smoke`: setup/verify DB and FTS.
 - `bin/mcp_server`: launches MCP server (stdio).
 - `bin/config_validate`: validates `settings.json` against required structure.
@@ -58,13 +58,13 @@ Runtime Modes
 Makefile Highlights
 - Dev lifecycle: `make dev`, `make logs`, `make down`, `make ps`.
 - DB: `make migrate`, `make fts`, `make smoke`.
-- Indexing: `make index-all`, `make index-repo repo=<name>`, deletes and status targets.
+- Indexing: `make repo-index-all`, `make repo-index-repo repo=<name>`, `make repo-delete-all`, `make repo-delete-repo repo=<name>`, `make repo-status`.
 - MCP: `make mcp`, `make mcp-context(-run)`, `make mcp-jira(-run)`, tests (`make mcp-test`, `make jira-test`, `make jira-self`).
 - Quality checks: `bundle exec rspec`, `bundle exec rubocop`, and `bundle exec guard` for watch mode.
 
 Data Model (Postgres)
 - `repos(id,name,root_path)`
-- `files(id,repo_id,rel_path,size_bytes,mtime_ns)` with unique `(repo_id, rel_path)`
+- `files(id,repo_id,repo_name,rel_path,size_bytes,mtime_ns)` with unique `(repo_id, rel_path)`
 - `blobs(id,hash,byte_len)` unique `hash`
 - `file_blob_map(file_id,blob_id)` primary key `file_id`
 - `chunks(id,blob_id,idx,lang,chunk_text)` with GIN FTS index on `to_tsvector('english', chunk_text)`
@@ -76,7 +76,7 @@ Security & Secrets
 - No secrets stored in repo. Jira credentials via env or optional config file. Avoid committing `.env`; `.env.example` is provided.
 
 Getting Started
-- Configure `config/settings.json` (copy from example), start Postgres (`make dev`), migrate and FTS (`make migrate && make fts`), index repos (`make index-all`), then query via MCP (`make mcp-test q='term'`).
+- Configure `config/settings.json` (copy from example), start Postgres (`make dev`), migrate and FTS (`make migrate && make fts`), index repos (`make repo-index-all`), then query via MCP (`make mcp-test q='term'`).
 
 Not In Scope
 - This overview excludes the Memory Bank Resource PRD; see docs for broader product context.

@@ -1,4 +1,5 @@
-.PHONY: dev logs down ps migrate fts smoke index-all index-repo status mcp-test jira-test jira-self delete-all delete-repo test
+.PHONY: dev logs down ps migrate fts smoke mcp-test jira-test jira-self test \
+  repo-index-all repo-index-repo repo-delete-all repo-delete-repo repo-status
 
 # Ensure rbenv shims take precedence in Make subshells
 # (Reverted) Do not globally override PATH; use explicit rbenv shim per target.
@@ -24,32 +25,30 @@ fts:
 smoke:
 	@docker compose exec -T indexer-ruby ./bin/db_smoke || true
 
-index-all:
+# Context Repo Indexer (under Context engine)
+repo-index-all:
 	@mkdir -p logs
-	@docker compose exec -T indexer-ruby ./bin/index all 2>&1 | tee -a logs/indexer.log
+	@docker compose exec -T indexer-ruby ./bin/context_repo_indexer index all 2>&1 | tee -a logs/context_repo_indexer.log
 
-index-repo:
-	@test -n "$(repo)" || (echo "usage: make index-repo repo=<name>" && exit 2)
+repo-index-repo:
+	@test -n "$(repo)" || (echo "usage: make repo-index-repo repo=<name>" && exit 2)
 	@mkdir -p logs
-	@docker compose exec -T indexer-ruby ./bin/index $(repo) 2>&1 | tee -a logs/indexer.log
+	@docker compose exec -T indexer-ruby ./bin/context_repo_indexer index $(repo) 2>&1 | tee -a logs/context_repo_indexer.log
 
-# Delete all indexed data
-delete-all:
-	@docker compose exec -T indexer-ruby ./bin/index delete all
+repo-delete-all:
+	@docker compose exec -T indexer-ruby ./bin/context_repo_indexer delete all
 
-# Delete a single repo's indexed data
-delete-repo:
-	@test -n "$(repo)" || (echo "usage: make delete-repo repo=<name>" && exit 2)
-	@docker compose exec -T indexer-ruby ./bin/index delete $(repo)
+repo-delete-repo:
+	@test -n "$(repo)" || (echo "usage: make repo-delete-repo repo=<name>" && exit 2)
+	@docker compose exec -T indexer-ruby ./bin/context_repo_indexer delete $(repo)
 
-
-status:
-	@docker compose exec -T indexer-ruby ./bin/status
+repo-status:
+	@docker compose exec -T indexer-ruby ./bin/context_repo_indexer status
 
 # Usage: make mcp-test q='User' limit=5 repo=crawler
 mcp-test:
     @sh -lc 'Q="$(q)"; R="$(repo)"; L="$(limit)"; [ -n "$$Q" ] || Q="User"; [ -n "$$L" ] || L=5; if [ -n "$$R" ]; then RJSON="\"$$R\""; else RJSON=null; fi; \
-      printf "{\"tool\":\"search\",\"q\":\"%s\",\"repo\":%s,\"limit\":%s}\n" "$$Q" "$$RJSON" "$$L" | SAVANT_PATH=$(PWD) DATABASE_URL=postgres://context:contextpw@localhost:5433/contextdb $(HOME)/.rbenv/shims/bundle exec ruby ./bin/mcp_server'
+      printf "{\"tool\":\"fts/search\",\"q\":\"%s\",\"repo\":%s,\"limit\":%s}\n" "$$Q" "$$RJSON" "$$L" | SAVANT_PATH=$(PWD) DATABASE_URL=postgres://context:contextpw@localhost:5433/contextdb $(HOME)/.rbenv/shims/bundle exec ruby ./bin/mcp_server'
 
 # Usage: make jira-test jql='project = ABC order by updated desc' limit=5
 jira-test:

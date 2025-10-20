@@ -72,10 +72,9 @@
 - Response item includes: `path`, `title`, `score`, `summary`, `snippets`, `metadata`.
 
 ## MCP Surfaces
-- `resources/list`: returns all memory bank resources with metadata (including summary when available).
-- `resources/read`: returns raw Markdown content for the requested URI.
-- `tools/search_memory`: executes search over memory bank docs; returns results with summary and snippets.
-- `tools/refresh_memory_bank_index`: rescans and reindexes memory bank docs.
+- `memory/resources/list`: returns all memory bank resources with metadata.
+- `memory/resources/read`: returns raw Markdown content for the requested URI.
+- `memory/search`: executes search over memory bank docs (DB-backed FTS).
 
 ## Backward Compatibility
 - No breaking changes to current MCP endpoints (`resources/*`, existing `tools/*`).
@@ -165,7 +164,7 @@ search:
   - `snippets.rb`: snippet windowing and highlight offsets.
 
 ## API Shapes (Illustrative)
-- resources/list → `[ { uri, mimeType, metadata: { path, title, size_bytes, modified_at, source, summary: { text, length, source, generated_at } } } ]`
-- resources/read → `{ contents: [ { uri, mimeType: "text/markdown", text } ] }`
-- tools/search_memory (params: { query }) →
-  - `{ results: [ { path, title, score, summary, snippets: [..], metadata: { modified_at, size_bytes, source } } ], total }`
+- memory/resources/list → `[ { uri, mimeType, metadata: { path, title, size_bytes, modified_at, source } } ]`
+- memory/resources/read → `{ contents: [ { uri, mimeType: "text/markdown", text } ] }`
+- memory/search (params: { q, repo?, limit? }) →
+  - `[ { repo, rel_path, lang, chunk, score } ]`

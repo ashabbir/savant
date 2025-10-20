@@ -98,11 +98,11 @@ Without Docker
 - Migrate: `DATABASE_URL=postgres://context:contextpw@localhost:5432/contextdb SETTINGS_PATH=config/settings.json ruby ./bin/db_migrate`
 - FTS: `DATABASE_URL=... SETTINGS_PATH=... ruby ./bin/db_fts`
 - Smoke: `DATABASE_URL=... SETTINGS_PATH=... ruby ./bin/db_smoke`
-- Index all: `DATABASE_URL=... SETTINGS_PATH=... ruby ./bin/index all`
-- Index repo: `DATABASE_URL=... SETTINGS_PATH=... ruby ./bin/index <repo>`
-- Delete all: `DATABASE_URL=... SETTINGS_PATH=... ruby ./bin/index delete all`
-- Delete repo: `DATABASE_URL=... SETTINGS_PATH=... ruby ./bin/index delete <repo>`
-- Status: `DATABASE_URL=... SETTINGS_PATH=... ruby ./bin/status`
+- Index all: `DATABASE_URL=... SETTINGS_PATH=... ruby ./bin/context_repo_indexer index all`
+- Index repo: `DATABASE_URL=... SETTINGS_PATH=... ruby ./bin/context_repo_indexer index <repo>`
+- Delete all: `DATABASE_URL=... SETTINGS_PATH=... ruby ./bin/context_repo_indexer delete all`
+- Delete repo: `DATABASE_URL=... SETTINGS_PATH=... ruby ./bin/context_repo_indexer delete <repo>`
+- Status: `DATABASE_URL=... SETTINGS_PATH=... ruby ./bin/context_repo_indexer status`
 
 Notes
 - CLI start line shows configured `scanMode`.
@@ -113,20 +113,20 @@ With Docker (Postgres + Indexer only)
 - Migrate: `make migrate`
 - FTS: `make fts`
 - Smoke: `make smoke`
-- Index all: `make index-all`
-- Index repo: `make index-repo repo=<name>`
-- Delete all: `make delete-all`
-- Delete repo: `make delete-repo repo=<name>`
-- Status: `make status`
+- Index all: `make repo-index-all`
+- Index repo: `make repo-index-repo repo=<name>`
+- Delete all: `make repo-delete-all`
+- Delete repo: `make repo-delete-repo repo=<name>`
+- Status: `make repo-status`
 
 Docker image
 - Includes `git` to enable Git-based enumeration in containers.
 
 With Make
 - `make migrate` · `make fts` · `make smoke`
-- `make index-all` · ``make index-repo repo=<name>``
-- ``make delete-all`` · ``make delete-repo repo=<name>``
-- `make status`
+- `make repo-index-all` · ``make repo-index-repo repo=<name>``
+- ``make repo-delete-all`` · ``make repo-delete-repo repo=<name>``
+- `make repo-status`
 
 ---
 
@@ -150,7 +150,7 @@ Problem
 - Expose fast, ranked repo search to MCP-aware clients.
 
 Solution
-- `tool: search` backed by Postgres FTS in the same DB the indexer maintains.
+- `tool: fts/search` backed by Postgres FTS in the same DB the indexer maintains.
 
 Approach
 - Accept requests over stdio (JSON‑RPC); sanitize inputs; log timings and payload sizes; return hits with metadata/snippets.
@@ -161,7 +161,7 @@ sequenceDiagram
   participant IDE as Client
   participant MCP as Context MCP
   participant DB as Postgres + FTS
-  IDE->>MCP: tool.search(q, repo?, limit)
+  IDE->>MCP: tool fts/search(q, repo?, limit)
   MCP->>DB: FTS query + rank
   DB-->>MCP: hits + snippets
   MCP-->>IDE: results
@@ -171,22 +171,22 @@ Commands
 - Run on host: `MCP_SERVICE=context SAVANT_PATH=$(pwd) DATABASE_URL=postgres://context:contextpw@localhost:5433/contextdb SETTINGS_PATH=config/settings.json ruby ./bin/mcp_server`
 - Test: ``make mcp-test q='User' repo=<name> limit=5`` (runs host MCP against Docker Postgres)
 
-Memory Bank tools (additive)
-- `tool: search_memory` — search markdown under `**/memory_bank/**` with snippets and summaries.
-- `tool: resources/list` — list memory bank resources with metadata and summaries.
-- `tool: resources/read` — read a memory bank resource via `repo://<repo>/memory-bank/<path>`.
+Memory Bank tools
+- `tool: memory/search` — search markdown under `**/memory_bank/**` stored in DB FTS.
+- `tool: memory/resources/list` — list memory bank resources (filesystem helper for browsing).
+- `tool: memory/resources/read` — read a memory bank resource via `repo://<repo>/memory-bank/<path>`.
 
 Tools
-- search: Full‑text search over indexed chunks via Postgres FTS.
-  - Input: `{ q: string, repo?: string, limit?: number }`
-  - Output: `[ { rel_path, chunk, lang, score } ]`
-- search_memory: Search markdown under memory_bank with snippets.
-  - Input: `{ q: string, repo?: string, limit?: number }`
-  - Output: `[ { path, title, snippet, score, repo } ]`
-- resources/list: List memory bank resources.
+- fts/search: Full‑text search over indexed chunks via Postgres FTS.
+  - Input: `{ q: string, repo?: string | string[], limit?: number }`
+  - Output: `[ { repo, rel_path, chunk, lang, score } ]`
+- memory/search: Full‑text search over memory_bank chunks in DB FTS.
+  - Input: `{ q: string, repo?: string | string[], limit?: number }`
+  - Output: `[ { repo, rel_path, chunk, lang, score } ]`
+- memory/resources/list: List memory bank resources (filesystem helper).
   - Input: `{ repo?: string }`
-  - Output: `[ { uri, mimeType, metadata: { path, title, size_bytes, modified_at, source, summary } } ]`
-- resources/read: Read a memory bank resource by URI.
+  - Output: `[ { uri, mimeType, metadata: { path, title, size_bytes, modified_at, source } } ]`
+- memory/resources/read: Read a memory bank resource by URI.
   - Input: `{ uri: string }` (e.g., `repo://<repo>/memory-bank/<path>`)
   - Output: `text`
 
@@ -275,7 +275,7 @@ Tools (REST API v3)
 | `migrate` | Create/upgrade tables | `make migrate` |
 | `fts` | Ensure FTS index exists | `make fts` |
 | `smoke` | Quick DB check (migrate + FTS ok) | `make smoke` |
-| `index-all` | Index all repos; append to `logs/indexer.log` | `make index-all` |
+| `repo-index-all` | Index all repos; append to `logs/context_repo_indexer.log` | `make repo-index-all` |
 
 ## Development & Tests
 
@@ -289,12 +289,12 @@ Test philosophy:
 - No real DB or filesystem calls in unit specs. The indexer is tested with fakes and stubs.
 - Runner: verifies unchanged cache, language allowlist, logging (including `using=gitls`).
 - RepositoryScanner: verifies Git path and config ignores are applied; falls back to walk on failure.
-| `index-repo` | Index a single repo | `make index-repo repo=<name>` |
-| `delete-all` | Delete all indexed data | `make delete-all` |
-| `delete-repo` | Delete one repo’s indexed data | `make delete-repo repo=<name>` |
-| `status` | Per‑repo files/blobs/chunks counters | `make status` |
+| `repo-index-repo` | Index a single repo | `make repo-index-repo repo=<name>` |
+| `repo-delete-all` | Delete all indexed data | `make repo-delete-all` |
+| `repo-delete-repo` | Delete one repo’s indexed data | `make repo-delete-repo repo=<name>` |
+| `repo-status` | Per‑repo files/blobs/chunks counters | `make repo-status` |
 | `mcp` | Start both MCPs (context + jira) | `make mcp` |
-| `mcp-test` | Test Context MCP `search` | `make mcp-test q='<term>' [repo=<name>] [limit=5]` |
+| `mcp-test` | Test Context MCP `fts/search` | `make mcp-test q='<term>' [repo=<name>] [limit=5]` |
 | `mcp-context` | Start Context MCP (background) | `make mcp-context` |
 | `mcp-context-run` | Run Context MCP in foreground (debug) | `make mcp-context-run` |
 | `mcp-jira` | Start Jira MCP (background) | `make mcp-jira` |
@@ -306,7 +306,7 @@ Test philosophy:
 
 | Variable | Description | Example |
 |---|---|---|
-| `repo` | Repository name from `config/settings.json` | `make index-repo repo=crawler` |
+| `repo` | Repository name from `config/settings.json` | `make repo-index-repo repo=crawler` |
 | `q` | Search query string for Context MCP | `make mcp-test q='User'` |
 | `limit` | Max results for MCP tools | `make mcp-test q='User' limit=5` |
 | `jql` | Jira JQL query string | `make jira-test jql='project = ABC order by updated desc'` |
@@ -343,7 +343,7 @@ These are for Docker debugging only. Cline uses stdio and does not require ports
 - Cline without Docker: use `localhost` in `DATABASE_URL`.
 - Indexer via Make (containers): either override per call
   - `docker compose exec -e DATABASE_URL=postgres://USER:PASS@host.docker.internal:5432/DBNAME -T indexer-ruby ./bin/db_migrate`
-  - and similarly for `./bin/db_fts`, `./bin/index all`, `./bin/status`
+  - and similarly for `./bin/db_fts`, `./bin/context_repo_indexer index all`, `./bin/context_repo_indexer status`
   - or set `DATABASE_URL` in `docker-compose.yml` for `indexer-ruby`, `mcp-context`, and `mcp-jira`.
 - If SSL interferes locally, append `?sslmode=disable` to `DATABASE_URL`.
 

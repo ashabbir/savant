@@ -44,11 +44,32 @@ module Savant
         CREATE TABLE IF NOT EXISTS files (
           id SERIAL PRIMARY KEY,
           repo_id INTEGER NOT NULL REFERENCES repos(id) ON DELETE CASCADE,
+          repo_name TEXT,
           rel_path TEXT NOT NULL,
           size_bytes BIGINT NOT NULL,
           mtime_ns BIGINT NOT NULL,
           UNIQUE(repo_id, rel_path)
         );
+      SQL
+
+      # Ensure files.repo_name exists and is populated for existing installs
+      begin
+        @conn.exec("ALTER TABLE files ADD COLUMN IF NOT EXISTS repo_name TEXT")
+      rescue => e
+        # Ignore if not supported; table creation above includes the column for fresh DBs
+      end
+
+      # Backfill repo_name from repos.name if any NULLs exist
+      @conn.exec(<<~SQL)
+        UPDATE files f
+        SET repo_name = r.name
+        FROM repos r
+        WHERE f.repo_id = r.id AND (f.repo_name IS NULL OR f.repo_name = '')
+      SQL
+
+      # Helpful index for repo_name lookups
+      @conn.exec(<<~SQL)
+        CREATE INDEX IF NOT EXISTS idx_files_repo_name ON files(repo_name);
       SQL
 
       @conn.exec(<<~SQL)
@@ -111,13 +132,13 @@ module Savant
       res[0]['id'].to_i
     end
 
-    def upsert_file(repo_id, rel_path, size_bytes, mtime_ns)
+    def upsert_file(repo_id, repo_name, rel_path, size_bytes, mtime_ns)
       res = @conn.exec_params(
-        <<~SQL, [repo_id, rel_path, size_bytes, mtime_ns]
-          INSERT INTO files(repo_id, rel_path, size_bytes, mtime_ns)
-          VALUES($1,$2,$3,$4)
+        <<~SQL, [repo_id, repo_name, rel_path, size_bytes, mtime_ns]
+          INSERT INTO files(repo_id, repo_name, rel_path, size_bytes, mtime_ns)
+          VALUES($1,$2,$3,$4,$5)
           ON CONFLICT (repo_id, rel_path)
-          DO UPDATE SET size_bytes=EXCLUDED.size_bytes, mtime_ns=EXCLUDED.mtime_ns
+          DO UPDATE SET repo_name=EXCLUDED.repo_name, size_bytes=EXCLUDED.size_bytes, mtime_ns=EXCLUDED.mtime_ns
           RETURNING id
         SQL
       )

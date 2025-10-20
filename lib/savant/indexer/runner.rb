@@ -78,7 +78,7 @@ module Savant
               blob_id = @store.ensure_blob(hash, stat.size)
               chunks = build_chunks(abs, lang).each_with_index.map { |chunk, idx| [idx, lang, chunk] }
               @store.write_chunks(blob_id, chunks)
-              file_id = @store.upsert_file(repo_id, rel, stat.size, meta['mtime_ns'])
+              file_id = @store.upsert_file(repo_id, repo.fetch('name'), rel, stat.size, meta['mtime_ns'])
               @store.map_file(file_id, blob_id)
 
               @cache[key] = meta

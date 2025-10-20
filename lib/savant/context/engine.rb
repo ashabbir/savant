@@ -16,6 +16,7 @@
 require 'json'
 require_relative '../logger'
 require_relative 'ops'
+require_relative 'fs/repo_indexer'
 
 module Savant
   module Context
@@ -50,6 +51,19 @@ module Savant
       # Read the contents of a memory_bank resource by its repo:// URI.
       def resources_read(uri:)
         @ops.resources_read(uri: uri)
+      end
+
+      # Repo Indexer operations exposed under Context
+      def repo_indexer_index(repo: nil, verbose: true)
+        Savant::Context::FS::RepoIndexer.new.index(repo: repo, verbose: verbose)
+      end
+
+      def repo_indexer_delete(repo: nil)
+        Savant::Context::FS::RepoIndexer.new.delete(repo: repo)
+      end
+
+      def repo_indexer_status
+        Savant::Context::FS::RepoIndexer.new.status
       end
     end
   end

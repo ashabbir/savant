@@ -27,7 +27,7 @@ module Savant
       # Query Postgres FTS for code/content chunks.
       # Params:
       # - q: String query
-      # - repo: Optional String repository name to scope results
+      # - repo: Optional String or Array of repository names to scope results
       # - limit: Integer max results
       # Returns: Array of Hashes with rel_path, chunk, lang, score
       def search(q:, repo:, limit:)
@@ -35,56 +35,112 @@ module Savant
         Savant::Context::FTS.new.search(q: q, repo: repo, limit: limit)
       end
 
-      # Search memory_bank markdown on the filesystem beneath a repo root.
+      # Search memory_bank markdown stored in Postgres (via FTS), scoped by repo name(s).
       # - q: String query (required)
-      # - repo: Optional filesystem path to repo root (defaults to Dir.pwd)
+      # - repo: Optional String or Array of repo names; when nil searches all repos
       # - limit: Integer max results
-      # Returns: { results: [ { path, title, score, snippets, metadata } ], total }
+      # Returns: Array of Hashes with repo, rel_path, chunk, lang, score
       def search_memory(q:, repo:, limit:)
-        require_relative 'memory_bank/indexer'
-        root = (repo && File.directory?(repo)) ? File.expand_path(repo) : Dir.pwd
-        repo_name = File.basename(root)
-        mbi = Savant::Context::MemoryBank::Indexer.new(repo_name: repo_name, repo_root: root, config: {})
-        idx = mbi.scan
-        window = Integer(ENV['MEMORY_BANK_SNIPPET_WINDOW'] || 160) rescue 160
-        windows = Integer(ENV['MEMORY_BANK_WINDOWS_PER_DOC'] || 2) rescue 2
-        mbi.search(idx, q, max_results: limit, snippet_window: window, windows_per_doc: windows)
+        require_relative 'fts'
+        Savant::Context::FTS.new.search(q: q, repo: repo, limit: limit, memory_only: true)
       end
 
-      # List available memory_bank resources under a repo root (or CWD).
+      # List memory_bank resources from the database (files table) using repo_name and rel_path.
       # Returns: Array of { uri, mimeType, metadata: { path, title, size_bytes, modified_at, source } }
       def resources_list(repo: nil)
-        require_relative 'memory_bank/indexer'
-        root = (repo && File.directory?(repo)) ? File.expand_path(repo) : Dir.pwd
-        repo_name = File.basename(root)
-        mbi = Savant::Context::MemoryBank::Indexer.new(repo_name: repo_name, repo_root: root, config: {})
-        idx = mbi.scan
-        idx.resources.map do |r|
-          { uri: r.uri, mimeType: r.mime_type, metadata: { path: r.path, title: r.title, size_bytes: r.size_bytes, modified_at: r.modified_at, source: r.source } }
+        require_relative '../db'
+        conn = Savant::DB.new.instance_variable_get(:@conn)
+        params = []
+        where = "WHERE rel_path LIKE '%/memory_bank/%' AND rel_path ILIKE '%.md'"
+        if repo
+          if repo.is_a?(Array)
+            ph = repo.each_index.map { |i| "$#{i + 1}" }.join(',')
+            where << " AND repo_name IN (#{ph})"
+            params.concat(repo)
+          else
+            where << " AND repo_name = $1"
+            params << repo
+          end
+        end
+        sql = <<~SQL
+          SELECT repo_name, rel_path, size_bytes, mtime_ns
+          FROM files
+          #{where}
+          ORDER BY repo_name, rel_path
+        SQL
+        rows = conn.exec_params(sql, params)
+        rows.map do |r|
+          repo_name = r['repo_name']
+          rel_path = r['rel_path']
+          uri = "repo://#{repo_name}/memory-bank/#{rel_path}"
+          title = File.basename(rel_path, File.extname(rel_path))
+          modified_at = Time.at(r['mtime_ns'].to_i / 1_000_000_000.0).utc.iso8601 rescue nil
+          { uri: uri, mimeType: 'text/markdown; charset=utf-8', metadata: { path: rel_path, title: title, size_bytes: r['size_bytes'].to_i, modified_at: modified_at, source: 'memory_bank' } }
         end
       end
 
-      # Read a memory_bank resource by a repo:// URI.
-      # The method resolves the file by searching for a matching path beneath
-      # the current working directory (and SAVANT_PATH if provided).
-      # Raises: 'unsupported uri' if non-memory_bank; 'resource not found' otherwise.
+      # Read a memory_bank resource by a repo:// URI using DB to resolve repo roots.
+      # URI format: repo://<repo_name>/memory-bank/<rel_path>
+      # Returns file contents from filesystem rooted at repos.root_path.
       def resources_read(uri:)
         unless uri.start_with?('repo://') && uri.include?('/memory-bank/')
           raise 'unsupported uri'
         end
-        rel = uri.split('/memory-bank/', 2)[1]
-        # Try to resolve the file relative to current project tree
-        candidates = []
-        candidates << File.join(Dir.pwd, 'memory_bank', rel)
-        candidates += Dir.glob(File.join(Dir.pwd, '**', 'memory_bank', rel))
-        if ENV['SAVANT_PATH'] && !ENV['SAVANT_PATH'].empty?
-          base = File.expand_path(ENV['SAVANT_PATH'])
-          candidates << File.join(base, 'memory_bank', rel)
-          candidates += Dir.glob(File.join(base, '**', 'memory_bank', rel))
+        head, tail = uri.split('/memory-bank/', 2)
+        repo_name = head.sub('repo://', '')
+        # Tail could be either full rel_path or just the path under memory_bank; try both
+        rel_candidates = []
+        rel_candidates << tail
+        rel_candidates << File.join('memory_bank', tail) unless tail.include?('/memory_bank/')
+
+        require_relative '../db'
+        db = Savant::DB.new
+        conn = db.instance_variable_get(:@conn)
+        # Resolve repo root
+        r = conn.exec_params('SELECT root_path FROM repos WHERE name=$1', [repo_name])
+        raise 'resource not found' if r.ntuples.zero?
+        root = r[0]['root_path']
+        # Find a matching file row to validate existence
+        rel = nil
+        rel_candidates.each do |cand|
+          rr = conn.exec_params('SELECT 1 FROM files WHERE repo_name=$1 AND rel_path=$2', [repo_name, cand])
+          if rr.ntuples > 0
+            rel = cand
+            break
+          end
         end
-        path = candidates.find { |p| File.file?(p) }
-        raise 'resource not found' unless path
+        # Fallback: try suffix match under memory_bank
+        if rel.nil?
+          rr = conn.exec_params("SELECT rel_path FROM files WHERE repo_name=$1 AND rel_path LIKE '%/memory_bank/%' AND rel_path LIKE $2 LIMIT 1", [repo_name, "%#{tail}"])
+          rel = rr[0]['rel_path'] if rr.ntuples > 0
+        end
+        raise 'resource not found' unless rel
+        path = File.join(root, rel)
+        raise 'resource not found' unless File.file?(path)
         File.read(path)
+      end
+
+      private
+
+      # Resolve a repo identifier to a filesystem root path.
+      # Accepts a direct path or a logical repo name stored in the DB `repos` table.
+      def resolve_repo_root(repo)
+        return Dir.pwd if repo.nil? || repo.to_s.strip.empty?
+        return File.expand_path(repo) if File.directory?(repo)
+
+        # Try DB lookup by repo name
+        begin
+          require_relative '../db'
+          db = Savant::DB.new
+          res = db.instance_variable_get(:@conn).exec_params('SELECT root_path FROM repos WHERE name=$1', [repo.to_s])
+          if res.ntuples > 0
+            root = res[0]['root_path']
+            return File.expand_path(root)
+          end
+        rescue => _e
+          # Fallback to CWD if DB lookup fails
+        end
+        Dir.pwd
       end
     end
   end

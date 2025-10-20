@@ -44,7 +44,7 @@ module Savant
       log_io.sync = true
       log = Savant::Logger.new(component: 'mcp', out: log_io)
       log.info("=" * 80)
-      log.info("start: mode=stdio service=#{@service} tools=[search,jira_* ,search_memory,resources]")
+      log.info("start: mode=stdio service=#{@service} tools=[fts/*, memory/*, fs/repo/*, jira_*]")
       log.info("pwd=#{Dir.pwd}")
       log.info("settings_path=#{settings_path}")
       log.info("log_path=#{log_path}")

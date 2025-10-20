@@ -25,8 +25,8 @@ module Savant
         @db.replace_chunks(blob_id, chunks)
       end
 
-      def upsert_file(repo_id, rel_path, size, mtime_ns)
-        @db.upsert_file(repo_id, rel_path, size, mtime_ns)
+      def upsert_file(repo_id, repo_name, rel_path, size, mtime_ns)
+        @db.upsert_file(repo_id, repo_name, rel_path, size, mtime_ns)
       end
 
       def map_file(file_id, blob_id)

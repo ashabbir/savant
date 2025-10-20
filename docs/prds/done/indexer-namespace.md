@@ -11,7 +11,7 @@
 
 ## Goals
 - **Namespace:** Establish `Savant::Indexer` as the authoritative entrypoint, regrouping all indexing code beneath `lib/savant/indexer/`.
-- **Interfaces:** Ensure `bin/index`, `bin/status`, Make targets, and scripts call through the namespace without breaking existing workflows.
+- **Interfaces:** Prefer Context repo indexer: `bin/context_repo_indexer` and Make targets `repo-index-*`, `repo-delete-*`, `repo-status`. Legacy `bin/index` and `bin/status` are removed.
 - **Config & Dependencies:** Keep `Savant::Config` as source of truth while exposing indexer-specific adapters; inject logger and database handles explicitly.
 - **Testing:** Deliver a TDD-driven spec suite that exercises all modules via mocks, avoiding real Postgres or filesystem access.
 
@@ -45,8 +45,7 @@
 - Specs mirrored under `spec/savant/indexer/`
 
 ## Command & Make Integration
-- **`bin/index`:** Require `savant/indexer`, instantiate `Savant::Indexer::CLI`, and delegate commands.
-- **`bin/status`:** Route through `Savant::Indexer::Admin` for repository statistics.
+- **Context Repo Indexer:** Use `./bin/context_repo_indexer` for `index|delete|status` operations.
 - **Makefile:** Update `index-*`, `delete-*`, `status`, and smoke targets to run `bundle exec ruby -r savant/indexer -e "Savant::Indexer::CLI.run(...)"`.
 - **Automation:** Validate Docker-compose services and scripts reference the namespace entrypoint.
 
@@ -77,7 +76,7 @@
 
 ## Risks & Mitigations
 - **Missed References:** Risk of lingering old names; mitigate with repository-wide search, temporary alias, and CI checks.
-- **Behavior Regression:** Namespace move could break subtle coupling; mitigate via comprehensive spec suite and running `make index-all`, `make smoke`.
+- **Behavior Regression:** Namespace move could break subtle coupling; mitigate via comprehensive spec suite and running `make repo-index-all`, `make smoke`.
 - **Fake Drift:** Mocked database/filesystem may diverge from real API; mitigate with contract tests comparing fake versus real interface expectations.
 - **Team Adoption:** Developers may continue referencing legacy constants; mitigate with documentation, lint rules, and deprecation warnings.
 
@@ -92,7 +91,7 @@
 - **Branching:** Use feature branch with logical commits (spec scaffolding, namespace move, CLI integration, docs).
 - **CI:** Require `bundle exec rspec spec/savant/indexer` plus existing suites; enforce no real database or disk access in new specs.
 - **Communication:** Announce via Slack and CHANGELOG, including migration checklist and command examples.
-- **Monitoring:** After deployment, execute `make index-all`, confirm log health, validate search results, and watch for error regressions.
+- **Monitoring:** After deployment, execute `make repo-index-all`, confirm log health, validate search results, and watch for error regressions.
 
 ## Open Questions
 - **Namespace Depth:** Should we adopt `Savant::Services::Indexer` to align with future service modularization?

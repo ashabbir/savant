@@ -2,7 +2,7 @@
 #
 # Purpose: Lightweight scanner and searcher for memory_bank markdown files.
 #
-# Context::MemoryBank::Indexer discovers markdown resources under a repository
+# Context::MemoryBank::Search discovers markdown resources under a repository
 # (or any filesystem root) following patterns like `**/memory_bank/**/*.md`,
 # builds a transient in‑memory index of resource metadata, and provides a
 # simple substring‑based search with snippet generation. This is designed for
@@ -48,7 +48,7 @@ module Savant
     end
 
       # Scanner/Searcher for memory_bank markdown beneath a repository root.
-      class Indexer
+      class Search
         def initialize(repo_name:, repo_root:, config: {})
           @repo_name = repo_name
           @repo_root = repo_root
