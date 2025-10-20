@@ -60,6 +60,7 @@ Makefile Highlights
 - DB: `make migrate`, `make fts`, `make smoke`.
 - Indexing: `make index-all`, `make index-repo repo=<name>`, deletes and status targets.
 - MCP: `make mcp`, `make mcp-context(-run)`, `make mcp-jira(-run)`, tests (`make mcp-test`, `make jira-test`, `make jira-self`).
+- Quality checks: `bundle exec rspec`, `bundle exec rubocop`, and `bundle exec guard` for watch mode.
 
 Data Model (Postgres)
 - `repos(id,name,root_path)`

@@ -282,6 +282,8 @@ Tools (REST API v3)
 Run tests (host):
 - Install dev/test gems: `bundle install --with development test`
 - Run: `bundle exec rspec` (or `make test`)
+- Optional: start Guard to re-run specs on file changes with `bundle exec guard`
+- Check style locally with `bundle exec rubocop`
 
 Test philosophy:
 - No real DB or filesystem calls in unit specs. The indexer is tested with fakes and stubs.

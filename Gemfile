@@ -11,6 +11,8 @@ gem "tty-logger", "~> 0.6"
 
 group :development do
   gem "rubocop", require: false
+  gem "guard", "~> 2.18", require: false
+  gem "guard-rspec", "~> 4.7", require: false
 end
 
 group :development, :test do
