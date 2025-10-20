@@ -4,7 +4,7 @@
 require_relative '../lib/savant/config'
 
 begin
-  settings_path = ENV['SETTINGS_PATH'] || ARGV[0] || 'config/settings.json'
+  settings_path = ARGV[0] || 'config/settings.json'
   cfg = Savant::Config.load(settings_path)
   puts "CONFIG OK: repos=#{cfg.dig('indexer','repos').size} mcp.context=#{cfg.dig('mcp','context','listenHost')}:#{cfg.dig('mcp','context','listenPort')} mcp.jira=#{cfg.dig('mcp','jira','listenHost')}:#{cfg.dig('mcp','jira','listenPort')}"
   exit 0

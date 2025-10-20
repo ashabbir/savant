@@ -5,9 +5,7 @@ Purpose
 
 Architecture
 - Indexer: scans configured repos, hashes/dedupes files, chunks content, and writes to Postgres tables (`repos`, `files`, `blobs`, `file_blob_map`, `chunks`). FTS index on `chunks.chunk_text` powers ranked search.
-- MCP servers: stdio JSON-RPC interface with tools:
-  - `search`: queries Postgres FTS across indexed chunks, optional `repo` filter, `limit`.
-  - `jira_search` and `jira_self`: proxy Jira REST using local credentials or config.
+- MCP servers: stdio JSON-RPC interface; a single service is active per process via `MCP_SERVICE` (e.g., `context` or `jira`). Tools are advertised by the active service’s registrar and calls are delegated to its Engine.
 - Config: `config/settings.json` drives indexer limits, repo list, MCP listen options, and DB connection defaults (see `config/schema.json`, `config/settings.example.json`).
 - Docker: `docker-compose.yml` runs Postgres and optional Ruby services; Makefile wraps common flows.
 
@@ -24,13 +22,16 @@ Key Components (Ruby)
   - Scans repos from config; merges `.gitignore` and `.git/info/exclude` patterns; skips hidden, binary, oversized, or unchanged files (tracked in `.cache/indexer.json`).
   - Dedupes by SHA256 at blob level; chunks code by lines with overlap; markdown by chars; language derived from file extension with optional allowlist.
   - Upserts file metadata, maps file→blob, replaces blob chunks, and cleans up missing files per repo.
-- `lib/savant/search.rb`:
-  - Executes ranked FTS query over `chunks` joining back to file paths; optional repo filter; returns `[rel_path, chunk, lang, score]`.
+- `lib/savant/context` Engine:
+  - `lib/savant/context/engine.rb`: orchestrates context tools
+  - `lib/savant/context/ops.rb`: implements search, memory_bank, resources
+  - `lib/savant/context/fts.rb`: Postgres FTS helper; returns `[rel_path, chunk, lang, score]`
+  - `lib/savant/context/tools.rb`: MCP registrar for context tools
 - `lib/savant/mcp_server.rb`:
-  - Stdio JSON-RPC 2.0 server with legacy compatibility. Selects service via `MCP_SERVICE` (`context` or `jira`).
-  - Tools advertised via `tools/list`; `tools/call` routes to search or Jira. Logs to `logs/<service>.log` under `SAVANT_PATH` (or repo root fallback).
-- `lib/savant/jira.rb`:
-  - Minimal Jira client using Net::HTTP. Reads config from `SETTINGS_PATH` jira section or env vars. Provides `search(jql:, ...)` and `self_test` with Basic auth; maps results to concise fields.
+  - Stdio JSON-RPC 2.0 server. Selects service via `MCP_SERVICE` (`context` or `jira`).
+  - `tools/list` returns only the active service’s registrar specs; `tools/call` delegates to the service’s Engine via its registrar. Logs to `logs/<service>.log`.
+- `lib/savant/jira` Engine:
+  - `lib/savant/jira/engine.rb`, `lib/savant/jira/ops.rb`, `lib/savant/jira/client.rb`, and `lib/savant/jira/tools.rb` implement Jira REST v3 tools and registrar.
 
 CLI Entrypoints (`bin/`)
 - `bin/index`: index or delete data. Commands:
@@ -46,10 +47,10 @@ Configuration
   - `indexer`: `maxFileSizeKB`, `languages`, `chunk` ({`codeMaxLines`,`overlapLines`,`mdMaxChars`}), `repos` (name, path, optional ignore).
   - `database`: `host`, `port`, `db`, `user`, `password` (or supply `DATABASE_URL`).
   - `mcp`: per-service options like `listenHost`/`listenPort`.
-- Env vars: `DATABASE_URL`, `SETTINGS_PATH`, `SAVANT_PATH`, `LOG_LEVEL`, Jira creds (`JIRA_*`).
+- Env vars: `DATABASE_URL`, `SAVANT_PATH`, `LOG_LEVEL`, Jira creds (`JIRA_*`).
 
 Runtime Modes
-- Direct (host): run Ruby scripts with `DATABASE_URL` and `SETTINGS_PATH` set.
+- Direct (host): run Ruby scripts with `DATABASE_URL` set (Context) and Jira envs (Jira).
 - Docker: use `docker compose` services; Postgres exposed on 5433; volumes mount host repos for indexing.
 - MCP editors (Cline/Claude Code): run via stdio; configure commands and env per README examples.
 

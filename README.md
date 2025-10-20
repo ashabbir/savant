@@ -15,6 +15,20 @@ Runtime modes
 - Provide `config/settings.json` (see `config/settings.example.json`, schema in `config/schema.json`).
 - Mount host repos in `docker-compose.yml` so the indexer can read them.
 
+### Environment Variables
+- Common
+  - `SAVANT_PATH`: project root (for logs); defaults to repo root if not set
+  - `DATABASE_URL`: Postgres connection URL (Context service)
+  - `MCP_SERVICE`: selects the active service (`context` or `jira`)
+- Context
+  - Uses `DATABASE_URL` for DB; reads repo config from `config/settings.json` under project root
+- Jira
+  - `JIRA_BASE_URL`: e.g., `https://your.atlassian.net`
+  - Jira Cloud: `JIRA_EMAIL` + `JIRA_API_TOKEN`
+  - Jira Server/DC: `JIRA_USERNAME` + `JIRA_PASSWORD`
+  - `JIRA_ALLOW_WRITES`: set to `true` to enable mutating tools
+
+
 ## Project Layout
 - `docs/`: epics, PRD, ops notes
   - Memory Bank: see `docs/prds/memory-bank-resources.md`
@@ -144,6 +158,20 @@ Memory Bank tools (additive)
 - `tool: resources/list` — list memory bank resources with metadata and summaries.
 - `tool: resources/read` — read a memory bank resource via `repo://<repo>/memory-bank/<path>`.
 
+Tools
+- search: Full‑text search over indexed chunks via Postgres FTS.
+  - Input: `{ q: string, repo?: string, limit?: number }`
+  - Output: `[ { rel_path, chunk, lang, score } ]`
+- search_memory: Search markdown under memory_bank with snippets.
+  - Input: `{ q: string, repo?: string, limit?: number }`
+  - Output: `[ { path, title, snippet, score, repo } ]`
+- resources/list: List memory bank resources.
+  - Input: `{ repo?: string }`
+  - Output: `[ { uri, mimeType, metadata: { path, title, size_bytes, modified_at, source, summary } } ]`
+- resources/read: Read a memory bank resource by URI.
+  - Input: `{ uri: string }` (e.g., `repo://<repo>/memory-bank/<path>`)
+  - Output: `text`
+
 ### Jira MCP
 
 Problem
@@ -170,6 +198,53 @@ sequenceDiagram
 Commands
 - Run on host: `MCP_SERVICE=jira SAVANT_PATH=$(pwd) SETTINGS_PATH=config/settings.json ruby ./bin/mcp_server`
 - Test: ``make jira-test jql='project = ABC order by updated desc' limit=10``
+
+Tools (REST API v3)
+- jira_search: JQL search with pagination.
+  - Input: `{ jql: string, limit?: number, start_at?: number }`
+  - Output: `[ { key, summary, status, assignee, updated, url } ]`
+- jira_self: Verify credentials.
+  - Input: `{}`
+  - Output: user JSON
+- jira_get_issue: Get issue JSON.
+  - Input: `{ key: string, fields?: string[] }`
+  - Output: issue JSON
+- jira_create_issue: Create issue.
+  - Input: `{ projectKey, summary, issuetype, description?, fields? }`
+  - Output: `{ key, url }`
+- jira_update_issue: Update fields.
+  - Input: `{ key, fields: object }`
+  - Output: `{ key, updated: true }`
+- jira_transition_issue: Transition issue.
+  - Input: `{ key, transitionName?, transitionId? }`
+  - Output: `{ key, transitioned: true }`
+- jira_add_comment: Add a comment.
+  - Input: `{ key, body }`
+  - Output: `{ id, created }`
+- jira_delete_comment: Delete a comment.
+  - Input: `{ key, id }`
+  - Output: `{ deleted: true }`
+- jira_download_attachments: Download attachments.
+  - Input: `{ key }`
+  - Output: `{ count, files: [ { id, filename, path } ] }`
+- jira_add_attachment: Upload attachment.
+  - Input: `{ key, filePath }`
+  - Output: `{ id, filename }`
+- jira_add_watcher_to_issue: Add watcher.
+  - Input: `{ key, accountId }`
+  - Output: `{ added: true }`
+- jira_assign_issue: Assign issue.
+  - Input: `{ key, accountId?, name? }`
+  - Output: `{ key, assignee }`
+- jira_bulk_create_issues: Bulk create.
+  - Input: `{ issues: [ { projectKey, summary, issuetype, description?, fields? } ] }`
+  - Output: `{ keys: string[] }`
+- jira_delete_issue: Delete issue.
+  - Input: `{ key }`
+  - Output: `{ deleted: true }`
+- jira_link_issues: Link issues.
+  - Input: `{ inwardKey, outwardKey, linkType }`
+  - Output: `{ created: true }`
 
 ## Make Targets
 

@@ -6,7 +6,7 @@ require 'fileutils'
 module Savant
   class MCPServer
     def initialize(host: nil, port: nil)
-      settings_path = ENV['SETTINGS_PATH'] || 'config/settings.json'
+      default_settings = File.join((ENV['SAVANT_PATH'] && !ENV['SAVANT_PATH'].empty? ? ENV['SAVANT_PATH'] : File.expand_path('../../..', __dir__)), 'config', 'settings.json'); settings_path = default_settings
       cfg = JSON.parse(File.read(settings_path)) rescue {}
       which = (ENV['MCP_SERVICE'] || 'context').to_s
       mcp_cfg = cfg.dig('mcp', which) || {}
@@ -36,7 +36,7 @@ module Savant
       log_io.sync = true
       log = Savant::Logger.new(component: 'mcp', out: log_io)
       log.info("=" * 80)
-      log.info("start: mode=stdio service=#{@service} tools=[search,jira_search,jira_self,search_memory,resources]")
+      log.info("start: mode=stdio service=#{@service} tools=[search,jira_* ,search_memory,resources]")
       log.info("pwd=#{Dir.pwd}")
       log.info("settings_path=#{settings_path}")
       log.info("log_path=#{log_path}")
@@ -49,7 +49,7 @@ module Savant
 
       log.info("buffers synced, waiting for requests...")
       log.info("=" * 80) 
-      # JSON-RPC 2.0 MCP minimal implementation with legacy fallback
+      # JSON-RPC 2.0 MCP only (legacy disabled)
       while (line = STDIN.gets)
         log.info("raw_input: #{line.strip[0..200]}")
         begin
@@ -62,15 +62,9 @@ module Savant
           next
         end
 
-        if req.is_a?(Hash) && req.key?('method')
-          log.info("handeling jsonrpc request")
-          handle_jsonrpc(req, search, jira, log)
-          log.info("handeled jsonrpc request")
-        else
-          log.info("handeling legacy request")
-          handle_legacy(req, search, jira, log)
-          log.info("handeled jsonrpc request")
-        end
+        log.info("handeling jsonrpc request")
+        handle_jsonrpc(req, search, jira, log)
+        log.info("handeled jsonrpc request")
       end
     rescue Interrupt
       log = Savant::Logger.new(component: 'mcp')
@@ -86,11 +80,16 @@ module Savant
 
       case method
       when 'initialize'
+        instructions = case @service
+                       when 'jira' then 'Savant provides Jira tools via registrar.'
+                       when 'context' then 'Savant provides Context tools via registrar.'
+                       else "Savant is running with service=#{@service}; no tools registered."
+                       end
         result = {
           protocolVersion: '2024-11-05',
           serverInfo: { name: 'savant', version: '1.0.0' },
           capabilities: { tools: {} },
-          instructions: 'Savant provides tools: search, jira_search, jira_self.'
+          instructions: instructions
         }
         response = { jsonrpc: '2.0', id: id, result: result }
         log.info("sending initialize response: #{response.to_json[0..100]}")
@@ -98,68 +97,15 @@ module Savant
         log.info("initialize response sent")
 
       when 'tools/list'
-        all_tools = [
-          {
-            name: 'search',
-            description: 'Full‑text search over indexed repos',
-            inputSchema: {
-              type: 'object',
-              properties: {
-                q: { type: 'string' },
-                repo: { anyOf: [{ type: 'string' }, { type: 'null' }] },
-                limit: { type: 'integer', minimum: 1, maximum: 100 }
-              },
-              required: ['q']
-            }
-          },
-          {
-            name: 'search_memory',
-            description: 'Search memory_bank markdown resources',
-            inputSchema: {
-              type: 'object',
-              properties: {
-                q: { type: 'string' },
-                repo: { anyOf: [{ type: 'string' }, { type: 'null' }] },
-                limit: { type: 'integer', minimum: 1, maximum: 100 }
-              },
-              required: ['q']
-            }
-          },
-          {
-            name: 'resources/list',
-            description: 'List memory_bank resources',
-            inputSchema: { type: 'object', properties: { repo: { type: 'string' } } }
-          },
-          {
-            name: 'resources/read',
-            description: 'Read a memory_bank resource by URI',
-            inputSchema: { type: 'object', properties: { uri: { type: 'string' } }, required: ['uri'] }
-          },
-          {
-            name: 'jira_search',
-            description: 'Run a Jira JQL search',
-            inputSchema: {
-              type: 'object',
-              properties: {
-                jql: { type: 'string' },
-                limit: { type: 'integer', minimum: 1, maximum: 100 },
-                start_at: { type: 'integer', minimum: 0 }
-              },
-              required: ['jql']
-            }
-          },
-          {
-            name: 'jira_self',
-            description: 'Verify Jira credentials',
-            inputSchema: { type: 'object', properties: {} }
-          }
-        ]
+        require_relative 'jira/tools'
+        require_relative 'context/tools'
+        all_tools = []
         # Filter tools based on service type
-        tools = if @service == 'jira'
-          all_tools.select { |t| t[:name].to_s.start_with?('jira') }
-        else
-          all_tools.reject { |t| t[:name].to_s.start_with?('jira') }
-        end
+        tools = case @service
+                when 'jira' then Savant::Jira::Tools.specs
+                when 'context' then Savant::Context::Tools.specs
+                else all_tools
+                end
 
         log.info("tools/list: service=#{@service} tool_count=#{tools.length}")
         response = { jsonrpc: '2.0', id: id, result: { tools: tools } }
@@ -169,104 +115,29 @@ module Savant
 
       when 'tools/call'
         name = params['name']
-        args = params['arguments'] || {}
-        case name
-        when 'search'
-          q = (args['q'] || '').to_s
-          repo = args.key?('repo') ? args['repo'] : nil
-          limit = Integer(args['limit'] || 10) rescue 10
-          data, took_ms = log.with_timing {
-            require_relative 'search' unless defined?(Savant::Search)
-            (search ||= Savant::Search.new).search(q: q, repo: repo, limit: limit)
-          }
-          content = [{ type: 'text', text: JSON.pretty_generate(data) }]
-          puts({ jsonrpc: '2.0', id: id, result: { content: content } }.to_json)
-        when 'search_memory'
+        args = params['arguments'] or {}
+        case @service
+        when 'context'
           begin
-            require_relative 'memory_bank/indexer'
-            settings_path = ENV['SETTINGS_PATH'] || 'config/settings.json'
-            cfg = JSON.parse(File.read(settings_path)) rescue {}
-            repos = cfg.dig('indexer','repos') || []
-            repo_name = args['repo'] || repos.dig(0, 'name')
-            repo = repos.find { |r| r['name'] == repo_name } || repos.first
-            raise 'no repos configured' unless repo
-            mbi = Savant::MemoryBank::Indexer.new(repo_name: repo['name'], repo_root: repo['path'], config: cfg)
-            idx = mbi.scan
-            q = (args['q'] || '').to_s
-            limit = Integer(args['limit'] || (cfg.dig('search','max_results') || 20)) rescue 20
-            window = Integer(cfg.dig('search','snippet_window') || 160) rescue 160
-            windows = Integer(cfg.dig('search','snippet_windows_per_doc') || 2) rescue 2
-            data = mbi.search(idx, q, max_results: limit, snippet_window: window, windows_per_doc: windows)
+            require_relative 'context/tools'
+            @context_engine ||= Savant::Context::Engine.new
+            data = Savant::Context::Tools.dispatch(@context_engine, name, args)
             content = [{ type: 'text', text: JSON.pretty_generate(data) }]
             puts({ jsonrpc: '2.0', id: id, result: { content: content } }.to_json)
-          rescue => e
-            puts({ jsonrpc: '2.0', id: id, error: { code: -32002, message: e.message } }.to_json)
+          rescue Exception as e:
+            code = -32006
+            puts({ jsonrpc: '2.0', id: id, error: { code: code, message: str(e) } }.to_json)
           end
-        when 'resources/list'
+        when 'jira'
           begin
-            settings_path = ENV['SETTINGS_PATH'] || 'config/settings.json'
-            cfg = JSON.parse(File.read(settings_path)) rescue {}
-            repos = cfg.dig('indexer','repos') || []
-            repo_name = args['repo'] || repos.dig(0, 'name')
-            repo = repos.find { |r| r['name'] == repo_name } || repos.first
-            raise 'no repos configured' unless repo
-            require_relative 'memory_bank/indexer'
-            mbi = Savant::MemoryBank::Indexer.new(repo_name: repo['name'], repo_root: repo['path'], config: cfg)
-            idx = mbi.scan
-            items = idx.resources.map do |r|
-              { uri: r.uri, mimeType: r.mime_type, metadata: { path: r.path, title: r.title, size_bytes: r.size_bytes, modified_at: r.modified_at, source: r.source, summary: r.summary } }
-            end
-            content = [{ type: 'text', text: JSON.pretty_generate(items) }]
-            puts({ jsonrpc: '2.0', id: id, result: { content: content } }.to_json)
-          rescue => e
-            puts({ jsonrpc: '2.0', id: id, error: { code: -32003, message: e.message } }.to_json)
-          end
-        when 'resources/read'
-          begin
-            uri = (args['uri'] || '').to_s
-            unless uri.start_with?('repo://') && uri.include?('/memory-bank/')
-              raise 'unsupported uri'
-            end
-            repo_name = uri.sub(/^repo:\/\//,'').split('/').first
-            settings_path = ENV['SETTINGS_PATH'] || 'config/settings.json'
-            cfg = JSON.parse(File.read(settings_path)) rescue {}
-            repo = (cfg.dig('indexer','repos') || []).find { |r| r['name'] == repo_name }
-            raise 'repo not found' unless repo
-            rel = uri.split('/memory-bank/',2)[1]
-            abs = File.join(repo['path'], rel)
-            text = File.read(abs)
-            content = [{ type: 'text', text: text }]
-            puts({ jsonrpc: '2.0', id: id, result: { content: content } }.to_json)
-          rescue => e
-            puts({ jsonrpc: '2.0', id: id, error: { code: -32004, message: e.message } }.to_json)
-          end
-        when 'jira_search'
-          begin
-            require_relative 'jira' unless defined?(Savant::Jira)
-            jira ||= Savant::Jira.new
-          rescue => e
-            error = { code: -32001, message: 'jira disabled: missing config' }
-            puts({ jsonrpc: '2.0', id: id, error: error }.to_json)
-            return
-          end
-            jql = (args['jql'] || '').to_s
-            limit = Integer(args['limit'] || 10) rescue 10
-            start_at = Integer(args['start_at'] || 0) rescue 0
-            data, _ms = log.with_timing { jira.search(jql: jql, limit: limit, start_at: start_at) }
+            require_relative 'jira/tools'
+            @jira_engine ||= Savant::Jira.new
+            data = Savant::Jira::Tools.dispatch(@jira_engine, name, args)
             content = [{ type: 'text', text: JSON.pretty_generate(data) }]
             puts({ jsonrpc: '2.0', id: id, result: { content: content } }.to_json)
-        when 'jira_self'
-          begin
-            require_relative 'jira' unless defined?(Savant::Jira)
-            jira ||= Savant::Jira.new
-          rescue => e
-            error = { code: -32001, message: 'jira disabled: missing config' }
-            puts({ jsonrpc: '2.0', id: id, error: error }.to_json)
-            return
+          rescue Exception as e:
+            puts({ jsonrpc: '2.0', id: id, error: { code: -32050, message: str(e) } }.to_json)
           end
-          data, _ms = log.with_timing { jira.self_test }
-          content = [{ type: 'text', text: JSON.pretty_generate(data) }]
-          puts({ jsonrpc: '2.0', id: id, result: { content: content } }.to_json)
         else
           puts({ jsonrpc: '2.0', id: id, error: { code: -32601, message: 'Unknown tool' } }.to_json)
         end
@@ -277,40 +148,6 @@ module Savant
       puts({ jsonrpc: '2.0', id: req['id'], error: { code: -32000, message: e.message } }.to_json)
     end
 
-    def handle_legacy(req, search, jira, log)
-      rid = (req['id'] || SecureRandom.hex(6)).to_s rescue SecureRandom.hex(6)
-      case req['tool']
-      when 'search'
-        require_relative 'search' unless defined?(Savant::Search)
-        search ||= Savant::Search.new
-        out, exec_ms = log.with_timing { search.search(q: req['q'].to_s, repo: req['repo'], limit: (req['limit'] || 10).to_i) }
-        log.info("legacy: search ok dur=#{exec_ms}ms id=#{rid}")
-        puts({ ok: true, data: out, id: rid }.to_json)
-      when 'jira_search'
-        begin
-          require_relative 'jira' unless defined?(Savant::Jira)
-          jira ||= Savant::Jira.new
-        rescue => e
-          puts({ ok: false, error: 'jira disabled: missing config', id: rid }.to_json)
-          return
-        end
-          out, exec_ms = log.with_timing { jira.search(jql: req['jql'].to_s, limit: (req['limit'] || 10).to_i, start_at: (req['start_at'] || 0).to_i) }
-          log.info("legacy: jira_search ok dur=#{exec_ms}ms id=#{rid}")
-          puts({ ok: true, data: out, id: rid }.to_json)
-      when 'jira_self'
-        begin
-          require_relative 'jira' unless defined?(Savant::Jira)
-          jira ||= Savant::Jira.new
-        rescue => e
-          puts({ ok: false, error: 'jira disabled: missing config', id: rid }.to_json)
-          return
-        end
-          out, exec_ms = log.with_timing { jira.self_test }
-          log.info("legacy: jira_self ok dur=#{exec_ms}ms id=#{rid}")
-          puts({ ok: true, data: out, id: rid }.to_json)
-      else
-        puts({ ok: false, error: 'unknown tool', id: rid }.to_json)
-      end
-    end
+    # legacy handler removed
   end
 end

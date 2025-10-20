@@ -5,7 +5,7 @@ require 'time'
 require_relative '../lib/savant/indexer'
 
 cmd = ARGV[0]
-settings_path = ENV['SETTINGS_PATH'] || 'config/settings.json'
+settings_path = 'config/settings.json'
 
 if cmd.nil?
   warn "usage: index all | index <repo> | delete all | delete <repo>"
