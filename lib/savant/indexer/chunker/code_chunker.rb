@@ -1,3 +1,10 @@
+#!/usr/bin/env ruby
+#
+# Purpose: Chunk code files by lines with overlap.
+#
+# Splits source code into windows of `codeMaxLines` with `overlapLines` to
+# preserve context across chunks for FTS ranking.
+
 module Savant
   module Indexer
     module Chunker
@@ -22,4 +29,3 @@ module Savant
     end
   end
 end
-

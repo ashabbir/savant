@@ -1,3 +1,11 @@
+#!/usr/bin/env ruby
+#
+# Purpose: Persistence layer for repos, files, blobs, and chunks.
+#
+# Provides CRUD helpers over Savant::DB for the indexing pipeline, including
+# ensuring repos, upserting files, creating blobs, writing/replacing chunks,
+# mapping files to blobs, and cleaning up missing files.
+
 module Savant
   module Indexer
     class BlobStore

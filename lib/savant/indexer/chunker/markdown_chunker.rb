@@ -1,3 +1,10 @@
+#!/usr/bin/env ruby
+#
+# Purpose: Chunk markdown files by fixed character windows.
+#
+# Produces evenly sized slices (no overlap) controlled by `mdMaxChars`,
+# suitable for FTS and snippet extraction.
+
 module Savant
   module Indexer
     module Chunker
@@ -18,4 +25,3 @@ module Savant
     end
   end
 end
-

@@ -1,3 +1,11 @@
+#!/usr/bin/env ruby
+#
+# Purpose: Strongly-typed view over raw settings for the indexer.
+#
+# Wraps the parsed settings hash to provide convenient accessors for indexer
+# options (max size, languages, chunk config, repos, cache path) and helpers to
+# derive scan mode and other behavior.
+
 module Savant
   module Indexer
     class Config

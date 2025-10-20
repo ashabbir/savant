@@ -1,3 +1,11 @@
+#!/usr/bin/env ruby
+#
+# Purpose: Minimal Jira REST v3 client with basic auth/token support.
+#
+# Wraps Net::HTTP to perform JSON requests against Jira Cloud/Data Center.
+# Supports email+API token and username+password auth. Does not store secrets;
+# expects credentials via environment variables.
+
 require 'json'
 require 'net/http'
 require 'uri'
@@ -105,4 +113,3 @@ module Savant
     end
   end
 end
-

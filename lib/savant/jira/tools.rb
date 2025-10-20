@@ -1,3 +1,10 @@
+#!/usr/bin/env ruby
+#
+# Purpose: MCP registrar/dispatcher for Jira tools.
+#
+# Declares tool specs and routes calls to Jira::Engine. Keeps tool
+# capabilities and argument validation centralized for the MCP server.
+
 require 'json'
 require_relative 'engine'
 
@@ -68,4 +75,3 @@ module Savant
     end
   end
 end
-

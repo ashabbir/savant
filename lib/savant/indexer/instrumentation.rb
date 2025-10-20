@@ -1,3 +1,10 @@
+#!/usr/bin/env ruby
+#
+# Purpose: Thin wrapper over logger for consistent timing and levels.
+#
+# Allows the indexer to emit structured progress and timing information without
+# coupling to a specific logger implementation.
+
 module Savant
   module Indexer
     class Instrumentation
@@ -27,4 +34,3 @@ module Savant
     end
   end
 end
-

@@ -1,3 +1,11 @@
+#!/usr/bin/env ruby
+#
+# Purpose: Minimal, fast logger with levels and timing.
+#
+# Provides component-scoped log output with level filtering via `LOG_LEVEL` and
+# a simple `with_timing` helper that marks slow operations using
+# `SLOW_THRESHOLD_MS`. Defaults to stdout but accepts any IO for writing.
+
 module Savant
   class Logger
     LEVELS = %w[debug info warn error].freeze

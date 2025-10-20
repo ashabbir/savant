@@ -1,3 +1,10 @@
+#!/usr/bin/env ruby
+#
+# Purpose: Administrative helpers for indexer/database maintenance.
+#
+# Provides commands to migrate schema, ensure FTS, perform smoke tests, and
+# delete data at repo or global scope.
+
 module Savant
   module Indexer
     class Admin
@@ -47,4 +54,3 @@ module Savant
     end
   end
 end
-

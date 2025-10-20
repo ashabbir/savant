@@ -1,3 +1,12 @@
+#!/usr/bin/env ruby
+#
+# Purpose: Load and validate application configuration.
+#
+# `Savant::Config.load(path)` reads `config/settings.json`, validates required
+# structure and keys, and raises `Savant::ConfigError` for any invalid input.
+# This module enforces presence of top-level sections (indexer, database, mcp)
+# and sanity-checks repo entries and indexer fields.
+
 require 'json'
 
 module Savant

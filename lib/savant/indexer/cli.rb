@@ -1,3 +1,10 @@
+#!/usr/bin/env ruby
+#
+# Purpose: CLI helpers for indexer entrypoints.
+#
+# Provides thin wiring for bin/index and admin commands to call the indexer
+# facade with appropriate arguments and output formatting.
+
 module Savant
   module Indexer
     class CLI

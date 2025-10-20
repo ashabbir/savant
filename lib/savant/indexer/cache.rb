@@ -1,5 +1,12 @@
 require 'json'
 
+#!/usr/bin/env ruby
+#
+# Purpose: Simple JSON-backed cache for indexing metadata.
+#
+# Stores per-file metadata (size, mtime) to skip unchanged files between runs.
+# Provides hash-like access and persists to disk on save.
+
 module Savant
   module Indexer
     class Cache
@@ -30,4 +37,3 @@ module Savant
     end
   end
 end
-

@@ -1,3 +1,11 @@
+#!/usr/bin/env ruby
+#
+# Purpose: Orchestrate Jira MCP tools and guard writes.
+#
+# Wires a Jira::Client to Jira::Ops and exposes high-level methods for MCP
+# tools. Enforces write permissions via JIRA_ALLOW_WRITES and centralizes
+# default fields and environment lookups.
+
 require_relative 'client'
 require_relative 'ops'
 require 'json'
@@ -57,4 +65,3 @@ module Savant
     end
   end
 end
-

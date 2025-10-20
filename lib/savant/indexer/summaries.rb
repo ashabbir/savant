@@ -1,19 +1,27 @@
+#!/usr/bin/env ruby
+#
+# Purpose: Generate summaries during indexing for persistence to Postgres.
+#
+# This module belongs to the indexing layer and provides a simple abstraction
+# for summarizing text as part of ingestion. It prefers the optional 'summarize'
+# gem when available and falls back to a deterministic heuristic.
 require 'time'
 begin
   require 'summarize'
 rescue LoadError
-  # Optional dependency; we will fall back to heuristic
+  # optional dependency
 end
 
 module Savant
-  module MemoryBank
+  module Indexer
     module Summaries
       module_function
 
+      # Summarize text for storage. Returns a Hash with metadata:
+      # { text: String, length: Integer, source: 'summarize'|'heuristic'|'none', generated_at: ISO8601 String }
       def summarize(text, max_length: 300)
         txt = text.to_s.strip
         return { text: '', length: 0, source: 'none', generated_at: Time.now.utc.iso8601 } if txt.empty?
-        # Prefer summarize gem if available
         if defined?(Summarize)
           begin
             out = Summarize.summarize(txt, max_length: max_length).to_s.strip
@@ -25,13 +33,14 @@ module Savant
             end
             return { text: out, length: out.length, source: src, generated_at: Time.now.utc.iso8601 }
           rescue => _e
-            # fall through to heuristic
+            # fall back
           end
         end
         out = heuristic(txt, max_length)
         { text: out, length: out.length, source: 'heuristic', generated_at: Time.now.utc.iso8601 }
       end
 
+      # Heuristic: take the first paragraph and trim to max length.
       def heuristic(txt, max_length)
         para = txt.split(/\n\n+/).first.to_s.strip
         para.length > max_length ? para[0, max_length - 1] + '…' : para

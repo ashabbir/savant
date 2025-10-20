@@ -1,3 +1,10 @@
+#!/usr/bin/env ruby
+#
+# Purpose: Base class for content chunkers used by the indexer.
+#
+# Defines the `#chunk(path, config)` interface implemented by concrete
+# chunkers for code, markdown, and plaintext.
+
 module Savant
   module Indexer
     module Chunker
@@ -9,4 +16,3 @@ module Savant
     end
   end
 end
-

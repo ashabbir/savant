@@ -1,3 +1,10 @@
+#!/usr/bin/env ruby
+#
+# Purpose: Infer language from file path/extension for chunking.
+#
+# Maps file extensions to a coarse language label used by the indexer for
+# filtering and chunking strategy selection.
+
 module Savant
   module Indexer
     class Language
@@ -8,4 +15,3 @@ module Savant
     end
   end
 end
-

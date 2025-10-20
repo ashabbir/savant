@@ -1,3 +1,12 @@
+#!/usr/bin/env ruby
+#
+# Purpose: Postgres connection + schema helpers.
+#
+# Provides a small wrapper around the pg connection used across Savant. It
+# includes helpers to create/migrate core tables, ensure the FTS GIN index, and
+# run transactional blocks. CRUD for indexing lives in BlobStore; this class is
+# intentionally focused on connection lifecycle and schema operations.
+
 require 'pg'
 
 module Savant

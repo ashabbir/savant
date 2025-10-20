@@ -1,3 +1,11 @@
+#!/usr/bin/env ruby
+#
+# Purpose: Coordinate scanning, chunking, and persistence per repo.
+#
+# Runner orchestrates repository scanning, filtering (size/lang/binary),
+# hashing/dedup of blobs, chunk creation, and DB writes. It uses Cache to skip
+# unchanged files and BlobStore for persistence.
+
 require 'digest'
 
 module Savant

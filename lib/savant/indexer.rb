@@ -1,3 +1,11 @@
+#!/usr/bin/env ruby
+#
+# Purpose: Facade for the indexing pipeline.
+#
+# Wires configuration, cache, and runner to perform end-to-end repository
+# scans and persistence to Postgres. This is the stable entry used by CLI
+# and scripts; detailed logic is implemented in submodules under indexer/.
+
 require 'json'
 require 'digest'
 require_relative 'config'

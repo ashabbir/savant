@@ -1,3 +1,11 @@
+#!/usr/bin/env ruby
+#
+# Purpose: List repository files respecting ignores and git excludes.
+#
+# Discovers files using either `git ls-files` (preferred) or directory walk
+# fallback. Merges `.gitignore` and `.git/info/exclude` with optional extra
+# ignore patterns. Tracks which method was used for transparency.
+
 require 'find'
 require 'open3'
 

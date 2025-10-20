@@ -1,3 +1,11 @@
+#!/usr/bin/env ruby
+#
+# Purpose: Implement Jira operations via REST v3.
+#
+# Contains all HTTP interactions and response shaping for searching, getting,
+# creating, updating, transitioning, and deleting issues, along with comments,
+# attachments, assignments, links, and metadata listing.
+
 require_relative 'client'
 
 module Savant
@@ -117,4 +125,3 @@ module Savant
     end
   end
 end
-

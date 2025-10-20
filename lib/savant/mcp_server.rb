@@ -1,3 +1,11 @@
+#!/usr/bin/env ruby
+#
+# Purpose: Stdio JSON‑RPC 2.0 server for MCP services.
+#
+# Selects the active service via `MCP_SERVICE` (e.g., 'context' or 'jira'),
+# advertises its tools, and dispatches tool calls to the service Engine. Logs
+# to `logs/<service>.log` and keeps stdout/stderr synchronized for MCP clients.
+
 require 'json'
 require 'securerandom'
 require_relative 'logger'
