@@ -57,7 +57,7 @@ Runtime Modes
 
 Makefile Highlights
 - Dev lifecycle: `make dev`, `make logs`, `make down`, `make ps`.
-- DB: `make migrate`, `make fts`, `make smoke`.
+- DB: `make migrate` (destructive reset), `make fts`, `make smoke`.
 - Indexing: `make repo-index-all`, `make repo-index-repo repo=<name>`, `make repo-delete-all`, `make repo-delete-repo repo=<name>`, `make repo-status`.
 - MCP: `make mcp`, `make mcp-context(-run)`, `make mcp-jira(-run)`, tests (`make mcp-test`, `make jira-test`, `make jira-self`).
 - Quality checks: `bundle exec rspec`, `bundle exec rubocop`, and `bundle exec guard` for watch mode.

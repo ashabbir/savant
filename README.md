@@ -95,7 +95,7 @@ flowchart LR
 ### Commands
 
 Without Docker
-- Migrate: `DATABASE_URL=postgres://context:contextpw@localhost:5432/contextdb SETTINGS_PATH=config/settings.json ruby ./bin/db_migrate`
+- Migrate (destructive reset): `DATABASE_URL=postgres://context:contextpw@localhost:5432/contextdb SETTINGS_PATH=config/settings.json ruby ./bin/db_migrate`
 - FTS: `DATABASE_URL=... SETTINGS_PATH=... ruby ./bin/db_fts`
 - Smoke: `DATABASE_URL=... SETTINGS_PATH=... ruby ./bin/db_smoke`
 - Index all: `DATABASE_URL=... SETTINGS_PATH=... ruby ./bin/context_repo_indexer index all`

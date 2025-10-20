@@ -32,8 +32,15 @@ module Savant
     end
 
     def migrate_tables
+      # Destructive reset: drop and recreate all tables/indexes
+      @conn.exec('DROP TABLE IF EXISTS file_blob_map CASCADE')
+      @conn.exec('DROP TABLE IF EXISTS chunks CASCADE')
+      @conn.exec('DROP TABLE IF EXISTS files CASCADE')
+      @conn.exec('DROP TABLE IF EXISTS blobs CASCADE')
+      @conn.exec('DROP TABLE IF EXISTS repos CASCADE')
+
       @conn.exec(<<~SQL)
-        CREATE TABLE IF NOT EXISTS repos (
+        CREATE TABLE repos (
           id SERIAL PRIMARY KEY,
           name TEXT UNIQUE NOT NULL,
           root_path TEXT NOT NULL
@@ -41,39 +48,21 @@ module Savant
       SQL
 
       @conn.exec(<<~SQL)
-        CREATE TABLE IF NOT EXISTS files (
+        CREATE TABLE files (
           id SERIAL PRIMARY KEY,
           repo_id INTEGER NOT NULL REFERENCES repos(id) ON DELETE CASCADE,
-          repo_name TEXT,
+          repo_name TEXT NOT NULL,
           rel_path TEXT NOT NULL,
           size_bytes BIGINT NOT NULL,
           mtime_ns BIGINT NOT NULL,
           UNIQUE(repo_id, rel_path)
         );
       SQL
-
-      # Ensure files.repo_name exists and is populated for existing installs
-      begin
-        @conn.exec("ALTER TABLE files ADD COLUMN IF NOT EXISTS repo_name TEXT")
-      rescue => e
-        # Ignore if not supported; table creation above includes the column for fresh DBs
-      end
-
-      # Backfill repo_name from repos.name if any NULLs exist
-      @conn.exec(<<~SQL)
-        UPDATE files f
-        SET repo_name = r.name
-        FROM repos r
-        WHERE f.repo_id = r.id AND (f.repo_name IS NULL OR f.repo_name = '')
-      SQL
-
-      # Helpful index for repo_name lookups
-      @conn.exec(<<~SQL)
-        CREATE INDEX IF NOT EXISTS idx_files_repo_name ON files(repo_name);
-      SQL
+      @conn.exec("CREATE INDEX idx_files_repo_name ON files(repo_name)")
+      @conn.exec("CREATE INDEX idx_files_repo_id ON files(repo_id)")
 
       @conn.exec(<<~SQL)
-        CREATE TABLE IF NOT EXISTS blobs (
+        CREATE TABLE blobs (
           id SERIAL PRIMARY KEY,
           hash TEXT UNIQUE NOT NULL,
           byte_len BIGINT NOT NULL
@@ -81,7 +70,7 @@ module Savant
       SQL
 
       @conn.exec(<<~SQL)
-        CREATE TABLE IF NOT EXISTS file_blob_map (
+        CREATE TABLE file_blob_map (
           file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
           blob_id INTEGER NOT NULL REFERENCES blobs(id) ON DELETE CASCADE,
           PRIMARY KEY(file_id)
@@ -89,7 +78,7 @@ module Savant
       SQL
 
       @conn.exec(<<~SQL)
-        CREATE TABLE IF NOT EXISTS chunks (
+        CREATE TABLE chunks (
           id SERIAL PRIMARY KEY,
           blob_id INTEGER NOT NULL REFERENCES blobs(id) ON DELETE CASCADE,
           idx INTEGER NOT NULL,
@@ -97,9 +86,7 @@ module Savant
           chunk_text TEXT NOT NULL
         );
       SQL
-      @conn.exec(<<~SQL)
-        CREATE INDEX IF NOT EXISTS idx_chunks_blob ON chunks(blob_id);
-      SQL
+      @conn.exec("CREATE INDEX idx_chunks_blob ON chunks(blob_id)")
       true
     end
 
