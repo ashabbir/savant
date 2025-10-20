@@ -10,29 +10,29 @@ module Savant
   module Context
     module FS
       class RepoIndexer
-        def initialize(settings_path: 'config/settings.json', logger: Savant::Logger.new(component: 'context.repo_indexer'))
+        def initialize(db: Savant::DB.new, settings_path: 'config/settings.json', logger: Savant::Logger.new(component: 'context.repo_indexer'))
           @settings_path = settings_path
           @logger = logger
+          @db = db
         end
 
         def index(repo: nil, verbose: true)
-          idx = Savant::Indexer::Facade.new(@settings_path, logger: @logger, db: Savant::DB.new)
+          idx = Savant::Indexer::Facade.new(@settings_path, logger: @logger, db: @db)
           idx.run(repo, verbose: verbose)
         end
 
         def delete(repo: nil)
-          db = Savant::DB.new
           if repo.nil? || repo == 'all'
-            db.delete_all_data
+            @db.delete_all_data
             { deleted: 'all', count: 1 }
           else
-            n = db.delete_repo_by_name(repo)
+            n = @db.delete_repo_by_name(repo)
             { deleted: 'repo', count: n }
           end
         end
 
         def status
-          admin = Savant::Indexer::Admin.new(Savant::DB.new)
+          admin = Savant::Indexer::Admin.new(@db)
           rows = admin.repo_stats
           rows.map do |r|
             max_ns = r['max_mtime_ns']
@@ -50,4 +50,3 @@ module Savant
     end
   end
 end
-

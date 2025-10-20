@@ -185,7 +185,7 @@ Tools
   - Output: `[ { repo, rel_path, chunk, lang, score } ]`
 - memory/resources/list: List memory bank resources (filesystem helper).
   - Input: `{ repo?: string }`
-  - Output: `[ { uri, mimeType, metadata: { path, title, size_bytes, modified_at, source } } ]`
+  - Output: `[ { uri, mimeType, metadata: { path, title, modified_at, source } } ]`
 - memory/resources/read: Read a memory bank resource by URI.
   - Input: `{ uri: string }` (e.g., `repo://<repo>/memory-bank/<path>`)
   - Output: `text`

@@ -20,8 +20,9 @@ module Savant
   module Context
     class Ops
       # Create an Ops instance with a namespaced logger.
-      def initialize
+      def initialize(db: Savant::DB.new)
         @log = Savant::Logger.new(component: 'context.ops')
+        @db = db
       end
 
       # Query Postgres FTS for code/content chunks.
@@ -32,7 +33,7 @@ module Savant
       # Returns: Array of Hashes with rel_path, chunk, lang, score
       def search(q:, repo:, limit:)
         require_relative 'fts'
-        Savant::Context::FTS.new.search(q: q, repo: repo, limit: limit)
+        Savant::Context::FTS.new(@db).search(q: q, repo: repo, limit: limit)
       end
 
       # Search memory_bank markdown stored in Postgres (via FTS), scoped by repo name(s).
@@ -42,14 +43,13 @@ module Savant
       # Returns: Array of Hashes with repo, rel_path, chunk, lang, score
       def search_memory(q:, repo:, limit:)
         require_relative 'fts'
-        Savant::Context::FTS.new.search(q: q, repo: repo, limit: limit, memory_only: true)
+        Savant::Context::FTS.new(@db).search(q: q, repo: repo, limit: limit, memory_only: true)
       end
 
       # List memory_bank resources from the database (files table) using repo_name and rel_path.
       # Returns: Array of { uri, mimeType, metadata: { path, title, size_bytes, modified_at, source } }
       def resources_list(repo: nil)
-        require_relative '../db'
-        conn = Savant::DB.new.instance_variable_get(:@conn)
+        conn = @db.instance_variable_get(:@conn)
         params = []
         where = "WHERE rel_path LIKE '%/memory_bank/%' AND rel_path ILIKE '%.md'"
         if repo
@@ -75,7 +75,7 @@ module Savant
           uri = "repo://#{repo_name}/memory-bank/#{rel_path}"
           title = File.basename(rel_path, File.extname(rel_path))
           modified_at = Time.at(r['mtime_ns'].to_i / 1_000_000_000.0).utc.iso8601 rescue nil
-          { uri: uri, mimeType: 'text/markdown; charset=utf-8', metadata: { path: rel_path, title: title, size_bytes: r['size_bytes'].to_i, modified_at: modified_at, source: 'memory_bank' } }
+          { uri: uri, mimeType: 'text/markdown; charset=utf-8', metadata: { path: rel_path, title: title, modified_at: modified_at, source: 'memory_bank' } }
         end
       end
 
@@ -93,9 +93,7 @@ module Savant
         rel_candidates << tail
         rel_candidates << File.join('memory_bank', tail) unless tail.include?('/memory_bank/')
 
-        require_relative '../db'
-        db = Savant::DB.new
-        conn = db.instance_variable_get(:@conn)
+        conn = @db.instance_variable_get(:@conn)
         # Resolve repo root
         r = conn.exec_params('SELECT root_path FROM repos WHERE name=$1', [repo_name])
         raise 'resource not found' if r.ntuples.zero?

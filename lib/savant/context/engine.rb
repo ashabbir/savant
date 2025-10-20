@@ -24,7 +24,8 @@ module Savant
       # Initialize the engine with a namespaced logger and context ops.
       def initialize
         @log = Savant::Logger.new(component: 'context.engine')
-        @ops = Savant::Context::Ops.new
+        @db = Savant::DB.new
+        @ops = Savant::Context::Ops.new(db: @db)
       end
 
       # Full‑text search over indexed content stored in Postgres FTS.
@@ -55,15 +56,15 @@ module Savant
 
       # Repo Indexer operations exposed under Context
       def repo_indexer_index(repo: nil, verbose: true)
-        Savant::Context::FS::RepoIndexer.new.index(repo: repo, verbose: verbose)
+        Savant::Context::FS::RepoIndexer.new(db: @db).index(repo: repo, verbose: verbose)
       end
 
       def repo_indexer_delete(repo: nil)
-        Savant::Context::FS::RepoIndexer.new.delete(repo: repo)
+        Savant::Context::FS::RepoIndexer.new(db: @db).delete(repo: repo)
       end
 
       def repo_indexer_status
-        Savant::Context::FS::RepoIndexer.new.status
+        Savant::Context::FS::RepoIndexer.new(db: @db).status
       end
     end
   end

@@ -14,7 +14,7 @@ module Savant
     class FTS
       # Initialize with a DB connection wrapper. Accepts a Savant::DB or any
       # object exposing `@conn` compatible with pg's exec_params.
-      def initialize(db = Savant::DB.new)
+      def initialize(db)
         @db = db
       end
 

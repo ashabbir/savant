@@ -3,6 +3,7 @@
 
 require 'time'
 require_relative '../lib/savant/context/fs/repo_indexer'
+require_relative '../lib/savant/db'
 
 def usage!
   warn 'usage: context_repo_indexer index all | index <repo> | delete all | delete <repo> | status'
@@ -12,7 +13,7 @@ end
 cmd = ARGV.shift
 usage! unless cmd
 
-repo_indexer = Savant::Context::FS::RepoIndexer.new
+repo_indexer = Savant::Context::FS::RepoIndexer.new(db: Savant::DB.new)
 
 begin
   case cmd

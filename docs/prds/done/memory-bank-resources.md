@@ -42,7 +42,7 @@
 - Metadata:
   - `path`: repo-relative path
   - `title`: filename without extension or first H1 (if extracted)
-  - `size_bytes`: integer
+  (size omitted from MCP output)
   - `modified_at`: ISO 8601 mtime
   - `source`: `memory_bank`
   - `summary`: { `text`, `length`, `source`: "summarize", `generated_at` }
@@ -54,7 +54,7 @@
 - `content_full`: plain text extracted from Markdown
 - `content_summary`: summary text (<= `summary_max_length`)
 - `modified_at`: file mtime
-- `size_bytes`: file size
+  (file size tracked internally; omitted from MCP output)
 - `source`: constant `memory_bank`
 
 ## Indexing Flow
@@ -164,7 +164,7 @@ search:
   - `snippets.rb`: snippet windowing and highlight offsets.
 
 ## API Shapes (Illustrative)
-- memory/resources/list → `[ { uri, mimeType, metadata: { path, title, size_bytes, modified_at, source } } ]`
+- memory/resources/list → `[ { uri, mimeType, metadata: { path, title, modified_at, source } } ]`
 - memory/resources/read → `{ contents: [ { uri, mimeType: "text/markdown", text } ] }`
 - memory/search (params: { q, repo?, limit? }) →
   - `[ { repo, rel_path, lang, chunk, score } ]`
