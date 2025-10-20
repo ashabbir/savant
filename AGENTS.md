@@ -18,10 +18,11 @@ Key Components (Ruby)
   - CRUD helpers: `find_or_create_repo`, `find_or_create_blob`, `replace_chunks`, `upsert_file`, `map_file_to_blob`, `delete_missing_files`, `delete_repo_by_name`, `delete_all_data`.
 - `lib/savant/logger.rb`:
   - Lightweight logger with levels, timing helper `with_timing(label:)`, and slow-op flag via `SLOW_THRESHOLD_MS`.
-- `lib/savant/indexer.rb`:
-  - Scans repos from config; merges `.gitignore` and `.git/info/exclude` patterns; skips hidden, binary, oversized, or unchanged files (tracked in `.cache/indexer.json`).
+- `lib/savant/indexer.rb` and `lib/savant/indexer/*`:
+  - Facade `Savant::Indexer` delegates to namespaced modules under `lib/savant/indexer/` (Runner, RepositoryScanner, BlobStore, Chunkers, Cache, Config, Instrumentation, Admin, CLI).
+  - Runner scans repos from config; merges `.gitignore` and `.git/info/exclude` patterns; skips hidden, binary, oversized, or unchanged files (tracked in `.cache/indexer.json`).
   - Dedupes by SHA256 at blob level; chunks code by lines with overlap; markdown by chars; language derived from file extension with optional allowlist.
-  - Upserts file metadata, maps file→blob, replaces blob chunks, and cleans up missing files per repo.
+  - Upserts file metadata, maps file→blob, replaces blob chunks, and cleans up missing files per repo. `bin/index` and `bin/status` route through the namespace.
 - `lib/savant/context` Engine:
   - `lib/savant/context/engine.rb`: orchestrates context tools
   - `lib/savant/context/ops.rb`: implements search, memory_bank, resources

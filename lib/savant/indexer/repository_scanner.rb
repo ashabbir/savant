@@ -1,0 +1,134 @@
+require 'find'
+require 'open3'
+
+module Savant
+  module Indexer
+    class RepositoryScanner
+      attr_reader :last_used
+
+      def initialize(root, extra_ignores: [], scan_mode: :auto)
+        @root = root
+        raw_patterns = Array(extra_ignores) + load_gitignore_patterns
+        @ignore_patterns = normalize_globs(raw_patterns)
+        @prune_names = derive_prune_dir_names(raw_patterns)
+        @scan_mode = scan_mode
+        @last_used = nil
+      end
+
+      def files
+        return [] unless Dir.exist?(@root)
+        if use_git?
+          list = git_ls_files
+          unless list.nil?
+            @last_used = :git
+            return list
+          end
+          # Fallback to walk on failure
+        end
+        @last_used = :walk
+        out = []
+        begin
+          Find.find(@root) do |path|
+            rel = path.sub(/^#{Regexp.escape(@root)}\/?/, '')
+            if File.directory?(path)
+              # Skip .git and dot-directories or configured prunable dirs early
+              if dot_dir?(rel) || prune_dir?(rel)
+                Find.prune
+              else
+                next
+              end
+            else
+              next if rel.empty?
+              next if ignored?(rel)
+              out << [path, rel]
+            end
+          end
+        rescue Errno::ENOENT
+          return []
+        end
+        out
+      end
+
+      private
+
+      def dot_dir?(rel)
+        rel == '.git' || rel.start_with?('.git/') || rel.split('/').any? { |part| part.start_with?('.') }
+      end
+
+      def prune_dir?(rel)
+        # If any path segment is in prune_names, prune
+        rel.split('/').any? { |seg| @prune_names.include?(seg) }
+      end
+
+      def ignored?(rel)
+        @ignore_patterns.any? do |g|
+          File.fnmatch?(g, rel, File::FNM_PATHNAME | File::FNM_DOTMATCH | File::FNM_EXTGLOB)
+        end
+      end
+
+      def use_git?
+        return false if @scan_mode == :walk
+        return false unless Dir.exist?(File.join(@root, '.git'))
+        true
+      end
+
+      def git_ls_files
+        # Enumerate tracked and untracked (non-ignored) files
+        cmd = [
+          'git', '-C', @root, 'ls-files', '-z', '--cached', '--others', '--exclude-standard'
+        ]
+        stdout, status = Open3.capture2(*cmd)
+        return nil unless status.success?
+        rels = stdout.split("\x00").reject(&:empty?)
+        rels = rels.reject { |rel| ignored?(rel) } unless @ignore_patterns.empty?
+        rels.map { |rel| [File.join(@root, rel), rel] }
+      rescue Errno::ENOENT
+        # git not installed
+        nil
+      end
+
+      def normalize_globs(patterns)
+        patterns.map do |pat|
+          p = pat.strip
+          next if p.empty? || p.start_with?('#') || p.start_with?('!')
+          p = "**/#{p}" unless p.include?('/')
+          p = "#{p}**" if p.end_with?('/')
+          p
+        end.compact
+      end
+
+      def derive_prune_dir_names(patterns)
+        names = []
+        patterns.each do |pat|
+          p = pat.strip
+          next if p.empty? || p.start_with?('#') || p.start_with?('!')
+          # Common directory ignore forms
+          if p.end_with?('/**') || p.end_with?('/*') || p.end_with?('/')
+            base = p.split('/').reject(&:empty?).last
+            names << base.sub(/\*\*?$/, '') unless base.nil? || base.empty?
+          elsif p !~ /[\*\[\]\?]/
+            # Plain directory name
+            names << p
+          end
+        end
+        # Always prune canonical heavy dirs
+        names.concat(%w[node_modules vendor dist build .next .git])
+        names.uniq
+      end
+
+      def load_gitignore_patterns
+        patterns = []
+        [File.join(@root, '.gitignore'), File.join(@root, '.git', 'info', 'exclude')].each do |path|
+          next unless File.file?(path)
+          File.readlines(path, chomp: true).each do |line|
+            line = line.strip
+            next if line.empty? || line.start_with?('#')
+            next if line.start_with?('!')
+            patterns << line
+          end
+        end
+        patterns
+      end
+    end
+  end
+end

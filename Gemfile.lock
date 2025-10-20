@@ -30,6 +30,7 @@ GEM
       fiber-annotation
       fiber-local (~> 1.1)
       json
+    diff-lcs (1.6.2)
     fiber-annotation (0.2.0)
     fiber-local (1.1.0)
       fiber-storage
@@ -82,6 +83,19 @@ GEM
       rake
     regexp_parser (2.11.3)
     rexml (3.4.4)
+    rspec (3.13.1)
+      rspec-core (~> 3.13.0)
+      rspec-expectations (~> 3.13.0)
+      rspec-mocks (~> 3.13.0)
+    rspec-core (3.13.6)
+      rspec-support (~> 3.13.0)
+    rspec-expectations (3.13.5)
+      diff-lcs (>= 1.2.0, < 2.0)
+      rspec-support (~> 3.13.0)
+    rspec-mocks (3.13.6)
+      diff-lcs (>= 1.2.0, < 2.0)
+      rspec-support (~> 3.13.0)
+    rspec-support (3.13.6)
     rubocop (1.81.1)
       json (~> 2.3)
       language_server-protocol (~> 3.17.0.2)
@@ -123,6 +137,7 @@ DEPENDENCIES
   oj (~> 3.16)
   pg (~> 1.5)
   protocol-websocket (~> 0.7)
+  rspec (~> 3.13)
   rubocop
   summarize
   tty-logger (~> 0.6)

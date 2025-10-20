@@ -7,6 +7,17 @@ module Savant
       @conn = PG.connect(@url)
     end
 
+    def with_transaction
+      @conn.exec('BEGIN')
+      begin
+        yield
+        @conn.exec('COMMIT')
+      rescue => e
+        @conn.exec('ROLLBACK') rescue nil
+        raise e
+      end
+    end
+
     def close
       @conn.close if @conn
     end

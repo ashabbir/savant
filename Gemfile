@@ -12,3 +12,7 @@ gem "tty-logger", "~> 0.6"
 group :development do
   gem "rubocop", require: false
 end
+
+group :development, :test do
+  gem "rspec", "~> 3.13"
+end

@@ -4,46 +4,4 @@
 require 'time'
 require_relative '../lib/savant/indexer'
 
-cmd = ARGV[0]
-settings_path = 'config/settings.json'
-
-if cmd.nil?
-  warn "usage: index all | index <repo> | delete all | delete <repo>"
-  exit 2
-end
-
-repo = (cmd == 'all') ? nil : (cmd.start_with?('delete') ? ARGV[1] : cmd)
-
-begin
-  started = Time.now
-  if cmd == 'delete'
-    db = Savant::DB.new
-    if repo.nil? || repo == 'all'
-      puts "DELETE START ts=#{started.utc.iso8601} mode=all"
-      db.delete_all_data
-      res = { total: 0, changed: 0, skipped: 0 }
-      action = 'DELETE'
-    else
-      puts "DELETE START ts=#{started.utc.iso8601} repo=#{repo}"
-      n = db.delete_repo_by_name(repo)
-      res = { total: 0, changed: n, skipped: 0 }
-      action = 'DELETE'
-    end
-  else
-    mode = repo ? "repo=#{repo}" : "all"
-    puts "INDEX START ts=#{started.utc.iso8601} settings=#{settings_path} mode=#{mode}"
-    idx = Savant::Indexer.new(settings_path)
-    res = idx.run(repo)
-    action = 'INDEX'
-  end
-  finished = Time.now
-  dur = (finished - started).round(3)
-  puts "#{action} DONE ts=#{finished.utc.iso8601} duration_s=#{dur} total=#{res[:total]} changed=#{res[:changed]} skipped=#{res[:skipped]}"
-  exit 0
-rescue Savant::ConfigError => e
-  warn "CONFIG ERROR: #{e.message}"
-  exit 1
-rescue => e
-  warn "INDEX ERROR: #{e.class}: #{e.message}"
-  exit 1
-end
+Savant::Indexer::CLI.run(ARGV)

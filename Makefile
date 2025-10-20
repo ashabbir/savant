@@ -1,4 +1,4 @@
-.PHONY: dev logs down ps migrate fts smoke index-all index-repo status mcp-test jira-test jira-self delete-all delete-repo
+.PHONY: dev logs down ps migrate fts smoke index-all index-repo status mcp-test jira-test jira-self delete-all delete-repo test
 
 # Ensure rbenv shims take precedence in Make subshells
 # (Reverted) Do not globally override PATH; use explicit rbenv shim per target.
@@ -59,5 +59,10 @@ jira-test:
 # Quick auth check for Jira credentials
 jira-self:
     @sh -lc 'printf "{\"tool\":\"jira_self\"}\n" | SAVANT_PATH=$(PWD) $(HOME)/.rbenv/shims/bundle exec ruby ./bin/mcp_server'
+
+test:
+	@sh -lc 'if command -v bundle >/dev/null 2>&1; then bundle exec rspec; \
+  elif [ -x "$$HOME/.rbenv/shims/bundle" ]; then "$$HOME/.rbenv/shims/bundle" exec rspec; \
+  else rspec; fi'
 
  

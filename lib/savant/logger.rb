@@ -5,7 +5,7 @@ module Savant
     def initialize(component:, out: $stdout)
       @component = component
       @out = out
-      @level = (ENV["LOG_LEVEL"] || "debug").downcase
+      @level = (ENV["LOG_LEVEL"] || "info").downcase
       @slow_threshold_ms = (ENV["SLOW_THRESHOLD_MS"] || "2000").to_i
     end
 
