@@ -15,6 +15,7 @@ Local repo indexer + MCP search layer (Ruby + Postgres FTS, optional Docker).
 - Scaffold a new MCP service with the generator:
   - Create engine + tools + spec skeletons:
     - `bundle exec ruby ./bin/savant generate engine <name>`
+    - Make: no target (CLI only)
     - Options:
       - `--with-db`: include a shared `Savant::DB` handle in the engine constructor.
       - `--force`: overwrite existing files.
@@ -30,6 +31,7 @@ Local repo indexer + MCP search layer (Ruby + Postgres FTS, optional Docker).
   - Tools module: `Savant::<CamelCase>::Tools.build_registrar(engine)`
   - Start MCP server for the service:
     - `MCP_SERVICE=<service> ruby ./bin/mcp_server`
+    - Make: `make mcp-test q='<term>'` (Context only helper)
   - Server uses engine-provided `server_info` for name/version/description in `initialize` response.
 
 ### Using the Framework in Editors
@@ -41,17 +43,21 @@ Local repo indexer + MCP search layer (Ruby + Postgres FTS, optional Docker).
       - `DATABASE_URL=postgres://context:contextpw@localhost:5433/contextdb`
       - Optional: `SAVANT_PATH=$(pwd)`
   - Tools available (Context): `fts/search`, `memory/search`, `memory/resources/*`, `fs/repo/*`.
+  - Make: `make mcp-test q='<term>' [repo=<name>] [limit=5]`
 
 ### Raw MCP (no Docker)
 - Run Postgres locally or point to an existing instance.
 - Prepare DB and FTS index:
   - `DATABASE_URL=... ruby ./bin/db_migrate` (destructive reset)
   - `DATABASE_URL=... ruby ./bin/db_fts`
+  - Make: `make migrate && make fts`
 - Index your repos:
   - `DATABASE_URL=... ruby ./bin/context_repo_indexer index all`
+  - Make: `make repo-index-all`
 - Start MCP server (stdio):
   - `MCP_SERVICE=context DATABASE_URL=... ruby ./bin/mcp_server`
   - Use any JSON-RPC client to send `initialize`, `tools/list`, `tools/call`.
+  - Make: `make mcp-test q='<term>' [repo=<name>] [limit=5]`
 
 ## Overview
 - Index local repos, store chunks in Postgres FTS, and expose fast search via MCP.
@@ -279,6 +285,11 @@ flowchart LR
   I --> R[Runner] --> S[RepositoryScanner]
   R --> DB[(DB writes: files/blobs/chunks)]
 ```
+- Make helpers:
+  - `make repo-index-all` · `make repo-index-repo repo=<name>`
+  - `make repo-delete-all` · `make repo-delete-repo repo=<name>`
+  - `make repo-status`
+```
 
 ### Jira
 - Purpose: Jira issue search and CRUD via REST v3
@@ -290,6 +301,10 @@ flowchart LR
   A[jira_* tool] --> E[Jira::Engine]
   E --> O[Jira::Ops] --> C[Jira::Client]
   C -->|HTTP| Jira[(Jira Cloud/Server)]
+```
+- Make helpers:
+  - `make jira-test jql='project = ABC order by updated desc' [limit=5]`
+  - `make jira-self`
 ```
 
 ### Jira MCP
