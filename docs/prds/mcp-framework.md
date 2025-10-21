@@ -131,6 +131,40 @@
 3) Transport Abstraction (optional)
    - Encapsulate stdio; define interface for other transports
 
+## MVP
+- Deliverable Scope
+  - Minimal core registrar + middleware hooks + Tool DSL v1
+  - Context and Jira tools migrated to DSL; behavior parity
+  - Engine-owned shared DB injected into Context Ops/FTS/FS::RepoIndexer
+  - Namespaced tools enforced; tools/list aggregates only active service
+  - Destructive migrate + FTS index; repo indexer targets working
+  - Structured logs with request_id and duration for tools/call
+- Out of Scope for MVP
+  - Alternative transports (WS), rate limiting, metrics exporters
+  - Scaffolding generator (planned for Final Phase)
+
+## Final Phase
+- Goals
+  - Hardened core with optional middlewares (rate-limit, ACLs)
+  - Transport adapters formally abstracted (stdio in core, WS optional)
+  - Developer experience: scaffolding generator for new engines/services
+- Generator: `bundle exec savant generate engine <name>`
+  - Creates a new MCP engine and tool skeleton under `lib/savant/<name>/`:
+    - `lib/savant/<name>/engine.rb` (holds shared deps, orchestrator)
+    - `lib/savant/<name>/tools.rb` (Tool DSL registrar with example tool)
+    - `lib/savant/<name>/ops.rb` (business logic stub)
+    - `spec/savant/<name>/*_spec.rb` (spec skeletons)
+  - Wires service selection via `MCP_SERVICE=<name>`
+  - Adds Make stubs: `make <name>-test` (optional)
+  - Updates README with a short usage block
+  - Template uses Tool DSL with:
+    - `tool '<name>/hello' do ... end` example
+    - JSON schema for inputs and example handler implementation
+  - Idempotent: refuses to overwrite existing files unless `--force`
+  - Flags: `--with-db` to include DB injection pattern in engine/ops
+  - Extensible: supports `generate tool <name> <tool_path>` to add tools later
+
+
 ## Risks & Mitigations
 - Backwards compatibility: Keep tool names stable (already namespaced); publish migration notes (done in CHANGELOG)
 - Over-engineering: Keep core minimal; defer WebSocket/streaming until demanded
@@ -140,4 +174,3 @@
 - Do we want a code generator for new services (`bin/mcp_new_service <name>`)?
 - Should we publish gems or keep as a mono-repo?
 - Add a watch mode (fs events) for indexer as an optional feature?
-
