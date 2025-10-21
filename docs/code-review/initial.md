@@ -15,14 +15,13 @@ Strengths
 Notable Risks and Issues
 
 - MCP server robustness:
-  - `lib/savant/mcp_server.rb` uses `handle_jsonrpc(req, search, jira, log)` with undefined `search` and `jira` locals. This will raise at runtime. Recommendation: remove extra parameters and reference only `log` (or pass a context struct).
-  - Misspellings in log lines (handeling/handeled) and inconsistent messages reduce signal; tighten to structured logging.
-  - `initialize` flow hardcodes `protocolVersion: '2024-11-05'`; confirm target spec and consider exposing via constant.
-  - No request id/type validation; invalid shapes proceed until downstream exceptions. Validate `jsonrpc`, `id`, and params early with clear error codes.
+  - Progress: Server now calls `handle_jsonrpc(req, log)`; undefined locals removed and a generic convention-based service loader added. Great step toward a pleasant DX.
+  - Still recommended: add light request validation (check `jsonrpc`, `id` type, and `params` shape) and centralize error codes per failure class.
+  - Consider extracting a tiny `ServiceRegistry` for engines/registrars and documenting the convention to make adding services trivial.
 
 - Configuration loading in MCP server:
-  - Startup tries to read `config/settings.json` unvalidated; errors are swallowed via `rescue {}`. Risk of silent misconfig. Use `Savant::Config.load` and surfacing `ConfigError` to logs and a JSON-RPC error.
-  - Base path resolution duplicates logic present elsewhere; rely consistently on `SAVANT_PATH` with strict fallback and log both selected path and reason.
+  - Progress: Base path resolution is clearer and logs include selected paths.
+  - Still recommended: replace raw JSON parse with `Savant::Config.load(settings_path)` to avoid silent misconfig and surface `ConfigError` in logs and init response.
 
 - Database layer:
   - No connection retry/backoff and no statement timeout safeguards. Add `connect_timeout`, `statement_timeout`, and safe reconnect on failure.
@@ -57,9 +56,16 @@ Style and Maintainability
 Concrete Recommendations
 
 - MCP server fixes:
-  - Remove undefined args in `handle_jsonrpc` signature and call; add parameter validation and strict error codes.
-  - Use `Savant::Config.load` to parse settings; log `ConfigError` with path.
-  - Factor lazy engine initialization into private helpers `context_engine`, `jira_engine`, and corresponding `*_registrar` accessors to DRY require/build.
+  - Keep the convention-based loader; add envelope validation and a mapping of error classes→codes.
+  - Use `Savant::Config.load` for settings where needed; log `ConfigError` and return a clear `initialize` instructions message.
+  - Add `server_info` hook to engines (you started this) and document it so engines can brand themselves.
+
+Developer Experience (Pleasant to Work With)
+
+- Scaffolding: Add `bin/mcp_scaffold <service>` to generate `engine.rb` and `tools.rb` with tests. Provide a docs/examples/hello-service.
+- Friendly errors: “tool not found: <name>. Try tools/list.” Short, actionable hints across CLI and MCP.
+- Consistent paths: Introduce `Savant::Paths` helper for repo root, config, logs to avoid ad-hoc joins.
+- Guard rails: Pre-flight checks command (`bin/doctor`) validating DB connectivity, settings, and Jira envs with clear output.
 
 - DB improvements:
   - Add `statement_timeout` (e.g., 5–10s) per connection and wrap long ops in explicit timeouts.
@@ -89,4 +95,3 @@ Potential Follow-ups
 Summary
 
 The design is solid and practical for local code search + Jira tooling. Addressing MCP server correctness (undefined vars, validation), tightening DB performance patterns, and enhancing observability and tests will materially improve reliability and maintainability without large architectural changes.
-

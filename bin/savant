@@ -1,0 +1,32 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'optparse'
+require_relative '../lib/savant/generator'
+require_relative '../lib/savant/logger'
+
+cmd = ARGV.shift
+if cmd == 'generate'
+  sub = ARGV.shift
+  case sub
+  when 'engine'
+    name = ARGV.shift
+    if !name || name.strip.empty?
+      warn 'usage: savant generate engine <name> [--with-db] [--force]'
+      exit 2
+    end
+    opts = { with_db: false, force: false }
+    OptionParser.new do |o|
+      o.on('--with-db') { opts[:with_db] = true }
+      o.on('--force') { opts[:force] = true }
+    end.parse!(ARGV)
+    Savant::Generator.new.generate_engine(name, **opts)
+  else
+    warn 'usage: savant generate engine <name>'
+    exit 2
+  end
+else
+  warn 'usage: savant generate engine <name> [--with-db] [--force]'
+  exit 2
+end
+
