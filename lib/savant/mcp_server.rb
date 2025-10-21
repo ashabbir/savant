@@ -24,7 +24,7 @@ module Savant
       which = (ENV['MCP_SERVICE'] || 'context').to_s
       mcp_cfg = cfg.dig('mcp', which) || {}
       host ||= ENV['LISTEN_HOST'] || mcp_cfg['listenHost'] || '0.0.0.0'
-      port ||= Integer(ENV['LISTEN_PORT'] || mcp_cfg['listenPort'] || (which == 'jira' ? 8766 : 8765))
+      port ||= Integer(ENV['LISTEN_PORT'] || mcp_cfg['listenPort'] || 8765)
       @host = host
       @port = port
       @service = which
@@ -53,11 +53,29 @@ module Savant
       log.info("pwd=#{Dir.pwd}")
       log.info("settings_path=#{settings_path}")
       log.info("log_path=#{log_path}")
-      # Build engine + registrar once per service
-      @context_engine = nil
-      @context_registrar = nil
-      @jira_engine = nil
-      @jira_registrar = nil
+      # Cache of loaded services: { name => { engine:, registrar: } }
+      @services = {}
+
+      # Helper to load a service by convention: Savant::<CamelCase>::{Engine,Tools}
+      def load_service(name)
+        key = name.to_s
+        return @services[key] if @services[key]
+
+        # Resolve module/class names by convention
+        camel = key.split(/[^a-zA-Z0-9]/).map { |s| s[0] ? s[0].upcase + s[1..] : '' }.join
+        # Require files based on convention: lib/savant/<name>/engine.rb and tools.rb
+        require File.join(__dir__, key, 'engine')
+        require File.join(__dir__, key, 'tools')
+
+        mod = Savant.const_get(camel)
+        engine_class = mod.const_get(:Engine)
+        tools_mod = mod.const_get(:Tools)
+        engine = engine_class.new
+        registrar = tools_mod.build_registrar(engine)
+        @services[key] = { engine: engine, registrar: registrar }
+      rescue LoadError, NameError
+        raise 'Unknown service'
+      end
 
       STDOUT.sync = true
       STDERR.sync = true
@@ -78,9 +96,9 @@ module Savant
           next
         end
 
-        log.info("handeling jsonrpc request")
-        handle_jsonrpc(req, search, jira, log)
-        log.info("handeled jsonrpc request")
+      log.info("handling jsonrpc request")
+      handle_jsonrpc(req, log)
+      log.info("handled jsonrpc request")
       end
     rescue Interrupt
       log = Savant::Logger.new(component: 'mcp')
@@ -89,18 +107,20 @@ module Savant
 
     private
 
-    def handle_jsonrpc(req, search, jira, log)
+    def handle_jsonrpc(req, log)
       id = req['id']
       method = req['method']
       params = req['params'] || {}
 
       case method
       when 'initialize'
-        instructions = case @service
-                       when 'jira' then 'Savant provides Jira tools via registrar.'
-                       when 'context' then 'Savant provides Context tools via registrar.'
-                       else "Savant is running with service=#{@service}; no tools registered."
-                       end
+        begin
+          svc = load_service(@service)
+          tool_count = svc[:registrar].specs.length
+          instructions = "Savant MCP service=#{@service} tools=#{tool_count}"
+        rescue
+          instructions = "Savant MCP service=#{@service} (unavailable)"
+        end
         result = {
           protocolVersion: '2024-11-05',
           serverInfo: { name: 'savant', version: '1.0.0' },
@@ -113,23 +133,9 @@ module Savant
         log.info("initialize response sent")
 
       when 'tools/list'
-        require_relative 'jira/tools'
-        require_relative 'jira/engine'
-        require_relative 'context/tools'
-        require_relative 'context/engine'
-        # Lazily construct engine + registrar
-        tools_list = case @service
-                     when 'jira'
-                       @jira_engine ||= Savant::Jira::Engine.new
-                       @jira_registrar ||= Savant::Jira::Tools.build_registrar(@jira_engine)
-                       @jira_registrar.specs
-                     when 'context'
-                       @context_engine ||= Savant::Context::Engine.new
-                       @context_registrar ||= Savant::Context::Tools.build_registrar(@context_engine)
-                       @context_registrar.specs
-                     else
-                       []
-                     end
+        # Construct engine + registrar generically from convention
+        svc = load_service(@service)
+        tools_list = svc[:registrar].specs
 
         log.info("tools/list: service=#{@service} tool_count=#{tools_list.length}")
         response = { jsonrpc: '2.0', id: id, result: { tools: tools_list } }
@@ -141,27 +147,12 @@ module Savant
         name = params['name']
         args = params['arguments'] || {}
         begin
-          case @service
-          when 'context'
-            require_relative 'context/tools'
-            require_relative 'context/engine'
-            @context_engine ||= Savant::Context::Engine.new
-            @context_registrar ||= Savant::Context::Tools.build_registrar(@context_engine)
-            data = @context_registrar.call(name, args, ctx: { engine: @context_engine, request_id: id })
-          when 'jira'
-            require_relative 'jira/tools'
-            require_relative 'jira/engine'
-            @jira_engine ||= Savant::Jira::Engine.new
-            @jira_registrar ||= Savant::Jira::Tools.build_registrar(@jira_engine)
-            data = @jira_registrar.call(name, args, ctx: { engine: @jira_engine, request_id: id })
-          else
-            raise 'Unknown service'
-          end
+          svc = load_service(@service)
+          data = svc[:registrar].call(name, args, ctx: { engine: svc[:engine], request_id: id })
           content = [{ type: 'text', text: JSON.pretty_generate(data) }]
           puts({ jsonrpc: '2.0', id: id, result: { content: content } }.to_json)
         rescue => e
-          code = (@service == 'jira') ? -32050 : -32000
-          puts({ jsonrpc: '2.0', id: id, error: { code: code, message: e.message } }.to_json)
+          puts({ jsonrpc: '2.0', id: id, error: { code: -32000, message: e.message } }.to_json)
         end
       else
         puts({ jsonrpc: '2.0', id: id, error: { code: -32601, message: 'Method not found' } }.to_json)
