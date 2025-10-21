@@ -114,7 +114,7 @@ module Savant
     # Parse and minimally validate a JSON-RPC 2.0 request line.
     def parse_request(line, log)
       req = JSON.parse(line)
-      unless req.is_a?(Hash) && req['jsonrpc'].to_s == '2.0' && (req.key?('id') || req['method'] == 'initialize')
+      unless req.is_a?(Hash) && req['jsonrpc'].to_s == '2.0' && req['method']
         warn(response_error(nil, :invalid_request).to_json)
         return nil
       end
