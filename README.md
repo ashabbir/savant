@@ -420,10 +420,31 @@ Tools (REST API v3)
 | `logs` | Follow indexer + MCP logs | `make logs` |
 | `ps` | List compose services | `make ps` |
 | `down` | Stop stack and remove containers (keep volume) | `make down` |
-| `migrate` | Create/upgrade tables | `make migrate` |
+| `migrate` | Create/upgrade tables (destructive reset) | `make migrate` |
 | `fts` | Ensure FTS index exists | `make fts` |
 | `smoke` | Quick DB check (migrate + FTS ok) | `make smoke` |
 | `repo-index-all` | Index all repos; append to `logs/context_repo_indexer.log` | `make repo-index-all` |
+
+## All Make Targets (Summary)
+
+| Target | Purpose | Notes / Variables |
+|---|---|---|
+| `dev` | Start Docker services | Postgres + Ruby container |
+| `logs` | Tail service logs | Follows `indexer-ruby` + `postgres` |
+| `down` | Stop and remove containers | Keeps volume data |
+| `ps` | List running containers | — |
+| `migrate` | Drop/create tables then ensure schema | Destructive reset; uses `bin/db_migrate` |
+| `fts` | Ensure FTS GIN index | Uses `bin/db_fts` |
+| `smoke` | Basic DB sanity (migrate+fts) | Uses `bin/db_smoke` |
+| `repo-index-all` | Index all repos | Writes to `logs/context_repo_indexer.log` |
+| `repo-index-repo` | Index a single repo | `repo=<name>` |
+| `repo-delete-all` | Delete all indexed data | — |
+| `repo-delete-repo` | Delete a single repo’s data | `repo=<name>` |
+| `repo-status` | Show per-repo counts | files/blobs/chunks + last_mtime |
+| `mcp-test` | Run Context MCP fts/search via stdio | `q='<term>' [repo=<name>] [limit=5]` |
+| `jira-test` | Run Jira JQL search via stdio | `jql='<JQL>' [limit=10]` |
+| `jira-self` | Verify Jira credentials | — |
+| `test` | Run RSpec | Bundler or system RSpec |
 
 ## Development & Tests
 
@@ -441,12 +462,7 @@ Test philosophy:
 | `repo-delete-all` | Delete all indexed data | `make repo-delete-all` |
 | `repo-delete-repo` | Delete one repo’s indexed data | `make repo-delete-repo repo=<name>` |
 | `repo-status` | Per‑repo files/blobs/chunks counters | `make repo-status` |
-| `mcp` | Start both MCPs (context + jira) | `make mcp` |
 | `mcp-test` | Test Context MCP `fts/search` | `make mcp-test q='<term>' [repo=<name>] [limit=5]` |
-| `mcp-context` | Start Context MCP (background) | `make mcp-context` |
-| `mcp-context-run` | Run Context MCP in foreground (debug) | `make mcp-context-run` |
-| `mcp-jira` | Start Jira MCP (background) | `make mcp-jira` |
-| `mcp-jira-run` | Run Jira MCP in foreground (debug) | `make mcp-jira-run` |
 | `jira-test` | Test Jira MCP JQL search | `make jira-test jql='<JQL>' [limit=10]` |
 | `jira-self` | Quick Jira auth check | `make jira-self` |
 
