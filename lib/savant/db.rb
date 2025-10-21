@@ -190,8 +190,8 @@ module Savant
         @conn.exec_params('DELETE FROM files WHERE repo_id=$1', [repo_id])
       else
         # Use a single array parameter to avoid very large parameter lists
-        sql = 'DELETE FROM files WHERE repo_id=$1 AND NOT (rel_path = ANY($2))'
-        @conn.exec_params(sql, [repo_id, keep_rels])
+        sql = 'DELETE FROM files WHERE repo_id=$1 AND NOT (rel_path = ANY($2::text[]))'
+        @conn.exec_params(sql, [repo_id, text_array_encoder.encode(keep_rels)])
       end
       true
     end
@@ -216,6 +216,15 @@ module Savant
       @conn.exec('DELETE FROM blobs')
       @conn.exec('DELETE FROM repos')
       true
+    end
+
+    private
+
+    def text_array_encoder
+      @text_array_encoder ||= PG::TextEncoder::Array.new(
+        name: 'text[]',
+        elements_type: PG::TextEncoder::String.new(name: 'text')
+      )
     end
   end
 end
