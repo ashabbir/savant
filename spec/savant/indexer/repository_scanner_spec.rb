@@ -22,5 +22,5 @@ RSpec.describe Savant::Indexer::RepositoryScanner do
     expect(files).to eq([['/repo/app/a.rb', 'app/a.rb']])
   end
 end
-#!/usr/bin/env ruby
+# !/usr/bin/env ruby
 # frozen_string_literal: true

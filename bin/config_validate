@@ -6,11 +6,11 @@ require_relative '../lib/savant/config'
 begin
   settings_path = ARGV[0] || 'config/settings.json'
   cfg = Savant::Config.load(settings_path)
-  repos_count = cfg.dig('indexer','repos').size
-  ctx_host=cfg.dig('mcp','context','listenHost')
-  ctx_port=cfg.dig('mcp','context','listenPort')
-  jira_host=cfg.dig('mcp','jira','listenHost')
-  jira_port=cfg.dig('mcp','jira','listenPort')
+  repos_count = cfg.dig('indexer', 'repos').size
+  ctx_host = cfg.dig('mcp', 'context', 'listenHost')
+  ctx_port = cfg.dig('mcp', 'context', 'listenPort')
+  jira_host = cfg.dig('mcp', 'jira', 'listenHost')
+  jira_port = cfg.dig('mcp', 'jira', 'listenPort')
   msg = "CONFIG OK: repos=#{repos_count} mcp.context=#{ctx_host}:#{ctx_port} mcp.jira=#{jira_host}:#{jira_port}"
   puts msg
   exit 0

@@ -78,15 +78,8 @@ module Savant
       # JSON-RPC 2.0 MCP only (legacy disabled)
       while (line = $stdin.gets)
         log.info("raw_input: #{line.strip[0..200]}")
-        begin
-          req = JSON.parse(line)
-          log.info("received: method;#{req['method']} id=#{req['id']} params=#{req['params']&.keys}")
-        rescue JSON::ParserError => e
-          message = "parse_error: #{e.message} line=#{line[0..100]}"
-          log.error(message)
-          warn({ jsonrpc: '2.0', error: { code: -32_700, message: message } }.to_json)
-          next
-        end
+        req = parse_request(line, log)
+        next unless req
 
         log.info('handling jsonrpc request')
         handle_jsonrpc(req, log)
@@ -114,8 +107,44 @@ module Savant
       engine = engine_class.new
       registrar = tools_mod.build_registrar(engine)
       @services[key] = { engine: engine, registrar: registrar }
-    rescue LoadError, NameError
-      raise 'Unknown service'
+      rescue LoadError, NameError
+        raise 'Unknown service'
+      end
+
+    # Parse and minimally validate a JSON-RPC 2.0 request line.
+    def parse_request(line, log)
+      req = JSON.parse(line)
+      unless req.is_a?(Hash) && req['jsonrpc'].to_s == '2.0' && (req.key?('id') || req['method'] == 'initialize')
+        warn(response_error(nil, :invalid_request).to_json)
+        return nil
+      end
+      log.info("received: method=#{req['method']} id=#{req['id']} params=#{req['params']&.keys}")
+      req
+    rescue JSON::ParserError => e
+      message = "parse_error: #{e.message} line=#{line[0..100]}"
+      log.error(message)
+      warn(response_error(nil, :parse_error, message: message) .to_json)
+      nil
+    end
+
+    # Map internal symbols to stable error codes/messages
+    def error_catalog
+      {
+        parse_error:    { code: -32_700, message: 'Parse error' },
+        invalid_request:{ code: -32_600, message: 'Invalid Request' },
+        method_not_found:{ code: -32_601, message: 'Method not found' },
+        invalid_params: { code: -32_602, message: 'Invalid params' },
+        internal_error: { code: -32_000, message: 'Internal error' }
+      }
+    end
+
+    def response_ok(id, result)
+      { jsonrpc: '2.0', id: id, result: result }
+    end
+
+    def response_error(id, key, message: nil)
+      spec = error_catalog[key] || error_catalog[:internal_error]
+      { jsonrpc: '2.0', id: id, error: { code: spec[:code], message: (message || spec[:message]) } }
     end
 
     def handle_jsonrpc(req, log)
@@ -145,7 +174,7 @@ module Savant
           capabilities: { tools: {} },
           instructions: instructions
         }
-        response = { jsonrpc: '2.0', id: id, result: result }
+        response = response_ok(id, result)
         log.info("sending initialize response: #{response.to_json[0..100]}")
         puts response.to_json
         log.info('initialize response sent')
@@ -156,9 +185,9 @@ module Savant
         tools_list = svc[:registrar].specs
 
         log.info("tools/list: service=#{@service} tool_count=#{tools_list.length}")
-        response = { jsonrpc: '2.0', id: id, result: { tools: tools_list } }
+        response = response_ok(id, { tools: tools_list })
         log.info("sending tools/list: response=#{response.to_json[0..100]}")
-        puts(response.to_json)
+        puts response.to_json
         log.info('tools/list response sent')
 
       when 'tools/call'
@@ -168,15 +197,15 @@ module Savant
           svc = load_service(@service)
           data = svc[:registrar].call(name, args, ctx: { engine: svc[:engine], request_id: id })
           content = [{ type: 'text', text: JSON.pretty_generate(data) }]
-          puts({ jsonrpc: '2.0', id: id, result: { content: content } }.to_json)
+          puts response_ok(id, { content: content }).to_json
         rescue StandardError => e
-          puts({ jsonrpc: '2.0', id: id, error: { code: -32_000, message: e.message } }.to_json)
+          puts response_error(id, :internal_error, message: e.message).to_json
         end
       else
-        puts({ jsonrpc: '2.0', id: id, error: { code: -32_601, message: 'Method not found' } }.to_json)
+        puts response_error(id, :method_not_found).to_json
       end
     rescue StandardError => e
-      puts({ jsonrpc: '2.0', id: req['id'], error: { code: -32_000, message: e.message } }.to_json)
+      puts response_error(req['id'], :internal_error, message: e.message).to_json
     end
   end
 end
