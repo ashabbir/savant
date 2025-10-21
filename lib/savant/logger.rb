@@ -29,19 +29,19 @@ module Savant
     end
 
     def debug(msg)
-      log("debug", msg) if level_enabled?("debug")
+      log('debug', msg) if level_enabled?('debug')
     end
 
     def info(msg)
-      log("info", msg) if level_enabled?("info")
+      log('info', msg) if level_enabled?('info')
     end
 
     def warn(msg)
-      log("warn", msg) if level_enabled?("warn")
+      log('warn', msg) if level_enabled?('warn')
     end
 
     def error(msg)
-      log("error", msg)
+      log('error', msg)
     end
 
     # Measure the duration of a block and log it.
@@ -54,14 +54,14 @@ module Savant
       slow = dur > @slow_threshold_ms
       suffix = " dur=#{dur}ms"
       suffix += " slow=true threshold_ms=#{@slow_threshold_ms}" if slow
-      info([label, suffix].compact.join(":")) if label
+      info([label, suffix].compact.join(':')) if label
       [result, dur]
     end
 
     private
 
     def log(level, msg)
-      ts = Time.now.utc.strftime("%H:%M:%SZ")
+      ts = Time.now.utc.strftime('%H:%M:%SZ')
       @out.puts("[#{@component}] #{level}: #{msg} @#{ts}")
     end
 

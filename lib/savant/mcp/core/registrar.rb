@@ -1,4 +1,5 @@
 #!/usr/bin/env ruby
+# frozen_string_literal: true
 
 require_relative 'tool'
 require_relative 'middleware'
@@ -21,6 +22,7 @@ module Savant
 
         def add_tool(tool)
           raise 'tool name required' if tool.name.to_s.strip.empty?
+
           @tools[tool.name] = tool
         end
 
@@ -31,6 +33,7 @@ module Savant
         def call(name, args = {}, ctx: {})
           tool = @tools[name]
           raise 'Unknown tool' unless tool
+
           # Attach tool metadata into ctx for middlewares (e.g., validation)
           ctx2 = (ctx || {}).merge(tool_name: tool.name, schema: tool.schema, description: tool.description)
           @mw.call(ctx2, name, args) do |c, _nm, a|

@@ -1,4 +1,5 @@
 #!/usr/bin/env ruby
+# frozen_string_literal: true
 
 module Savant
   module MCP
@@ -8,6 +9,7 @@ module Savant
       # Purpose: Provide a specific error class for coherent error handling.
       class ValidationError < StandardError; end
 
+      # Schema validation and basic coercion for tool inputs.
       module Validation
         module_function
 
