@@ -45,6 +45,18 @@ Local repo indexer + MCP search layer (Ruby + Postgres FTS, optional Docker).
   - Tools available (Context): `fts/search`, `memory/search`, `memory/resources/*`, `fs/repo/*`.
   - Make: `make mcp-test q='<term>' [repo=<name>] [limit=5]`
 
+### Environment Variables (MCP)
+- Common
+  - `MCP_SERVICE`: selects service to mount (e.g., `context`, `jira`).
+  - `SAVANT_PATH`: base path for resolving `config/settings.json` and `logs/` (defaults to repo root).
+  - `SETTINGS_PATH`: optional override for settings JSON when using library APIs.
+  - `LISTEN_HOST` / `LISTEN_PORT`: reserved for network transports; stdio ignores these.
+  - `LOG_LEVEL`: `debug|info|warn|error` (default `info`).
+  - `SLOW_THRESHOLD_MS`: marks slow operations in logs when exceeded (optional).
+- Service-specific
+  - Context requires `DATABASE_URL` for Postgres.
+  - Jira requires Jira credentials; see “Jira” engine section below.
+
 ### Raw MCP (no Docker)
 - Run Postgres locally or point to an existing instance.
 - Prepare DB and FTS index:
@@ -58,6 +70,10 @@ Local repo indexer + MCP search layer (Ruby + Postgres FTS, optional Docker).
   - `MCP_SERVICE=context DATABASE_URL=... ruby ./bin/mcp_server`
   - Use any JSON-RPC client to send `initialize`, `tools/list`, `tools/call`.
   - Make: `make mcp-test q='<term>' [repo=<name>] [limit=5]`
+  - Env quick reference:
+    - `MCP_SERVICE=context`
+    - `DATABASE_URL=postgres://user:pass@host:port/db`
+    - Optional: `SAVANT_PATH=$(pwd)`, `LOG_LEVEL=debug`
 
 ## Overview
 - Index local repos, store chunks in Postgres FTS, and expose fast search via MCP.
@@ -289,6 +305,11 @@ flowchart LR
   - `make repo-index-all` · `make repo-index-repo repo=<name>`
   - `make repo-delete-all` · `make repo-delete-repo repo=<name>`
   - `make repo-status`
+
+Environment (Context)
+- `DATABASE_URL` (required): Postgres connection for FTS/indexing.
+- Optional:
+  - `SAVANT_PATH`, `SETTINGS_PATH`, `LOG_LEVEL`, `SLOW_THRESHOLD_MS` (see MCP section).
 ```
 
 ### Jira
@@ -305,6 +326,16 @@ flowchart LR
 - Make helpers:
   - `make jira-test jql='project = ABC order by updated desc' [limit=5]`
   - `make jira-self`
+
+Environment (Jira)
+- Required:
+  - `JIRA_BASE_URL`: e.g., `https://your.atlassian.net` (Cloud) or Jira Server URL.
+- Auth (choose one):
+  - Cloud: `JIRA_EMAIL` + `JIRA_API_TOKEN`.
+  - Server/DC: `JIRA_USERNAME` + `JIRA_PASSWORD`.
+- Optional:
+  - `JIRA_ALLOW_WRITES=true` to enable mutating tools (create/update/delete). Default: reads only.
+  - `LOG_LEVEL`, `SAVANT_PATH` for logging and paths.
 ```
 
 ### Jira MCP
