@@ -11,6 +11,10 @@ require_relative '../db'
 
 module Savant
   module Context
+    # Thin Postgres FTS helper used by Context::Ops.
+    #
+    # Purpose: Run ranked full‑text queries and return tuples suitable for
+    # tool responses without leaking SQL to callers.
     class FTS
       # Initialize with a DB connection wrapper. Accepts a Savant::DB or any
       # object exposing `@conn` compatible with pg's exec_params.

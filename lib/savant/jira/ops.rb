@@ -10,6 +10,9 @@ require_relative 'client'
 
 module Savant
   module Jira
+    # Implements Jira domain operations using the REST API.
+    #
+    # Purpose: Encapsulate querying, transitions, and entity shaping for tools.
     class Ops
       def initialize(client)
         @c = client

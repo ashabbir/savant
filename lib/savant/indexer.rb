@@ -15,6 +15,9 @@ require_relative 'logger'
 module Savant
   module Indexer
     # Facade class for running the indexer end-to-end.
+    #
+    # Purpose: Stable entrypoint wiring config, cache and runner. Used by
+    # CLI to index or reindex repos without exposing internals.
     class Facade
       def initialize(settings_path, logger: Savant::Logger.new(component: 'indexer'), db: Savant::DB.new)
         @settings_path = settings_path

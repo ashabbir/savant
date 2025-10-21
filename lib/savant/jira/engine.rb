@@ -12,6 +12,10 @@ require 'json'
 
 module Savant
   module Jira
+    # Orchestrates Jira tools and delegates to Ops/Client.
+    #
+    # Purpose: Provide a façade for MCP Jira service, wiring auth/client and
+    # exposing high-level methods invoked by the registrar.
     class Engine
       DEFAULT_FIELDS = %w[key summary status assignee updated].freeze
 

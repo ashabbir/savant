@@ -10,12 +10,23 @@
 require 'pg'
 
 module Savant
+  # Connection + schema helper around Postgres.
+  #
+  # Purpose: Centralize DB lifecycle and schema/CRUD helpers used by the
+  # indexer and context engines. Keeps business logic out of SQL access.
+  #
+  # Typical usage creates an instance per process and reuses a single
+  # connection; callers may use transaction helpers for multi-step writes.
   class DB
+    # @param url [String] Postgres connection URL (uses `ENV['DATABASE_URL']`).
     def initialize(url = ENV['DATABASE_URL'])
       @url = url
       @conn = PG.connect(@url)
     end
 
+    # Execute a block inside a DB transaction.
+    # @yield Runs inside BEGIN/COMMIT; ROLLBACK on errors.
+    # @return [Object] yields return value.
     def with_transaction
       @conn.exec('BEGIN')
       begin
@@ -31,6 +42,8 @@ module Savant
       @conn.close if @conn
     end
 
+    # Drop and recreate all schema tables and indexes.
+    # @return [true]
     def migrate_tables
       # Destructive reset: drop and recreate all tables/indexes
       @conn.exec('DROP TABLE IF EXISTS file_blob_map CASCADE')
@@ -90,6 +103,8 @@ module Savant
       true
     end
 
+    # Ensure the GIN FTS index on `chunks.chunk_text` exists.
+    # @return [true]
     def ensure_fts
       @conn.exec(<<~SQL)
         CREATE INDEX IF NOT EXISTS idx_chunks_fts ON chunks USING GIN (to_tsvector('english', chunk_text));
@@ -97,6 +112,10 @@ module Savant
       true
     end
 
+    # Fetch an existing blob id by hash or insert a new blob.
+    # @param hash [String]
+    # @param byte_len [Integer]
+    # @return [Integer] blob id
     def find_or_create_blob(hash, byte_len)
       res = @conn.exec_params('SELECT id FROM blobs WHERE hash=$1', [hash])
       return res[0]['id'].to_i if res.ntuples > 0
@@ -104,6 +123,10 @@ module Savant
       res[0]['id'].to_i
     end
 
+    # Replace all chunks for a blob id.
+    # @param blob_id [Integer]
+    # @param chunks [Array<Array(Integer,String,String)>>] [idx, lang, text]
+    # @return [true]
     def replace_chunks(blob_id, chunks)
       @conn.exec_params('DELETE FROM chunks WHERE blob_id=$1', [blob_id])
       chunks.each do |idx, lang, text|
@@ -112,6 +135,8 @@ module Savant
       true
     end
 
+    # Fetch an existing repo id by name or insert it with path.
+    # @return [Integer] repo id
     def find_or_create_repo(name, root)
       res = @conn.exec_params('SELECT id FROM repos WHERE name=$1', [name])
       return res[0]['id'].to_i if res.ntuples > 0
@@ -119,6 +144,8 @@ module Savant
       res[0]['id'].to_i
     end
 
+    # Insert or update a file row and return its id.
+    # @return [Integer] file id
     def upsert_file(repo_id, repo_name, rel_path, size_bytes, mtime_ns)
       res = @conn.exec_params(
         <<~SQL, [repo_id, repo_name, rel_path, size_bytes, mtime_ns]
@@ -132,6 +159,8 @@ module Savant
       res[0]['id'].to_i
     end
 
+    # Map a file id to a blob id (upsert).
+    # @return [true]
     def map_file_to_blob(file_id, blob_id)
       @conn.exec_params(
         <<~SQL, [file_id, blob_id]
@@ -143,6 +172,10 @@ module Savant
       true
     end
 
+    # Delete files for a repo not present in `keep_rels`.
+    # @param repo_id [Integer]
+    # @param keep_rels [Array<String>]
+    # @return [true]
     def delete_missing_files(repo_id, keep_rels)
       if keep_rels.empty?
         @conn.exec_params('DELETE FROM files WHERE repo_id=$1', [repo_id])
@@ -155,6 +188,8 @@ module Savant
       true
     end
 
+    # Delete a repository and all its data by name.
+    # @return [Integer] number of repos deleted (0/1)
     def delete_repo_by_name(name)
       res = @conn.exec_params('SELECT id FROM repos WHERE name=$1', [name])
       return 0 if res.ntuples.zero?
@@ -163,6 +198,8 @@ module Savant
       1
     end
 
+    # Truncate all data from all tables (destructive).
+    # @return [true]
     def delete_all_data
       @conn.exec('DELETE FROM file_blob_map')
       @conn.exec('DELETE FROM files')

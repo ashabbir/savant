@@ -8,6 +8,9 @@
 module Savant
   module Indexer
     module Chunker
+      # Splits source code into overlapping line windows.
+      #
+      # Purpose: Preserve local context across chunks for better FTS results.
       class CodeChunker < Base
         def chunk(path, config)
           data = File.read(path)

@@ -8,6 +8,10 @@
 
 module Savant
   module Indexer
+    # Strongly-typed view over raw settings for the indexer.
+    #
+    # Purpose: Normalize and expose indexer-specific options (repos, size
+    # limits, chunking, languages, scan modes) with helpful defaults.
     class Config
       DEFAULT_CACHE_PATH = '.cache/indexer.json'
 
@@ -19,33 +23,42 @@ module Savant
         @raw.fetch('indexer')
       end
 
+      # @return [Array<Hash>] configured repositories
       def repos
         Array(indexer.fetch('repos'))
       end
 
+      # @return [Integer] maximum file size in bytes (0 = unlimited)
       def max_bytes
         indexer.fetch('maxFileSizeKB', 0).to_i * 1024
       end
 
+      # @return [Hash] chunking configuration
       def chunk
         indexer.fetch('chunk')
       end
 
+      # @return [Array<String>] allowed normalized language codes
       def languages
         Array(indexer['languages']).map { |s| s.to_s.downcase }
       end
 
+      # @return [String] path to indexer cache file
       def cache_path
         indexer['cachePath'] || DEFAULT_CACHE_PATH
       end
 
       # Global scan mode: auto | git | walk
+      # Global scan mode
+      # @return [:auto, :git, :walk]
       def scan_mode
         mode = indexer['scanMode']&.to_s&.downcase
         to_mode_symbol(mode)
       end
 
       # Per-repo override via repo['scanMode']
+      # Per-repo scan mode override
+      # @return [:auto, :git, :walk]
       def scan_mode_for(repo_hash)
         rmode = repo_hash['scanMode']&.to_s&.downcase
         to_mode_symbol(rmode) || scan_mode

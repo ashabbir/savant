@@ -12,6 +12,11 @@ require_relative 'logger'
 require 'fileutils'
 
 module Savant
+  # JSON‑RPC 2.0 stdio MCP server hosting a single service per process.
+  #
+  # Purpose: Bridge editors (via MCP) to Savant tools. Selects the active
+  # service using `MCP_SERVICE` (e.g., `context`, `jira`), advertises that
+  # service's tools, and delegates `tools/call` to the corresponding engine.
   class MCPServer
     def initialize(host: nil, port: nil)
       default_settings = File.join((ENV['SAVANT_PATH'] && !ENV['SAVANT_PATH'].empty? ? ENV['SAVANT_PATH'] : File.expand_path('../../..', __dir__)), 'config', 'settings.json'); settings_path = default_settings

@@ -7,6 +7,10 @@
 
 module Savant
   module Indexer
+    # Administrative helpers for DB/indexer maintenance and status.
+    #
+    # Purpose: Offer reporting (per-repo counts) and schema utilities for
+    # CLIs without coupling callers to raw SQL.
     class Admin
       def initialize(db)
         @db = db

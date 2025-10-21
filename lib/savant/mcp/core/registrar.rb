@@ -28,7 +28,9 @@ module Savant
         def call(name, args = {}, ctx: {})
           tool = @tools[name]
           raise 'Unknown tool' unless tool
-          @mw.call(ctx, name, args) do |c, _nm, a|
+          # Attach tool metadata into ctx for middlewares (e.g., validation)
+          ctx2 = (ctx || {}).merge(tool_name: tool.name, schema: tool.schema, description: tool.description)
+          @mw.call(ctx2, name, args) do |c, _nm, a|
             tool.handler.call(c, a)
           end
         end
@@ -36,4 +38,3 @@ module Savant
     end
   end
 end
-

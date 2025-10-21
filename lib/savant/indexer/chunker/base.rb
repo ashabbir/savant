@@ -8,6 +8,9 @@
 module Savant
   module Indexer
     module Chunker
+      # Abstract base class for chunkers.
+      #
+      # Purpose: Define the shared interface for concrete chunkers.
       class Base
         def chunk(_path, _config)
           raise NotImplementedError

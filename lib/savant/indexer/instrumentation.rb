@@ -7,6 +7,10 @@
 
 module Savant
   module Indexer
+    # Thin wrapper over logger for consistent timing and levels.
+    #
+    # Purpose: Decouple indexer code from a concrete logger implementation
+    # while offering a uniform API for messages and timing.
     class Instrumentation
       def initialize(logger)
         @logger = logger

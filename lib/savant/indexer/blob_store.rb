@@ -8,6 +8,10 @@
 
 module Savant
   module Indexer
+    # Persistence adapter wrapping {Savant::DB} for indexer writes.
+    #
+    # Purpose: Provide a narrow, intention-revealing API for the indexing
+    # pipeline to store repos, files, blobs, mappings, and chunks.
     class BlobStore
       def initialize(db)
         @db = db
@@ -37,6 +41,9 @@ module Savant
         @db.delete_missing_files(repo_id, kept_rel_paths)
       end
 
+      # Execute the given block within a DB transaction when available.
+      # @yield [] block executed transactionally
+      # @return [Object] yield result
       def with_transaction(&blk)
         if @db.respond_to?(:with_transaction)
           @db.with_transaction(&blk)

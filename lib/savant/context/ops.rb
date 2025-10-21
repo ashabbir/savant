@@ -18,6 +18,10 @@ require_relative '../logger'
 
 module Savant
   module Context
+    # Implements Context domain operations (search, memory bank, resources).
+    #
+    # Purpose: Contain all business logic for Context tools separate from the
+    # engine/registrar wiring. Queries Postgres FTS and the filesystem.
     class Ops
       # Create an Ops instance with a namespaced logger.
       def initialize(db: Savant::DB.new)

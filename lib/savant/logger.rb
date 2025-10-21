@@ -7,9 +7,16 @@
 # `SLOW_THRESHOLD_MS`. Defaults to stdout but accepts any IO for writing.
 
 module Savant
+  # Minimal component logger with levels and timing.
+  #
+  # Purpose: Provide a lightweight, dependency-free logger suitable for CLI and
+  # MCP servers. Supports level filtering via `LOG_LEVEL` and timing via
+  # `with_timing`, marking slow operations using `SLOW_THRESHOLD_MS`.
   class Logger
     LEVELS = %w[debug info warn error].freeze
 
+    # @param component [String] label included in every log line.
+    # @param out [IO] output stream (defaults to `$stdout`).
     def initialize(component:, out: $stdout)
       @component = component
       @out = out
@@ -37,6 +44,9 @@ module Savant
       log("error", msg)
     end
 
+    # Measure the duration of a block and log it.
+    # @param label [String] prefix label for the timing log.
+    # @return [Array(Object,Integer)] pair of [block_result, duration_ms]
     def with_timing(label: nil)
       start = current_time_ms
       result = yield

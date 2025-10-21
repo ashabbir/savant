@@ -20,6 +20,10 @@ require_relative 'fs/repo_indexer'
 
 module Savant
   module Context
+    # Orchestrates Context tools and delegates to Ops.
+    #
+    # Purpose: Provide a stable façade between the MCP server and the Context
+    # domain logic (Ops), handling wiring and exposing high-level methods.
     class Engine
       # Initialize the engine with a namespaced logger and context ops.
       def initialize

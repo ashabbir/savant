@@ -40,7 +40,15 @@ module Support
       true
     end
 
-    def upsert_file(repo_id, rel_path, size_bytes, mtime_ns)
+    def upsert_file(repo_id, *args)
+      # Support both signatures:
+      # upsert_file(repo_id, rel_path, size_bytes, mtime_ns)
+      # upsert_file(repo_id, repo_name, rel_path, size_bytes, mtime_ns)
+      if args.length == 4
+        _repo_name, rel_path, size_bytes, mtime_ns = args
+      else
+        rel_path, size_bytes, mtime_ns = args
+      end
       key = [repo_id, rel_path]
       @files[key] ||= next_id
       @files[key]
@@ -66,4 +74,3 @@ module Support
     end
   end
 end
-

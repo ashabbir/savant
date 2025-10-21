@@ -9,6 +9,10 @@ require 'json'
 
 module Savant
   module Indexer
+    # JSON-backed cache for file metadata between runs.
+    #
+    # Purpose: Record file size and mtime to quickly detect unchanged files
+    # and skip expensive hashing/chunking.
     class Cache
       def initialize(path)
         @path = path
@@ -23,6 +27,8 @@ module Savant
         @data[k] = v
       end
 
+      # Persist the cache to disk.
+      # @return [void]
       def save!
         dir = File.dirname(@path)
         Dir.mkdir(dir) unless Dir.exist?(dir)

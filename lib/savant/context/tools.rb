@@ -13,6 +13,9 @@ require_relative '../mcp/core/dsl'
 
 module Savant
   module Context
+    # MCP tools registrar for the Context service.
+    #
+    # Purpose: Advertise tool specs and dispatch invocations to Engine.
     module Tools
       module_function
 
@@ -34,9 +37,28 @@ module Savant
 
       def build_registrar(engine = nil)
         Savant::MCP::Core::DSL.build do
-          # Simple middleware placeholder (timing/logging hooks can be added)
+          # Validation middleware using tool schema
+          require_relative '../mcp/core/validation'
           middleware do |ctx, nm, a, nxt|
-            nxt.call(ctx, nm, a)
+            schema = ctx[:schema]
+            begin
+              a2 = Savant::MCP::Core::Validation.validate!(schema, a)
+            rescue Savant::MCP::Core::ValidationError => e
+              raise "validation error: #{e.message}"
+            end
+            nxt.call(ctx, nm, a2)
+          end
+
+          # Structured logging middleware
+          middleware do |ctx, nm, a, nxt|
+            start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+            out = nxt.call(ctx, nm, a)
+            dur_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - start) * 1000).round
+            begin
+              engine.instance_variable_get(:@log).info("tool: name=#{nm} dur_ms=#{dur_ms}")
+            rescue
+            end
+            out
           end
 
           tool 'fts/search', description: 'Full‑text search over indexed repos (filter by repo name(s))',

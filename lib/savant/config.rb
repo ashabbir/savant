@@ -10,9 +10,27 @@
 require 'json'
 
 module Savant
+  # Error raised when configuration is missing or invalid.
+  #
+  # Purpose: Distinguish config validation/load failures from other runtime
+  # errors so callers can present actionable messages.
   class ConfigError < StandardError; end
 
+  # Loads and validates application settings from `settings.json`.
+  #
+  # Purpose: Provide a single entrypoint for config IO and validation used by
+  # the indexer and MCP services. Ensures presence and shape of required keys
+  # and raises {Savant::ConfigError} on problems.
+  #
+  # @example Load validated settings
+  #   cfg = Savant::Config.load('config/settings.json')
+  #   cfg['indexer']['repos'].each { |r| puts r['name'] }
   class Config
+    # Load and validate JSON settings.
+    #
+    # @param path [String] absolute or relative path to `settings.json`.
+    # @return [Hash] parsed and validated settings hash.
+    # @raise [Savant::ConfigError] when the file is missing or invalid.
     def self.load(path)
       raise ConfigError, "SETTINGS_PATH not provided" if path.nil? || path.strip.empty?
       unless File.exist?(path)
@@ -28,6 +46,12 @@ module Savant
       data
     end
 
+    # Validate the parsed settings hash in-place.
+    #
+    # Purpose: Enforce required structure and provide early, precise errors.
+    # @param cfg [Hash] parsed settings.
+    # @return [true] when valid.
+    # @raise [Savant::ConfigError] on missing keys or bad types.
     def self.validate!(cfg)
       # Validate new layout: indexer + repos + mcp + database at root
       req = {

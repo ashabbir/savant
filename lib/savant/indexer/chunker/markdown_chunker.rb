@@ -8,6 +8,9 @@
 module Savant
   module Indexer
     module Chunker
+      # Splits markdown into fixed-size character windows.
+      #
+      # Purpose: Produce compact, readable chunks for text search/snippets.
       class MarkdownChunker < Base
         def chunk(path, config)
           data = File.read(path)

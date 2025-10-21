@@ -10,6 +10,10 @@ require 'digest'
 
 module Savant
   module Indexer
+    # Coordinates repository scanning, chunking, and DB persistence.
+    #
+    # Purpose: Orchestrate the indexing flow per repo using RepositoryScanner,
+    # Chunkers, and BlobStore with caching and progress logging.
     class Runner
       def initialize(config:, db:, logger:, cache:)
         @config = config
@@ -18,6 +22,10 @@ module Savant
         @cache = cache
       end
 
+      # Run the indexer across all or one repo.
+      # @param repo_name [String,nil] optional repo name to filter
+      # @param verbose [Boolean] emit per-file progress
+      # @return [Hash] summary counts { total:, changed:, skipped: }
       def run(repo_name: nil, verbose: true)
         targets = select_repos(repo_name)
         total = 0

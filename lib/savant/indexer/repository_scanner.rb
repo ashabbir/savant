@@ -11,6 +11,10 @@ require 'open3'
 
 module Savant
   module Indexer
+    # Discovers repository files respecting git and custom ignores.
+    #
+    # Purpose: Provide a fast, consistent file list using `git ls-files` when
+    # possible, falling back to a directory walk with glob-based ignores.
     class RepositoryScanner
       attr_reader :last_used
 

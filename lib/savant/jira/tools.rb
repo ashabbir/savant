@@ -1,12 +1,10 @@
 #!/usr/bin/env ruby
 #
-# Purpose: MCP registrar/dispatcher for Jira tools.
-#
-# Declares tool specs and routes calls to Jira::Engine. Keeps tool
-# capabilities and argument validation centralized for the MCP server.
+# Purpose: MCP registrar/dispatcher for Jira tools (DSL-based).
 
 require 'json'
 require_relative 'engine'
+require_relative '../mcp/core/dsl'
 
 module Savant
   module Jira
@@ -14,62 +12,117 @@ module Savant
       module_function
 
       def specs
-        [
-          { name: 'jira_search', description: 'Run a Jira JQL search', inputSchema: { type: 'object', properties: { jql: { type: 'string' }, limit: { type: 'integer', minimum: 1, maximum: 100 }, start_at: { type: 'integer', minimum: 0 } }, required: ['jql'] } },
-          { name: 'jira_get_issue', description: 'Get a Jira issue (v3)', inputSchema: { type: 'object', properties: { key: { type: 'string' }, fields: { type: 'array', items: { type: 'string' } } }, required: ['key'] } },
-          { name: 'jira_create_issue', description: 'Create a Jira issue (v3)', inputSchema: { type: 'object', properties: { projectKey: { type: 'string' }, summary: { type: 'string' }, issuetype: { type: 'string' }, description: { type: 'string' }, fields: { type: 'object' } }, required: ['projectKey','summary','issuetype'] } },
-          { name: 'jira_update_issue', description: 'Update a Jira issue (v3)', inputSchema: { type: 'object', properties: { key: { type: 'string' }, fields: { type: 'object' } }, required: ['key','fields'] } },
-          { name: 'jira_transition_issue', description: 'Transition a Jira issue (v3)', inputSchema: { type: 'object', properties: { key: { type: 'string' }, transitionName: { type: 'string' }, transitionId: { type: 'string' } }, required: ['key'] } },
-          { name: 'jira_add_comment', description: 'Add a comment to an issue (v3)', inputSchema: { type: 'object', properties: { key: { type: 'string' }, body: { type: 'string' } }, required: ['key','body'] } },
-          { name: 'jira_delete_comment', description: 'Delete a comment (v3)', inputSchema: { type: 'object', properties: { key: { type: 'string' }, id: { type: 'string' } }, required: ['key','id'] } },
-          { name: 'jira_download_attachments', description: 'Download issue attachments (v3)', inputSchema: { type: 'object', properties: { key: { type: 'string' } }, required: ['key'] } },
-          { name: 'jira_add_attachment', description: 'Upload attachment to issue (v3)', inputSchema: { type: 'object', properties: { key: { type: 'string' }, filePath: { type: 'string' } }, required: ['key','filePath'] } },
-          { name: 'jira_add_watcher_to_issue', description: 'Add watcher (v3)', inputSchema: { type: 'object', properties: { key: { type: 'string' }, accountId: { type: 'string' } }, required: ['key','accountId'] } },
-          { name: 'jira_assign_issue', description: 'Assign issue (v3)', inputSchema: { type: 'object', properties: { key: { type: 'string' }, accountId: { type: 'string' }, name: { type: 'string' } }, required: ['key'] } },
-          { name: 'jira_bulk_create_issues', description: 'Bulk create issues (v3)', inputSchema: { type: 'object', properties: { issues: { type: 'array', items: { type: 'object' } } }, required: ['issues'] } },
-          { name: 'jira_delete_issue', description: 'Delete issue (v3)', inputSchema: { type: 'object', properties: { key: { type: 'string' } }, required: ['key'] } },
-          { name: 'jira_link_issues', description: 'Link two issues (v3)', inputSchema: { type: 'object', properties: { inwardKey: { type: 'string' }, outwardKey: { type: 'string' }, linkType: { type: 'string' } }, required: ['inwardKey','outwardKey','linkType'] } },
-          { name: 'jira_self', description: 'Verify Jira credentials', inputSchema: { type: 'object', properties: {} } }
-        ]
+        build_registrar.specs
       end
 
       def dispatch(engine, name, args)
-        case name
-        when 'jira_search'
-          engine.search(jql: args['jql'].to_s, limit: (args['limit'] || 10).to_i, start_at: (args['start_at'] || 0).to_i)
-        when 'jira_get_issue'
-          engine.get_issue(key: args['key'].to_s, fields: args['fields'])
-        when 'jira_create_issue'
-          engine.create_issue(projectKey: args['projectKey'], summary: args['summary'], issuetype: args['issuetype'], description: args['description'], fields: (args['fields'] || {}))
-        when 'jira_update_issue'
-          engine.update_issue(key: args['key'], fields: (args['fields'] || {}))
-        when 'jira_transition_issue'
-          engine.transition_issue(key: args['key'], transitionName: args['transitionName'], transitionId: args['transitionId'])
-        when 'jira_add_comment'
-          engine.add_comment(key: args['key'], body: args['body'])
-        when 'jira_delete_comment'
-          engine.delete_comment(key: args['key'], id: args['id'])
-        when 'jira_download_attachments'
-          engine.download_attachments(key: args['key'])
-        when 'jira_add_attachment'
-          engine.add_attachment(key: args['key'], filePath: args['filePath'])
-        when 'jira_add_watcher_to_issue'
-          # Jira API expects raw accountId string body
-          client = engine.instance_variable_get(:@client)
-          client.post("/rest/api/3/issue/#{args['key']}/watchers", args['accountId'].to_json)
-          { added: true }
-        when 'jira_assign_issue'
-          engine.assign_issue(key: args['key'], accountId: args['accountId'], name: args['name'])
-        when 'jira_bulk_create_issues'
-          engine.bulk_create_issues(issues: args['issues'] || [])
-        when 'jira_delete_issue'
-          engine.delete_issue(key: args['key'])
-        when 'jira_link_issues'
-          engine.link_issues(inwardKey: args['inwardKey'], outwardKey: args['outwardKey'], linkType: args['linkType'])
-        when 'jira_self'
-          engine.self_test
-        else
-          raise 'Unknown Jira tool'
+        reg = build_registrar(engine)
+        reg.call(name, args || {}, ctx: { engine: engine })
+      end
+
+      def build_registrar(engine = nil)
+        Savant::MCP::Core::DSL.build do
+          require_relative '../mcp/core/validation'
+          # Validation middleware
+          middleware do |ctx, nm, a, nxt|
+            schema = ctx[:schema]
+            a2 = begin
+              Savant::MCP::Core::Validation.validate!(schema, a)
+            rescue Savant::MCP::Core::ValidationError => e
+              raise "validation error: #{e.message}"
+            end
+            nxt.call(ctx, nm, a2)
+          end
+
+          # Minimal logging
+          middleware do |ctx, nm, a, nxt|
+            start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+            out = nxt.call(ctx, nm, a)
+            dur_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - start) * 1000).round
+            begin
+              engine.instance_variable_get(:@log).info("tool: name=#{nm} dur_ms=#{dur_ms}")
+            rescue
+            end
+            out
+          end
+
+          # Tools
+          tool 'jira_search', description: 'Run a Jira JQL search',
+               schema: { type: 'object', properties: { jql: { type: 'string' }, limit: { type: 'integer', minimum: 1, maximum: 100 }, start_at: { type: 'integer', minimum: 0 } }, required: ['jql'] } do |_ctx, a|
+            engine.search(jql: a['jql'].to_s, limit: (a['limit'] || 10), start_at: (a['start_at'] || 0))
+          end
+
+          tool 'jira_get_issue', description: 'Get a Jira issue (v3)',
+               schema: { type: 'object', properties: { key: { type: 'string' }, fields: { type: 'array', items: { type: 'string' } } }, required: ['key'] } do |_ctx, a|
+            engine.get_issue(key: a['key'].to_s, fields: a['fields'])
+          end
+
+          tool 'jira_create_issue', description: 'Create a Jira issue (v3)',
+               schema: { type: 'object', properties: { projectKey: { type: 'string' }, summary: { type: 'string' }, issuetype: { type: 'string' }, description: { type: 'string' }, fields: { type: 'object' } }, required: ['projectKey','summary','issuetype'] } do |_ctx, a|
+            engine.create_issue(projectKey: a['projectKey'], summary: a['summary'], issuetype: a['issuetype'], description: a['description'], fields: (a['fields'] || {}))
+          end
+
+          tool 'jira_update_issue', description: 'Update a Jira issue (v3)',
+               schema: { type: 'object', properties: { key: { type: 'string' }, fields: { type: 'object' } }, required: ['key','fields'] } do |_ctx, a|
+            engine.update_issue(key: a['key'], fields: (a['fields'] || {}))
+          end
+
+          tool 'jira_transition_issue', description: 'Transition a Jira issue (v3)',
+               schema: { type: 'object', properties: { key: { type: 'string' }, transitionName: { type: 'string' }, transitionId: { type: 'string' } }, required: ['key'] } do |_ctx, a|
+            engine.transition_issue(key: a['key'], transitionName: a['transitionName'], transitionId: a['transitionId'])
+          end
+
+          tool 'jira_add_comment', description: 'Add a comment to an issue (v3)',
+               schema: { type: 'object', properties: { key: { type: 'string' }, body: { type: 'string' } }, required: ['key','body'] } do |_ctx, a|
+            engine.add_comment(key: a['key'], body: a['body'])
+          end
+
+          tool 'jira_delete_comment', description: 'Delete a comment (v3)',
+               schema: { type: 'object', properties: { key: { type: 'string' }, id: { type: 'string' } }, required: ['key','id'] } do |_ctx, a|
+            engine.delete_comment(key: a['key'], id: a['id'])
+          end
+
+          tool 'jira_download_attachments', description: 'Download issue attachments (v3)',
+               schema: { type: 'object', properties: { key: { type: 'string' } }, required: ['key'] } do |_ctx, a|
+            engine.download_attachments(key: a['key'])
+          end
+
+          tool 'jira_add_attachment', description: 'Upload attachment to issue (v3)',
+               schema: { type: 'object', properties: { key: { type: 'string' }, filePath: { type: 'string' } }, required: ['key','filePath'] } do |_ctx, a|
+            engine.add_attachment(key: a['key'], filePath: a['filePath'])
+          end
+
+          tool 'jira_add_watcher_to_issue', description: 'Add watcher (v3)',
+               schema: { type: 'object', properties: { key: { type: 'string' }, accountId: { type: 'string' } }, required: ['key','accountId'] } do |_ctx, a|
+            client = engine.instance_variable_get(:@client)
+            client.post("/rest/api/3/issue/#{a['key']}/watchers", a['accountId'].to_json)
+            { added: true }
+          end
+
+          tool 'jira_assign_issue', description: 'Assign issue (v3)',
+               schema: { type: 'object', properties: { key: { type: 'string' }, accountId: { type: 'string' }, name: { type: 'string' } }, required: ['key'] } do |_ctx, a|
+            engine.assign_issue(key: a['key'], accountId: a['accountId'], name: a['name'])
+          end
+
+          tool 'jira_bulk_create_issues', description: 'Bulk create issues (v3)',
+               schema: { type: 'object', properties: { issues: { type: 'array', items: { type: 'object' } } }, required: ['issues'] } do |_ctx, a|
+            engine.bulk_create_issues(issues: a['issues'] || [])
+          end
+
+          tool 'jira_delete_issue', description: 'Delete issue (v3)',
+               schema: { type: 'object', properties: { key: { type: 'string' } }, required: ['key'] } do |_ctx, a|
+            engine.delete_issue(key: a['key'])
+          end
+
+          tool 'jira_link_issues', description: 'Link two issues (v3)',
+               schema: { type: 'object', properties: { inwardKey: { type: 'string' }, outwardKey: { type: 'string' }, linkType: { type: 'string' } }, required: ['inwardKey','outwardKey','linkType'] } do |_ctx, a|
+            engine.link_issues(inwardKey: a['inwardKey'], outwardKey: a['outwardKey'], linkType: a['linkType'])
+          end
+
+          tool 'jira_self', description: 'Verify Jira credentials',
+               schema: { type: 'object', properties: {} } do |_ctx, _a|
+            engine.self_test
+          end
         end
       end
     end

@@ -7,6 +7,9 @@
 
 module Savant
   module Indexer
+    # Derives a coarse language label from a relative path.
+    #
+    # Purpose: Choose chunking strategy and optional language allow‑listing.
     class Language
       def self.from_rel_path(rel)
         ext = File.extname(rel).downcase.sub('.', '')

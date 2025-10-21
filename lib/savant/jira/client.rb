@@ -14,6 +14,9 @@ require_relative '../logger'
 
 module Savant
   module Jira
+    # Minimal Jira REST v3 client.
+    #
+    # Purpose: Handle HTTP requests, auth, and pagination for Jira Ops.
     class Client
       def initialize(base_url:, email: nil, api_token: nil, username: nil, password: nil)
         @base_url = base_url.chomp('/'); @email=email; @api_token=api_token; @username=username; @password=password
