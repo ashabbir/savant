@@ -9,6 +9,10 @@ require_relative '../../logger'
 module Savant
   module Context
     module FS
+      # Wrapper exposing indexer operations within the Context namespace.
+      #
+      # Purpose: Allow Context tools to trigger index, delete, and status
+      # operations without importing the indexer CLI.
       class RepoIndexer
         def initialize(db: Savant::DB.new, settings_path: 'config/settings.json', logger: Savant::Logger.new(component: 'context.repo_indexer'))
           @settings_path = settings_path

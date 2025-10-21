@@ -24,6 +24,7 @@ module Savant
     # engine/registrar wiring. Queries Postgres FTS and the filesystem.
     class Ops
       # Create an Ops instance with a namespaced logger.
+      # @param db [Savant::DB] database connection wrapper
       def initialize(db: Savant::DB.new)
         @log = Savant::Logger.new(component: 'context.ops')
         @db = db
@@ -35,6 +36,11 @@ module Savant
       # - repo: Optional String or Array of repository names to scope results
       # - limit: Integer max results
       # Returns: Array of Hashes with rel_path, chunk, lang, score
+      # Full-text search via Postgres FTS.
+      # @param q [String]
+      # @param repo [String, Array<String>, nil]
+      # @param limit [Integer]
+      # @return [Array<Hash>] results with rel_path, chunk, lang, score
       def search(q:, repo:, limit:)
         require_relative 'fts'
         Savant::Context::FTS.new(@db).search(q: q, repo: repo, limit: limit)
@@ -45,6 +51,11 @@ module Savant
       # - repo: Optional String or Array of repo names; when nil searches all repos
       # - limit: Integer max results
       # Returns: Array of Hashes with repo, rel_path, chunk, lang, score
+      # Search memory bank content only (markdown) via FTS.
+      # @param q [String]
+      # @param repo [String, Array<String>, nil]
+      # @param limit [Integer]
+      # @return [Array<Hash>]
       def search_memory(q:, repo:, limit:)
         require_relative 'fts'
         Savant::Context::FTS.new(@db).search(q: q, repo: repo, limit: limit, memory_only: true)
@@ -52,6 +63,9 @@ module Savant
 
       # List memory_bank resources from the database (files table) using repo_name and rel_path.
       # Returns: Array of { uri, mimeType, metadata: { path, title, size_bytes, modified_at, source } }
+      # List memory bank resources from the database for a repo.
+      # @param repo [String, Array<String>, nil]
+      # @return [Array<Hash>] { uri, mimeType, metadata }
       def resources_list(repo: nil)
         conn = @db.instance_variable_get(:@conn)
         params = []
@@ -86,6 +100,9 @@ module Savant
       # Read a memory_bank resource by a repo:// URI using DB to resolve repo roots.
       # URI format: repo://<repo_name>/memory-bank/<rel_path>
       # Returns file contents from filesystem rooted at repos.root_path.
+      # Read a memory bank resource by repo:// URI.
+      # @param uri [String] repo://<repo>/memory-bank/<rel_path>
+      # @return [String] raw markdown contents
       def resources_read(uri:)
         unless uri.start_with?('repo://') && uri.include?('/memory-bank/')
           raise 'unsupported uri'
@@ -126,6 +143,9 @@ module Savant
 
       # Resolve a repo identifier to a filesystem root path.
       # Accepts a direct path or a logical repo name stored in the DB `repos` table.
+      # Resolve a repo identifier to a filesystem root path.
+      # @param repo [String, nil]
+      # @return [String] absolute path
       def resolve_repo_root(repo)
         return Dir.pwd if repo.nil? || repo.to_s.strip.empty?
         return File.expand_path(repo) if File.directory?(repo)

@@ -38,35 +38,53 @@ module Savant
       # - repo: Optional repository name to scope results
       # - limit: Integer max results (default 10)
       # Returns: Array of Hashes: { 'rel_path', 'chunk', 'lang', 'score' }
+      # @param q [String] search query
+      # @param repo [String, nil] optional repo name scope
+      # @param limit [Integer] maximum results to return
+      # @return [Array<Hash>] results with rel_path, chunk, lang, score
       def search(q:, repo: nil, limit: 10)
         @ops.search(q: q, repo: repo, limit: limit)
       end
 
       # Lightweight filesystem search for memory_bank markdown resources.
       # Mirrors Context semantics but avoids DB; see Ops#search_memory.
+      # @param q [String] substring to search
+      # @param repo [String, nil] optional repo name scope
+      # @param limit [Integer] max results
+      # @return [Hash] { results:, total: }
       def search_memory(q:, repo: nil, limit: 20)
         @ops.search_memory(q: q, repo: repo, limit: limit)
       end
 
       # List memory_bank resources discoverable from the given repo path or CWD.
+      # @param repo [String, nil] repo name or nil for cwd
+      # @return [Array<Hash>] resource entries
       def resources_list(repo: nil)
         @ops.resources_list(repo: repo)
       end
 
       # Read the contents of a memory_bank resource by its repo:// URI.
+      # @param uri [String] repo:// URI of a resource
+      # @return [Hash] { uri, mime_type, text }
       def resources_read(uri:)
         @ops.resources_read(uri: uri)
       end
 
       # Repo Indexer operations exposed under Context
+      # @param repo [String, nil] optional repo filter
+      # @param verbose [Boolean]
+      # @return [Hash] index summary
       def repo_indexer_index(repo: nil, verbose: true)
         Savant::Context::FS::RepoIndexer.new(db: @db).index(repo: repo, verbose: verbose)
       end
 
+      # @param repo [String, nil]
+      # @return [Hash] delete summary
       def repo_indexer_delete(repo: nil)
         Savant::Context::FS::RepoIndexer.new(db: @db).delete(repo: repo)
       end
 
+      # @return [Array<Hash>] per-repo status rows
       def repo_indexer_status
         Savant::Context::FS::RepoIndexer.new(db: @db).status
       end

@@ -7,6 +7,9 @@
 
 module Savant
   module Indexer
+    # Minimal CLI wrapper for indexer admin/index commands.
+    #
+    # Purpose: Parse argv and invoke the indexer façade with sensible output.
     class CLI
       def self.run(argv)
         cmd = argv[0]

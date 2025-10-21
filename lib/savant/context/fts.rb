@@ -18,6 +18,7 @@ module Savant
     class FTS
       # Initialize with a DB connection wrapper. Accepts a Savant::DB or any
       # object exposing `@conn` compatible with pg's exec_params.
+      # @param db [Savant::DB]
       def initialize(db)
         @db = db
       end
@@ -29,6 +30,12 @@ module Savant
       # - limit: Integer max results
       # - memory_only: Boolean; if true restrict to memory_bank paths
       # Returns: Array of Hashes with repo, rel_path, chunk, lang, score (Float)
+      # Ranked full-text search over `chunks` with optional repo scope.
+      # @param q [String]
+      # @param repo [String, Array<String>, nil]
+      # @param limit [Integer]
+      # @param memory_only [Boolean] restrict to memory_bank markdown
+      # @return [Array<Hash>] rows with rel_path, chunk, lang, score
       def search(q:, repo: nil, limit: 10, memory_only: false)
         repo_list = case repo
                     when nil then nil

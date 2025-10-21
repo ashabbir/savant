@@ -11,15 +11,25 @@ module Savant
     module Tools
       module_function
 
+      # Return the MCP tool specs for the Jira service.
+      # @return [Array<Hash>] tool definitions
       def specs
         build_registrar.specs
       end
 
+      # Dispatch a tool call by name to the Jira engine.
+      # @param engine [Savant::Jira::Engine]
+      # @param name [String]
+      # @param args [Hash]
+      # @return [Object] tool-specific result
       def dispatch(engine, name, args)
         reg = build_registrar(engine)
         reg.call(name, args || {}, ctx: { engine: engine })
       end
 
+      # Build the registrar containing all Jira tools.
+      # @param engine [Savant::Jira::Engine, nil]
+      # @return [Savant::MCP::Core::Registrar]
       def build_registrar(engine = nil)
         Savant::MCP::Core::DSL.build do
           require_relative '../mcp/core/validation'

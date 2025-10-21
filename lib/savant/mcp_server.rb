@@ -49,12 +49,15 @@ module Savant
       log_io.sync = true
       log = Savant::Logger.new(component: 'mcp', out: log_io)
       log.info("=" * 80)
-      log.info("start: mode=stdio service=#{@service} tools=[fts/*, memory/*, fs/repo/*, jira_*]")
+      log.info("start: mode=stdio service=#{@service} tools=loading")
       log.info("pwd=#{Dir.pwd}")
       log.info("settings_path=#{settings_path}")
       log.info("log_path=#{log_path}")
-      search = nil
-      jira = nil
+      # Build engine + registrar once per service
+      @context_engine = nil
+      @context_registrar = nil
+      @jira_engine = nil
+      @jira_registrar = nil
 
       STDOUT.sync = true
       STDERR.sync = true
@@ -111,48 +114,54 @@ module Savant
 
       when 'tools/list'
         require_relative 'jira/tools'
+        require_relative 'jira/engine'
         require_relative 'context/tools'
-        all_tools = []
-        # Filter tools based on service type
-        tools = case @service
-                when 'jira' then Savant::Jira::Tools.specs
-                when 'context' then Savant::Context::Tools.specs
-                else all_tools
-                end
+        require_relative 'context/engine'
+        # Lazily construct engine + registrar
+        tools_list = case @service
+                     when 'jira'
+                       @jira_engine ||= Savant::Jira::Engine.new
+                       @jira_registrar ||= Savant::Jira::Tools.build_registrar(@jira_engine)
+                       @jira_registrar.specs
+                     when 'context'
+                       @context_engine ||= Savant::Context::Engine.new
+                       @context_registrar ||= Savant::Context::Tools.build_registrar(@context_engine)
+                       @context_registrar.specs
+                     else
+                       []
+                     end
 
-        log.info("tools/list: service=#{@service} tool_count=#{tools.length}")
-        response = { jsonrpc: '2.0', id: id, result: { tools: tools } }
+        log.info("tools/list: service=#{@service} tool_count=#{tools_list.length}")
+        response = { jsonrpc: '2.0', id: id, result: { tools: tools_list } }
         log.info("sending tools/list: response=#{response.to_json[0..100]}")
         puts(response.to_json)
         log.info("tools/list response sent")
 
       when 'tools/call'
         name = params['name']
-        args = params['arguments'] or {}
-        case @service
-        when 'context'
-          begin
+        args = params['arguments'] || {}
+        begin
+          case @service
+          when 'context'
             require_relative 'context/tools'
+            require_relative 'context/engine'
             @context_engine ||= Savant::Context::Engine.new
-            data = Savant::Context::Tools.dispatch(@context_engine, name, args)
-            content = [{ type: 'text', text: JSON.pretty_generate(data) }]
-            puts({ jsonrpc: '2.0', id: id, result: { content: content } }.to_json)
-          rescue Exception as e:
-            code = -32006
-            puts({ jsonrpc: '2.0', id: id, error: { code: code, message: str(e) } }.to_json)
-          end
-        when 'jira'
-          begin
+            @context_registrar ||= Savant::Context::Tools.build_registrar(@context_engine)
+            data = @context_registrar.call(name, args, ctx: { engine: @context_engine, request_id: id })
+          when 'jira'
             require_relative 'jira/tools'
-            @jira_engine ||= Savant::Jira.new
-            data = Savant::Jira::Tools.dispatch(@jira_engine, name, args)
-            content = [{ type: 'text', text: JSON.pretty_generate(data) }]
-            puts({ jsonrpc: '2.0', id: id, result: { content: content } }.to_json)
-          rescue Exception as e:
-            puts({ jsonrpc: '2.0', id: id, error: { code: -32050, message: str(e) } }.to_json)
+            require_relative 'jira/engine'
+            @jira_engine ||= Savant::Jira::Engine.new
+            @jira_registrar ||= Savant::Jira::Tools.build_registrar(@jira_engine)
+            data = @jira_registrar.call(name, args, ctx: { engine: @jira_engine, request_id: id })
+          else
+            raise 'Unknown service'
           end
-        else
-          puts({ jsonrpc: '2.0', id: id, error: { code: -32601, message: 'Unknown tool' } }.to_json)
+          content = [{ type: 'text', text: JSON.pretty_generate(data) }]
+          puts({ jsonrpc: '2.0', id: id, result: { content: content } }.to_json)
+        rescue => e
+          code = (@service == 'jira') ? -32050 : -32000
+          puts({ jsonrpc: '2.0', id: id, error: { code: code, message: e.message } }.to_json)
         end
       else
         puts({ jsonrpc: '2.0', id: id, error: { code: -32601, message: 'Method not found' } }.to_json)

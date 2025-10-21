@@ -25,6 +25,8 @@ module Savant
       Resource = Struct.new(:uri, :mime_type, :path, :title, :size_bytes, :modified_at, :source, keyword_init: true)
 
       # In‑memory collection of discovered memory_bank resources.
+      #
+      # Purpose: Store and fetch resource metadata built during scanning.
       class Index
         attr_reader :resources
         def initialize
@@ -48,6 +50,9 @@ module Savant
     end
 
       # Scanner/Searcher for memory_bank markdown beneath a repository root.
+      #
+      # Purpose: Discover resources and provide simple substring search with
+      # snippet generation for quick local context without DB.
       class Search
         def initialize(repo_name:, repo_root:, config: {})
           @repo_name = repo_name

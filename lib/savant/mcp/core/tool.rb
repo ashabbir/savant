@@ -3,6 +3,9 @@
 module Savant
   module MCP
     module Core
+      # Represents a single MCP tool specification and handler.
+      #
+      # Purpose: Pair JSON schema, name, and callable used by registrars.
       class Tool
         attr_reader :name, :description, :schema, :handler
 
@@ -20,4 +23,3 @@ module Savant
     end
   end
 end
-

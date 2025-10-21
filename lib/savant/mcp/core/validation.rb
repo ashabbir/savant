@@ -3,6 +3,9 @@
 module Savant
   module MCP
     module Core
+      # Error raised when MCP tool arg validation fails.
+      #
+      # Purpose: Provide a specific error class for coherent error handling.
       class ValidationError < StandardError; end
 
       module Validation

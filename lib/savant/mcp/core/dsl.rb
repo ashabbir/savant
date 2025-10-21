@@ -7,6 +7,9 @@ module Savant
   module MCP
     module Core
       module DSL
+        # Builds tool specs via a small internal DSL.
+        #
+        # Purpose: Make registrar declarations concise and readable.
         class Builder
           def initialize
             @registrar = Registrar.new
@@ -39,4 +42,3 @@ module Savant
     end
   end
 end
-

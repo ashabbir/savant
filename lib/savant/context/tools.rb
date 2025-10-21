@@ -19,22 +19,25 @@ module Savant
     module Tools
       module_function
 
-      # Return an array of MCP tool specifications for the Context service.
+      # Return the MCP tool specs for the Context service.
+      # @return [Array<Hash>] tool definitions
       def specs
         build_registrar.specs
       end
 
-      # Dispatch an MCP tool invocation to the engine.
-      # Params:
-      # - engine: Context::Engine instance
-      # - name: String tool name
-      # - args: Hash of input args
-      # Returns: Tool result object as a plain Ruby object
+      # Dispatch a tool call by name to the Context engine.
+      # @param engine [Savant::Context::Engine]
+      # @param name [String]
+      # @param args [Hash]
+      # @return [Object] tool-specific result
       def dispatch(engine, name, args)
         reg = build_registrar(engine)
         reg.call(name, args || {}, ctx: { engine: engine })
       end
 
+      # Build the registrar containing all Context tools.
+      # @param engine [Savant::Context::Engine, nil]
+      # @return [Savant::MCP::Core::Registrar]
       def build_registrar(engine = nil)
         Savant::MCP::Core::DSL.build do
           # Validation middleware using tool schema
