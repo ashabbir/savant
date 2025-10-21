@@ -88,6 +88,16 @@ module Savant
       def repo_indexer_status
         Savant::Context::FS::RepoIndexer.new(db: @db).status
       end
+
+      # Server info metadata surfaced to MCP server during initialize
+      # Returns: { name:, version:, description: }
+      def server_info
+        {
+          name: 'savant-context',
+          version: '1.1.0',
+          description: 'Context MCP: fts/search, memory/*, fs/repo/*'
+        }
+      end
     end
   end
 end

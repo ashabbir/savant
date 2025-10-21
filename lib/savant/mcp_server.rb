@@ -116,14 +116,21 @@ module Savant
       when 'initialize'
         begin
           svc = load_service(@service)
+          info = if svc[:engine].respond_to?(:server_info)
+                   svc[:engine].server_info
+                 else
+                   { name: 'savant', version: '1.1.0', description: "Savant MCP service=#{@service}" }
+                 end
           tool_count = svc[:registrar].specs.length
-          instructions = "Savant MCP service=#{@service} tools=#{tool_count}"
+          instructions = info[:description] || "Savant MCP service=#{@service} tools=#{tool_count}"
+          server_info = { name: (info[:name] || 'savant'), version: (info[:version] || '1.1.0') }
         rescue
           instructions = "Savant MCP service=#{@service} (unavailable)"
+          server_info = { name: 'savant', version: '1.1.0' }
         end
         result = {
           protocolVersion: '2024-11-05',
-          serverInfo: { name: 'savant', version: '1.0.0' },
+          serverInfo: server_info,
           capabilities: { tools: {} },
           instructions: instructions
         }
@@ -160,7 +167,5 @@ module Savant
     rescue => e
       puts({ jsonrpc: '2.0', id: req['id'], error: { code: -32000, message: e.message } }.to_json)
     end
-
-    # legacy handler removed
   end
 end

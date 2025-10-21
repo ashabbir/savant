@@ -37,22 +37,22 @@ module Savant
       end
 
       # passthroughs with write guards where needed
-      def get_issue(**args) = @ops.get_issue(**args)
-      def create_issue(**args) = with_write_guard { @ops.create_issue(**args) }
-      def update_issue(**args) = with_write_guard { @ops.update_issue(**args) }
-      def transition_issue(**args) = with_write_guard { @ops.transition_issue(**args) }
-      def add_comment(**args) = with_write_guard { @ops.add_comment(**args) }
-      def delete_comment(**args) = with_write_guard { @ops.delete_comment(**args) }
-      def assign_issue(**args) = with_write_guard { @ops.assign_issue(**args) }
-      def link_issues(**args) = with_write_guard { @ops.link_issues(**args) }
-      def download_attachments(**args) = @ops.download_attachments(**args)
-      def add_attachment(**args) = with_write_guard { @ops.add_attachment(**args) }
-      def bulk_create_issues(**args) = with_write_guard { @ops.bulk_create_issues(**args) }
-      def list_projects = @ops.list_projects
-      def list_fields = @ops.list_fields
-      def list_transitions(**args) = @ops.list_transitions(**args)
-      def list_statuses(**args) = @ops.list_statuses(**args)
-      def delete_issue(**args) = with_write_guard { @ops.delete_issue(**args) }
+      def get_issue(**args); @ops.get_issue(**args); end
+      def create_issue(**args); with_write_guard { @ops.create_issue(**args) }; end
+      def update_issue(**args); with_write_guard { @ops.update_issue(**args) }; end
+      def transition_issue(**args); with_write_guard { @ops.transition_issue(**args) }; end
+      def add_comment(**args); with_write_guard { @ops.add_comment(**args) }; end
+      def delete_comment(**args); with_write_guard { @ops.delete_comment(**args) }; end
+      def assign_issue(**args); with_write_guard { @ops.assign_issue(**args) }; end
+      def link_issues(**args); with_write_guard { @ops.link_issues(**args) }; end
+      def download_attachments(**args); @ops.download_attachments(**args); end
+      def add_attachment(**args); with_write_guard { @ops.add_attachment(**args) }; end
+      def bulk_create_issues(**args); with_write_guard { @ops.bulk_create_issues(**args) }; end
+      def list_projects; @ops.list_projects; end
+      def list_fields; @ops.list_fields; end
+      def list_transitions(**args); @ops.list_transitions(**args); end
+      def list_statuses(**args); @ops.list_statuses(**args); end
+      def delete_issue(**args); with_write_guard { @ops.delete_issue(**args) }; end
 
       private
 
@@ -65,6 +65,18 @@ module Savant
       def with_write_guard
         raise 'writes disabled: set JIRA_ALLOW_WRITES=true' unless @allow_writes
         yield
+      end
+
+      public
+
+      # Server info metadata surfaced to MCP server during initialize
+      # Returns: { name:, version:, description: }
+      def server_info
+        {
+          name: 'savant-jira',
+          version: '1.1.0',
+          description: 'Jira MCP: jira_* tools (search, issue ops, comments, attachments)'
+        }
       end
     end
   end
