@@ -1,4 +1,6 @@
 #!/usr/bin/env ruby
+# frozen_string_literal: true
+
 #
 # Purpose: Chunk plaintext using the code chunking strategy.
 #

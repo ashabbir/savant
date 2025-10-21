@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'spec_helper'
 require_relative '../../../lib/savant/jira/engine'
 
@@ -103,3 +105,5 @@ RSpec.describe Savant::Jira::Engine do
     end
   end
 end
+# !/usr/bin/env ruby
+# frozen_string_literal: true

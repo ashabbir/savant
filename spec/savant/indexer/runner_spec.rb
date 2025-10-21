@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'spec_helper'
 require 'stringio'
 require_relative '../../../lib/savant/indexer'
@@ -37,7 +39,7 @@ RSpec.describe Savant::Indexer::Runner do
       cfg = map.fetch(rel)
       double('Stat', size: cfg[:size], mtime: cfg[:mtime])
     end
-    allow(File).to receive(:open) do |abs, *args, &blk|
+    allow(File).to receive(:open) do |abs, *_args, &blk|
       rel = abs.split('/').last
       cfg = map.fetch(rel)
       StringIO.open(cfg[:head] || cfg[:data]) { |io| blk&.call(io) }
@@ -55,9 +57,9 @@ RSpec.describe Savant::Indexer::Runner do
     scanner = instance_double(Savant::Indexer::RepositoryScanner)
     allow(Savant::Indexer::RepositoryScanner).to receive(:new).and_return(scanner)
     allow(scanner).to receive(:files).and_return([
-      ['/repo/a.rb', 'a.rb'],
-      ['/repo/b.md', 'b.md']
-    ])
+                                                   ['/repo/a.rb', 'a.rb'],
+                                                   ['/repo/b.md', 'b.md']
+                                                 ])
     allow(scanner).to receive(:last_used).and_return(:walk)
     map = {
       'a.rb' => { size: 10, mtime: Time.at(100), data: "line1\nline2\n" },
@@ -75,14 +77,14 @@ RSpec.describe Savant::Indexer::Runner do
     scanner = instance_double(Savant::Indexer::RepositoryScanner)
     allow(Savant::Indexer::RepositoryScanner).to receive(:new).and_return(scanner)
     allow(scanner).to receive(:files).and_return([
-      ['/repo/a.rb', 'a.rb']
-    ])
+                                                   ['/repo/a.rb', 'a.rb']
+                                                 ])
     allow(scanner).to receive(:last_used).and_return(:walk)
     mtime = Time.at(100)
     map = { 'a.rb' => { size: 10, mtime: mtime, data: "puts 1\n" } }
     stub_file_ops(map)
     ns = mtime.nsec + mtime.to_i * 1_000_000_000
-    cache["r::a.rb"] = { 'size' => 10, 'mtime_ns' => ns }
+    cache['r::a.rb'] = { 'size' => 10, 'mtime_ns' => ns }
 
     res = runner.run(repo_name: 'r', verbose: false)
     expect(res).to eq(total: 1, changed: 0, skipped: 1)
@@ -93,10 +95,10 @@ RSpec.describe Savant::Indexer::Runner do
     scanner = instance_double(Savant::Indexer::RepositoryScanner)
     allow(Savant::Indexer::RepositoryScanner).to receive(:new).and_return(scanner)
     allow(scanner).to receive(:files).and_return([
-      ['/repo/a.json', 'a.json']
-    ])
+                                                   ['/repo/a.json', 'a.json']
+                                                 ])
     allow(scanner).to receive(:last_used).and_return(:walk)
-    map = { 'a.json' => { size: 10, mtime: Time.at(1), data: "{ }" } }
+    map = { 'a.json' => { size: 10, mtime: Time.at(1), data: '{ }' } }
     stub_file_ops(map)
 
     res = runner.run(repo_name: 'r', verbose: false)
@@ -107,8 +109,8 @@ RSpec.describe Savant::Indexer::Runner do
     scanner = instance_double(Savant::Indexer::RepositoryScanner)
     allow(Savant::Indexer::RepositoryScanner).to receive(:new).and_return(scanner)
     allow(scanner).to receive(:files).and_return([
-      ['/repo/a.rb', 'a.rb']
-    ])
+                                                   ['/repo/a.rb', 'a.rb']
+                                                 ])
     allow(scanner).to receive(:last_used).and_return(:git)
 
     # Expect at least one log line to mention using=gitls

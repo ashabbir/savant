@@ -10,7 +10,7 @@ begin
   db.ensure_fts
   puts 'DB RESET COMPLETE (tables + FTS ready)'
   exit 0
-rescue => e
+rescue StandardError => e
   warn "DB ERROR: #{e.class}: #{e.message}"
   exit 1
 end

@@ -1,4 +1,6 @@
 #!/usr/bin/env ruby
+# frozen_string_literal: true
+
 #
 # Purpose: Implement Jira operations via REST v3.
 #
@@ -23,7 +25,8 @@ module Savant
         res = @c.post('/rest/api/3/search', body.to_json)
         (res['issues'] || []).map do |it|
           f = it['fields'] || {}
-          { key: it['key'], summary: f['summary'], status: f.dig('status','name'), assignee: f.dig('assignee','displayName'), updated: f['updated'], url: "#{@c.base_url}/browse/#{it['key']}" }
+          { key: it['key'], summary: f['summary'], status: f.dig('status', 'name'),
+            assignee: f.dig('assignee', 'displayName'), updated: f['updated'], url: "#{@c.base_url}/browse/#{it['key']}" }
         end
       end
 
@@ -34,7 +37,10 @@ module Savant
       end
 
       def create_issue(projectKey:, summary:, issuetype:, description: nil, fields: {})
-        payload = { fields: fields.merge({'project'=>{'key'=>projectKey}, 'summary'=>summary, 'issuetype'=>{'name'=>issuetype}}.tap{ |h| h['description']=description if description }) }
+        payload = { fields: fields.merge({ 'project' => { 'key' => projectKey }, 'summary' => summary,
+                                           'issuetype' => { 'name' => issuetype } }.tap do |h|
+          h['description'] = description if description
+        end) }
         res = @c.post('/rest/api/3/issue', payload.to_json)
         { key: res['key'], url: "#{@c.base_url}/browse/#{res['key']}" }
       end
@@ -53,6 +59,7 @@ module Savant
         if transitionId.to_s.empty?
           found = list_transitions(key: key).find { |t| t['name'].casecmp?(transitionName.to_s) }
           raise 'transition not found' unless found
+
           transitionId = found['id']
         end
         @c.post("/rest/api/3/issue/#{key}/transitions", { transition: { id: transitionId.to_s } }.to_json)
@@ -76,13 +83,15 @@ module Savant
       end
 
       def link_issues(inwardKey:, outwardKey:, linkType:)
-        @c.post('/rest/api/3/issueLink', { type: { name: linkType }, inwardIssue: { key: inwardKey }, outwardIssue: { key: outwardKey } }.to_json)
+        @c.post('/rest/api/3/issueLink',
+                { type: { name: linkType }, inwardIssue: { key: inwardKey },
+                  outwardIssue: { key: outwardKey } }.to_json)
         { created: true }
       end
 
       def download_attachments(key:)
         issue = get_issue(key: key, fields: ['attachment'])
-        atts = (issue.dig('fields','attachment') || [])
+        atts = issue.dig('fields', 'attachment') || []
         files = []
         dir = Dir.mktmpdir('jira_atts')
         atts.each do |att|
@@ -104,9 +113,15 @@ module Savant
       end
 
       def bulk_create_issues(issues: [])
-        payload = { issueUpdates: issues.map { |i| { fields: (i['fields'] || {}).merge({ 'project'=>{'key'=>i['projectKey']}, 'summary'=>i['summary'], 'issuetype'=>{'name'=>i['issuetype']} }.tap{ |h| h['description']=i['description'] if i['description'] }) } } }
+        payload = { issueUpdates: issues.map do |i|
+          { fields: (i['fields'] || {}).merge({
+            'project' => { 'key' => i['projectKey'] }, 'summary' => i['summary'], 'issuetype' => { 'name' => i['issuetype'] }
+          }.tap do |h|
+            h['description'] = i['description'] if i['description']
+          end) }
+        end }
         res = @c.post('/rest/api/3/issue/bulk', payload.to_json)
-        { keys: (res.dig('issues') || []).map { |x| x['key'] } }
+        { keys: (res['issues'] || []).map { |x| x['key'] } }
       end
 
       def list_projects

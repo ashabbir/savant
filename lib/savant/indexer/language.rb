@@ -1,4 +1,6 @@
 #!/usr/bin/env ruby
+# frozen_string_literal: true
+
 #
 # Purpose: Infer language from file path/extension for chunking.
 #

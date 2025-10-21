@@ -1,4 +1,6 @@
 #!/usr/bin/env ruby
+# frozen_string_literal: true
+
 #
 # Purpose: CLI helpers for indexer entrypoints.
 #
@@ -16,11 +18,15 @@ module Savant
         settings_path = 'config/settings.json'
 
         if cmd.nil?
-          warn "usage: index all | index <repo> | delete all | delete <repo>"
+          warn 'usage: index all | index <repo> | delete all | delete <repo>'
           exit 2
         end
 
-        repo = (cmd == 'all') ? nil : (cmd.start_with?('delete') ? argv[1] : cmd)
+        repo = if cmd == 'all'
+                 nil
+               else
+                 (cmd.start_with?('delete') ? argv[1] : cmd)
+               end
         started = Time.now
         if cmd == 'delete'
           db = Savant::DB.new
@@ -28,25 +34,24 @@ module Savant
             puts "DELETE START ts=#{started.utc.iso8601} mode=all"
             db.delete_all_data
             res = { total: 0, changed: 0, skipped: 0 }
-            action = 'DELETE'
           else
             puts "DELETE START ts=#{started.utc.iso8601} repo=#{repo}"
             n = db.delete_repo_by_name(repo)
             res = { total: 0, changed: n, skipped: 0 }
-            action = 'DELETE'
           end
+          action = 'DELETE'
         else
-          mode = repo ? "repo=#{repo}" : "all"
+          mode = repo ? "repo=#{repo}" : 'all'
           # Surface configured scanMode (auto|git|walk); actual per-repo usage is logged by Runner
           begin
             raw = Savant::Config.load(settings_path)
             icfg = Savant::Indexer::Config.new(raw)
             scan = if repo
-              target = icfg.repos.find { |r| r['name'] == repo } || {}
-              icfg.scan_mode_for(target)
-            else
-              icfg.scan_mode
-            end
+                     target = icfg.repos.find { |r| r['name'] == repo } || {}
+                     icfg.scan_mode_for(target)
+                   else
+                     icfg.scan_mode
+                   end
             scan_str = scan.to_s
           rescue StandardError
             scan_str = 'unknown'
@@ -62,7 +67,7 @@ module Savant
       rescue Savant::ConfigError => e
         warn "CONFIG ERROR: #{e.message}"
         exit 1
-      rescue => e
+      rescue StandardError => e
         warn "INDEX ERROR: #{e.class}: #{e.message}"
         exit 1
       end

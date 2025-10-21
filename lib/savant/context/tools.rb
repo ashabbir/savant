@@ -1,4 +1,6 @@
 #!/usr/bin/env ruby
+# frozen_string_literal: true
+
 #
 # Purpose: MCP registrar/dispatcher for Context tools.
 #
@@ -59,45 +61,53 @@ module Savant
             dur_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - start) * 1000).round
             begin
               engine.instance_variable_get(:@log).info("tool: name=#{nm} dur_ms=#{dur_ms}")
-            rescue
+            rescue StandardError
             end
             out
           end
 
           tool 'fts/search', description: 'Full‑text search over indexed repos (filter by repo name(s))',
-               schema: { type: 'object', properties: { q: { type: 'string' }, repo: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }, { type: 'null' }] }, limit: { type: 'integer', minimum: 1, maximum: 100 } }, required: ['q'] } do |_ctx, a|
-            limit = Integer(a['limit'] || 10) rescue 10
+                             schema: { type: 'object', properties: { q: { type: 'string' }, repo: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }, { type: 'null' }] }, limit: { type: 'integer', minimum: 1, maximum: 100 } }, required: ['q'] } do |_ctx, a|
+            limit = begin
+              Integer(a['limit'] || 10)
+            rescue StandardError
+              10
+            end
             engine.search(q: (a['q'] || '').to_s, repo: a['repo'], limit: limit)
           end
 
           tool 'memory/search', description: 'Search memory_bank markdown in DB FTS (filter by repo name(s))',
-               schema: { type: 'object', properties: { q: { type: 'string' }, repo: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }, { type: 'null' }] }, limit: { type: 'integer', minimum: 1, maximum: 100 } }, required: ['q'] } do |_ctx, a|
-            limit = Integer(a['limit'] || 20) rescue 20
+                                schema: { type: 'object', properties: { q: { type: 'string' }, repo: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }, { type: 'null' }] }, limit: { type: 'integer', minimum: 1, maximum: 100 } }, required: ['q'] } do |_ctx, a|
+            limit = begin
+              Integer(a['limit'] || 20)
+            rescue StandardError
+              20
+            end
             engine.search_memory(q: (a['q'] || '').to_s, repo: a['repo'], limit: limit)
           end
 
           tool 'memory/resources/list', description: 'List memory_bank resources from DB (optional repo filter)',
-               schema: { type: 'object', properties: { repo: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }, { type: 'null' }] } } } do |_ctx, a|
+                                        schema: { type: 'object', properties: { repo: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }, { type: 'null' }] } } } do |_ctx, a|
             engine.resources_list(repo: a['repo'])
           end
 
           tool 'memory/resources/read', description: 'Read a memory_bank resource by URI',
-               schema: { type: 'object', properties: { uri: { type: 'string' } }, required: ['uri'] } do |_ctx, a|
+                                        schema: { type: 'object', properties: { uri: { type: 'string' } }, required: ['uri'] } do |_ctx, a|
             engine.resources_read(uri: (a['uri'] || '').to_s)
           end
 
           tool 'fs/repo/index', description: 'Index all repos or a single repo by name',
-               schema: { type: 'object', properties: { repo: { anyOf: [{ type: 'string' }, { type: 'null' }] }, verbose: { type: 'boolean' } } } do |_ctx, a|
+                                schema: { type: 'object', properties: { repo: { anyOf: [{ type: 'string' }, { type: 'null' }] }, verbose: { type: 'boolean' } } } do |_ctx, a|
             engine.repo_indexer_index(repo: a['repo'], verbose: !!a['verbose'])
           end
 
           tool 'fs/repo/delete', description: 'Delete all indexed data or a single repo by name',
-               schema: { type: 'object', properties: { repo: { anyOf: [{ type: 'string' }, { type: 'null' }] } } } do |_ctx, a|
+                                 schema: { type: 'object', properties: { repo: { anyOf: [{ type: 'string' }, { type: 'null' }] } } } do |_ctx, a|
             engine.repo_indexer_delete(repo: a['repo'])
           end
 
           tool 'fs/repo/status', description: 'List per-repo index status counts',
-               schema: { type: 'object', properties: {} } do |_ctx, _a|
+                                 schema: { type: 'object', properties: {} } do |_ctx, _a|
             engine.repo_indexer_status
           end
         end

@@ -1,4 +1,6 @@
 #!/usr/bin/env ruby
+# frozen_string_literal: true
+
 #
 # Purpose: Orchestrate Jira MCP tools and guard writes.
 #
@@ -61,62 +63,77 @@ module Savant
       def get_issue(**args)
         @ops.get_issue(**args)
       end
+
       # @return [Hash]
       def create_issue(**args)
         with_write_guard { @ops.create_issue(**args) }
       end
+
       # @return [Hash]
       def update_issue(**args)
         with_write_guard { @ops.update_issue(**args) }
       end
+
       # @return [Hash]
       def transition_issue(**args)
         with_write_guard { @ops.transition_issue(**args) }
       end
+
       # @return [Hash]
       def add_comment(**args)
         with_write_guard { @ops.add_comment(**args) }
       end
+
       # @return [Hash]
       def delete_comment(**args)
         with_write_guard { @ops.delete_comment(**args) }
       end
+
       # @return [Hash]
       def assign_issue(**args)
         with_write_guard { @ops.assign_issue(**args) }
       end
+
       # @return [Hash]
       def link_issues(**args)
         with_write_guard { @ops.link_issues(**args) }
       end
+
       # @return [Array<Hash>]
       def download_attachments(**args)
         @ops.download_attachments(**args)
       end
+
       # @return [Hash]
       def add_attachment(**args)
         with_write_guard { @ops.add_attachment(**args) }
       end
+
       # @return [Hash]
       def bulk_create_issues(**args)
         with_write_guard { @ops.bulk_create_issues(**args) }
       end
+
       # @return [Array<Hash>]
       def list_projects
         @ops.list_projects
       end
+
       # @return [Array<Hash>]
       def list_fields
         @ops.list_fields
       end
+
       # @return [Array<Hash>]
       def list_transitions(**args)
         @ops.list_transitions(**args)
       end
+
       # @return [Array<Hash>]
       def list_statuses(**args)
         @ops.list_statuses(**args)
       end
+
       # @return [Hash]
       def delete_issue(**args)
         with_write_guard { @ops.delete_issue(**args) }
@@ -132,6 +149,7 @@ module Savant
       def fetch(env, key)
         v = env[key]
         raise "#{key} is required" if v.to_s.strip.empty?
+
         v
       end
 

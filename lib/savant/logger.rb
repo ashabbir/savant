@@ -1,4 +1,6 @@
 #!/usr/bin/env ruby
+# frozen_string_literal: true
+
 #
 # Purpose: Minimal, fast logger with levels and timing.
 #
@@ -20,8 +22,8 @@ module Savant
     def initialize(component:, out: $stdout)
       @component = component
       @out = out
-      @level = (ENV["LOG_LEVEL"] || "info").downcase
-      @slow_threshold_ms = (ENV["SLOW_THRESHOLD_MS"] || "2000").to_i
+      @level = (ENV['LOG_LEVEL'] || 'info').downcase
+      @slow_threshold_ms = (ENV['SLOW_THRESHOLD_MS'] || '2000').to_i
     end
 
     def level_enabled?(lvl)

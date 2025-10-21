@@ -1,4 +1,6 @@
 #!/usr/bin/env ruby
+# frozen_string_literal: true
+
 #
 # Purpose: Load and validate application configuration.
 #
@@ -32,10 +34,9 @@ module Savant
     # @return [Hash] parsed and validated settings hash.
     # @raise [Savant::ConfigError] when the file is missing or invalid.
     def self.load(path)
-      raise ConfigError, "SETTINGS_PATH not provided" if path.nil? || path.strip.empty?
-      unless File.exist?(path)
-        raise ConfigError, "missing settings.json at #{path}"
-      end
+      raise ConfigError, 'SETTINGS_PATH not provided' if path.nil? || path.strip.empty?
+      raise ConfigError, "missing settings.json at #{path}" unless File.exist?(path)
+
       begin
         data = JSON.parse(File.read(path))
       rescue JSON::ParserError => e
@@ -62,22 +63,22 @@ module Savant
 
       req.each do |key, inner|
         raise ConfigError, "missing key: #{key}" unless cfg.key?(key)
-        if inner
-          inner.each do |sub|
-            raise ConfigError, "missing key: #{key}.#{sub}" unless cfg[key].is_a?(Hash) && cfg[key].key?(sub)
-          end
+
+        next unless inner
+
+        inner.each do |sub|
+          raise ConfigError, "missing key: #{key}.#{sub}" unless cfg[key].is_a?(Hash) && cfg[key].key?(sub)
         end
       end
 
-      unless cfg.dig('indexer','repos').is_a?(Array) && cfg['indexer']['repos'].any?
-        raise ConfigError, "repos must be a non-empty array"
+      unless cfg.dig('indexer', 'repos').is_a?(Array) && cfg['indexer']['repos'].any?
+        raise ConfigError, 'repos must be a non-empty array'
       end
+
       cfg['indexer']['repos'].each do |r|
-        raise ConfigError, "repo missing name" unless r['name'].is_a?(String) && !r['name'].empty?
+        raise ConfigError, 'repo missing name' unless r['name'].is_a?(String) && !r['name'].empty?
         raise ConfigError, "repo #{r['name']} missing path" unless r['path'].is_a?(String) && !r['path'].empty?
-        if r['ignore'] && !r['ignore'].is_a?(Array)
-          raise ConfigError, "repo #{r['name']} ignore must be array"
-        end
+        raise ConfigError, "repo #{r['name']} ignore must be array" if r['ignore'] && !r['ignore'].is_a?(Array)
       end
       true
     end

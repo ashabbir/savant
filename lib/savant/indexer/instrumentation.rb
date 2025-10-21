@@ -1,4 +1,6 @@
 #!/usr/bin/env ruby
+# frozen_string_literal: true
+
 #
 # Purpose: Thin wrapper over logger for consistent timing and levels.
 #
@@ -24,9 +26,9 @@ module Savant
         @logger.debug(msg)
       end
 
-      def with_timing(label:)
+      def with_timing(label:, &block)
         if @logger.respond_to?(:with_timing)
-          @logger.with_timing(label: label) { yield }
+          @logger.with_timing(label: label, &block)
         else
           start = Time.now
           res = yield

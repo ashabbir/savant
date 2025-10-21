@@ -1,4 +1,6 @@
 #!/usr/bin/env ruby
+# frozen_string_literal: true
+
 #
 # Purpose: Facade for the indexing pipeline.
 #
@@ -53,6 +55,7 @@ module Savant
     require_relative 'indexer/admin'
     require_relative 'indexer/cli'
   end
+
   # Legacy alias to allow external code to call Savant::Index.new(...)
   class Index < Savant::Indexer::Facade; end
 end

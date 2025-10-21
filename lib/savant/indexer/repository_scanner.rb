@@ -1,4 +1,6 @@
 #!/usr/bin/env ruby
+# frozen_string_literal: true
+
 #
 # Purpose: List repository files respecting ignores and git excludes.
 #
@@ -29,6 +31,7 @@ module Savant
 
       def files
         return [] unless Dir.exist?(@root)
+
         if use_git?
           list = git_ls_files
           unless list.nil?
@@ -41,17 +44,17 @@ module Savant
         out = []
         begin
           Find.find(@root) do |path|
-            rel = path.sub(/^#{Regexp.escape(@root)}\/?/, '')
+            rel = path.sub(%r{^#{Regexp.escape(@root)}/?}, '')
             if File.directory?(path)
               # Skip .git and dot-directories or configured prunable dirs early
-              if dot_dir?(rel) || prune_dir?(rel)
-                Find.prune
-              else
-                next
-              end
+              next unless dot_dir?(rel) || prune_dir?(rel)
+
+              Find.prune
+
             else
               next if rel.empty?
               next if ignored?(rel)
+
               out << [path, rel]
             end
           end
@@ -81,6 +84,7 @@ module Savant
       def use_git?
         return false if @scan_mode == :walk
         return false unless Dir.exist?(File.join(@root, '.git'))
+
         true
       end
 
@@ -91,6 +95,7 @@ module Savant
         ]
         stdout, status = Open3.capture2(*cmd)
         return nil unless status.success?
+
         rels = stdout.split("\x00").reject(&:empty?)
         rels = rels.reject { |rel| ignored?(rel) } unless @ignore_patterns.empty?
         rels.map { |rel| [File.join(@root, rel), rel] }
@@ -103,6 +108,7 @@ module Savant
         patterns.map do |pat|
           p = pat.strip
           next if p.empty? || p.start_with?('#') || p.start_with?('!')
+
           p = "**/#{p}" unless p.include?('/')
           p = "#{p}**" if p.end_with?('/')
           p
@@ -114,11 +120,12 @@ module Savant
         patterns.each do |pat|
           p = pat.strip
           next if p.empty? || p.start_with?('#') || p.start_with?('!')
+
           # Common directory ignore forms
           if p.end_with?('/**') || p.end_with?('/*') || p.end_with?('/')
             base = p.split('/').reject(&:empty?).last
             names << base.sub(/\*\*?$/, '') unless base.nil? || base.empty?
-          elsif p !~ /[\*\[\]\?]/
+          elsif p !~ /[*\[\]?]/
             # Plain directory name
             names << p
           end
@@ -132,10 +139,12 @@ module Savant
         patterns = []
         [File.join(@root, '.gitignore'), File.join(@root, '.git', 'info', 'exclude')].each do |path|
           next unless File.file?(path)
+
           File.readlines(path, chomp: true).each do |line|
             line = line.strip
             next if line.empty? || line.start_with?('#')
             next if line.start_with?('!')
+
             patterns << line
           end
         end

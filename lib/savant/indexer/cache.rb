@@ -1,6 +1,8 @@
+# frozen_string_literal: true
+
 require 'json'
 
-#!/usr/bin/env ruby
+# !/usr/bin/env ruby
 #
 # Purpose: Simple JSON-backed cache for indexing metadata.
 #

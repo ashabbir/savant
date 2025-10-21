@@ -1,4 +1,6 @@
 #!/usr/bin/env ruby
+# frozen_string_literal: true
+
 #
 # Purpose: Chunk code files by lines with overlap.
 #
@@ -23,6 +25,7 @@ module Savant
             j = [i + max_lines, lines.length].min
             slices << lines[i...j].join
             break if j >= lines.length
+
             next_i = j - overlap
             i = next_i <= i ? j : next_i
           end

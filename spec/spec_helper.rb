@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 begin
   require 'simplecov'
   SimpleCov.start do
@@ -11,14 +13,16 @@ rescue LoadError
     Coverage.start
     at_exit do
       result = Coverage.result
-      files = result.keys.select { |p| !p.include?('/spec/') }
+      files = result.keys.reject { |p| p.include?('/spec/') }
       covered = 0
       total = 0
       files.each do |f|
         arr = result[f]
         next unless arr.is_a?(Array)
+
         arr.each do |cnt|
           next if cnt.nil?
+
           total += 1
           covered += 1 if cnt.to_i > 0
         end
@@ -38,3 +42,5 @@ RSpec.configure do |config|
     c.syntax = :expect
   end
 end
+# !/usr/bin/env ruby
+# frozen_string_literal: true

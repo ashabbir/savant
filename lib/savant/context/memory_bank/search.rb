@@ -1,4 +1,6 @@
 #!/usr/bin/env ruby
+# frozen_string_literal: true
+
 #
 # Purpose: Lightweight scanner and searcher for memory_bank markdown files.
 #
@@ -29,25 +31,26 @@ module Savant
       # Purpose: Store and fetch resource metadata built during scanning.
       class Index
         attr_reader :resources
+
         def initialize
           @resources = []
           @by_uri = {}
         end
 
-      def clear!
-        @resources.clear
-        @by_uri.clear
-      end
+        def clear!
+          @resources.clear
+          @by_uri.clear
+        end
 
-      def add(res)
-        @by_uri[res.uri] = res
-        @resources << res
-      end
+        def add(res)
+          @by_uri[res.uri] = res
+          @resources << res
+        end
 
-      def find(uri)
-        @by_uri[uri]
+        def find(uri)
+          @by_uri[uri]
+        end
       end
-    end
 
       # Scanner/Searcher for memory_bank markdown beneath a repository root.
       #
@@ -59,7 +62,7 @@ module Savant
           @repo_root = repo_root
           @cfg = config || {}
           @patterns = Array(@cfg.dig('memory_bank', 'patterns') || ['**/memory_bank/**/*.md'])
-          @follow_symlinks = !!@cfg.dig('memory_bank', 'follow_symlinks')
+          @follow_symlinks = !@cfg.dig('memory_bank', 'follow_symlinks').nil?
           @enabled = @cfg.dig('memory_bank', 'enabled') != false
         end
 
@@ -72,32 +75,38 @@ module Savant
         def scan
           index = Index.new
           return index unless enabled?
+
           files = discover_files
           files.each do |abs|
-          rel = abs.sub(/^#{Regexp.escape(@repo_root)}\/?/, '')
-          stat = File.stat(abs) rescue nil
-          next unless stat
-          begin
-            raw = File.read(abs)
-          rescue
-            raw = ''
+            rel = abs.sub(%r{^#{Regexp.escape(@repo_root)}/?}, '')
+            stat = begin
+              File.stat(abs)
+            rescue StandardError
+              nil
+            end
+            next unless stat
+
+            begin
+              raw = File.read(abs)
+            rescue StandardError
+              raw = ''
+            end
+            Markdown.markdown_to_text(raw)
+            title = Markdown.extract_title(raw, rel)
+            uri = "repo://#{@repo_name}/memory-bank/#{rel}"
+            res = Resource.new(
+              uri: uri,
+              mime_type: 'text/markdown; charset=utf-8',
+              path: rel,
+              title: title,
+              size_bytes: stat.size,
+              modified_at: stat.mtime.utc.iso8601,
+              source: 'memory_bank'
+            )
+            index.add(res)
           end
-          text = Markdown.markdown_to_text(raw)
-          title = Markdown.extract_title(raw, rel)
-          uri = "repo://#{@repo_name}/memory-bank/#{rel}"
-          res = Resource.new(
-            uri: uri,
-            mime_type: 'text/markdown; charset=utf-8',
-            path: rel,
-            title: title,
-            size_bytes: stat.size,
-            modified_at: stat.mtime.utc.iso8601,
-            source: 'memory_bank'
-          )
-          index.add(res)
+          index
         end
-        index
-      end
 
         # Perform a naive substring search across discovered markdown resources
         # and produce contextual snippets around matches.
@@ -105,42 +114,48 @@ module Savant
         def search(index, query, max_results: 20, snippet_window: 160, windows_per_doc: 2)
           q = query.to_s.strip
           return { results: [], total: 0 } if q.empty?
+
           scored = []
           index.resources.each do |res|
-          begin
-            raw = File.read(File.join(@repo_root, res.path))
-          rescue
-            next
-          end
-          text = Markdown.markdown_to_text(raw)
-          lc = text.downcase
-          hits = lc.scan(Regexp.new(Regexp.escape(q.downcase))).length
-          next if hits == 0
-          snippets = Snippets.make_snippets(text, q, window: snippet_window, max_windows: windows_per_doc)
-          scored << [hits, { path: res.path, title: res.title, score: hits, snippets: snippets, metadata: { modified_at: res.modified_at, size_bytes: res.size_bytes, source: res.source } }]
-        end
-        scored.sort_by! { |(s, _)| -s }
-        results = scored.map { |(_, r)| r }[0, max_results]
-        { results: results, total: scored.length }
-      end
+            begin
+              raw = File.read(File.join(@repo_root, res.path))
+            rescue StandardError
+              next
+            end
+            text = Markdown.markdown_to_text(raw)
+            lc = text.downcase
+            hits = lc.scan(Regexp.new(Regexp.escape(q.downcase))).length
+            next if hits.zero?
 
-      private
-      # Find matching markdown files under the repo root according to patterns.
-      def discover_files
-        flags = File::FNM_DOTMATCH
-        paths = []
-        @patterns.each do |pat|
-          base = File.join(@repo_root, pat)
-          Dir.glob(base, flags).each do |f|
-            next unless File.file?(f)
-            next unless f.downcase.end_with?('.md')
-            next if !@follow_symlinks && File.symlink?(f)
-            paths << f
+            snippets = Snippets.make_snippets(text, q, window: snippet_window, max_windows: windows_per_doc)
+            scored << [hits,
+                       { path: res.path, title: res.title, score: hits, snippets: snippets,
+                         metadata: { modified_at: res.modified_at, size_bytes: res.size_bytes, source: res.source } }]
           end
+          scored.sort_by! { |(s, _)| -s }
+          results = scored.map { |(_, r)| r }[0, max_results]
+          { results: results, total: scored.length }
         end
-        paths.uniq
+
+        private
+
+        # Find matching markdown files under the repo root according to patterns.
+        def discover_files
+          flags = File::FNM_DOTMATCH
+          paths = []
+          @patterns.each do |pat|
+            base = File.join(@repo_root, pat)
+            Dir.glob(base, flags).each do |f|
+              next unless File.file?(f)
+              next unless f.downcase.end_with?('.md')
+              next if !@follow_symlinks && File.symlink?(f)
+
+              paths << f
+            end
+          end
+          paths.uniq
+        end
       end
-    end
     end
   end
 end

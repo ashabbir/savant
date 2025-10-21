@@ -1,4 +1,5 @@
 #!/usr/bin/env ruby
+# frozen_string_literal: true
 
 require 'fileutils'
 
@@ -38,9 +39,8 @@ module Savant
     end
 
     def write_file(path, content, force: false)
-      if File.exist?(path) && !force
-        raise "file exists: #{path} (use --force to overwrite)"
-      end
+      raise "file exists: #{path} (use --force to overwrite)" if File.exist?(path) && !force
+
       File.write(path, content)
     end
 
@@ -53,7 +53,7 @@ module Savant
       <<~RUBY
         #!/usr/bin/env ruby
         # Engine for Savant::#{mod} MCP service
-        
+
         module Savant
           module #{mod}
             class Engine
@@ -75,7 +75,7 @@ module Savant
       <<~RUBY
         #!/usr/bin/env ruby
         # Tools registrar for Savant::#{mod}
-        
+
         require_relative '../mcp/core/dsl'
 
         module Savant
@@ -118,4 +118,3 @@ module Savant
     end
   end
 end
-

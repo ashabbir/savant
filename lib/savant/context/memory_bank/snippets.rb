@@ -1,4 +1,6 @@
 #!/usr/bin/env ruby
+# frozen_string_literal: true
+
 #
 # Purpose: Generate simple text snippets around query matches.
 #
@@ -15,6 +17,7 @@ module Savant
           t = text.to_s
           q = query.to_s.strip
           return [] if t.empty? || q.empty?
+
           lc_t = t.downcase
           lc_q = q.downcase
           idxs = []
@@ -22,12 +25,14 @@ module Savant
           while (pos = lc_t.index(lc_q, start))
             idxs << pos
             break if idxs.length >= (max_windows * 2)
+
             start = pos + lc_q.length
           end
           return [] if idxs.empty?
+
           windows = []
           idxs.each do |pos|
-            s = [0, pos - window/2].max
+            s = [0, pos - window / 2].max
             e = [t.length, s + window].min
             windows << [s, e]
           end
@@ -40,7 +45,7 @@ module Savant
               merged[-1][1] = [merged[-1][1], w[1]].max
             end
           end
-          merged[0, max_windows].map { |s,e| t[s...e] }
+          merged[0, max_windows].map { |s, e| t[s...e] }
         end
       end
     end

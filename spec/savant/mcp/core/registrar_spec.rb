@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'spec_helper'
 
 require_relative '../../../../lib/savant/mcp/core/registrar'
@@ -6,7 +8,8 @@ require_relative '../../../../lib/savant/mcp/core/dsl'
 RSpec.describe Savant::MCP::Core::Registrar do
   it 'collects specs and dispatches handlers' do
     reg = Savant::MCP::Core::DSL.build do
-      tool 'ns/echo', description: 'Echo args', schema: { type: 'object', properties: { msg: { type: 'string' } }, required: ['msg'] } do |ctx, args|
+      tool 'ns/echo', description: 'Echo args',
+                      schema: { type: 'object', properties: { msg: { type: 'string' } }, required: ['msg'] } do |ctx, args|
         { echoed: args['msg'], rid: ctx[:request_id] }
       end
     end
@@ -35,7 +38,7 @@ RSpec.describe Savant::MCP::Core::Registrar do
 
     res = reg.call('t/one', {}, ctx: {})
     expect(res).to eq({ mid: true })
-    expect(order).to eq([:before, :handler, :after])
+    expect(order).to eq(%i[before handler after])
   end
 
   it 'raises Unknown tool on missing name' do
@@ -43,4 +46,3 @@ RSpec.describe Savant::MCP::Core::Registrar do
     expect { reg.call('missing', {}) }.to raise_error('Unknown tool')
   end
 end
-

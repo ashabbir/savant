@@ -1,4 +1,6 @@
 #!/usr/bin/env ruby
+# frozen_string_literal: true
+
 #
 # Purpose: Postgres connection + schema helpers.
 #
@@ -32,14 +34,18 @@ module Savant
       begin
         yield
         @conn.exec('COMMIT')
-      rescue => e
-        @conn.exec('ROLLBACK') rescue nil
+      rescue StandardError => e
+        begin
+          @conn.exec('ROLLBACK')
+        rescue StandardError
+          nil
+        end
         raise e
       end
     end
 
     def close
-      @conn.close if @conn
+      @conn&.close
     end
 
     # Drop and recreate all schema tables and indexes.
@@ -71,8 +77,8 @@ module Savant
           UNIQUE(repo_id, rel_path)
         );
       SQL
-      @conn.exec("CREATE INDEX idx_files_repo_name ON files(repo_name)")
-      @conn.exec("CREATE INDEX idx_files_repo_id ON files(repo_id)")
+      @conn.exec('CREATE INDEX idx_files_repo_name ON files(repo_name)')
+      @conn.exec('CREATE INDEX idx_files_repo_id ON files(repo_id)')
 
       @conn.exec(<<~SQL)
         CREATE TABLE blobs (
@@ -99,7 +105,7 @@ module Savant
           chunk_text TEXT NOT NULL
         );
       SQL
-      @conn.exec("CREATE INDEX idx_chunks_blob ON chunks(blob_id)")
+      @conn.exec('CREATE INDEX idx_chunks_blob ON chunks(blob_id)')
       true
     end
 
@@ -118,7 +124,8 @@ module Savant
     # @return [Integer] blob id
     def find_or_create_blob(hash, byte_len)
       res = @conn.exec_params('SELECT id FROM blobs WHERE hash=$1', [hash])
-      return res[0]['id'].to_i if res.ntuples > 0
+      return res[0]['id'].to_i if res.ntuples.positive?
+
       res = @conn.exec_params('INSERT INTO blobs(hash, byte_len) VALUES($1,$2) RETURNING id', [hash, byte_len])
       res[0]['id'].to_i
     end
@@ -130,7 +137,8 @@ module Savant
     def replace_chunks(blob_id, chunks)
       @conn.exec_params('DELETE FROM chunks WHERE blob_id=$1', [blob_id])
       chunks.each do |idx, lang, text|
-        @conn.exec_params('INSERT INTO chunks(blob_id, idx, lang, chunk_text) VALUES($1,$2,$3,$4)', [blob_id, idx, lang, text])
+        @conn.exec_params('INSERT INTO chunks(blob_id, idx, lang, chunk_text) VALUES($1,$2,$3,$4)',
+                          [blob_id, idx, lang, text])
       end
       true
     end
@@ -139,7 +147,8 @@ module Savant
     # @return [Integer] repo id
     def find_or_create_repo(name, root)
       res = @conn.exec_params('SELECT id FROM repos WHERE name=$1', [name])
-      return res[0]['id'].to_i if res.ntuples > 0
+      return res[0]['id'].to_i if res.ntuples.positive?
+
       res = @conn.exec_params('INSERT INTO repos(name, root_path) VALUES($1,$2) RETURNING id', [name, root])
       res[0]['id'].to_i
     end
@@ -180,10 +189,9 @@ module Savant
       if keep_rels.empty?
         @conn.exec_params('DELETE FROM files WHERE repo_id=$1', [repo_id])
       else
-        # Use a dynamic parameter list to avoid malformed array literals
-        placeholders = keep_rels.each_index.map { |i| "$#{i + 2}" }.join(',')
-        sql = "DELETE FROM files WHERE repo_id=$1 AND rel_path NOT IN (#{placeholders})"
-        @conn.exec_params(sql, [repo_id] + keep_rels)
+        # Use a single array parameter to avoid very large parameter lists
+        sql = 'DELETE FROM files WHERE repo_id=$1 AND NOT (rel_path = ANY($2))'
+        @conn.exec_params(sql, [repo_id, keep_rels])
       end
       true
     end
@@ -193,6 +201,7 @@ module Savant
     def delete_repo_by_name(name)
       res = @conn.exec_params('SELECT id FROM repos WHERE name=$1', [name])
       return 0 if res.ntuples.zero?
+
       rid = res[0]['id']
       @conn.exec_params('DELETE FROM repos WHERE id=$1', [rid])
       1

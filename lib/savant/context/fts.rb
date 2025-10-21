@@ -1,4 +1,6 @@
 #!/usr/bin/env ruby
+# frozen_string_literal: true
+
 #
 # Purpose: Postgres FTS helper for Context search.
 #
@@ -57,7 +59,7 @@ module Savant
 
         if memory_only
           # Pattern match for memory_bank location inside repository
-          rlen = (repo_list&.length || 0)
+          rlen = repo_list&.length || 0
           where_mb = " AND f.rel_path LIKE $#{2 + rlen}"
         end
 

@@ -1,4 +1,6 @@
 #!/usr/bin/env ruby
+# frozen_string_literal: true
+
 #
 # Purpose: Coordinate scanning, chunking, and persistence per repo.
 #
@@ -41,73 +43,79 @@ module Savant
           repo_id = @store.ensure_repo(repo.fetch('name'), root)
           using = scanner.last_used == :git ? 'gitls' : 'ls'
           @log.info("start: repo=#{repo['name']} total=#{files.length} using=#{using}")
-        kept = []
-        processed = 0
-        kind_counts = Hash.new(0)
+          kept = []
+          processed = 0
+          kind_counts = Hash.new(0)
 
-        @store.with_transaction do
-          files.each do |abs, rel|
-            kept << rel
-            total += 1
+          @store.with_transaction do
+            files.each do |abs, rel|
+              kept << rel
+              total += 1
+              begin
+                stat = File.stat(abs)
+                if too_large?(stat.size)
+                  skipped += 1
+                  if verbose
+                    @log.debug("skip: item=#{rel} reason=too_large size=#{stat.size}B max=#{@config.max_bytes}B")
+                  end
+                  next
+                end
+
+                key = cache_key(repo['name'], rel)
+                meta = { 'size' => stat.size, 'mtime_ns' => to_ns(stat.mtime) }
+                if unchanged?(key, meta)
+                  skipped += 1
+                  @log.debug("skip: item=#{rel} reason=unchanged") if verbose
+                  next
+                end
+
+                # Allowed language filter
+                lang = Language.from_rel_path(rel)
+                allowed = @config.languages
+                if !allowed.empty? && !allowed.include?(lang)
+                  skipped += 1
+                  @log.debug("skip: item=#{rel} reason=unsupported_lang lang=#{lang}") if verbose
+                  next
+                end
+
+                # Binary check
+                if binary_file?(abs)
+                  skipped += 1
+                  @log.debug("skip: item=#{rel} reason=binary") if verbose
+                  next
+                end
+
+                # Hash and persist
+                hash = Digest::SHA256.file(abs).hexdigest
+                blob_id = @store.ensure_blob(hash, stat.size)
+                chunks = build_chunks(abs, lang).each_with_index.map { |chunk, idx| [idx, lang, chunk] }
+                @store.write_chunks(blob_id, chunks)
+                file_id = @store.upsert_file(repo_id, repo.fetch('name'), rel, stat.size, meta['mtime_ns'])
+                @store.map_file(file_id, blob_id)
+
+                @cache[key] = meta
+                kind_counts[lang] += 1
+                changed += 1
+                processed += 1
+                pct = files.length.positive? ? ((processed.to_f / files.length) * 100).round : 100
+                if verbose
+                  @log.info("progress: repo=#{repo['name']} item=#{rel} done=#{processed}/#{files.length} (~#{pct}%)")
+                end
+              rescue StandardError => e
+                skipped += 1
+                @log.info("skip: item=#{rel} reason=error class=#{e.class} msg=#{e.message.inspect}") if verbose
+                next
+              end
+            end
+
             begin
-              stat = File.stat(abs)
-              if too_large?(stat.size)
-                skipped += 1
-                @log.debug("skip: item=#{rel} reason=too_large size=#{stat.size}B max=#{@config.max_bytes}B") if verbose
-                next
+              @store.cleanup_missing(repo_id, kept)
+            rescue StandardError => e
+              if verbose
+                @log.info("skip: repo=#{repo['name']} reason=cleanup_error class=#{e.class} msg=#{e.message.inspect}")
               end
-
-              key = cache_key(repo['name'], rel)
-              meta = { 'size' => stat.size, 'mtime_ns' => to_ns(stat.mtime) }
-              if unchanged?(key, meta)
-                skipped += 1
-                @log.debug("skip: item=#{rel} reason=unchanged") if verbose
-                next
-              end
-
-              # Allowed language filter
-              lang = Language.from_rel_path(rel)
-              allowed = @config.languages
-              if !allowed.empty? && !allowed.include?(lang)
-                skipped += 1
-                @log.debug("skip: item=#{rel} reason=unsupported_lang lang=#{lang}") if verbose
-                next
-              end
-
-              # Binary check
-              if binary_file?(abs)
-                skipped += 1
-                @log.debug("skip: item=#{rel} reason=binary") if verbose
-                next
-              end
-
-              # Hash and persist
-              hash = Digest::SHA256.file(abs).hexdigest
-              blob_id = @store.ensure_blob(hash, stat.size)
-              chunks = build_chunks(abs, lang).each_with_index.map { |chunk, idx| [idx, lang, chunk] }
-              @store.write_chunks(blob_id, chunks)
-              file_id = @store.upsert_file(repo_id, repo.fetch('name'), rel, stat.size, meta['mtime_ns'])
-              @store.map_file(file_id, blob_id)
-
-              @cache[key] = meta
-              kind_counts[lang] += 1
-              changed += 1
-              processed += 1
-              pct = files.length > 0 ? ((processed.to_f / files.length) * 100).round : 100
-              @log.info("progress: repo=#{repo['name']} item=#{rel} done=#{processed}/#{files.length} (~#{pct}%)") if verbose
-            rescue => e
-              skipped += 1
-              @log.info("skip: item=#{rel} reason=error class=#{e.class} msg=#{e.message.inspect}") if verbose
-              next
             end
           end
-
-          begin
-            @store.cleanup_missing(repo_id, kept)
-          rescue => e
-            @log.info("skip: repo=#{repo['name']} reason=cleanup_error class=#{e.class} msg=#{e.message.inspect}") if verbose
-          end
-        end
 
           if kind_counts.any?
             counts_line = kind_counts.map { |k, v| "#{k}=#{v}" }.join(' ')
@@ -145,12 +153,12 @@ module Savant
       end
 
       def too_large?(size)
-        @config.max_bytes > 0 && size > @config.max_bytes
+        @config.max_bytes.positive? && size > @config.max_bytes
       end
 
       def binary_file?(path)
         File.open(path, 'rb') do |f|
-          head = f.read(4096) || ""
+          head = f.read(4096) || ''
           return head.include?("\x00")
         end
       end

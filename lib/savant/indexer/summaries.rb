@@ -1,4 +1,6 @@
 #!/usr/bin/env ruby
+# frozen_string_literal: true
+
 #
 # Purpose: Generate summaries during indexing for persistence to Postgres.
 #
@@ -22,6 +24,7 @@ module Savant
       def summarize(text, max_length: 300)
         txt = text.to_s.strip
         return { text: '', length: 0, source: 'none', generated_at: Time.now.utc.iso8601 } if txt.empty?
+
         if defined?(Summarize)
           begin
             out = Summarize.summarize(txt, max_length: max_length).to_s.strip
@@ -32,7 +35,7 @@ module Savant
               src = 'summarize'
             end
             return { text: out, length: out.length, source: src, generated_at: Time.now.utc.iso8601 }
-          rescue => _e
+          rescue StandardError => _e
             # fall back
           end
         end
@@ -43,7 +46,7 @@ module Savant
       # Heuristic: take the first paragraph and trim to max length.
       def heuristic(txt, max_length)
         para = txt.split(/\n\n+/).first.to_s.strip
-        para.length > max_length ? para[0, max_length - 1] + '…' : para
+        para.length > max_length ? "#{para[0, max_length - 1]}…" : para
       end
     end
   end

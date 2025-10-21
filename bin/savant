@@ -29,4 +29,3 @@ else
   warn 'usage: savant generate engine <name> [--with-db] [--force]'
   exit 2
 end
-

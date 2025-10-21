@@ -1,4 +1,6 @@
 #!/usr/bin/env ruby
+# frozen_string_literal: true
+
 #
 # Purpose: Minimal Jira REST v3 client with basic auth/token support.
 #
@@ -19,7 +21,11 @@ module Savant
     # Purpose: Handle HTTP requests, auth, and pagination for Jira Ops.
     class Client
       def initialize(base_url:, email: nil, api_token: nil, username: nil, password: nil)
-        @base_url = base_url.chomp('/'); @email=email; @api_token=api_token; @username=username; @password=password
+        @base_url = base_url.chomp('/')
+        @email = email
+        @api_token = api_token
+        @username = username
+        @password = password
         @log = Savant::Logger.new(component: 'jira.http')
       end
 

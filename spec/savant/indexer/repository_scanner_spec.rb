@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'spec_helper'
 require 'open3'
 require_relative '../../../lib/savant/indexer/repository_scanner'
@@ -20,3 +22,5 @@ RSpec.describe Savant::Indexer::RepositoryScanner do
     expect(files).to eq([['/repo/app/a.rb', 'app/a.rb']])
   end
 end
+#!/usr/bin/env ruby
+# frozen_string_literal: true

@@ -4,4 +4,3 @@
 require_relative '../lib/savant/mcp_server'
 
 Savant::MCPServer.new.start
-

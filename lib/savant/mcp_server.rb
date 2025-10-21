@@ -1,4 +1,6 @@
 #!/usr/bin/env ruby
+# frozen_string_literal: true
+
 #
 # Purpose: Stdio JSON‑RPC 2.0 server for MCP services.
 #
@@ -19,8 +21,19 @@ module Savant
   # service's tools, and delegates `tools/call` to the corresponding engine.
   class MCPServer
     def initialize(host: nil, port: nil)
-      default_settings = File.join((ENV['SAVANT_PATH'] && !ENV['SAVANT_PATH'].empty? ? ENV['SAVANT_PATH'] : File.expand_path('../../..', __dir__)), 'config', 'settings.json'); settings_path = default_settings
-      cfg = JSON.parse(File.read(settings_path)) rescue {}
+      base = (if ENV['SAVANT_PATH'] && !ENV['SAVANT_PATH'].empty?
+                ENV['SAVANT_PATH']
+              else
+                File.expand_path('../../..',
+                                 __dir__)
+              end)
+      settings_path = File.join(base, 'config', 'settings.json')
+      begin
+        require_relative 'config'
+        cfg = Savant::Config.load(settings_path)
+      rescue StandardError
+        cfg = {}
+      end
       which = (ENV['MCP_SERVICE'] || 'context').to_s
       mcp_cfg = cfg.dig('mcp', which) || {}
       host ||= ENV['LISTEN_HOST'] || mcp_cfg['listenHost'] || '0.0.0.0'
@@ -48,7 +61,7 @@ module Savant
       log_io = File.open(log_path, 'a')
       log_io.sync = true
       log = Savant::Logger.new(component: 'mcp', out: log_io)
-      log.info("=" * 80)
+      log.info('=' * 80)
       log.info("start: mode=stdio service=#{@service} tools=loading")
       log.info("pwd=#{Dir.pwd}")
       log.info("settings_path=#{settings_path}")
@@ -56,35 +69,14 @@ module Savant
       # Cache of loaded services: { name => { engine:, registrar: } }
       @services = {}
 
-      # Helper to load a service by convention: Savant::<CamelCase>::{Engine,Tools}
-      def load_service(name)
-        key = name.to_s
-        return @services[key] if @services[key]
+      $stdout.sync = true
+      $stderr.sync = true
+      $stdin.sync = true
 
-        # Resolve module/class names by convention
-        camel = key.split(/[^a-zA-Z0-9]/).map { |s| s[0] ? s[0].upcase + s[1..] : '' }.join
-        # Require files based on convention: lib/savant/<name>/engine.rb and tools.rb
-        require File.join(__dir__, key, 'engine')
-        require File.join(__dir__, key, 'tools')
-
-        mod = Savant.const_get(camel)
-        engine_class = mod.const_get(:Engine)
-        tools_mod = mod.const_get(:Tools)
-        engine = engine_class.new
-        registrar = tools_mod.build_registrar(engine)
-        @services[key] = { engine: engine, registrar: registrar }
-      rescue LoadError, NameError
-        raise 'Unknown service'
-      end
-
-      STDOUT.sync = true
-      STDERR.sync = true
-      STDIN.sync = true
-
-      log.info("buffers synced, waiting for requests...")
-      log.info("=" * 80) 
+      log.info('buffers synced, waiting for requests...')
+      log.info('=' * 80)
       # JSON-RPC 2.0 MCP only (legacy disabled)
-      while (line = STDIN.gets)
+      while (line = $stdin.gets)
         log.info("raw_input: #{line.strip[0..200]}")
         begin
           req = JSON.parse(line)
@@ -92,13 +84,13 @@ module Savant
         rescue JSON::ParserError => e
           message = "parse_error: #{e.message} line=#{line[0..100]}"
           log.error(message)
-          STDERR.puts({ jsonrpc: '2.0', error: { code: -32700, message: message } }.to_json)
+          warn({ jsonrpc: '2.0', error: { code: -32_700, message: message } }.to_json)
           next
         end
 
-      log.info("handling jsonrpc request")
-      handle_jsonrpc(req, log)
-      log.info("handled jsonrpc request")
+        log.info('handling jsonrpc request')
+        handle_jsonrpc(req, log)
+        log.info('handled jsonrpc request')
       end
     rescue Interrupt
       log = Savant::Logger.new(component: 'mcp')
@@ -106,6 +98,25 @@ module Savant
     end
 
     private
+
+    # Helper to load a service by convention: Savant::<CamelCase>::{Engine,Tools}
+    def load_service(name)
+      key = name.to_s
+      return @services[key] if @services[key]
+
+      camel = key.split(/[^a-zA-Z0-9]/).map { |s| s[0] ? s[0].upcase + s[1..] : '' }.join
+      require File.join(__dir__, key, 'engine')
+      require File.join(__dir__, key, 'tools')
+
+      mod = Savant.const_get(camel)
+      engine_class = mod.const_get(:Engine)
+      tools_mod = mod.const_get(:Tools)
+      engine = engine_class.new
+      registrar = tools_mod.build_registrar(engine)
+      @services[key] = { engine: engine, registrar: registrar }
+    rescue LoadError, NameError
+      raise 'Unknown service'
+    end
 
     def handle_jsonrpc(req, log)
       id = req['id']
@@ -123,8 +134,8 @@ module Savant
                  end
           tool_count = svc[:registrar].specs.length
           instructions = info[:description] || "Savant MCP service=#{@service} tools=#{tool_count}"
-          server_info = { name: (info[:name] || 'savant'), version: (info[:version] || '1.1.0') }
-        rescue
+          server_info = { name: info[:name] || 'savant', version: info[:version] || '1.1.0' }
+        rescue StandardError
           instructions = "Savant MCP service=#{@service} (unavailable)"
           server_info = { name: 'savant', version: '1.1.0' }
         end
@@ -137,7 +148,7 @@ module Savant
         response = { jsonrpc: '2.0', id: id, result: result }
         log.info("sending initialize response: #{response.to_json[0..100]}")
         puts response.to_json
-        log.info("initialize response sent")
+        log.info('initialize response sent')
 
       when 'tools/list'
         # Construct engine + registrar generically from convention
@@ -148,7 +159,7 @@ module Savant
         response = { jsonrpc: '2.0', id: id, result: { tools: tools_list } }
         log.info("sending tools/list: response=#{response.to_json[0..100]}")
         puts(response.to_json)
-        log.info("tools/list response sent")
+        log.info('tools/list response sent')
 
       when 'tools/call'
         name = params['name']
@@ -158,14 +169,14 @@ module Savant
           data = svc[:registrar].call(name, args, ctx: { engine: svc[:engine], request_id: id })
           content = [{ type: 'text', text: JSON.pretty_generate(data) }]
           puts({ jsonrpc: '2.0', id: id, result: { content: content } }.to_json)
-        rescue => e
-          puts({ jsonrpc: '2.0', id: id, error: { code: -32000, message: e.message } }.to_json)
+        rescue StandardError => e
+          puts({ jsonrpc: '2.0', id: id, error: { code: -32_000, message: e.message } }.to_json)
         end
       else
-        puts({ jsonrpc: '2.0', id: id, error: { code: -32601, message: 'Method not found' } }.to_json)
+        puts({ jsonrpc: '2.0', id: id, error: { code: -32_601, message: 'Method not found' } }.to_json)
       end
-    rescue => e
-      puts({ jsonrpc: '2.0', id: req['id'], error: { code: -32000, message: e.message } }.to_json)
+    rescue StandardError => e
+      puts({ jsonrpc: '2.0', id: req['id'], error: { code: -32_000, message: e.message } }.to_json)
     end
   end
 end

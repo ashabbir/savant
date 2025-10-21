@@ -1,4 +1,6 @@
 #!/usr/bin/env ruby
+# frozen_string_literal: true
+
 #
 # Purpose: Implements the business logic for Context tools.
 #
@@ -76,7 +78,7 @@ module Savant
             where << " AND repo_name IN (#{ph})"
             params.concat(repo)
           else
-            where << " AND repo_name = $1"
+            where << ' AND repo_name = $1'
             params << repo
           end
         end
@@ -92,8 +94,13 @@ module Savant
           rel_path = r['rel_path']
           uri = "repo://#{repo_name}/memory-bank/#{rel_path}"
           title = File.basename(rel_path, File.extname(rel_path))
-          modified_at = Time.at(r['mtime_ns'].to_i / 1_000_000_000.0).utc.iso8601 rescue nil
-          { uri: uri, mimeType: 'text/markdown; charset=utf-8', metadata: { path: rel_path, title: title, modified_at: modified_at, source: 'memory_bank' } }
+          modified_at = begin
+            Time.at(r['mtime_ns'].to_i / 1_000_000_000.0).utc.iso8601
+          rescue StandardError
+            nil
+          end
+          { uri: uri, mimeType: 'text/markdown; charset=utf-8',
+            metadata: { path: rel_path, title: title, modified_at: modified_at, source: 'memory_bank' } }
         end
       end
 
@@ -104,9 +111,8 @@ module Savant
       # @param uri [String] repo://<repo>/memory-bank/<rel_path>
       # @return [String] raw markdown contents
       def resources_read(uri:)
-        unless uri.start_with?('repo://') && uri.include?('/memory-bank/')
-          raise 'unsupported uri'
-        end
+        raise 'unsupported uri' unless uri.start_with?('repo://') && uri.include?('/memory-bank/')
+
         head, tail = uri.split('/memory-bank/', 2)
         repo_name = head.sub('repo://', '')
         # Tail could be either full rel_path or just the path under memory_bank; try both
@@ -118,24 +124,31 @@ module Savant
         # Resolve repo root
         r = conn.exec_params('SELECT root_path FROM repos WHERE name=$1', [repo_name])
         raise 'resource not found' if r.ntuples.zero?
+
         root = r[0]['root_path']
         # Find a matching file row to validate existence
         rel = nil
         rel_candidates.each do |cand|
           rr = conn.exec_params('SELECT 1 FROM files WHERE repo_name=$1 AND rel_path=$2', [repo_name, cand])
-          if rr.ntuples > 0
+          if rr.ntuples.positive?
             rel = cand
             break
           end
         end
         # Fallback: try suffix match under memory_bank
         if rel.nil?
-          rr = conn.exec_params("SELECT rel_path FROM files WHERE repo_name=$1 AND rel_path LIKE '%/memory_bank/%' AND rel_path LIKE $2 LIMIT 1", [repo_name, "%#{tail}"])
-          rel = rr[0]['rel_path'] if rr.ntuples > 0
+          rr = conn.exec_params(
+            "SELECT rel_path FROM files WHERE repo_name=$1 AND rel_path LIKE '%/memory_bank/%' AND rel_path LIKE $2 LIMIT 1", [
+              repo_name, "%#{tail}"
+            ]
+          )
+          rel = rr[0]['rel_path'] if rr.ntuples.positive?
         end
         raise 'resource not found' unless rel
+
         path = File.join(root, rel)
         raise 'resource not found' unless File.file?(path)
+
         File.read(path)
       end
 
@@ -155,11 +168,11 @@ module Savant
           require_relative '../db'
           db = Savant::DB.new
           res = db.instance_variable_get(:@conn).exec_params('SELECT root_path FROM repos WHERE name=$1', [repo.to_s])
-          if res.ntuples > 0
+          if res.ntuples.positive?
             root = res[0]['root_path']
             return File.expand_path(root)
           end
-        rescue => _e
+        rescue StandardError => _e
           # Fallback to CWD if DB lookup fails
         end
         Dir.pwd

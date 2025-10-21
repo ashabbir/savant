@@ -1,4 +1,6 @@
 #!/usr/bin/env ruby
+# frozen_string_literal: true
+
 #
 # Purpose: Expose repository indexing under the Context::FS namespace.
 
@@ -14,7 +16,8 @@ module Savant
       # Purpose: Allow Context tools to trigger index, delete, and status
       # operations without importing the indexer CLI.
       class RepoIndexer
-        def initialize(db: Savant::DB.new, settings_path: 'config/settings.json', logger: Savant::Logger.new(component: 'context.repo_indexer'))
+        def initialize(db: Savant::DB.new, settings_path: 'config/settings.json',
+                       logger: Savant::Logger.new(component: 'context.repo_indexer'))
           @settings_path = settings_path
           @logger = logger
           @db = db

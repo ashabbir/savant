@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'spec_helper'
 
 require_relative '../../../../lib/savant/mcp/core/validation'
@@ -12,9 +14,11 @@ RSpec.describe Savant::MCP::Core::Validation do
   end
 
   it 'supports anyOf for string|array|null' do
-    schema = { type: 'object', properties: { repo: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }, { type: 'null' }] } } }
+    schema = { type: 'object',
+               properties: { repo: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } },
+                                             { type: 'null' }] } } }
     expect(described_class.validate!(schema, { 'repo' => 'one' })['repo']).to eq('one')
-    expect(described_class.validate!(schema, { 'repo' => ['a','b'] })['repo']).to eq(['a','b'])
+    expect(described_class.validate!(schema, { 'repo' => %w[a b] })['repo']).to eq(%w[a b])
     expect(described_class.validate!(schema, { 'repo' => nil })['repo']).to eq(nil)
   end
 
@@ -23,4 +27,3 @@ RSpec.describe Savant::MCP::Core::Validation do
     expect { described_class.validate!(schema, { 'limit' => 'nope' }) }.to raise_error(Savant::MCP::Core::ValidationError)
   end
 end
-

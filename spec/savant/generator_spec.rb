@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'spec_helper'
 require 'tmpdir'
 require_relative '../../lib/savant/generator'
@@ -31,10 +33,9 @@ RSpec.describe Savant::Generator do
     Dir.mktmpdir do |dir|
       gen = described_class.new(dest_root: dir, out: StringIO.new)
       gen.generate_engine('dup')
-      expect {
+      expect do
         gen.generate_engine('dup')
-      }.to raise_error(/file exists/)
+      end.to raise_error(/file exists/)
     end
   end
 end
-
