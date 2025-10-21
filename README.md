@@ -45,6 +45,7 @@ Indexer-specific settings
   - Memory Bank: see `docs/prds/memory-bank-resources.md`
 - `config/`: settings and examples
 - `bin/`: CLIs for index/DB/MCP
+- `bin/savant`: generator CLI to scaffold new MCP engines
 - `docker-compose.yml`: services and volumes
 
 ## Jira Configuration
@@ -170,6 +171,18 @@ sequenceDiagram
 Commands
 - Run on host: `MCP_SERVICE=context SAVANT_PATH=$(pwd) DATABASE_URL=postgres://context:contextpw@localhost:5433/contextdb SETTINGS_PATH=config/settings.json ruby ./bin/mcp_server`
 - Test: ``make mcp-test q='User' repo=<name> limit=5`` (runs host MCP against Docker Postgres)
+
+### Adding a new MCP Service
+- Scaffold with the generator:
+  - `bundle exec ruby ./bin/savant generate engine <name>`
+  - Options: `--with-db` to include a shared DB handle; `--force` to overwrite existing files.
+- Files created:
+  - `lib/savant/<name>/engine.rb` with `server_info` metadata
+  - `lib/savant/<name>/tools.rb` using the MCP DSL (`build_registrar`)
+  - `spec/savant/<name>/engine_spec.rb` with an example tool test
+- Run the service:
+  - `MCP_SERVICE=<name> ruby ./bin/mcp_server`
+  - tools/list and tools/call route via the service’s registrar (no server code changes needed)
 
 Memory Bank tools
 - `tool: memory/search` — search markdown under `**/memory_bank/**` stored in DB FTS.

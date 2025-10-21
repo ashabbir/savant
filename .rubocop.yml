@@ -1,21 +1,4 @@
-AllCops:
-  TargetRubyVersion: 3.2
-  NewCops: enable
+Lint/ScriptPermission:
+  Enabled: true
   Exclude:
-    - 'bin/**/*'
-    - 'db/schema.rb'
-    - 'tmp/**/*'
-    - 'logs/**/*'
-
-Layout/LineLength:
-  Max: 120
-
-Metrics/BlockLength:
-  Exclude:
-    - 'spec/**/*'
-
-Metrics/MethodLength:
-  Max: 25
-
-Metrics/AbcSize:
-  Max: 25
+    - 'lib/**/*.rb'

@@ -1,18 +1,21 @@
+# frozen_string_literal: true
+
 module Support
   class FakeCache
     def initialize
       @h = {}
     end
 
-    def [](k)
-      @h[k]
+    def [](key)
+      @h[key]
     end
 
-    def []=(k, v)
-      @h[k] = v
+    def []=(key, value)
+      @h[key] = value
     end
 
-    def save!; true; end
+    def save!
+      true
+    end
   end
 end
-

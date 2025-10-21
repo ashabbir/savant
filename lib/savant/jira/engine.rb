@@ -26,10 +26,18 @@ module Savant
       # @param env [#[]] environment-like hash for credentials and flags.
       def initialize(env: ENV)
         base_url = fetch(env, 'JIRA_BASE_URL')
-        email = env['JIRA_EMAIL']; api_token = env['JIRA_API_TOKEN']
-        username = env['JIRA_USERNAME']; password = env['JIRA_PASSWORD']
+        email = env['JIRA_EMAIL']
+        api_token = env['JIRA_API_TOKEN']
+        username = env['JIRA_USERNAME']
+        password = env['JIRA_PASSWORD']
         @allow_writes = (env['JIRA_ALLOW_WRITES'].to_s.downcase == 'true')
-        @client = Client.new(base_url: base_url, email: email, api_token: api_token, username: username, password: password)
+        @client = Client.new(
+          base_url: base_url,
+          email: email,
+          api_token: api_token,
+          username: username,
+          password: password
+        )
         @ops = Ops.new(@client)
       end
 
@@ -50,48 +58,80 @@ module Savant
 
       # passthroughs with write guards where needed
       # @return [Hash]
-      def get_issue(**args); @ops.get_issue(**args); end
+      def get_issue(**args)
+        @ops.get_issue(**args)
+      end
       # @return [Hash]
-      def create_issue(**args); with_write_guard { @ops.create_issue(**args) }; end
+      def create_issue(**args)
+        with_write_guard { @ops.create_issue(**args) }
+      end
       # @return [Hash]
-      def update_issue(**args); with_write_guard { @ops.update_issue(**args) }; end
+      def update_issue(**args)
+        with_write_guard { @ops.update_issue(**args) }
+      end
       # @return [Hash]
-      def transition_issue(**args); with_write_guard { @ops.transition_issue(**args) }; end
+      def transition_issue(**args)
+        with_write_guard { @ops.transition_issue(**args) }
+      end
       # @return [Hash]
-      def add_comment(**args); with_write_guard { @ops.add_comment(**args) }; end
+      def add_comment(**args)
+        with_write_guard { @ops.add_comment(**args) }
+      end
       # @return [Hash]
-      def delete_comment(**args); with_write_guard { @ops.delete_comment(**args) }; end
+      def delete_comment(**args)
+        with_write_guard { @ops.delete_comment(**args) }
+      end
       # @return [Hash]
-      def assign_issue(**args); with_write_guard { @ops.assign_issue(**args) }; end
+      def assign_issue(**args)
+        with_write_guard { @ops.assign_issue(**args) }
+      end
       # @return [Hash]
-      def link_issues(**args); with_write_guard { @ops.link_issues(**args) }; end
+      def link_issues(**args)
+        with_write_guard { @ops.link_issues(**args) }
+      end
       # @return [Array<Hash>]
-      def download_attachments(**args); @ops.download_attachments(**args); end
+      def download_attachments(**args)
+        @ops.download_attachments(**args)
+      end
       # @return [Hash]
-      def add_attachment(**args); with_write_guard { @ops.add_attachment(**args) }; end
+      def add_attachment(**args)
+        with_write_guard { @ops.add_attachment(**args) }
+      end
       # @return [Hash]
-      def bulk_create_issues(**args); with_write_guard { @ops.bulk_create_issues(**args) }; end
+      def bulk_create_issues(**args)
+        with_write_guard { @ops.bulk_create_issues(**args) }
+      end
       # @return [Array<Hash>]
-      def list_projects; @ops.list_projects; end
+      def list_projects
+        @ops.list_projects
+      end
       # @return [Array<Hash>]
-      def list_fields; @ops.list_fields; end
+      def list_fields
+        @ops.list_fields
+      end
       # @return [Array<Hash>]
-      def list_transitions(**args); @ops.list_transitions(**args); end
+      def list_transitions(**args)
+        @ops.list_transitions(**args)
+      end
       # @return [Array<Hash>]
-      def list_statuses(**args); @ops.list_statuses(**args); end
+      def list_statuses(**args)
+        @ops.list_statuses(**args)
+      end
       # @return [Hash]
-      def delete_issue(**args); with_write_guard { @ops.delete_issue(**args) }; end
+      def delete_issue(**args)
+        with_write_guard { @ops.delete_issue(**args) }
+      end
 
       private
 
       # Fetch and require a non-empty env var value.
       # @param env [#[]]
-      # @param k [String]
+      # @param key [String]
       # @return [String]
       # @raise [RuntimeError] when missing/empty
-      def fetch(env, k)
-        v = env[k]
-        raise "#{k} is required" if v.to_s.strip.empty?
+      def fetch(env, key)
+        v = env[key]
+        raise "#{key} is required" if v.to_s.strip.empty?
         v
       end
 
@@ -99,6 +139,7 @@ module Savant
       # @raise [RuntimeError] when writes are disabled
       def with_write_guard
         raise 'writes disabled: set JIRA_ALLOW_WRITES=true' unless @allow_writes
+
         yield
       end
 

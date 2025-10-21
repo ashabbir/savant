@@ -34,11 +34,12 @@ Key Components (Ruby)
 - `lib/savant/jira` Engine:
   - `lib/savant/jira/engine.rb`, `lib/savant/jira/ops.rb`, `lib/savant/jira/client.rb`, and `lib/savant/jira/tools.rb` implement Jira REST v3 tools and registrar.
 
-CLI Entrypoints (`bin/`)
+- CLI Entrypoints (`bin/`)
 - `bin/context_repo_indexer`: index or delete data, or show status. Commands:
   - `index all` | `index <repo>`
   - `delete all` | `delete <repo>`
   - `status`: prints per-repo counts and last mtime.
+- `bin/savant`: generator CLI to scaffold new MCP engines and tools.
 - `bin/db_migrate`, `bin/db_fts`, `bin/db_smoke`: setup/verify DB and FTS.
 - `bin/mcp_server`: launches MCP server (stdio).
 - `bin/config_validate`: validates `settings.json` against required structure.
@@ -77,6 +78,7 @@ Security & Secrets
 
 Getting Started
 - Configure `config/settings.json` (copy from example), start Postgres (`make dev`), migrate and FTS (`make migrate && make fts`), index repos (`make repo-index-all`), then query via MCP (`make mcp-test q='term'`).
+- Scaffold a new MCP service via generator: `bundle exec ruby ./bin/savant generate engine <name> [--with-db]`, then run with `MCP_SERVICE=<name> ruby ./bin/mcp_server`.
 
 Not In Scope
 - This overview excludes the Memory Bank Resource PRD; see docs for broader product context.

@@ -13,7 +13,7 @@
       <img src="./assets/0.13.2/loading.gif" alt="loading"/>
     </div>
     <div id="wrapper" class="hide">
-      <div class="timestamp">Generated <abbr class="timeago" title="2025-10-20T20:35:22-04:00">2025-10-20T20:35:22-04:00</abbr></div>
+      <div class="timestamp">Generated <abbr class="timeago" title="2025-10-20T20:37:05-04:00">2025-10-20T20:37:05-04:00</abbr></div>
       <ul class="group_tabs"></ul>
 
       <div id="content">
@@ -22,14 +22,14 @@
     <span class="group_name">All Files</span>
     (<span class="covered_percent">
       <span class="red">
-  60.95%
+  60.21%
 </span>
 
      </span>
      covered at
      <span class="covered_strength">
        <span class="green">
-         1.73
+         1.71
        </span>
     </span> hits/line
     )
@@ -42,11 +42,11 @@
   </div>
 
   <div class="t-line-summary">
-    <b>922</b> relevant lines,
-    <span class="green"><b>562</b> lines covered</span> and
-    <span class="red"><b>360</b> lines missed. </span>
+    <b>940</b> relevant lines,
+    <span class="green"><b>566</b> lines covered</span> and
+    <span class="red"><b>374</b> lines missed. </span>
     (<span class="red">
-  60.95%
+  60.21%
 </span>
 )
   </div>
@@ -374,12 +374,12 @@
         
           <tr class="t-file">
             <td class="strong t-file__name"><a href="#7cda6f7162c7572c778d7f0acb3fb3177c640ffa" class="src_link" title="lib/savant/jira/engine.rb">lib/savant/jira/engine.rb</a></td>
-            <td class="green strong cell--number t-file__coverage">97.78 %</td>
-            <td class="cell--number">120</td>
-            <td class="cell--number">45</td>
-            <td class="cell--number">44</td>
-            <td class="cell--number">1</td>
-            <td class="cell--number">2.16</td>
+            <td class="red strong cell--number t-file__coverage">76.19 %</td>
+            <td class="cell--number">161</td>
+            <td class="cell--number">63</td>
+            <td class="cell--number">48</td>
+            <td class="cell--number">15</td>
+            <td class="cell--number">1.73</td>
             
               <td class="green strong cell--number t-file__branch-coverage">100.00 %</td>
               <td class="cell--number">4</td>
@@ -19459,8 +19459,8 @@
   <div class="header">
     <h3>lib/savant/jira/engine.rb</h3>
     <h4>
-      <span class="green">
-  97.78%
+      <span class="red">
+  76.19%
 </span>
 
       lines covered
@@ -19477,9 +19477,9 @@
     
 
     <div class="t-line-summary">
-      <b>45</b> relevant lines.
-      <span class="green"><b>44</b> lines covered</span> and
-      <span class="red"><b>1</b> lines missed.</span>
+      <b>63</b> relevant lines.
+      <span class="green"><b>48</b> lines covered</span> and
+      <span class="red"><b>15</b> lines missed.</span>
     </div>
 
     
@@ -19859,7 +19859,7 @@
               
             
 
-            <code class="ruby">        email = env[&#39;JIRA_EMAIL&#39;]; api_token = env[&#39;JIRA_API_TOKEN&#39;]</code>
+            <code class="ruby">        email = env[&#39;JIRA_EMAIL&#39;]</code>
           </li>
         </div>
       
@@ -19873,7 +19873,7 @@
               
             
 
-            <code class="ruby">        username = env[&#39;JIRA_USERNAME&#39;]; password = env[&#39;JIRA_PASSWORD&#39;]</code>
+            <code class="ruby">        api_token = env[&#39;JIRA_API_TOKEN&#39;]</code>
           </li>
         </div>
       
@@ -19887,7 +19887,7 @@
               
             
 
-            <code class="ruby">        @allow_writes = (env[&#39;JIRA_ALLOW_WRITES&#39;].to_s.downcase == &#39;true&#39;)</code>
+            <code class="ruby">        username = env[&#39;JIRA_USERNAME&#39;]</code>
           </li>
         </div>
       
@@ -19901,7 +19901,7 @@
               
             
 
-            <code class="ruby">        @client = Client.new(base_url: base_url, email: email, api_token: api_token, username: username, password: password)</code>
+            <code class="ruby">        password = env[&#39;JIRA_PASSWORD&#39;]</code>
           </li>
         </div>
       
@@ -19915,19 +19915,21 @@
               
             
 
-            <code class="ruby">        @ops = Ops.new(@client)</code>
+            <code class="ruby">        @allow_writes = (env[&#39;JIRA_ALLOW_WRITES&#39;].to_s.downcase == &#39;true&#39;)</code>
           </li>
         </div>
       
         <div>
-          <li class="never" data-hits="" data-linenumber="34">
+          <li class="covered" data-hits="6" data-linenumber="34">
+            
+              <span class="hits">6</span>
             
 
             
               
             
 
-            <code class="ruby">      end</code>
+            <code class="ruby">        @client = Client.new(</code>
           </li>
         </div>
       
@@ -19939,7 +19941,7 @@
               
             
 
-            <code class="ruby"></code>
+            <code class="ruby">          base_url: base_url,</code>
           </li>
         </div>
       
@@ -19951,7 +19953,7 @@
               
             
 
-            <code class="ruby">      # Run a JQL search with sane defaults.</code>
+            <code class="ruby">          email: email,</code>
           </li>
         </div>
       
@@ -19963,7 +19965,7 @@
               
             
 
-            <code class="ruby">      # @param jql [String]</code>
+            <code class="ruby">          api_token: api_token,</code>
           </li>
         </div>
       
@@ -19975,7 +19977,7 @@
               
             
 
-            <code class="ruby">      # @param limit [Integer]</code>
+            <code class="ruby">          username: username,</code>
           </li>
         </div>
       
@@ -19987,7 +19989,7 @@
               
             
 
-            <code class="ruby">      # @param start_at [Integer]</code>
+            <code class="ruby">          password: password</code>
           </li>
         </div>
       
@@ -19999,12 +20001,110 @@
               
             
 
+            <code class="ruby">        )</code>
+          </li>
+        </div>
+      
+        <div>
+          <li class="covered" data-hits="6" data-linenumber="41">
+            
+              <span class="hits">6</span>
+            
+
+            
+              
+            
+
+            <code class="ruby">        @ops = Ops.new(@client)</code>
+          </li>
+        </div>
+      
+        <div>
+          <li class="never" data-hits="" data-linenumber="42">
+            
+
+            
+              
+            
+
+            <code class="ruby">      end</code>
+          </li>
+        </div>
+      
+        <div>
+          <li class="never" data-hits="" data-linenumber="43">
+            
+
+            
+              
+            
+
+            <code class="ruby"></code>
+          </li>
+        </div>
+      
+        <div>
+          <li class="never" data-hits="" data-linenumber="44">
+            
+
+            
+              
+            
+
+            <code class="ruby">      # Run a JQL search with sane defaults.</code>
+          </li>
+        </div>
+      
+        <div>
+          <li class="never" data-hits="" data-linenumber="45">
+            
+
+            
+              
+            
+
+            <code class="ruby">      # @param jql [String]</code>
+          </li>
+        </div>
+      
+        <div>
+          <li class="never" data-hits="" data-linenumber="46">
+            
+
+            
+              
+            
+
+            <code class="ruby">      # @param limit [Integer]</code>
+          </li>
+        </div>
+      
+        <div>
+          <li class="never" data-hits="" data-linenumber="47">
+            
+
+            
+              
+            
+
+            <code class="ruby">      # @param start_at [Integer]</code>
+          </li>
+        </div>
+      
+        <div>
+          <li class="never" data-hits="" data-linenumber="48">
+            
+
+            
+              
+            
+
             <code class="ruby">      # @return [Hash] Jira search results</code>
           </li>
         </div>
       
         <div>
-          <li class="covered" data-hits="1" data-linenumber="41">
+          <li class="covered" data-hits="1" data-linenumber="49">
             
               <span class="hits">1</span>
             
@@ -20018,7 +20118,7 @@
         </div>
       
         <div>
-          <li class="covered" data-hits="1" data-linenumber="42">
+          <li class="covered" data-hits="1" data-linenumber="50">
             
               <span class="hits">1</span>
             
@@ -20032,7 +20132,7 @@
         </div>
       
         <div>
-          <li class="never" data-hits="" data-linenumber="43">
+          <li class="never" data-hits="" data-linenumber="51">
             
 
             
@@ -20044,7 +20144,7 @@
         </div>
       
         <div>
-          <li class="never" data-hits="" data-linenumber="44">
+          <li class="never" data-hits="" data-linenumber="52">
             
 
             
@@ -20056,7 +20156,7 @@
         </div>
       
         <div>
-          <li class="never" data-hits="" data-linenumber="45">
+          <li class="never" data-hits="" data-linenumber="53">
             
 
             
@@ -20068,7 +20168,7 @@
         </div>
       
         <div>
-          <li class="never" data-hits="" data-linenumber="46">
+          <li class="never" data-hits="" data-linenumber="54">
             
 
             
@@ -20080,7 +20180,7 @@
         </div>
       
         <div>
-          <li class="covered" data-hits="1" data-linenumber="47">
+          <li class="covered" data-hits="1" data-linenumber="55">
             
               <span class="hits">1</span>
             
@@ -20094,7 +20194,7 @@
         </div>
       
         <div>
-          <li class="covered" data-hits="1" data-linenumber="48">
+          <li class="covered" data-hits="1" data-linenumber="56">
             
               <span class="hits">1</span>
             
@@ -20108,7 +20208,7 @@
         </div>
       
         <div>
-          <li class="never" data-hits="" data-linenumber="49">
+          <li class="never" data-hits="" data-linenumber="57">
             
 
             
@@ -20120,7 +20220,7 @@
         </div>
       
         <div>
-          <li class="never" data-hits="" data-linenumber="50">
+          <li class="never" data-hits="" data-linenumber="58">
             
 
             
@@ -20132,7 +20232,7 @@
         </div>
       
         <div>
-          <li class="never" data-hits="" data-linenumber="51">
+          <li class="never" data-hits="" data-linenumber="59">
             
 
             
@@ -20140,110 +20240,6 @@
             
 
             <code class="ruby">      # passthroughs with write guards where needed</code>
-          </li>
-        </div>
-      
-        <div>
-          <li class="never" data-hits="" data-linenumber="52">
-            
-
-            
-              
-            
-
-            <code class="ruby">      # @return [Hash]</code>
-          </li>
-        </div>
-      
-        <div>
-          <li class="covered" data-hits="1" data-linenumber="53">
-            
-              <span class="hits">1</span>
-            
-
-            
-              
-            
-
-            <code class="ruby">      def get_issue(**args); @ops.get_issue(**args); end</code>
-          </li>
-        </div>
-      
-        <div>
-          <li class="never" data-hits="" data-linenumber="54">
-            
-
-            
-              
-            
-
-            <code class="ruby">      # @return [Hash]</code>
-          </li>
-        </div>
-      
-        <div>
-          <li class="covered" data-hits="4" data-linenumber="55">
-            
-              <span class="hits">4</span>
-            
-
-            
-              
-            
-
-            <code class="ruby">      def create_issue(**args); with_write_guard { @ops.create_issue(**args) }; end</code>
-          </li>
-        </div>
-      
-        <div>
-          <li class="never" data-hits="" data-linenumber="56">
-            
-
-            
-              
-            
-
-            <code class="ruby">      # @return [Hash]</code>
-          </li>
-        </div>
-      
-        <div>
-          <li class="covered" data-hits="1" data-linenumber="57">
-            
-              <span class="hits">1</span>
-            
-
-            
-              
-            
-
-            <code class="ruby">      def update_issue(**args); with_write_guard { @ops.update_issue(**args) }; end</code>
-          </li>
-        </div>
-      
-        <div>
-          <li class="never" data-hits="" data-linenumber="58">
-            
-
-            
-              
-            
-
-            <code class="ruby">      # @return [Hash]</code>
-          </li>
-        </div>
-      
-        <div>
-          <li class="covered" data-hits="1" data-linenumber="59">
-            
-              <span class="hits">1</span>
-            
-
-            
-              
-            
-
-            <code class="ruby">      def transition_issue(**args); with_write_guard { @ops.transition_issue(**args) }; end</code>
           </li>
         </div>
       
@@ -20269,33 +20265,31 @@
               
             
 
-            <code class="ruby">      def add_comment(**args); with_write_guard { @ops.add_comment(**args) }; end</code>
+            <code class="ruby">      def get_issue(**args)</code>
           </li>
         </div>
       
         <div>
-          <li class="never" data-hits="" data-linenumber="62">
+          <li class="missed" data-hits="0" data-linenumber="62">
             
 
             
               
             
 
-            <code class="ruby">      # @return [Hash]</code>
+            <code class="ruby">        @ops.get_issue(**args)</code>
           </li>
         </div>
       
         <div>
-          <li class="covered" data-hits="1" data-linenumber="63">
-            
-              <span class="hits">1</span>
+          <li class="never" data-hits="" data-linenumber="63">
             
 
             
               
             
 
-            <code class="ruby">      def delete_comment(**args); with_write_guard { @ops.delete_comment(**args) }; end</code>
+            <code class="ruby">      end</code>
           </li>
         </div>
       
@@ -20321,33 +20315,33 @@
               
             
 
-            <code class="ruby">      def assign_issue(**args); with_write_guard { @ops.assign_issue(**args) }; end</code>
+            <code class="ruby">      def create_issue(**args)</code>
           </li>
         </div>
       
         <div>
-          <li class="never" data-hits="" data-linenumber="66">
+          <li class="covered" data-hits="3" data-linenumber="66">
+            
+              <span class="hits">3</span>
             
 
             
               
             
 
-            <code class="ruby">      # @return [Hash]</code>
+            <code class="ruby">        with_write_guard { @ops.create_issue(**args) }</code>
           </li>
         </div>
       
         <div>
-          <li class="covered" data-hits="1" data-linenumber="67">
-            
-              <span class="hits">1</span>
+          <li class="never" data-hits="" data-linenumber="67">
             
 
             
               
             
 
-            <code class="ruby">      def link_issues(**args); with_write_guard { @ops.link_issues(**args) }; end</code>
+            <code class="ruby">      end</code>
           </li>
         </div>
       
@@ -20359,38 +20353,12 @@
               
             
 
-            <code class="ruby">      # @return [Array&lt;Hash&gt;]</code>
-          </li>
-        </div>
-      
-        <div>
-          <li class="covered" data-hits="2" data-linenumber="69">
-            
-              <span class="hits">2</span>
-            
-
-            
-              
-            
-
-            <code class="ruby">      def download_attachments(**args); @ops.download_attachments(**args); end</code>
-          </li>
-        </div>
-      
-        <div>
-          <li class="never" data-hits="" data-linenumber="70">
-            
-
-            
-              
-            
-
             <code class="ruby">      # @return [Hash]</code>
           </li>
         </div>
       
         <div>
-          <li class="covered" data-hits="1" data-linenumber="71">
+          <li class="covered" data-hits="1" data-linenumber="69">
             
               <span class="hits">1</span>
             
@@ -20399,7 +20367,31 @@
               
             
 
-            <code class="ruby">      def add_attachment(**args); with_write_guard { @ops.add_attachment(**args) }; end</code>
+            <code class="ruby">      def update_issue(**args)</code>
+          </li>
+        </div>
+      
+        <div>
+          <li class="missed" data-hits="0" data-linenumber="70">
+            
+
+            
+              
+            
+
+            <code class="ruby">        with_write_guard { @ops.update_issue(**args) }</code>
+          </li>
+        </div>
+      
+        <div>
+          <li class="never" data-hits="" data-linenumber="71">
+            
+
+            
+              
+            
+
+            <code class="ruby">      end</code>
           </li>
         </div>
       
@@ -20425,33 +20417,31 @@
               
             
 
-            <code class="ruby">      def bulk_create_issues(**args); with_write_guard { @ops.bulk_create_issues(**args) }; end</code>
+            <code class="ruby">      def transition_issue(**args)</code>
           </li>
         </div>
       
         <div>
-          <li class="never" data-hits="" data-linenumber="74">
+          <li class="missed" data-hits="0" data-linenumber="74">
             
 
             
               
             
 
-            <code class="ruby">      # @return [Array&lt;Hash&gt;]</code>
+            <code class="ruby">        with_write_guard { @ops.transition_issue(**args) }</code>
           </li>
         </div>
       
         <div>
-          <li class="covered" data-hits="1" data-linenumber="75">
-            
-              <span class="hits">1</span>
+          <li class="never" data-hits="" data-linenumber="75">
             
 
             
               
             
 
-            <code class="ruby">      def list_projects; @ops.list_projects; end</code>
+            <code class="ruby">      end</code>
           </li>
         </div>
       
@@ -20463,7 +20453,7 @@
               
             
 
-            <code class="ruby">      # @return [Array&lt;Hash&gt;]</code>
+            <code class="ruby">      # @return [Hash]</code>
           </li>
         </div>
       
@@ -20477,33 +20467,31 @@
               
             
 
-            <code class="ruby">      def list_fields; @ops.list_fields; end</code>
+            <code class="ruby">      def add_comment(**args)</code>
           </li>
         </div>
       
         <div>
-          <li class="never" data-hits="" data-linenumber="78">
+          <li class="missed" data-hits="0" data-linenumber="78">
             
 
             
               
             
 
-            <code class="ruby">      # @return [Array&lt;Hash&gt;]</code>
+            <code class="ruby">        with_write_guard { @ops.add_comment(**args) }</code>
           </li>
         </div>
       
         <div>
-          <li class="covered" data-hits="1" data-linenumber="79">
-            
-              <span class="hits">1</span>
+          <li class="never" data-hits="" data-linenumber="79">
             
 
             
               
             
 
-            <code class="ruby">      def list_transitions(**args); @ops.list_transitions(**args); end</code>
+            <code class="ruby">      end</code>
           </li>
         </div>
       
@@ -20515,7 +20503,7 @@
               
             
 
-            <code class="ruby">      # @return [Array&lt;Hash&gt;]</code>
+            <code class="ruby">      # @return [Hash]</code>
           </li>
         </div>
       
@@ -20529,33 +20517,31 @@
               
             
 
-            <code class="ruby">      def list_statuses(**args); @ops.list_statuses(**args); end</code>
+            <code class="ruby">      def delete_comment(**args)</code>
           </li>
         </div>
       
         <div>
-          <li class="never" data-hits="" data-linenumber="82">
+          <li class="missed" data-hits="0" data-linenumber="82">
             
 
             
               
             
 
-            <code class="ruby">      # @return [Hash]</code>
+            <code class="ruby">        with_write_guard { @ops.delete_comment(**args) }</code>
           </li>
         </div>
       
         <div>
-          <li class="covered" data-hits="1" data-linenumber="83">
-            
-              <span class="hits">1</span>
+          <li class="never" data-hits="" data-linenumber="83">
             
 
             
               
             
 
-            <code class="ruby">      def delete_issue(**args); with_write_guard { @ops.delete_issue(**args) }; end</code>
+            <code class="ruby">      end</code>
           </li>
         </div>
       
@@ -20567,7 +20553,7 @@
               
             
 
-            <code class="ruby"></code>
+            <code class="ruby">      # @return [Hash]</code>
           </li>
         </div>
       
@@ -20581,19 +20567,19 @@
               
             
 
-            <code class="ruby">      private</code>
+            <code class="ruby">      def assign_issue(**args)</code>
           </li>
         </div>
       
         <div>
-          <li class="never" data-hits="" data-linenumber="86">
+          <li class="missed" data-hits="0" data-linenumber="86">
             
 
             
               
             
 
-            <code class="ruby"></code>
+            <code class="ruby">        with_write_guard { @ops.assign_issue(**args) }</code>
           </li>
         </div>
       
@@ -20605,7 +20591,7 @@
               
             
 
-            <code class="ruby">      # Fetch and require a non-empty env var value.</code>
+            <code class="ruby">      end</code>
           </li>
         </div>
       
@@ -20617,31 +20603,33 @@
               
             
 
-            <code class="ruby">      # @param env [#[]]</code>
+            <code class="ruby">      # @return [Hash]</code>
           </li>
         </div>
       
         <div>
-          <li class="never" data-hits="" data-linenumber="89">
+          <li class="covered" data-hits="1" data-linenumber="89">
+            
+              <span class="hits">1</span>
             
 
             
               
             
 
-            <code class="ruby">      # @param k [String]</code>
+            <code class="ruby">      def link_issues(**args)</code>
           </li>
         </div>
       
         <div>
-          <li class="never" data-hits="" data-linenumber="90">
+          <li class="missed" data-hits="0" data-linenumber="90">
             
 
             
               
             
 
-            <code class="ruby">      # @return [String]</code>
+            <code class="ruby">        with_write_guard { @ops.link_issues(**args) }</code>
           </li>
         </div>
       
@@ -20653,12 +20641,24 @@
               
             
 
-            <code class="ruby">      # @raise [RuntimeError] when missing/empty</code>
+            <code class="ruby">      end</code>
           </li>
         </div>
       
         <div>
-          <li class="covered" data-hits="1" data-linenumber="92">
+          <li class="never" data-hits="" data-linenumber="92">
+            
+
+            
+              
+            
+
+            <code class="ruby">      # @return [Array&lt;Hash&gt;]</code>
+          </li>
+        </div>
+      
+        <div>
+          <li class="covered" data-hits="1" data-linenumber="93">
             
               <span class="hits">1</span>
             
@@ -20667,62 +20667,26 @@
               
             
 
-            <code class="ruby">      def fetch(env, k)</code>
+            <code class="ruby">      def download_attachments(**args)</code>
           </li>
         </div>
       
         <div>
-          <li class="covered" data-hits="7" data-linenumber="93">
+          <li class="covered" data-hits="1" data-linenumber="94">
             
-              <span class="hits">7</span>
+              <span class="hits">1</span>
             
 
             
               
             
 
-            <code class="ruby">        v = env[k]</code>
+            <code class="ruby">        @ops.download_attachments(**args)</code>
           </li>
         </div>
       
         <div>
-          <li class="covered" data-hits="7" data-linenumber="94">
-            
-              <span class="hits">7</span>
-            
-
-            
-              
-                <span class="hits" title="then branch hit 1 times">
-                  then: 1
-                </span>
-              
-                <span class="hits" title="else branch hit 6 times">
-                  else: 6
-                </span>
-              
-            
-
-            <code class="ruby">        raise &quot;#{k} is required&quot; if v.to_s.strip.empty?</code>
-          </li>
-        </div>
-      
-        <div>
-          <li class="covered" data-hits="6" data-linenumber="95">
-            
-              <span class="hits">6</span>
-            
-
-            
-              
-            
-
-            <code class="ruby">        v</code>
-          </li>
-        </div>
-      
-        <div>
-          <li class="never" data-hits="" data-linenumber="96">
+          <li class="never" data-hits="" data-linenumber="95">
             
 
             
@@ -20734,26 +20698,40 @@
         </div>
       
         <div>
-          <li class="never" data-hits="" data-linenumber="97">
+          <li class="never" data-hits="" data-linenumber="96">
             
 
             
               
             
 
-            <code class="ruby"></code>
+            <code class="ruby">      # @return [Hash]</code>
           </li>
         </div>
       
         <div>
-          <li class="never" data-hits="" data-linenumber="98">
+          <li class="covered" data-hits="1" data-linenumber="97">
+            
+              <span class="hits">1</span>
             
 
             
               
             
 
-            <code class="ruby">      # Ensure writes are enabled before yielding.</code>
+            <code class="ruby">      def add_attachment(**args)</code>
+          </li>
+        </div>
+      
+        <div>
+          <li class="missed" data-hits="0" data-linenumber="98">
+            
+
+            
+              
+            
+
+            <code class="ruby">        with_write_guard { @ops.add_attachment(**args) }</code>
           </li>
         </div>
       
@@ -20765,12 +20743,24 @@
               
             
 
-            <code class="ruby">      # @raise [RuntimeError] when writes are disabled</code>
+            <code class="ruby">      end</code>
           </li>
         </div>
       
         <div>
-          <li class="covered" data-hits="1" data-linenumber="100">
+          <li class="never" data-hits="" data-linenumber="100">
+            
+
+            
+              
+            
+
+            <code class="ruby">      # @return [Hash]</code>
+          </li>
+        </div>
+      
+        <div>
+          <li class="covered" data-hits="1" data-linenumber="101">
             
               <span class="hits">1</span>
             
@@ -20779,43 +20769,19 @@
               
             
 
-            <code class="ruby">      def with_write_guard</code>
+            <code class="ruby">      def bulk_create_issues(**args)</code>
           </li>
         </div>
       
         <div>
-          <li class="covered" data-hits="2" data-linenumber="101">
-            
-              <span class="hits">2</span>
-            
-
-            
-              
-                <span class="hits" title="else branch hit 1 times">
-                  else: 1
-                </span>
-              
-                <span class="hits" title="then branch hit 1 times">
-                  then: 1
-                </span>
-              
-            
-
-            <code class="ruby">        raise &#39;writes disabled: set JIRA_ALLOW_WRITES=true&#39; unless @allow_writes</code>
-          </li>
-        </div>
-      
-        <div>
-          <li class="covered" data-hits="1" data-linenumber="102">
-            
-              <span class="hits">1</span>
+          <li class="missed" data-hits="0" data-linenumber="102">
             
 
             
               
             
 
-            <code class="ruby">        yield</code>
+            <code class="ruby">        with_write_guard { @ops.bulk_create_issues(**args) }</code>
           </li>
         </div>
       
@@ -20839,7 +20805,7 @@
               
             
 
-            <code class="ruby"></code>
+            <code class="ruby">      # @return [Array&lt;Hash&gt;]</code>
           </li>
         </div>
       
@@ -20853,19 +20819,19 @@
               
             
 
-            <code class="ruby">      public</code>
+            <code class="ruby">      def list_projects</code>
           </li>
         </div>
       
         <div>
-          <li class="never" data-hits="" data-linenumber="106">
+          <li class="missed" data-hits="0" data-linenumber="106">
             
 
             
               
             
 
-            <code class="ruby"></code>
+            <code class="ruby">        @ops.list_projects</code>
           </li>
         </div>
       
@@ -20877,7 +20843,7 @@
               
             
 
-            <code class="ruby">      # Server info metadata surfaced to MCP server during initialize</code>
+            <code class="ruby">      end</code>
           </li>
         </div>
       
@@ -20889,12 +20855,546 @@
               
             
 
+            <code class="ruby">      # @return [Array&lt;Hash&gt;]</code>
+          </li>
+        </div>
+      
+        <div>
+          <li class="covered" data-hits="1" data-linenumber="109">
+            
+              <span class="hits">1</span>
+            
+
+            
+              
+            
+
+            <code class="ruby">      def list_fields</code>
+          </li>
+        </div>
+      
+        <div>
+          <li class="missed" data-hits="0" data-linenumber="110">
+            
+
+            
+              
+            
+
+            <code class="ruby">        @ops.list_fields</code>
+          </li>
+        </div>
+      
+        <div>
+          <li class="never" data-hits="" data-linenumber="111">
+            
+
+            
+              
+            
+
+            <code class="ruby">      end</code>
+          </li>
+        </div>
+      
+        <div>
+          <li class="never" data-hits="" data-linenumber="112">
+            
+
+            
+              
+            
+
+            <code class="ruby">      # @return [Array&lt;Hash&gt;]</code>
+          </li>
+        </div>
+      
+        <div>
+          <li class="covered" data-hits="1" data-linenumber="113">
+            
+              <span class="hits">1</span>
+            
+
+            
+              
+            
+
+            <code class="ruby">      def list_transitions(**args)</code>
+          </li>
+        </div>
+      
+        <div>
+          <li class="missed" data-hits="0" data-linenumber="114">
+            
+
+            
+              
+            
+
+            <code class="ruby">        @ops.list_transitions(**args)</code>
+          </li>
+        </div>
+      
+        <div>
+          <li class="never" data-hits="" data-linenumber="115">
+            
+
+            
+              
+            
+
+            <code class="ruby">      end</code>
+          </li>
+        </div>
+      
+        <div>
+          <li class="never" data-hits="" data-linenumber="116">
+            
+
+            
+              
+            
+
+            <code class="ruby">      # @return [Array&lt;Hash&gt;]</code>
+          </li>
+        </div>
+      
+        <div>
+          <li class="covered" data-hits="1" data-linenumber="117">
+            
+              <span class="hits">1</span>
+            
+
+            
+              
+            
+
+            <code class="ruby">      def list_statuses(**args)</code>
+          </li>
+        </div>
+      
+        <div>
+          <li class="missed" data-hits="0" data-linenumber="118">
+            
+
+            
+              
+            
+
+            <code class="ruby">        @ops.list_statuses(**args)</code>
+          </li>
+        </div>
+      
+        <div>
+          <li class="never" data-hits="" data-linenumber="119">
+            
+
+            
+              
+            
+
+            <code class="ruby">      end</code>
+          </li>
+        </div>
+      
+        <div>
+          <li class="never" data-hits="" data-linenumber="120">
+            
+
+            
+              
+            
+
+            <code class="ruby">      # @return [Hash]</code>
+          </li>
+        </div>
+      
+        <div>
+          <li class="covered" data-hits="1" data-linenumber="121">
+            
+              <span class="hits">1</span>
+            
+
+            
+              
+            
+
+            <code class="ruby">      def delete_issue(**args)</code>
+          </li>
+        </div>
+      
+        <div>
+          <li class="missed" data-hits="0" data-linenumber="122">
+            
+
+            
+              
+            
+
+            <code class="ruby">        with_write_guard { @ops.delete_issue(**args) }</code>
+          </li>
+        </div>
+      
+        <div>
+          <li class="never" data-hits="" data-linenumber="123">
+            
+
+            
+              
+            
+
+            <code class="ruby">      end</code>
+          </li>
+        </div>
+      
+        <div>
+          <li class="never" data-hits="" data-linenumber="124">
+            
+
+            
+              
+            
+
+            <code class="ruby"></code>
+          </li>
+        </div>
+      
+        <div>
+          <li class="covered" data-hits="1" data-linenumber="125">
+            
+              <span class="hits">1</span>
+            
+
+            
+              
+            
+
+            <code class="ruby">      private</code>
+          </li>
+        </div>
+      
+        <div>
+          <li class="never" data-hits="" data-linenumber="126">
+            
+
+            
+              
+            
+
+            <code class="ruby"></code>
+          </li>
+        </div>
+      
+        <div>
+          <li class="never" data-hits="" data-linenumber="127">
+            
+
+            
+              
+            
+
+            <code class="ruby">      # Fetch and require a non-empty env var value.</code>
+          </li>
+        </div>
+      
+        <div>
+          <li class="never" data-hits="" data-linenumber="128">
+            
+
+            
+              
+            
+
+            <code class="ruby">      # @param env [#[]]</code>
+          </li>
+        </div>
+      
+        <div>
+          <li class="never" data-hits="" data-linenumber="129">
+            
+
+            
+              
+            
+
+            <code class="ruby">      # @param key [String]</code>
+          </li>
+        </div>
+      
+        <div>
+          <li class="never" data-hits="" data-linenumber="130">
+            
+
+            
+              
+            
+
+            <code class="ruby">      # @return [String]</code>
+          </li>
+        </div>
+      
+        <div>
+          <li class="never" data-hits="" data-linenumber="131">
+            
+
+            
+              
+            
+
+            <code class="ruby">      # @raise [RuntimeError] when missing/empty</code>
+          </li>
+        </div>
+      
+        <div>
+          <li class="covered" data-hits="1" data-linenumber="132">
+            
+              <span class="hits">1</span>
+            
+
+            
+              
+            
+
+            <code class="ruby">      def fetch(env, key)</code>
+          </li>
+        </div>
+      
+        <div>
+          <li class="covered" data-hits="7" data-linenumber="133">
+            
+              <span class="hits">7</span>
+            
+
+            
+              
+            
+
+            <code class="ruby">        v = env[key]</code>
+          </li>
+        </div>
+      
+        <div>
+          <li class="covered" data-hits="7" data-linenumber="134">
+            
+              <span class="hits">7</span>
+            
+
+            
+              
+                <span class="hits" title="then branch hit 1 times">
+                  then: 1
+                </span>
+              
+                <span class="hits" title="else branch hit 6 times">
+                  else: 6
+                </span>
+              
+            
+
+            <code class="ruby">        raise &quot;#{key} is required&quot; if v.to_s.strip.empty?</code>
+          </li>
+        </div>
+      
+        <div>
+          <li class="covered" data-hits="6" data-linenumber="135">
+            
+              <span class="hits">6</span>
+            
+
+            
+              
+            
+
+            <code class="ruby">        v</code>
+          </li>
+        </div>
+      
+        <div>
+          <li class="never" data-hits="" data-linenumber="136">
+            
+
+            
+              
+            
+
+            <code class="ruby">      end</code>
+          </li>
+        </div>
+      
+        <div>
+          <li class="never" data-hits="" data-linenumber="137">
+            
+
+            
+              
+            
+
+            <code class="ruby"></code>
+          </li>
+        </div>
+      
+        <div>
+          <li class="never" data-hits="" data-linenumber="138">
+            
+
+            
+              
+            
+
+            <code class="ruby">      # Ensure writes are enabled before yielding.</code>
+          </li>
+        </div>
+      
+        <div>
+          <li class="never" data-hits="" data-linenumber="139">
+            
+
+            
+              
+            
+
+            <code class="ruby">      # @raise [RuntimeError] when writes are disabled</code>
+          </li>
+        </div>
+      
+        <div>
+          <li class="covered" data-hits="1" data-linenumber="140">
+            
+              <span class="hits">1</span>
+            
+
+            
+              
+            
+
+            <code class="ruby">      def with_write_guard</code>
+          </li>
+        </div>
+      
+        <div>
+          <li class="covered" data-hits="2" data-linenumber="141">
+            
+              <span class="hits">2</span>
+            
+
+            
+              
+                <span class="hits" title="else branch hit 1 times">
+                  else: 1
+                </span>
+              
+                <span class="hits" title="then branch hit 1 times">
+                  then: 1
+                </span>
+              
+            
+
+            <code class="ruby">        raise &#39;writes disabled: set JIRA_ALLOW_WRITES=true&#39; unless @allow_writes</code>
+          </li>
+        </div>
+      
+        <div>
+          <li class="never" data-hits="" data-linenumber="142">
+            
+
+            
+              
+            
+
+            <code class="ruby"></code>
+          </li>
+        </div>
+      
+        <div>
+          <li class="covered" data-hits="1" data-linenumber="143">
+            
+              <span class="hits">1</span>
+            
+
+            
+              
+            
+
+            <code class="ruby">        yield</code>
+          </li>
+        </div>
+      
+        <div>
+          <li class="never" data-hits="" data-linenumber="144">
+            
+
+            
+              
+            
+
+            <code class="ruby">      end</code>
+          </li>
+        </div>
+      
+        <div>
+          <li class="never" data-hits="" data-linenumber="145">
+            
+
+            
+              
+            
+
+            <code class="ruby"></code>
+          </li>
+        </div>
+      
+        <div>
+          <li class="covered" data-hits="1" data-linenumber="146">
+            
+              <span class="hits">1</span>
+            
+
+            
+              
+            
+
+            <code class="ruby">      public</code>
+          </li>
+        </div>
+      
+        <div>
+          <li class="never" data-hits="" data-linenumber="147">
+            
+
+            
+              
+            
+
+            <code class="ruby"></code>
+          </li>
+        </div>
+      
+        <div>
+          <li class="never" data-hits="" data-linenumber="148">
+            
+
+            
+              
+            
+
+            <code class="ruby">      # Server info metadata surfaced to MCP server during initialize</code>
+          </li>
+        </div>
+      
+        <div>
+          <li class="never" data-hits="" data-linenumber="149">
+            
+
+            
+              
+            
+
             <code class="ruby">      # Returns: { name:, version:, description: }</code>
           </li>
         </div>
       
         <div>
-          <li class="never" data-hits="" data-linenumber="109">
+          <li class="never" data-hits="" data-linenumber="150">
             
 
             
@@ -20906,7 +21406,7 @@
         </div>
       
         <div>
-          <li class="never" data-hits="" data-linenumber="110">
+          <li class="never" data-hits="" data-linenumber="151">
             
 
             
@@ -20918,7 +21418,7 @@
         </div>
       
         <div>
-          <li class="covered" data-hits="1" data-linenumber="111">
+          <li class="covered" data-hits="1" data-linenumber="152">
             
               <span class="hits">1</span>
             
@@ -20932,7 +21432,7 @@
         </div>
       
         <div>
-          <li class="never" data-hits="" data-linenumber="112">
+          <li class="never" data-hits="" data-linenumber="153">
             
 
             
@@ -20944,7 +21444,7 @@
         </div>
       
         <div>
-          <li class="missed" data-hits="0" data-linenumber="113">
+          <li class="missed" data-hits="0" data-linenumber="154">
             
 
             
@@ -20956,7 +21456,7 @@
         </div>
       
         <div>
-          <li class="never" data-hits="" data-linenumber="114">
+          <li class="never" data-hits="" data-linenumber="155">
             
 
             
@@ -20968,7 +21468,7 @@
         </div>
       
         <div>
-          <li class="never" data-hits="" data-linenumber="115">
+          <li class="never" data-hits="" data-linenumber="156">
             
 
             
@@ -20980,7 +21480,7 @@
         </div>
       
         <div>
-          <li class="never" data-hits="" data-linenumber="116">
+          <li class="never" data-hits="" data-linenumber="157">
             
 
             
@@ -20992,7 +21492,7 @@
         </div>
       
         <div>
-          <li class="never" data-hits="" data-linenumber="117">
+          <li class="never" data-hits="" data-linenumber="158">
             
 
             
@@ -21004,7 +21504,7 @@
         </div>
       
         <div>
-          <li class="never" data-hits="" data-linenumber="118">
+          <li class="never" data-hits="" data-linenumber="159">
             
 
             
@@ -21016,7 +21516,7 @@
         </div>
       
         <div>
-          <li class="never" data-hits="" data-linenumber="119">
+          <li class="never" data-hits="" data-linenumber="160">
             
 
             
@@ -21028,7 +21528,7 @@
         </div>
       
         <div>
-          <li class="never" data-hits="" data-linenumber="120">
+          <li class="never" data-hits="" data-linenumber="161">
             
 
             
