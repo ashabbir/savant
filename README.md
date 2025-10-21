@@ -2,6 +2,57 @@
 
 Local repo indexer + MCP search layer (Ruby + Postgres FTS, optional Docker).
 
+## MCP Framework
+- Savant includes a lightweight MCP framework to build and run local MCP services quickly.
+- Core features:
+  - Tool DSL: declare `tool 'ns/name'` with input schema and a Ruby handler.
+  - Registrar + Middleware: register tools, add validation/logging around calls.
+  - Dynamic service loading: `MCP_SERVICE=<service>` auto-loads `lib/savant/<service>/{engine,tools}.rb`.
+  - Engine-owned DI: share `db`, `logger`, and `config` via the engine and pass as `ctx` to handlers.
+  - Stdio JSON-RPC 2.0 transport compatible with popular MCP editor clients.
+
+### Generator
+- Scaffold a new MCP service with the generator:
+  - Create engine + tools + spec skeletons:
+    - `bundle exec ruby ./bin/savant generate engine <name>`
+    - Options:
+      - `--with-db`: include a shared `Savant::DB` handle in the engine constructor.
+      - `--force`: overwrite existing files.
+  - Generated files:
+    - `lib/savant/<name>/engine.rb` with `server_info` metadata (name, version, description)
+    - `lib/savant/<name>/tools.rb` using the Tool DSL with an example `'<name>/hello'` tool
+    - `spec/savant/<name>/engine_spec.rb` exercising the example tool
+
+### Mounting a Service
+- Convention-based mounting — no server code changes required:
+  - Files at `lib/savant/<service>/engine.rb` and `lib/savant/<service>/tools.rb`
+  - Engine class: `Savant::<CamelCase>::Engine`
+  - Tools module: `Savant::<CamelCase>::Tools.build_registrar(engine)`
+  - Start MCP server for the service:
+    - `MCP_SERVICE=<service> ruby ./bin/mcp_server`
+  - Server uses engine-provided `server_info` for name/version/description in `initialize` response.
+
+### Using the Framework in Editors
+- Cline / Claude Code MCP
+  - Configure a custom MCP with stdio command:
+    - Command: `ruby ./bin/mcp_server`
+    - Env:
+      - `MCP_SERVICE=context`
+      - `DATABASE_URL=postgres://context:contextpw@localhost:5433/contextdb`
+      - Optional: `SAVANT_PATH=$(pwd)`
+  - Tools available (Context): `fts/search`, `memory/search`, `memory/resources/*`, `fs/repo/*`.
+
+### Raw MCP (no Docker)
+- Run Postgres locally or point to an existing instance.
+- Prepare DB and FTS index:
+  - `DATABASE_URL=... ruby ./bin/db_migrate` (destructive reset)
+  - `DATABASE_URL=... ruby ./bin/db_fts`
+- Index your repos:
+  - `DATABASE_URL=... ruby ./bin/context_repo_indexer index all`
+- Start MCP server (stdio):
+  - `MCP_SERVICE=context DATABASE_URL=... ruby ./bin/mcp_server`
+  - Use any JSON-RPC client to send `initialize`, `tools/list`, `tools/call`.
+
 ## Overview
 - Index local repos, store chunks in Postgres FTS, and expose fast search via MCP.
 - Components: Indexer CLI, Postgres 16 (GIN/tsvector), MCP servers for Context and Jira.
@@ -202,6 +253,44 @@ Tools
 - memory/resources/read: Read a memory bank resource by URI.
   - Input: `{ uri: string }` (e.g., `repo://<repo>/memory-bank/<path>`)
   - Output: `text`
+
+## Engines
+
+### Context
+- Purpose: fast code/doc search and repo indexing using Postgres FTS + chunking
+- Tools:
+  - `fts/search` · `memory/search` · `memory/resources/*`
+  - `fs/repo/index` · `fs/repo/delete` · `fs/repo/status`
+- Engine info: name `savant-context`, version `1.1.0` (exposed in MCP initialize)
+- Flow (FTS):
+```mermaid
+flowchart LR
+  A[tools/call fts/search] --> B[Context::Engine]
+  B --> C[Context::Ops]
+  C --> D[Context::FTS]
+  D -->|SQL| PG[(Postgres FTS)]
+  PG --> D --> C --> B --> A
+```
+- Flow (Repo Indexer):
+```mermaid
+flowchart LR
+  X[fs/repo/index] --> E[FS::RepoIndexer]
+  E --> I[Indexer::Facade]
+  I --> R[Runner] --> S[RepositoryScanner]
+  R --> DB[(DB writes: files/blobs/chunks)]
+```
+
+### Jira
+- Purpose: Jira issue search and CRUD via REST v3
+- Tools: `jira_*` suite (search, get/update/create issues, comments, attachments, links)
+- Engine info: name `savant-jira`, version `1.1.0`
+- Flow:
+```mermaid
+flowchart LR
+  A[jira_* tool] --> E[Jira::Engine]
+  E --> O[Jira::Ops] --> C[Jira::Client]
+  C -->|HTTP| Jira[(Jira Cloud/Server)]
+```
 
 ### Jira MCP
 
