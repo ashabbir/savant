@@ -95,6 +95,14 @@ the Jira MCP, and custom engines plug in the exact same way.
   - Tools available (Context): `fts/search`, `memory/search`, `memory/resources/*`, `fs/repo/*`.
   - Make: `make mcp-test q='<term>' [repo=<name>] [limit=5]`
 
+- WebSocket transport (optional)
+  - Start the server in WebSocket mode (default host/port/path):
+    - `MCP_SERVICE=context ruby ./bin/mcp_server --transport=websocket`
+  - Override host/port/path:
+    - `ruby ./bin/mcp_server --transport=websocket --host=127.0.0.1 --port=8765 --path=/mcp`
+  - Configure via `config/settings.json` (optional):
+    - `transport: { mode: "websocket", websocket: { host: "127.0.0.1", port: 8765, path: "/mcp" } }`
+
 ### Environment Variables (Engines)
 - Common
   - `MCP_SERVICE`: selects the engine to mount (e.g., `context`, `jira`).

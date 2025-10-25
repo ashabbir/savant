@@ -71,14 +71,29 @@ module Savant
         end
       end
 
-      unless cfg.dig('indexer', 'repos').is_a?(Array) && cfg['indexer']['repos'].any?
-        raise ConfigError, 'repos must be a non-empty array'
-      end
+      raise ConfigError, 'repos must be a non-empty array' unless cfg.dig('indexer', 'repos').is_a?(Array) && cfg['indexer']['repos'].any?
 
       cfg['indexer']['repos'].each do |r|
         raise ConfigError, 'repo missing name' unless r['name'].is_a?(String) && !r['name'].empty?
         raise ConfigError, "repo #{r['name']} missing path" unless r['path'].is_a?(String) && !r['path'].empty?
         raise ConfigError, "repo #{r['name']} ignore must be array" if r['ignore'] && !r['ignore'].is_a?(Array)
+      end
+
+      # Optional transport validation (non-fatal if absent)
+      if cfg.key?('transport')
+        tr = cfg['transport']
+        raise ConfigError, 'transport must be an object' unless tr.is_a?(Hash)
+
+        if tr.key?('mode')
+          mode = tr['mode']
+          raise ConfigError, 'transport.mode must be stdio or websocket' unless %w[stdio websocket].include?(mode)
+        end
+        if tr.key?('websocket')
+          ws = tr['websocket']
+          raise ConfigError, 'transport.websocket must be an object' unless ws.is_a?(Hash)
+          raise ConfigError, 'transport.websocket.port must be integer' if ws.key?('port') && !(ws['port'].is_a?(Integer) || ws['port'].to_s =~ /^\d+$/)
+          raise ConfigError, 'transport.websocket.path must be string' if ws.key?('path') && !ws['path'].is_a?(String)
+        end
       end
       true
     end
