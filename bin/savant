@@ -2,30 +2,65 @@
 # frozen_string_literal: true
 
 require 'optparse'
-require_relative '../lib/savant/generator'
-require_relative '../lib/savant/logger'
+
+def usage!
+  warn <<~TXT
+    usage:
+      savant generate engine <name> [--with-db] [--force]
+      savant serve [--transport=stdio|http] [--host=HOST] [--port=PORT] [--service=NAME]
+  TXT
+  exit 2
+end
 
 cmd = ARGV.shift
-if cmd == 'generate'
+
+case cmd
+when 'generate'
+  require_relative '../lib/savant/generator'
+
   sub = ARGV.shift
-  case sub
-  when 'engine'
-    name = ARGV.shift
-    if !name || name.strip.empty?
-      warn 'usage: savant generate engine <name> [--with-db] [--force]'
-      exit 2
-    end
-    opts = { with_db: false, force: false }
-    OptionParser.new do |o|
-      o.on('--with-db') { opts[:with_db] = true }
-      o.on('--force') { opts[:force] = true }
-    end.parse!(ARGV)
-    Savant::Generator.new.generate_engine(name, **opts)
+  usage! unless sub == 'engine'
+
+  name = ARGV.shift
+  usage! if name.nil? || name.strip.empty?
+
+  opts = { with_db: false, force: false }
+  OptionParser.new do |o|
+    o.on('--with-db') { opts[:with_db] = true }
+    o.on('--force') { opts[:force] = true }
+  end.parse!(ARGV)
+
+  Savant::Generator.new.generate_engine(name, **opts)
+
+when 'serve'
+  options = {
+    transport: ENV['MCP_TRANSPORT'] || 'stdio',
+    host: nil,
+    port: nil,
+    service: ENV['MCP_SERVICE']
+  }
+
+  OptionParser.new do |o|
+    o.on('--transport=NAME', 'Transport to run (stdio or http)') { |v| options[:transport] = v }
+    o.on('--host=HOST', 'Host to bind on (default 0.0.0.0/http, config/stdio)') { |v| options[:host] = v }
+    o.on('--port=PORT', Integer, 'Port to listen on for http or stdio overrides') { |v| options[:port] = v }
+    o.on('--service=NAME', 'MCP service to run (context, jira, etc.)') { |v| options[:service] = v }
+  end.parse!(ARGV)
+
+  transport = options[:transport].to_s.downcase
+
+  case transport
+  when 'http'
+    require_relative '../lib/savant/server/http_runner'
+    Savant::Server::HTTPRunner.start(host: options[:host], port: options[:port], service: options[:service])
+  when 'stdio'
+    require_relative '../lib/savant/mcp_server'
+    Savant::MCPServer.new(host: options[:host], port: options[:port]).start
   else
-    warn 'usage: savant generate engine <name>'
-    exit 2
+    warn "unknown transport '#{transport}'"
+    exit 1
   end
+
 else
-  warn 'usage: savant generate engine <name> [--with-db] [--force]'
-  exit 2
+  usage!
 end

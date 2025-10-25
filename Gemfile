@@ -4,6 +4,7 @@ source 'https://rubygems.org'
 
 gem 'async', '~> 2.10'
 gem 'async-websocket', '~> 0.25'
+gem 'console', '~> 1.29.0'
 gem 'kramdown'
 gem 'oj', '~> 3.16'
 gem 'pg', '~> 1.5'
