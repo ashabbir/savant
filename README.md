@@ -6,7 +6,38 @@ logging, config, and dependency wiring. Each engine you mount becomes its own MC
 service, so `MCP_SERVICE=context` launches the Context MCP, `MCP_SERVICE=jira` launches
 the Jira MCP, and custom engines plug in the exact same way.
 
-## Core Concepts
+## Table of Contents
+- [Chapter 1 – Introduction](#chapter-1--introduction)
+  - [Core Concepts](#core-concepts)
+- [Chapter 2 – Building Engines](#chapter-2--building-engines)
+  - [Building Engines with Savant](#building-engines-with-savant)
+  - [Generator](#generator)
+  - [Mounting an Engine](#mounting-an-engine)
+  - [Using Engines in Editors](#using-engines-in-editors)
+  - [Environment Variables (Engines)](#environment-variables-engines)
+  - [Raw MCP (no Docker)](#raw-mcp-no-docker)
+- [Chapter 3 – Running Savant](#chapter-3--running-savant)
+  - [Overview](#overview)
+  - [Runtime Modes](#runtime-modes)
+- [Chapter 4 – Configuration](#chapter-4--configuration)
+  - [Indexer-Specific Settings](#indexer-specific-settings)
+  - [Environment Variables](#environment-variables)
+  - [Project Layout](#project-layout)
+  - [Jira Configuration](#jira-configuration)
+- [Chapter 5 – Built-in Engines](#chapter-5--built-in-engines)
+  - [Running Engines (Host)](#running-engines-host)
+  - [Context Engine (Context MCP)](#context-engine-context-mcp)
+    - [Indexer (Context Engine)](#indexer-context-engine)
+      - [Indexer Problem](#indexer-problem)
+      - [Indexer Solution](#indexer-solution)
+      - [Indexer Approach](#indexer-approach)
+      - [Indexer Diagram](#indexer-diagram)
+      - [Indexer Commands](#indexer-commands)
+  - [Jira Engine (Jira MCP)](#jira-engine-jira-mcp)
+
+## Chapter 1 – Introduction
+
+### Core Concepts
 - **Savant Framework** – Provides the stdio JSON-RPC 2.0 transport, tool registrar,
   middleware, logging, and config loading. The framework is engine-agnostic: it just
   mounts whatever engine you name via `MCP_SERVICE`.
@@ -18,7 +49,9 @@ the Jira MCP, and custom engines plug in the exact same way.
 - **Indexer** – Optional companion that ingests repos into Postgres FTS for the Context
   engine. Engines that need persistence can share the same DB plumbing.
 
-## Building Engines with Savant
+## Chapter 2 – Building Engines
+
+### Building Engines with Savant
 - Tool DSL: declare `tool 'ns/name'` with JSON schema and a Ruby handler.
 - Registrar + middleware stack: register tools and layer validation, logging, or auth.
 - Dynamic service loading: `MCP_SERVICE=<engine>` auto-loads
@@ -91,21 +124,23 @@ the Jira MCP, and custom engines plug in the exact same way.
     - `DATABASE_URL=postgres://user:pass@host:port/db`
     - Optional: `SAVANT_PATH=$(pwd)`, `LOG_LEVEL=debug`
 
-## Overview
+## Chapter 3 – Running Savant
+
+### Overview
 - Savant framework: single MCP server process that mounts one engine by name.
 - Built-in engines: Context MCP (repo indexing/search) and Jira MCP (Jira REST access).
 - Indexer + Postgres power the Context engine’s search pipeline; Jira engine talks to Jira REST.
 - Docs: see `docs/README.md` and `config/` examples.
 
-Runtime modes
+### Runtime Modes
 - Docker (Postgres + Indexer), host (MCP servers): Postgres and the indexer run in Docker; MCP servers run on your host.
 - Host-only (advanced): You may run everything on host if you configure Postgres separately.
 
-## Configuration
+## Chapter 4 – Configuration
 - Provide `config/settings.json` (see `config/settings.example.json`, schema in `config/schema.json`).
 - Mount host repos in `docker-compose.yml` so the indexer can read them.
 
-Indexer-specific settings
+### Indexer-Specific Settings
 - `indexer.maxFileSizeKB`: skip files larger than this (KB)
 - `indexer.languages`: allowed file extensions (lowercase); others are skipped
 - `indexer.chunk`: `{ mdMaxChars, codeMaxLines, overlapLines }`
@@ -130,7 +165,7 @@ Indexer-specific settings
   - `JIRA_ALLOW_WRITES`: set to `true` to enable mutating tools
 
 
-## Project Layout
+### Project Layout
 - `docs/`: epics, PRD, ops notes
   - Memory Bank: see `docs/prds/memory-bank-resources.md`
 - `config/`: settings and examples
@@ -138,7 +173,7 @@ Indexer-specific settings
 - `bin/savant`: generator CLI to scaffold new MCP engines
 - `docker-compose.yml`: services and volumes
 
-## Jira Configuration
+### Jira Configuration
 - Option A: Env vars (quick start)
   - `JIRA_BASE_URL`, and either `JIRA_EMAIL` + `JIRA_API_TOKEN` (Cloud) or `JIRA_USERNAME` + `JIRA_PASSWORD` (Server).
   - Add to your shell or `.env` (Compose auto-loads `.env`).
