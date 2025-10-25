@@ -107,9 +107,9 @@ module Savant
       engine = engine_class.new
       registrar = tools_mod.build_registrar(engine)
       @services[key] = { engine: engine, registrar: registrar }
-      rescue LoadError, NameError
-        raise 'Unknown service'
-      end
+    rescue LoadError, NameError
+      raise 'Unknown service'
+    end
 
     # Parse and minimally validate a JSON-RPC 2.0 request line.
     def parse_request(line, log)
@@ -123,16 +123,16 @@ module Savant
     rescue JSON::ParserError => e
       message = "parse_error: #{e.message} line=#{line[0..100]}"
       log.error(message)
-      warn(response_error(nil, :parse_error, message: message) .to_json)
+      warn(response_error(nil, :parse_error, message: message).to_json)
       nil
     end
 
     # Map internal symbols to stable error codes/messages
     def error_catalog
       {
-        parse_error:    { code: -32_700, message: 'Parse error' },
-        invalid_request:{ code: -32_600, message: 'Invalid Request' },
-        method_not_found:{ code: -32_601, message: 'Method not found' },
+        parse_error: { code: -32_700, message: 'Parse error' },
+        invalid_request: { code: -32_600, message: 'Invalid Request' },
+        method_not_found: { code: -32_601, message: 'Method not found' },
         invalid_params: { code: -32_602, message: 'Invalid params' },
         internal_error: { code: -32_000, message: 'Internal error' }
       }
@@ -144,7 +144,7 @@ module Savant
 
     def response_error(id, key, message: nil)
       spec = error_catalog[key] || error_catalog[:internal_error]
-      { jsonrpc: '2.0', id: id, error: { code: spec[:code], message: (message || spec[:message]) } }
+      { jsonrpc: '2.0', id: id, error: { code: spec[:code], message: message || spec[:message] } }
     end
 
     def handle_jsonrpc(req, log)
