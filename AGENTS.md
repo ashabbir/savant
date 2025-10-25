@@ -82,3 +82,33 @@ Getting Started
 
 Not In Scope
 - This overview excludes the Memory Bank Resource PRD; see docs for broader product context.
+
+Autonomous Coding Flow (PRD → Branch → Plan → Implement)
+
+Overview
+- The Codex agent can autonomously turn a PRD into a branch with implemented code and tests in one run. It creates a branch from the PRD name, writes an implementation plan back into the PRD, makes the changes, runs RuboCop and tests, then commits and pushes.
+
+How To Start
+- Command: `bin/dev_agent implement <path-to-prd>`
+- Example: `bin/dev_agent implement AGENTS.md`
+
+Defaults and Options
+- Branch: `feature/<prd-slug>` (override with `--branch-prefix`)
+- Remote: `origin` (override with `--remote`)
+- Push: enabled (disable with `--no-push`)
+- Preview: `--dry-run` to show planned actions/diffs without writing
+- Allow dirty tree: `--allow-dirty` to proceed with local changes
+- Lint/test tolerances: `--allow-lint-fail`, `--allow-test-fail`
+
+Flow Details
+- Branching: Creates a new branch from current HEAD using a slug from the PRD title or filename.
+- Planning: Appends/updates an “Agent Implementation Plan” section in the PRD listing concrete steps, files to change, and tests.
+- Implementation: Applies code and spec changes in a single logical commit, adhering to existing style and structure.
+- Linting: Runs `bundle exec rubocop -A`; aborts on remaining offenses unless allowed.
+- Tests: Runs `bundle exec rspec` if present; aborts on failures unless allowed.
+- Commit & Push: Single commit with a message referencing the PRD; pushes to the target remote unless `--no-push` is set.
+
+Requirements
+- Ruby + Bundler installed (`bundle install`).
+- Git repo with a configured remote (default `origin`).
+- RuboCop and RSpec present in the bundle for linting/tests.
