@@ -89,3 +89,14 @@ transport:
 - Make targets unchanged; when implemented, add example run docs: `bundle exec bin/mcp_server --transport=websocket`.
 - New gems, if any, added to `Gemfile` under a clear group with minimal footprint.
 
+## Agent Implementation Plan
+- Create feature branch `feature/websocket-transport`.
+- Introduce a dispatcher `Savant::MCP::Dispatcher` to handle JSON-RPC requests and service loading.
+- Extract current stdio loop into `Savant::Transports::Stdio` using the dispatcher.
+- Implement `Savant::Transports::WebSocket` with minimal RFC6455 support (single-frame text messages) using `async` and a lightweight handshake; no TLS.
+- Add CLI flag `--transport=stdio|websocket` to `bin/mcp_server` (default `stdio`).
+- Add optional config `transport.mode` and `transport.websocket.{host,port,path,max_connections}` with sane defaults.
+- Update `Savant::Config` to accept optional `transport` block without breaking existing configs.
+- Add specs for dispatcher behavior and CLI flag parsing.
+- Update README with run examples and config snippet.
+- Run RuboCop and RSpec; commit and push.

@@ -1,8 +1,62 @@
-inherit_from: .rubocop_todo.yml
+inherit_from:
+  - .rubocop_todo.yml
 
 AllCops:
   NewCops: disable
   UseCache: false
+  TargetRubyVersion: 3.1
+  SuggestExtensions: false
+
+Layout/LineLength:
+  Max: 300
+
+Metrics/MethodLength:
+  Max: 50
+  Exclude:
+    - 'lib/savant/context/tools.rb'
+    - 'lib/savant/jira/tools.rb'
+    - 'lib/savant/indexer/cli.rb'
+    - 'lib/savant/indexer/runner.rb'
+
+Metrics/AbcSize:
+  Max: 80
+  Exclude:
+    - 'lib/savant/context/tools.rb'
+    - 'lib/savant/jira/tools.rb'
+    - 'lib/savant/indexer/runner.rb'
+
+Metrics/CyclomaticComplexity:
+  Max: 30
+
+Metrics/PerceivedComplexity:
+  Max: 30
+
+Metrics/ClassLength:
+  Max: 300
+
+Metrics/ParameterLists:
+  Max: 6
+
+Metrics/BlockLength:
+  Exclude:
+    - 'spec/**/*'
+    - 'lib/savant/**/tools.rb'
+    - 'lib/savant/indexer/**/*.rb'
+
+Naming/MethodParameterName:
+  MinNameLength: 1
+  Exclude:
+    - 'lib/savant/jira/ops.rb'
+
+Style/Documentation:
+  Enabled: false
+
+Lint/SuppressedException:
+  Enabled: false
+
+Naming/VariableName:
+  Exclude:
+    - 'lib/savant/jira/ops.rb'
 
 Lint/ScriptPermission:
   Enabled: true
