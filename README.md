@@ -1,18 +1,34 @@
 # Savant
 
-Local repo indexer + MCP search layer (Ruby + Postgres FTS, optional Docker).
+Savant is a lightweight Ruby framework for building and running local MCP services.  
+The Savant core boots a single MCP server, loads an engine, and handles all transport,
+logging, config, and dependency wiring. Each engine you mount becomes its own MCP
+service, so `MCP_SERVICE=context` launches the Context MCP, `MCP_SERVICE=jira` launches
+the Jira MCP, and custom engines plug in the exact same way.
 
-## MCP Framework
-- Savant includes a lightweight MCP framework to build and run local MCP services quickly.
-- Core features:
-  - Tool DSL: declare `tool 'ns/name'` with input schema and a Ruby handler.
-  - Registrar + Middleware: register tools, add validation/logging around calls.
-  - Dynamic service loading: `MCP_SERVICE=<service>` auto-loads `lib/savant/<service>/{engine,tools}.rb`.
-  - Engine-owned DI: share `db`, `logger`, and `config` via the engine and pass as `ctx` to handlers.
-  - Stdio JSON-RPC 2.0 transport compatible with popular MCP editor clients.
+## Core Concepts
+- **Savant Framework** – Provides the stdio JSON-RPC 2.0 transport, tool registrar,
+  middleware, logging, and config loading. The framework is engine-agnostic: it just
+  mounts whatever engine you name via `MCP_SERVICE`.
+- **Engines** – Self-contained MCP implementations that expose tools. Savant ships with
+  two engines out of the box:
+  - `context` MCP for repo indexing and retrieval.
+  - `jira` MCP for Jira REST search and CRUD.
+  Custom engines live under `lib/savant/<engine>` and are mounted automatically by name.
+- **Indexer** – Optional companion that ingests repos into Postgres FTS for the Context
+  engine. Engines that need persistence can share the same DB plumbing.
+
+## Building Engines with Savant
+- Tool DSL: declare `tool 'ns/name'` with JSON schema and a Ruby handler.
+- Registrar + middleware stack: register tools and layer validation, logging, or auth.
+- Dynamic service loading: `MCP_SERVICE=<engine>` auto-loads
+  `lib/savant/<engine>/{engine,tools}.rb`.
+- Engine-owned DI: share `db`, `logger`, and `config` through the engine instance and
+  pass them to handlers as context.
+- Transport: stdio JSON-RPC 2.0 compatible with popular MCP editor clients.
 
 ### Generator
-- Scaffold a new MCP service with the generator:
+- Scaffold a new engine with the CLI:
   - Create engine + tools + spec skeletons:
     - `bundle exec ruby ./bin/savant generate engine <name>`
     - Make: no target (CLI only)
@@ -24,17 +40,17 @@ Local repo indexer + MCP search layer (Ruby + Postgres FTS, optional Docker).
     - `lib/savant/<name>/tools.rb` using the Tool DSL with an example `'<name>/hello'` tool
     - `spec/savant/<name>/engine_spec.rb` exercising the example tool
 
-### Mounting a Service
+### Mounting an Engine
 - Convention-based mounting — no server code changes required:
-  - Files at `lib/savant/<service>/engine.rb` and `lib/savant/<service>/tools.rb`
+  - Files at `lib/savant/<engine>/engine.rb` and `lib/savant/<engine>/tools.rb`
   - Engine class: `Savant::<CamelCase>::Engine`
   - Tools module: `Savant::<CamelCase>::Tools.build_registrar(engine)`
-  - Start MCP server for the service:
-    - `MCP_SERVICE=<service> ruby ./bin/mcp_server`
-    - Make: `make mcp-test q='<term>'` (Context only helper)
-  - Server uses engine-provided `server_info` for name/version/description in `initialize` response.
+  - Start the MCP server for an engine:
+    - `MCP_SERVICE=<engine> ruby ./bin/mcp_server`
+    - Make: `make mcp-test q='<term>'` (Context helper)
+  - The server uses engine-provided `server_info` for the MCP `initialize` response.
 
-### Using the Framework in Editors
+### Using Engines in Editors
 - Cline / Claude Code MCP
   - Configure a custom MCP with stdio command:
     - Command: `ruby ./bin/mcp_server`
@@ -45,15 +61,15 @@ Local repo indexer + MCP search layer (Ruby + Postgres FTS, optional Docker).
   - Tools available (Context): `fts/search`, `memory/search`, `memory/resources/*`, `fs/repo/*`.
   - Make: `make mcp-test q='<term>' [repo=<name>] [limit=5]`
 
-### Environment Variables (MCP)
+### Environment Variables (Engines)
 - Common
-  - `MCP_SERVICE`: selects service to mount (e.g., `context`, `jira`).
+  - `MCP_SERVICE`: selects the engine to mount (e.g., `context`, `jira`).
   - `SAVANT_PATH`: base path for resolving `config/settings.json` and `logs/` (defaults to repo root).
   - `SETTINGS_PATH`: optional override for settings JSON when using library APIs.
   - `LISTEN_HOST` / `LISTEN_PORT`: reserved for network transports; stdio ignores these.
   - `LOG_LEVEL`: `debug|info|warn|error` (default `info`).
   - `SLOW_THRESHOLD_MS`: marks slow operations in logs when exceeded (optional).
-- Service-specific
+- Engine-specific
   - Context requires `DATABASE_URL` for Postgres.
   - Jira requires Jira credentials; see “Jira” engine section below.
 
@@ -76,8 +92,9 @@ Local repo indexer + MCP search layer (Ruby + Postgres FTS, optional Docker).
     - Optional: `SAVANT_PATH=$(pwd)`, `LOG_LEVEL=debug`
 
 ## Overview
-- Index local repos, store chunks in Postgres FTS, and expose fast search via MCP.
-- Components: Indexer CLI, Postgres 16 (GIN/tsvector), MCP servers for Context and Jira.
+- Savant framework: single MCP server process that mounts one engine by name.
+- Built-in engines: Context MCP (repo indexing/search) and Jira MCP (Jira REST access).
+- Indexer + Postgres power the Context engine’s search pipeline; Jira engine talks to Jira REST.
 - Docs: see `docs/README.md` and `config/` examples.
 
 Runtime modes
@@ -204,13 +221,13 @@ With Make
 
 ---
 
-## MCP (Host)
+## Running Engines (Host)
 
 ### Problem
 - Tools and editors need a standard interface to local context search and Jira without exposing secrets or raw DB access.
 
 ### Solution
-- Two Ruby MCP servers: Context (search via Postgres FTS) and Jira (JQL via Jira REST), both speaking MCP over stdio (JSON‑RPC 2.0) for easy client integration.
+- Two Savant engines: Context (search via Postgres FTS) and Jira (JQL via Jira REST), both speaking MCP over stdio (JSON‑RPC 2.0) for easy client integration.
 
 ### Approach
 - Stdio JSON‑RPC transport; strict schemas; timing + size logging for observability.
@@ -218,7 +235,7 @@ With Make
 
 
 
-### Context MCP
+### Context Engine (Context MCP)
 
 Problem
 - Expose fast, ranked repo search to MCP-aware clients.
@@ -312,7 +329,7 @@ Environment (Context)
   - `SAVANT_PATH`, `SETTINGS_PATH`, `LOG_LEVEL`, `SLOW_THRESHOLD_MS` (see MCP section).
 ```
 
-### Jira
+### Jira Engine (Jira MCP)
 - Purpose: Jira issue search and CRUD via REST v3
 - Tools: `jira_*` suite (search, get/update/create issues, comments, attachments, links)
 - Engine info: name `savant-jira`, version `1.1.0`
