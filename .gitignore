@@ -8,3 +8,4 @@ config/settings.json
 .clinerules
 CLAUDE.md
 coverage/*
+*.DS_Store*

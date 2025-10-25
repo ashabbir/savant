@@ -19,6 +19,7 @@ the Jira MCP, and custom engines plug in the exact same way.
 - [Chapter 3 – Running Savant](#chapter-3--running-savant)
   - [Overview](#overview)
   - [Runtime Modes](#runtime-modes)
+  - [HTTP Transport](#http-transport)
 - [Chapter 4 – Configuration](#chapter-4--configuration)
   - [Indexer-Specific Settings](#indexer-specific-settings)
   - [Environment Variables](#environment-variables)
@@ -135,6 +136,29 @@ the Jira MCP, and custom engines plug in the exact same way.
 ### Runtime Modes
 - Docker (Postgres + Indexer), host (MCP servers): Postgres and the indexer run in Docker; MCP servers run on your host.
 - Host-only (advanced): You may run everything on host if you configure Postgres separately.
+
+### HTTP Transport
+- Savant can expose tools via JSON-RPC over HTTP instead of stdio.
+- Start the server:
+  - `MCP_SERVICE=context MCP_TRANSPORT=http bundle exec ruby ./bin/savant serve`
+  - Options:
+    - `--transport=http`: CLI override for transport (defaults to env).
+    - `--port=<PORT>` / `SAVANT_PORT`: choose listening port (default `9292`).
+    - `--host=<HOST>` / `SAVANT_HOST`: bind interface (default `0.0.0.0`).
+- Endpoints:
+  - `POST /rpc`: accepts JSON-RPC 2.0 payload `{ "method": "tool/ns", "params": {...}, "id": <uuid> }`.
+  - `GET /healthz`: replies `{ "status": "ok", "service": "savant-http" }`.
+- Example call:
+  ```bash
+  curl -X POST http://localhost:9292/rpc \
+    -H 'Content-Type: application/json' \
+    -d '{"method":"logger.log","params":{"message":"Hello"},"id":1}'
+  ```
+  Response:
+  ```json
+  {"jsonrpc":"2.0","result":{"ok":true},"error":null,"id":1}
+  ```
+- Logs are written to `logs/http.log`; adjust `LOG_LEVEL` for verbosity.
 
 ## Chapter 4 – Configuration
 - Provide `config/settings.json` (see `config/settings.example.json`, schema in `config/schema.json`).
