@@ -190,73 +190,9 @@ the Jira MCP, and custom engines plug in the exact same way.
 Example file is provided at `config/jira.example.json`.
 
 
+## Chapter 5 – Built-in Engines
 
-## Indexer
-
-### Problem
-- Large, evolving repos need fast local indexing with minimal overhead and zero data exfiltration.
-- Keeping search results fresh requires reliable change detection and efficient upserts.
-
-### Solution
-- A Ruby indexer that scans configured repos, hashes and deduplicates content, chunks intelligently, and stores everything in Postgres with FTS.
-
-### Approach
-- Ignore rules and size limits keep noise low and runs deterministic.
-- Hash + dedupe at blob level minimizes DB churn; chunking preserves context with overlaps.
-- Postgres FTS (`tsvector` + GIN) powers ranking; counters and timestamps help status/health.
-- Config-driven: repos and rules live in `config/settings.json`.
-
-### Diagram
-```mermaid
-flowchart LR
-  R["Repos (host mounts)"] --> I["Indexer CLI<br/>scan → hash → chunk"]
-  I --> DB["Postgres 16<br/>FTS tsvector + GIN"]
-
-  classDef svc fill:#f0f7ff,stroke:#1e88e5,color:#0d47a1,stroke-width:1px
-  classDef data fill:#f9fbe7,stroke:#7cb342,color:#33691e,stroke-width:1px
-  class I svc
-  class DB data
-```
-
-### Commands
-
-Without Docker
-- Migrate (destructive reset): `DATABASE_URL=postgres://context:contextpw@localhost:5432/contextdb SETTINGS_PATH=config/settings.json ruby ./bin/db_migrate`
-- FTS: `DATABASE_URL=... SETTINGS_PATH=... ruby ./bin/db_fts`
-- Smoke: `DATABASE_URL=... SETTINGS_PATH=... ruby ./bin/db_smoke`
-- Index all: `DATABASE_URL=... SETTINGS_PATH=... ruby ./bin/context_repo_indexer index all`
-- Index repo: `DATABASE_URL=... SETTINGS_PATH=... ruby ./bin/context_repo_indexer index <repo>`
-- Delete all: `DATABASE_URL=... SETTINGS_PATH=... ruby ./bin/context_repo_indexer delete all`
-- Delete repo: `DATABASE_URL=... SETTINGS_PATH=... ruby ./bin/context_repo_indexer delete <repo>`
-- Status: `DATABASE_URL=... SETTINGS_PATH=... ruby ./bin/context_repo_indexer status`
-
-Notes
-- CLI start line shows configured `scanMode`.
-- Per-repo start line shows actual enumeration used: `using=gitls` (Git) or `using=ls` (filesystem).
-
-With Docker (Postgres + Indexer only)
-- Start stack: `make dev` (starts Postgres + indexer container idle)
-- Migrate: `make migrate`
-- FTS: `make fts`
-- Smoke: `make smoke`
-- Index all: `make repo-index-all`
-- Index repo: `make repo-index-repo repo=<name>`
-- Delete all: `make repo-delete-all`
-- Delete repo: `make repo-delete-repo repo=<name>`
-- Status: `make repo-status`
-
-Docker image
-- Includes `git` to enable Git-based enumeration in containers.
-
-With Make
-- `make migrate` · `make fts` · `make smoke`
-- `make repo-index-all` · ``make repo-index-repo repo=<name>``
-- ``make repo-delete-all`` · ``make repo-delete-repo repo=<name>``
-- `make repo-status`
-
----
-
-## Running Engines (Host)
+### Running Engines (Host)
 
 ### Problem
 - Tools and editors need a standard interface to local context search and Jira without exposing secrets or raw DB access.
@@ -328,9 +264,65 @@ Tools
   - Input: `{ uri: string }` (e.g., `repo://<repo>/memory-bank/<path>`)
   - Output: `text`
 
-## Engines
+#### Indexer (Context Engine)
 
-### Context
+##### Indexer Problem
+- Large, evolving repos need fast local indexing with minimal overhead and zero data exfiltration.
+- Keeping search results fresh requires reliable change detection and efficient upserts.
+
+##### Indexer Solution
+- Ruby indexer scans configured repos, hashes and deduplicates content, chunks intelligently, and stores everything in Postgres with FTS.
+
+##### Indexer Approach
+- Ignore rules and size limits keep noise low and runs deterministic.
+- Hash + dedupe at blob level minimizes DB churn; chunking preserves context with overlaps.
+- Postgres FTS (`tsvector` + GIN) powers ranking; counters and timestamps help status/health.
+- Config-driven: repos and rules live in `config/settings.json`.
+
+##### Indexer Diagram
+```mermaid
+flowchart LR
+  R["Repos (host mounts)"] --> I["Indexer CLI<br/>scan → hash → chunk"]
+  I --> DB["Postgres 16<br/>FTS tsvector + GIN"]
+
+  classDef svc fill:#f0f7ff,stroke:#1e88e5,color:#0d47a1,stroke-width:1px
+  classDef data fill:#f9fbe7,stroke:#7cb342,color:#33691e,stroke-width:1px
+  class I svc
+  class DB data
+```
+
+##### Indexer Commands
+
+- Without Docker:
+  - Migrate (destructive reset): `DATABASE_URL=postgres://context:contextpw@localhost:5432/contextdb SETTINGS_PATH=config/settings.json ruby ./bin/db_migrate`
+  - FTS: `DATABASE_URL=... SETTINGS_PATH=... ruby ./bin/db_fts`
+  - Smoke: `DATABASE_URL=... SETTINGS_PATH=... ruby ./bin/db_smoke`
+  - Index all: `DATABASE_URL=... SETTINGS_PATH=... ruby ./bin/context_repo_indexer index all`
+  - Index repo: `DATABASE_URL=... SETTINGS_PATH=... ruby ./bin/context_repo_indexer index <repo>`
+  - Delete all: `DATABASE_URL=... SETTINGS_PATH=... ruby ./bin/context_repo_indexer delete all`
+  - Delete repo: `DATABASE_URL=... SETTINGS_PATH=... ruby ./bin/context_repo_indexer delete <repo>`
+  - Status: `DATABASE_URL=... SETTINGS_PATH=... ruby ./bin/context_repo_indexer status`
+- Notes:
+  - CLI start line shows configured `scanMode`.
+  - Per-repo start line shows actual enumeration used: `using=gitls` (Git) or `using=ls` (filesystem).
+- With Docker (Postgres + Indexer only):
+  - Start stack: `make dev`
+  - Migrate: `make migrate`
+  - FTS: `make fts`
+  - Smoke: `make smoke`
+  - Index all: `make repo-index-all`
+  - Index repo: `make repo-index-repo repo=<name>`
+  - Delete all: `make repo-delete-all`
+  - Delete repo: `make repo-delete-repo repo=<name>`
+  - Status: `make repo-status`
+- Docker image includes `git` to enable Git-based enumeration in containers.
+- With Make:
+  - `make migrate` · `make fts` · `make smoke`
+  - `make repo-index-all` · ``make repo-index-repo repo=<name>``
+  - ``make repo-delete-all`` · ``make repo-delete-repo repo=<name>``
+  - `make repo-status`
+
+#### Context Engine Details
 - Purpose: fast code/doc search and repo indexing using Postgres FTS + chunking
 - Tools:
   - `fts/search` · `memory/search` · `memory/resources/*`
@@ -362,7 +354,6 @@ Environment (Context)
 - `DATABASE_URL` (required): Postgres connection for FTS/indexing.
 - Optional:
   - `SAVANT_PATH`, `SETTINGS_PATH`, `LOG_LEVEL`, `SLOW_THRESHOLD_MS` (see MCP section).
-```
 
 ### Jira Engine (Jira MCP)
 - Purpose: Jira issue search and CRUD via REST v3
@@ -388,20 +379,19 @@ Environment (Jira)
 - Optional:
   - `JIRA_ALLOW_WRITES=true` to enable mutating tools (create/update/delete). Default: reads only.
   - `LOG_LEVEL`, `SAVANT_PATH` for logging and paths.
-```
 
-### Jira MCP
+#### Jira MCP Details
 
-Problem
+##### Jira Problem
 - Query Jira issues via JQL from the same client environment, with auth handled locally.
 
-Solution
+##### Jira Solution
 - `tool: jira_search` and `tool: jira_self` proxied to Jira REST with credentials from env or `config/jira.json`.
 
-Approach
+##### Jira Approach
 - Validate config on boot; map JQL + pagination to REST; limit fields; return concise JSON to clients.
 
-Diagram
+##### Jira Diagram
 ```mermaid
 sequenceDiagram
   participant IDE as Client
@@ -413,11 +403,11 @@ sequenceDiagram
   J-->>IDE: results
 ```
 
-Commands
+##### Jira Commands
 - Run on host: `MCP_SERVICE=jira SAVANT_PATH=$(pwd) SETTINGS_PATH=config/settings.json ruby ./bin/mcp_server`
 - Test: ``make jira-test jql='project = ABC order by updated desc' limit=10``
 
-Tools (REST API v3)
+##### Jira Tools (REST API v3)
 - jira_search: JQL search with pagination.
   - Input: `{ jql: string, limit?: number, start_at?: number }`
   - Output: `[ { key, summary, status, assignee, updated, url } ]`
