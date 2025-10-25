@@ -3,4 +3,24 @@
 
 require_relative '../lib/savant/mcp_server'
 
-Savant::MCPServer.new.start
+transport = nil
+host = nil
+port = nil
+path = nil
+
+ARGV.each do |arg|
+  if arg.start_with?('--transport=')
+    transport = arg.split('=', 2)[1]
+  elsif arg.start_with?('--host=')
+    host = arg.split('=', 2)[1]
+  elsif arg.start_with?('--port=')
+    port = arg.split('=', 2)[1]
+  elsif arg.start_with?('--path=')
+    path = arg.split('=', 2)[1]
+  elsif ['--help', '-h'].include?(arg)
+    puts 'Usage: bin/mcp_server [--transport=stdio|websocket] [--host=HOST] [--port=PORT] [--path=/mcp]'
+    exit 0
+  end
+end
+
+Savant::MCPServer.new(transport: transport, host: host, port: port, path: path).start

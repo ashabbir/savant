@@ -55,9 +55,7 @@ module Savant
                 stat = File.stat(abs)
                 if too_large?(stat.size)
                   skipped += 1
-                  if verbose
-                    @log.debug("skip: item=#{rel} reason=too_large size=#{stat.size}B max=#{@config.max_bytes}B")
-                  end
+                  @log.debug("skip: item=#{rel} reason=too_large size=#{stat.size}B max=#{@config.max_bytes}B") if verbose
                   next
                 end
 
@@ -98,9 +96,7 @@ module Savant
                 changed += 1
                 processed += 1
                 pct = files.length.positive? ? ((processed.to_f / files.length) * 100).round : 100
-                if verbose
-                  @log.info("progress: repo=#{repo['name']} item=#{rel} done=#{processed}/#{files.length} (~#{pct}%)")
-                end
+                @log.info("progress: repo=#{repo['name']} item=#{rel} done=#{processed}/#{files.length} (~#{pct}%)") if verbose
               rescue StandardError => e
                 skipped += 1
                 @log.info("skip: item=#{rel} reason=error class=#{e.class} msg=#{e.message.inspect}") if verbose
@@ -111,9 +107,7 @@ module Savant
             begin
               @store.cleanup_missing(repo_id, kept)
             rescue StandardError => e
-              if verbose
-                @log.info("skip: repo=#{repo['name']} reason=cleanup_error class=#{e.class} msg=#{e.message.inspect}")
-              end
+              @log.info("skip: repo=#{repo['name']} reason=cleanup_error class=#{e.class} msg=#{e.message.inspect}") if verbose
             end
           end
 

@@ -83,14 +83,10 @@ Getting Started
 Not In Scope
 - This overview excludes the Memory Bank Resource PRD; see docs for broader product context.
 
-Autonomous Coding Flow (PRD → Branch → Plan → Implement)
+Developer Flow (PRD → Branch → Plan → TDD Implement -> commit -> push)
 
 Overview
 - The Codex agent can autonomously turn a PRD into a branch with implemented code and tests in one run. It creates a branch from the PRD name, writes an implementation plan back into the PRD, makes the changes, runs RuboCop and tests, then commits and pushes.
-
-How To Start
-- Command: `bin/dev_agent implement <path-to-prd>`
-- Example: `bin/dev_agent implement AGENTS.md`
 
 Defaults and Options
 - Branch: `feature/<prd-slug>` (override with `--branch-prefix`)

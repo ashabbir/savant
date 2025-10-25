@@ -37,10 +37,13 @@ module Savant
       end
 
       def create_issue(projectKey:, summary:, issuetype:, description: nil, fields: {})
-        payload = { fields: fields.merge({ 'project' => { 'key' => projectKey }, 'summary' => summary,
-                                           'issuetype' => { 'name' => issuetype } }.tap do |h|
-          h['description'] = description if description
-        end) }
+        base = {
+          'project' => { 'key' => projectKey },
+          'summary' => summary,
+          'issuetype' => { 'name' => issuetype }
+        }
+        base['description'] = description if description
+        payload = { fields: fields.merge(base) }
         res = @c.post('/rest/api/3/issue', payload.to_json)
         { key: res['key'], url: "#{@c.base_url}/browse/#{res['key']}" }
       end
