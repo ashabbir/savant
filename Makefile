@@ -1,4 +1,4 @@
-.PHONY: dev logs down ps migrate fts smoke mcp-test jira-test jira-self test \
+.PHONY: dev logs down ps migrate fts smoke mcp-test jira-test jira-self \
   repo-index-all repo-index-repo repo-delete-all repo-delete-repo repo-status
 
 # Ensure rbenv shims take precedence in Make subshells
@@ -59,9 +59,3 @@ jira-test:
 jira-self:
     @sh -lc 'printf "{\"tool\":\"jira_self\"}\n" | SAVANT_PATH=$(PWD) $(HOME)/.rbenv/shims/bundle exec ruby ./bin/mcp_server'
 
-test:
-	@sh -lc 'if command -v bundle >/dev/null 2>&1; then bundle exec rspec; \
-  elif [ -x "$$HOME/.rbenv/shims/bundle" ]; then "$$HOME/.rbenv/shims/bundle" exec rspec; \
-  else rspec; fi'
-
- 

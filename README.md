@@ -775,13 +775,12 @@ sequenceDiagram
 | `mcp-test` | Run Context MCP fts/search via stdio | `q='<term>' [repo=<name>] [limit=5]` |
 | `jira-test` | Run Jira JQL search via stdio | `jql='<JQL>' [limit=10]` |
 | `jira-self` | Verify Jira credentials | — |
-| `test` | Run RSpec | Bundler or system RSpec |
 
 ## Development & Tests
 
 Run tests (host):
 - Install dev/test gems: `bundle install --with development test`
-- Run: `bundle exec rspec` (or `make test`)
+- Run: `bundle exec rspec`
 - Optional: start Guard to re-run specs on file changes with `bundle exec guard`
 - Check style locally with `bundle exec rubocop`
 
