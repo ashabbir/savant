@@ -3,6 +3,7 @@
 
 require 'json'
 require 'time'
+require 'fileutils'
 
 #
 # Purpose: Minimal, fast logger with levels and timing.
@@ -16,14 +17,16 @@ module Savant
   class Logger
     LEVELS = %w[trace debug info warn error].freeze
 
-    # Options: io:, level:, json:, service:, tool:
-    def initialize(io: $stdout, level: :info, json: true, service: nil, tool: nil)
+    # Options: io:, file_path:, level:, json:, service:, tool:
+    def initialize(io: $stdout, file_path: nil, level: :info, json: true, service: nil, tool: nil)
       @io = io
+      @file_path = file_path
       @json = json
       @level = level.to_s
       @service = service
       @tool = tool
       @slow_threshold_ms = (ENV['SLOW_THRESHOLD_MS'] || '2000').to_i
+      @file_io = init_file_io(file_path)
     end
 
     def level_enabled?(lvl)
@@ -57,10 +60,12 @@ module Savant
       }
       data = base.merge(symbolize_keys(payload))
       if @json
-        @io.puts(JSON.generate(data))
+        line = JSON.generate(data)
       else
-        @io.puts(format_text(data))
+        line = format_text(data)
       end
+      @io.puts(line) if @io
+      @file_io&.puts(line)
     end
 
     def symbolize_keys(h)
@@ -75,6 +80,15 @@ module Savant
 
     def current_time_ms
       (Process.clock_gettime(Process::CLOCK_MONOTONIC) * 1000).to_i
+    end
+
+    def init_file_io(path)
+      return nil unless path && !path.to_s.empty?
+      dir = File.dirname(path)
+      FileUtils.mkdir_p(dir) unless Dir.exist?(dir)
+      File.open(path, 'a')
+    rescue StandardError
+      nil
     end
   end
 end
