@@ -1,40 +1,287 @@
 # Savant
 
-Savant is a lightweight Ruby framework for building and running local MCP services.  
-The Savant core boots a single MCP server, loads an engine, and handles all transport,
-logging, config, and dependency wiring. Each engine you mount becomes its own MCP
-service, so `MCP_SERVICE=context` launches the Context MCP, `MCP_SERVICE=jira` launches
-the Jira MCP, and custom engines plug in the exact same way.
+Savant is a lightweight Ruby framework for building and running local MCP services. The core boots a single MCP server, loads an engine, and handles transport, logging, config, and dependency wiring. Each engine you mount becomes its own MCP service, so `MCP_SERVICE=context` launches the Context MCP, `MCP_SERVICE=jira` launches the Jira MCP, and custom engines plug in the same way.
 
 ## Table of Contents
-- [Chapter 1 – Introduction](#chapter-1--introduction)
-  - [Core Concepts](#core-concepts)
-- [Chapter 2 – Building Engines](#chapter-2--building-engines)
-  - [Building Engines with Savant](#building-engines-with-savant)
-  - [Generator](#generator)
-  - [Mounting an Engine](#mounting-an-engine)
-  - [Using Engines in Editors](#using-engines-in-editors)
-  - [Environment Variables (Engines)](#environment-variables-engines)
-  - [Raw MCP (no Docker)](#raw-mcp-no-docker)
-- [Chapter 3 – Running Savant](#chapter-3--running-savant)
-  - [Overview](#overview)
-  - [Runtime Modes](#runtime-modes)
-  - [HTTP Transport](#http-transport)
-- [Chapter 4 – Configuration](#chapter-4--configuration)
-  - [Indexer-Specific Settings](#indexer-specific-settings)
-  - [Environment Variables](#environment-variables)
-  - [Project Layout](#project-layout)
-  - [Jira Configuration](#jira-configuration)
-- [Chapter 5 – Built-in Engines](#chapter-5--built-in-engines)
-  - [Running Engines (Host)](#running-engines-host)
-  - [Context Engine (Context MCP)](#context-engine-context-mcp)
-    - [Indexer (Context Engine)](#indexer-context-engine)
-      - [Indexer Problem](#indexer-problem)
-      - [Indexer Solution](#indexer-solution)
-      - [Indexer Approach](#indexer-approach)
-      - [Indexer Diagram](#indexer-diagram)
-      - [Indexer Commands](#indexer-commands)
-  - [Jira Engine (Jira MCP)](#jira-engine-jira-mcp)
+- Chapter 1 – Introduction
+- Chapter 2 – Getting Started
+- Chapter 3 – Framework
+  - 3.1 Transport Layer
+  - 3.2 Tool Registrar and Middleware
+  - 3.3 Runtime and Services
+- Chapter 4 – Engines
+- Chapter 5 – Current Engines
+  - 5.1 Context
+  - 5.2 Jira
+- Chapter 6 – Scaffolding an Engine
+- Chapter 7 – IDE Integration
+- Chapter 8 – Additional Information
+- Chapter 9 – Future Work
+
+## Chapter 1 – Introduction
+- What Savant is: a small, focused framework to build MCP-compatible services that run locally and speak JSON-RPC over stdio or HTTP.
+- Problems it solves: consistent transport, robust logging, strict schemas, and editor-friendly integration without exposing secrets or raw DB access.
+- High-level architecture: optional Indexer writes repo content into Postgres; engines expose tools; the framework hosts exactly one engine per server process.
+- When to use: need fast private code search or Jira access via MCP; want a minimal Ruby stack with batteries-included DX.
+
+## Chapter 2 – Getting Started
+- Prerequisites: Ruby + Bundler, Docker (optional), Postgres (local or Docker).
+- Configure settings: copy `config/settings.example.json` to `config/settings.json` and adjust repos, DB URL, and engine settings. See `config/schema.json`.
+- Start an engine (stdio, default):
+  ```bash
+  # DB + FTS (if using Context)
+  make migrate && make fts
+  # Index repos (Context)
+  make repo-index-all
+  # Run server (stdio)
+  MCP_SERVICE=context bundle exec ruby ./bin/mcp_server
+  ```
+- Start an engine (HTTP transport):
+  ```bash
+  MCP_SERVICE=context LISTEN_HOST=0.0.0.0 LISTEN_PORT=8765 \
+    bundle exec ruby ./bin/mcp_server --http
+  ```
+- Start via Docker (Postgres + Indexer):
+  ```bash
+  docker compose build && make dev
+  make repo-index-all
+  ```
+- Quick verification: run `make mcp-test q='User'` or invoke a JSON-RPC call against the HTTP endpoint.
+
+## Chapter 3 – Framework
+- What it is: a host for a single active engine that provides transport, tool registration, config, logging, and optional DB wiring.
+- Why it’s needed: normalizes MCP boilerplate, encourages strict schemas and observability, and makes engines portable across editors and runtimes.
+- How it helps: stdio/HTTP transports, a declarative tool DSL with middleware, simple DI for config/logger/db, and structured logs.
+
+### 3.1 Transport Layer
+- Stdio JSON-RPC 2.0 compatible with editors like Cline/Claude Code.
+- HTTP JSON-RPC optional mode for network testing and service embedding. See Chapter 7 for end-to-end HTTP example and curl snippet.
+- WebSocket transport supported with JSON-RPC framing over ws://. See Chapter 7 for a minimal WebSocket client example.
+
+### 3.2 Tool Registrar and Middleware
+- Tool DSL: declare `tool 'ns/name'` with JSON schema and Ruby handler.
+- Middleware: layer validation, timing, logging, and auth consistently.
+
+### 3.3 Runtime and Services
+- Engine loading via `MCP_SERVICE=<engine>`; convention maps to `lib/savant/<engine>`.
+- Engine DI: `db`, `config`, `logger` accessible inside handlers.
+
+## Chapter 4 – Engines
+- What engines are: self-contained MCP implementations exposing tools (namespaces, schemas, handlers).
+- Why they exist: separation of concerns, reuse, and clean integration with editors.
+- How to start: select via `MCP_SERVICE`, set required env vars, then run `bin/mcp_server`.
+- Benefits: encapsulation of domain logic, consistent transport, and easy local-first workflows.
+
+## Chapter 5 – Current Engines
+
+### 5.1 Context
+- Purpose: Fast, ranked repo search via Postgres FTS populated by the Indexer.
+- Workflow: Indexer scans repos, dedupes blobs, chunks content, writes to DB; Context engine queries FTS and returns ranked snippets.
+
+Variables (env/config)
+
+| Key | Purpose | Example/Default |
+|---|---|---|
+| `DATABASE_URL` | Postgres connection string | `postgres://context:contextpw@localhost:5432/contextdb` |
+| `SETTINGS_PATH` | Config path | `config/settings.json` |
+| `SAVANT_PATH` | Repo base for logs/config | `./` |
+| `LOG_LEVEL` | Logging level | `info` |
+| `LISTEN_HOST` | HTTP transport host | `0.0.0.0` |
+| `LISTEN_PORT` | HTTP transport port | `8765` |
+
+Make commands
+
+| Command | Description | Example |
+|---|---|---|
+| `make migrate` | Recreate DB schema | `make migrate` |
+| `make fts` | Ensure FTS index | `make fts` |
+| `make repo-index-all` | Index all repos | `make repo-index-all` |
+| `make repo-status` | Show per-repo stats | `make repo-status` |
+| `make mcp-test` | Test FTS search | `make mcp-test q='User' [repo=<name>] [limit=5]` |
+
+Ruby commands
+
+| Command | Purpose |
+|---|---|
+| `bundle exec ruby ./bin/mcp_server` (with `MCP_SERVICE=context`) | Run Context MCP over stdio |
+| `bundle exec ruby ./bin/mcp_server --http` | Run HTTP JSON-RPC (use `LISTEN_HOST/PORT`) |
+
+Docker commands
+
+| Command | Purpose |
+|---|---|
+| `docker compose build && make dev` | Build containers and start Postgres |
+| `make repo-index-all` | Index repos in containers |
+
+### 5.2 Jira
+- Purpose: Jira JQL search and self-check tools via Jira REST v3.
+- Workflow: Engine calls Jira REST with credentials from env or config; returns issues and metadata.
+
+Variables (env/config)
+
+| Key | Purpose | Example/Default |
+|---|---|---|
+| `JIRA_BASE_URL` | Jira base URL | `https://your.atlassian.net` |
+| `JIRA_EMAIL` / `JIRA_API_TOKEN` | Jira Cloud credentials | — |
+| `JIRA_USERNAME` / `JIRA_PASSWORD` | Jira Server credentials | — |
+| `JIRA_CONFIG_PATH` | Path to Jira config JSON | `config/jira.json` |
+| `LOG_LEVEL` | Logging level | `info` |
+
+Make commands
+
+| Command | Description | Example |
+|---|---|---|
+| `make jira-test` | Run a JQL search | `make jira-test jql='project = ABC order by updated desc' [limit=10]` |
+| `make jira-self` | Verify auth | `make jira-self` |
+
+Ruby commands
+
+| Command | Purpose |
+|---|---|
+| `MCP_SERVICE=jira bundle exec ruby ./bin/mcp_server` | Run Jira MCP over stdio |
+
+Docker commands
+
+| Command | Purpose |
+|---|---|
+| `docker compose run --rm -T mcp-jira` | Run in a container (if defined) |
+
+## Chapter 6 – Scaffolding an Engine
+- Use the generator CLI to scaffold a new engine and optional DB wiring:
+  ```bash
+  bundle exec ruby ./bin/savant generate engine myengine [--with-db]
+  ```
+- Resulting layout: `lib/savant/myengine/{engine.rb,ops.rb,tools.rb}` with registrar, schemas, and handlers.
+- Add tools: declare with the DSL, provide JSON schema, implement handler in `ops`.
+- Test and run: `bundle exec rubocop -A` and `bundle exec rspec` (if present), then run with `MCP_SERVICE=myengine`.
+
+## Chapter 7 – IDE Integration
+- Overview: Editors launch Savant as a child process and communicate via stdio using JSON-RPC 2.0. No ports required. Alternatively, you can run HTTP mode for testing.
+
+### Cline (VS Code) – Stdio
+- Settings JSON example (User or Workspace settings):
+  ```jsonc
+  {
+    "cline.mcpServers": {
+      "Savant (Context)": {
+        "command": "bash",
+        "args": ["-lc", "MCP_SERVICE=context SAVANT_PATH=${workspaceFolder} DATABASE_URL=postgres://context:contextpw@localhost:5432/contextdb bundle exec ruby ./bin/mcp_server"],
+        "env": {
+          "LOG_LEVEL": "info"
+        }
+      },
+      "Savant (Jira)": {
+        "command": "bash",
+        "args": ["-lc", "MCP_SERVICE=jira SAVANT_PATH=${workspaceFolder} bundle exec ruby ./bin/mcp_server"],
+        "env": {
+          "JIRA_BASE_URL": "https://your.atlassian.net"
+        }
+      }
+    }
+  }
+  ```
+- How it runs: Cline spawns the command, sends JSON-RPC over stdio, and lists tools from `tools/list`. Your queries route to `tools/call`.
+
+### Cline (VS Code) – Docker
+- Use containers defined in `docker-compose.yml` to keep deps isolated:
+  ```jsonc
+  {
+    "cline.mcpServers": {
+      "Savant (Context-Docker)": {
+        "command": "docker",
+        "args": ["compose", "run", "--rm", "-T", "mcp-context"]
+      },
+      "Savant (Jira-Docker)": {
+        "command": "docker",
+        "args": ["compose", "run", "--rm", "-T", "mcp-jira"]
+      }
+    }
+  }
+  ```
+- How it runs: Cline talks stdio to the container’s process. Compose mounts your repo and injects env per service config.
+
+### Claude Code (VS Code)
+- Settings example (may vary by version):
+  ```jsonc
+  {
+    "mcpServers": {
+      "savant-context": {
+        "command": "bash",
+        "args": ["-lc", "MCP_SERVICE=context SAVANT_PATH=${workspaceFolder} DATABASE_URL=postgres://context:contextpw@localhost:5432/contextdb bundle exec ruby ./bin/mcp_server"]
+      },
+      "savant-jira": {
+        "command": "bash",
+        "args": ["-lc", "MCP_SERVICE=jira SAVANT_PATH=${workspaceFolder} bundle exec ruby ./bin/mcp_server"]
+      }
+    }
+  }
+  ```
+- How it runs: Claude Code launches the process and communicates via stdio. Tools appear in its MCP panel; invoke them directly or via chat.
+
+### GPT/Codex-style MCP Clients
+- Stdio mode (preferred): run `MCP_SERVICE=<engine> bundle exec ruby ./bin/mcp_server` and configure the client to connect via stdio.
+- HTTP mode (optional for testing): run `bundle exec ruby ./bin/mcp_server --http` with `LISTEN_HOST/PORT`, then point your client at the JSON-RPC endpoint.
+- How it talks: the client sends `initialize`, then `tools/list` and `tools/call` per the MCP/JSON-RPC contract.
+
+### Quick Start Checklist
+- Ensure `config/settings.json` exists and Postgres is reachable (for Context).
+- Verify indexing completed: `make repo-status` and `make repo-index-all` if needed.
+- Use stdio commands in your editor settings; prefer absolute DB URLs in dev.
+- Check logs under `logs/<service>.log` or console for troubleshooting.
+
+### HTTP Transport Example
+- Start server (Context) over HTTP:
+  ```bash
+  MCP_SERVICE=context LISTEN_HOST=0.0.0.0 LISTEN_PORT=8765 \
+    bundle exec ruby ./bin/mcp_server --http
+  ```
+- Call a tool via curl:
+  ```bash
+  curl -s http://localhost:8765/jsonrpc \
+    -H 'content-type: application/json' \
+    -d '{
+      "jsonrpc":"2.0",
+      "id":1,
+      "method":"tools/call",
+      "params":{
+        "name":"fts/search",
+        "arguments":{"q":"User","limit":5}
+      }
+    }'
+  ```
+- Expected response: JSON-RPC 2.0 with `result` containing hits.
+
+### WebSocket Transport Example
+- Start server (Context) over WebSocket:
+  ```bash
+  MCP_SERVICE=context LISTEN_HOST=127.0.0.1 LISTEN_PORT=8765 \
+    bundle exec ruby ./bin/mcp_server --websocket
+  ```
+- Connect with a WebSocket client (Node.js example):
+  ```js
+  import WebSocket from 'ws';
+
+  const ws = new WebSocket('ws://127.0.0.1:8765/jsonrpc');
+  ws.on('open', () => {
+    ws.send(JSON.stringify({
+      jsonrpc: '2.0', id: 1, method: 'tools/list'
+    }));
+  });
+  ws.on('message', (msg) => {
+    console.log('message:', msg.toString());
+  });
+  ```
+- Message format: same JSON-RPC payloads as HTTP; path `/jsonrpc` by default.
+
+## Chapter 8 – Additional Information
+- Project layout: `docs/`, `config/`, `bin/`, `docker-compose.yml`; generator at `bin/savant`.
+- Database notes: run `make migrate && make fts`; index with `make repo-index-all`.
+- Ports: Context `8765`, Jira `8766` (for HTTP mode and Docker debugging; stdio does not require ports).
+- Troubleshooting: tail with `make logs`; ensure `chmod +x bin/*`; reset DB with `docker compose down -v` then `make dev && make migrate && make fts`.
+
+## Chapter 9 – Future Work
+- Upcoming features informed by PRDs: richer resources and memory bank, improved editor UX, additional transports and auth strategies.
+- Roadmap: stability of core framework, more built-in tools, and expanded scaffolding options.
 
 ## Chapter 1 – Introduction
 
