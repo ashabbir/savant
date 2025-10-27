@@ -4,7 +4,7 @@ require 'spec_helper'
 
 RSpec.describe Savant::Middleware::Logging do
   let(:io) { StringIO.new }
-  let(:logger) { Savant::Logger.new(io: io, json: true, service: 'test') }
+  let(:logger) { Savant::Logger.new(io: io, level: :trace, json: true, service: 'test') }
   let(:app) do
     ->(_ctx, _tool, _payload) { { ok: true } }
   end
