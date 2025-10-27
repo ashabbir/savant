@@ -18,7 +18,7 @@ module Savant
       def start
         cfg = load_settings(@base_path)
         core_file = cfg.dig('logging', 'core_file_path')
-        engine_file = resolve_engine_file(cfg, @service)
+        resolve_engine_file(cfg, @service)
 
         log = prepare_logger(@service, @base_path, file_path: core_file)
         log.info(event: 'boot', mode: 'stdio', service: @service, message: 'tools=loading')
@@ -55,8 +55,8 @@ module Savant
          end)
       end
 
-      def prepare_logger(service, base_path, file_path: nil)
-        Savant::Logger.new(io: $stdout, file_path: file_path, level: (ENV['LOG_LEVEL'] || 'info'), json: true, service: service)
+      def prepare_logger(service, _base_path, file_path: nil)
+        Savant::Logger.new(io: $stdout, file_path: file_path, level: ENV['LOG_LEVEL'] || 'info', json: true, service: service)
       end
 
       def load_settings(base_path)
@@ -69,6 +69,7 @@ module Savant
       def resolve_engine_file(cfg, service)
         ef = cfg.dig('logging', 'engine_file_path')
         return nil unless ef
+
         if ef.end_with?('/') || File.extname(ef).empty? && !File.exist?(ef)
           File.join(ef, "#{service}.log")
         else

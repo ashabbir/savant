@@ -15,7 +15,7 @@ module Savant
         dur = now_ms - start
         @logger.trace(event: 'tool_end', service: ctx[:service], tool: tool_name, request_id: ctx[:request_id], duration_ms: dur, status: 'ok')
         result
-      rescue => e
+      rescue StandardError => e
         dur = now_ms - start
         @logger.error(event: 'exception', service: ctx[:service], tool: tool_name, request_id: ctx[:request_id], message: e.message, duration_ms: dur)
         raise
@@ -29,4 +29,3 @@ module Savant
     end
   end
 end
-
