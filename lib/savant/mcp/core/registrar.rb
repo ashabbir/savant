@@ -16,8 +16,8 @@ module Savant
           @mw = MiddlewareChain.new
         end
 
-        def use_middleware(&blk)
-          @mw.use(&blk)
+        def use_middleware(&)
+          @mw.use(&)
         end
 
         def add_tool(tool)

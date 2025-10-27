@@ -26,9 +26,9 @@ module Savant
         @logger.debug(msg)
       end
 
-      def with_timing(label:, &block)
+      def with_timing(label:, &)
         if @logger.respond_to?(:with_timing)
-          @logger.with_timing(label: label, &block)
+          @logger.with_timing(label: label, &)
         else
           start = Time.now
           res = yield

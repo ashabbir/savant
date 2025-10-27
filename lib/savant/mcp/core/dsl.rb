@@ -17,8 +17,8 @@ module Savant
             @registrar = Registrar.new
           end
 
-          def middleware(&blk)
-            @registrar.use_middleware(&blk)
+          def middleware(&)
+            @registrar.use_middleware(&)
           end
 
           def tool(name, description: '', schema: nil, &handler)

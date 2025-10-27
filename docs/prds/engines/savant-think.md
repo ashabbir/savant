@@ -38,6 +38,15 @@ flowchart LR
   IE -->|returns| JSON["Instruction JSON"]
 
   classDef comp fill:#f0f7ff,stroke:#1e88e5,stroke-width:1px;
+
+---
+
+## Acceptance + TDD TODO (Compact)
+- Criteria: deterministic workflow interpretation; instruction JSON schema; state checkpoints; driver prompt; editor MCP exposure.
+- TODO:
+  - Red: specs for workflow parsing, state transitions, instruction schemas.
+  - Green: implement interpreter, state manager, driver prompt resource.
+  - Refactor: simplify policies; add examples and docs.
   classDef data fill:#f9fbe7,stroke:#7cb342,stroke-width:1px;
   class MCP,WF,SM,IE,DP comp;
   class YAML,State,JSON data;
