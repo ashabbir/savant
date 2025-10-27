@@ -33,34 +33,36 @@ module Savant
       # @param engine [Savant::Jira::Engine, nil]
       # @return [Savant::MCP::Core::Registrar]
       def build_registrar(engine = nil)
+        log_mw = lambda do |ctx, nm, a, nxt|
+          logger = ctx[:logger] || Savant::Logger.new(io: $stdout, json: true, service: 'jira')
+          start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+          begin
+            logger.trace(event: 'tool_start', tool: nm, request_id: ctx[:request_id])
+            out = nxt.call(ctx, nm, a)
+            dur_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - start) * 1000).round
+            logger.trace(event: 'tool_end', tool: nm, duration_ms: dur_ms, status: 'ok', request_id: ctx[:request_id])
+            out
+          rescue StandardError => e
+            dur_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - start) * 1000).round
+            logger.error(event: 'exception', tool: nm, duration_ms: dur_ms, message: e.message, request_id: ctx[:request_id])
+            raise
+          end
+        end
+
+        require_relative '../mcp/core/validation'
+        validate_mw = lambda do |ctx, nm, a, nxt|
+          schema = ctx[:schema]
+          a2 = begin
+            Savant::MCP::Core::Validation.validate!(schema, a)
+          rescue Savant::MCP::Core::ValidationError => e
+            raise "validation error: #{e.message}"
+          end
+          nxt.call(ctx, nm, a2)
+        end
+
         Savant::MCP::Core::DSL.build do
-          # Structured logging middleware (framework default)
-          middleware do |ctx, nm, a, nxt|
-            logger = ctx[:logger] || Savant::Logger.new(io: $stdout, json: true, service: 'jira')
-            start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-            begin
-              logger.trace(event: 'tool_start', tool: nm, request_id: ctx[:request_id])
-              out = nxt.call(ctx, nm, a)
-              dur_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - start) * 1000).round
-              logger.trace(event: 'tool_end', tool: nm, duration_ms: dur_ms, status: 'ok', request_id: ctx[:request_id])
-              out
-            rescue StandardError => e
-              dur_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - start) * 1000).round
-              logger.error(event: 'exception', tool: nm, duration_ms: dur_ms, message: e.message, request_id: ctx[:request_id])
-              raise
-            end
-          end
-          require_relative '../mcp/core/validation'
-          # Validation middleware
-          middleware do |ctx, nm, a, nxt|
-            schema = ctx[:schema]
-            a2 = begin
-              Savant::MCP::Core::Validation.validate!(schema, a)
-            rescue Savant::MCP::Core::ValidationError => e
-              raise "validation error: #{e.message}"
-            end
-            nxt.call(ctx, nm, a2)
-          end
+          middleware(&log_mw)
+          middleware(&validate_mw)
 
           # Minimal logging
           middleware do |ctx, nm, a, nxt|

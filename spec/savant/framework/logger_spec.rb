@@ -24,7 +24,7 @@ RSpec.describe Savant::Logger do
     logger.trace(event: 'tool_end', duration_ms: 12, status: 'ok')
     io.rewind
     line = io.read
-    expect(line).not_to eq("")
+    expect(line).not_to eq('')
     payload = JSON.parse(line)
     expect(payload['level']).to eq('trace')
     expect(payload['duration_ms']).to eq(12)

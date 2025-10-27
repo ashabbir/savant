@@ -22,19 +22,7 @@ module Savant
       }.freeze
 
       def initialize(service: 'context', host: nil, port: nil, path: nil, max_connections: nil, base_path: nil)
-        @service = service
-        cfg = DEFAULTS.dup
-        cfg[:host] = host if host
-        cfg[:port] = port if port
-        cfg[:path] = path if path
-        cfg[:max_connections] = max_connections if max_connections
-        @host = cfg[:host]
-        @port = Integer(cfg[:port])
-        @path = cfg[:path]
-        @max_connections = Integer(cfg[:max_connections])
-        @base_path = base_path || default_base_path
-        @connections = 0
-        @connections_lock = Mutex.new
+        init_params(service: service, host: host, port: port, path: path, max_connections: max_connections, base_path: base_path)
       end
 
       def start
@@ -64,6 +52,22 @@ module Savant
       end
 
       private
+
+      def init_params(service:, host:, port:, path:, max_connections:, base_path:)
+        @service = service
+        cfg = DEFAULTS.dup
+        cfg[:host] = host if host
+        cfg[:port] = port if port
+        cfg[:path] = path if path
+        cfg[:max_connections] = max_connections if max_connections
+        @host = cfg[:host]
+        @port = Integer(cfg[:port])
+        @path = cfg[:path]
+        @max_connections = Integer(cfg[:max_connections])
+        @base_path = base_path || default_base_path
+        @connections = 0
+        @connections_lock = Mutex.new
+      end
 
       def default_base_path
         (if ENV['SAVANT_PATH'] && !ENV['SAVANT_PATH'].empty?
