@@ -53,6 +53,16 @@ Savant is a lightweight Ruby framework for building and running local MCP servic
 - Why it’s needed: normalizes MCP boilerplate, encourages strict schemas and observability, and makes engines portable across editors and runtimes.
 - How it helps: stdio/HTTP transports, a declarative tool DSL with middleware, simple DI for config/logger/db, and structured logs.
 
+Framework Logger
+- JSON by default to stdout; per-engine and core file sinks are optional.
+- Levels: trace, debug, info, warn, error. Helper: `with_timing`.
+- Configure in `config/settings.json` under `logging`:
+  - `level`: "info" | "debug" | "trace" | "warn" | "error"
+  - `format`: "json" | "text"
+  - `stdout_enabled`: true by default
+  - `core_file_path`: optional (e.g., `logs/savant.log`)
+  - `engine_file_path`: optional dir or file; dir yields `logs/<engine>.log`
+
 ### 3.1 Transport Layer
 - Stdio JSON-RPC 2.0 compatible with editors like Cline/Claude Code.
 - HTTP JSON-RPC optional mode for network testing and service embedding. See Chapter 7 for end-to-end HTTP example and curl snippet.
