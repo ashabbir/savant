@@ -65,8 +65,14 @@ module Savant
              else
                format_text(data)
              end
-      @io&.puts(line)
-      @file_io&.puts(line)
+      if @io
+        @io.puts(line)
+        @io.flush if @io.respond_to?(:flush)
+      end
+      if @file_io
+        @file_io.puts(line)
+        @file_io.flush
+      end
     end
 
     def symbolize_keys(h)

@@ -13,6 +13,7 @@ RSpec.describe Savant::Middleware::Logging do
     mw = described_class.new(app, logger: logger)
     ctx = { service: 'svc', request_id: 'r1' }
     mw.call(ctx, 'tool/demo', {})
+    io.flush if io.respond_to?(:flush)
     io.rewind
     lines = io.read.split("\n").map { |l| JSON.parse(l)['event'] }
     expect(lines).to include('tool_start')
