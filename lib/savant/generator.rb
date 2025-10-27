@@ -58,7 +58,7 @@ module Savant
           module #{mod}
             class Engine
               def initialize
-                @log = Savant::Logger.new(component: '#{mod.downcase}.engine')
+                @log = Savant::Logger.new(io: $stdout, json: true, service: '#{mod.downcase}.engine')
         #{db_init}                @ops = Object.new # replace with real ops
               end
 
