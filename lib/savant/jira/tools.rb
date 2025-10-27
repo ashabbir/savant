@@ -36,7 +36,7 @@ module Savant
         Savant::MCP::Core::DSL.build do
           # Structured logging middleware (framework default)
           middleware do |ctx, nm, a, nxt|
-            logger = (ctx[:logger] || Savant::Logger.new(io: $stdout, json: true, service: 'jira'))
+            logger = ctx[:logger] || Savant::Logger.new(io: $stdout, json: true, service: 'jira')
             start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
             begin
               logger.trace(event: 'tool_start', tool: nm, request_id: ctx[:request_id])
@@ -44,7 +44,7 @@ module Savant
               dur_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - start) * 1000).round
               logger.trace(event: 'tool_end', tool: nm, duration_ms: dur_ms, status: 'ok', request_id: ctx[:request_id])
               out
-            rescue => e
+            rescue StandardError => e
               dur_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - start) * 1000).round
               logger.error(event: 'exception', tool: nm, duration_ms: dur_ms, message: e.message, request_id: ctx[:request_id])
               raise

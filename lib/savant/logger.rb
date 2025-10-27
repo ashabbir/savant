@@ -36,6 +36,7 @@ module Savant
     %w[trace debug info warn error].each do |lvl|
       define_method(lvl) do |payload = {}|
         return unless level_enabled?(lvl)
+
         log(lvl, payload)
       end
     end
@@ -59,18 +60,19 @@ module Savant
         tool: @tool
       }
       data = base.merge(symbolize_keys(payload))
-      if @json
-        line = JSON.generate(data)
-      else
-        line = format_text(data)
-      end
-      @io.puts(line) if @io
+      line = if @json
+               JSON.generate(data)
+             else
+               format_text(data)
+             end
+      @io&.puts(line)
       @file_io&.puts(line)
     end
 
     def symbolize_keys(h)
       return {} unless h
-      h.each_with_object({}) { |(k, v), acc| acc[(k.is_a?(String) ? k.to_sym : k)] = v }
+
+      h.transform_keys { |k| (k.is_a?(String) ? k.to_sym : k) }
     end
 
     def format_text(data)
@@ -84,6 +86,7 @@ module Savant
 
     def init_file_io(path)
       return nil unless path && !path.to_s.empty?
+
       dir = File.dirname(path)
       FileUtils.mkdir_p(dir) unless Dir.exist?(dir)
       File.open(path, 'a')
