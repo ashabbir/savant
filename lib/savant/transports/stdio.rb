@@ -4,6 +4,7 @@
 require_relative '../logger'
 require_relative '../mcp_dispatcher'
 require 'fileutils'
+require_relative '../config'
 
 module Savant
   module Transports
@@ -15,9 +16,13 @@ module Savant
       end
 
       def start
-        log = prepare_logger(@service, @base_path)
+        cfg = load_settings(@base_path)
+        core_file = cfg.dig('logging', 'core_file_path')
+        engine_file = resolve_engine_file(cfg, @service)
+
+        log = prepare_logger(@service, @base_path, file_path: core_file)
         log.info(event: 'boot', mode: 'stdio', service: @service, message: 'tools=loading')
-        log.info(event: 'env', pwd: Dir.pwd, settings_path: File.join(@base_path, 'config', 'settings.json'), log_path: File.join(@base_path, 'logs', "#{@service}.log"))
+        log.info(event: 'env', pwd: Dir.pwd, settings_path: File.join(@base_path, 'config', 'settings.json'))
 
         $stdout.sync = true
         $stderr.sync = true
@@ -50,11 +55,25 @@ module Savant
          end)
       end
 
-      def prepare_logger(service, base_path)
-        log_dir = File.join(base_path, 'logs')
-        FileUtils.mkdir_p(log_dir) unless Dir.exist?(log_dir)
-        log_path = File.join(log_dir, "#{service}.log")
-        Savant::Logger.new(io: $stdout, file_path: log_path, level: (ENV['LOG_LEVEL'] || 'info'), json: true, service: service)
+      def prepare_logger(service, base_path, file_path: nil)
+        Savant::Logger.new(io: $stdout, file_path: file_path, level: (ENV['LOG_LEVEL'] || 'info'), json: true, service: service)
+      end
+
+      def load_settings(base_path)
+        settings_path = File.join(base_path, 'config', 'settings.json')
+        Savant::Config.load(settings_path)
+      rescue StandardError
+        {}
+      end
+
+      def resolve_engine_file(cfg, service)
+        ef = cfg.dig('logging', 'engine_file_path')
+        return nil unless ef
+        if ef.end_with?('/') || File.extname(ef).empty? && !File.exist?(ef)
+          File.join(ef, "#{service}.log")
+        else
+          ef
+        end
       end
     end
   end
