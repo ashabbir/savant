@@ -77,10 +77,14 @@ module Savant
       @file_io.flush
     end
 
-    def symbolize_keys(hash)
-      return {} unless hash
+    def symbolize_keys(payload)
+      return {} if payload.nil?
 
-      hash.transform_keys { |k| (k.is_a?(String) ? k.to_sym : k) }
+      if payload.is_a?(Hash)
+        payload.transform_keys { |k| (k.is_a?(String) ? k.to_sym : k) }
+      else
+        { message: payload.to_s }
+      end
     end
 
     def format_text(data)
