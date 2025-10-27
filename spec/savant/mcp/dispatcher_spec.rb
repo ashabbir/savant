@@ -5,7 +5,7 @@ require_relative '../../../lib/savant/mcp_dispatcher'
 require_relative '../../../lib/savant/logger'
 
 RSpec.describe Savant::MCP::Dispatcher do
-  let(:log) { Savant::Logger.new(component: 'test') }
+  let(:log) { Savant::Logger.new(io: StringIO.new, json: true, service: 'test') }
   let(:dispatcher) { described_class.new(service: 'context', log: log) }
 
   it 'returns parse error for invalid JSON' do

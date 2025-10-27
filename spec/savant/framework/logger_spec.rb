@@ -23,7 +23,9 @@ RSpec.describe Savant::Logger do
   it 'supports trace level and duration fields' do
     logger.trace(event: 'tool_end', duration_ms: 12, status: 'ok')
     io.rewind
-    payload = JSON.parse(io.read)
+    line = io.read
+    expect(line).not_to eq("")
+    payload = JSON.parse(line)
     expect(payload['level']).to eq('trace')
     expect(payload['duration_ms']).to eq(12)
     expect(payload['status']).to eq('ok')
