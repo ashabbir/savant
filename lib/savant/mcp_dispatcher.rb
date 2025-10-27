@@ -11,7 +11,7 @@ module Savant
     # - Validates and handles core MCP methods.
     # - Returns JSON strings (no direct IO) so transports can decide how to send.
     class Dispatcher
-      def initialize(service:, log: Savant::Logger.new(component: 'mcp'))
+      def initialize(service:, log: Savant::Logger.new(io: $stdout, json: true, service: 'savant'))
         @service = service.to_s
         @log = log
         @services = {}
@@ -23,11 +23,11 @@ module Savant
         req = JSON.parse(line)
         return [nil, json(response_error(nil, :invalid_request))] unless req.is_a?(Hash) && req['jsonrpc'].to_s == '2.0' && req['method']
 
-        @log.info("received: method=#{req['method']} id=#{req['id']} params=#{req['params']&.keys}")
+        @log.info(event: 'rpc_received', method: req['method'], id: req['id'], params: req['params']&.keys)
         [req, nil]
       rescue JSON::ParserError => e
         message = "parse_error: #{e.message} line=#{line[0..100]}"
-        @log.error(message)
+        @log.error(event: 'parse_error', message: message)
         [nil, json(response_error(nil, :parse_error, message: message))]
       end
 
@@ -69,10 +69,12 @@ module Savant
           args = params['arguments'] || {}
           begin
             svc = load_service(@service)
-            data = svc[:registrar].call(name, args, ctx: { engine: svc[:engine], request_id: id })
+            ctx = { engine: svc[:engine], request_id: id, service: @service, logger: Savant::Logger.new(io: $stdout, json: true, service: @service) }
+            data = svc[:registrar].call(name, args, ctx: ctx)
             content = [{ type: 'text', text: JSON.pretty_generate(data) }]
             json(response_ok(id, { content: content }))
           rescue StandardError => e
+            @log.error(event: 'tool_error', tool: name, message: e.message)
             json(response_error(id, :internal_error, message: e.message))
           end
         else
