@@ -106,3 +106,12 @@ lib/savant/
 **Author:** Ahmed Shabbir  
 **Date:** Oct 2025  
 **Status:** PRD v1 — Tool System & Interoperability
+
+---
+
+## Acceptance + TDD TODO (Compact)
+- Criteria: tool discovery/validation; interop contracts; registry exposure and invocation.
+- TODO:
+  - Red: specs for tool metadata, validation, discovery ordering.
+  - Green: implement registry APIs and validation; invocation pipeline.
+  - Refactor: consolidate error handling and docs.

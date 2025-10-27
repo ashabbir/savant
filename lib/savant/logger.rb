@@ -1,6 +1,9 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
+require 'json'
+require 'time'
+
 #
 # Purpose: Minimal, fast logger with levels and timing.
 #
@@ -9,20 +12,17 @@
 # `SLOW_THRESHOLD_MS`. Defaults to stdout but accepts any IO for writing.
 
 module Savant
-  # Minimal component logger with levels and timing.
-  #
-  # Purpose: Provide a lightweight, dependency-free logger suitable for CLI and
-  # MCP servers. Supports level filtering via `LOG_LEVEL` and timing via
-  # `with_timing`, marking slow operations using `SLOW_THRESHOLD_MS`.
+  # Structured logger with levels, JSON formatting, and timing.
   class Logger
-    LEVELS = %w[debug info warn error].freeze
+    LEVELS = %w[trace debug info warn error].freeze
 
-    # @param component [String] label included in every log line.
-    # @param out [IO] output stream (defaults to `$stdout`).
-    def initialize(component:, out: $stdout)
-      @component = component
-      @out = out
-      @level = (ENV['LOG_LEVEL'] || 'info').downcase
+    # Options: io:, level:, json:, service:, tool:
+    def initialize(io: $stdout, level: :info, json: true, service: nil, tool: nil)
+      @io = io
+      @json = json
+      @level = level.to_s
+      @service = service
+      @tool = tool
       @slow_threshold_ms = (ENV['SLOW_THRESHOLD_MS'] || '2000').to_i
     end
 
@@ -30,41 +30,47 @@ module Savant
       LEVELS.index(lvl) >= LEVELS.index(@level)
     end
 
-    def debug(msg)
-      log('debug', msg) if level_enabled?('debug')
+    %w[trace debug info warn error].each do |lvl|
+      define_method(lvl) do |payload = {}|
+        return unless level_enabled?(lvl)
+        log(lvl, payload)
+      end
     end
 
-    def info(msg)
-      log('info', msg) if level_enabled?('info')
-    end
-
-    def warn(msg)
-      log('warn', msg) if level_enabled?('warn')
-    end
-
-    def error(msg)
-      log('error', msg)
-    end
-
-    # Measure the duration of a block and log it.
-    # @param label [String] prefix label for the timing log.
-    # @return [Array(Object,Integer)] pair of [block_result, duration_ms]
     def with_timing(label: nil)
       start = current_time_ms
       result = yield
       dur = current_time_ms - start
       slow = dur > @slow_threshold_ms
-      suffix = " dur=#{dur}ms"
-      suffix += " slow=true threshold_ms=#{@slow_threshold_ms}" if slow
-      info([label, suffix].compact.join(':')) if label
+      trace(event: label || 'timing', duration_ms: dur, slow: slow)
       [result, dur]
     end
 
     private
 
-    def log(level, msg)
-      ts = Time.now.utc.strftime('%H:%M:%SZ')
-      @out.puts("[#{@component}] #{level}: #{msg} @#{ts}")
+    def log(level, payload)
+      base = {
+        timestamp: Time.now.utc.iso8601,
+        level: level,
+        service: @service,
+        tool: @tool
+      }
+      data = base.merge(symbolize_keys(payload))
+      if @json
+        @io.puts(JSON.generate(data))
+      else
+        @io.puts(format_text(data))
+      end
+    end
+
+    def symbolize_keys(h)
+      return {} unless h
+      h.each_with_object({}) { |(k, v), acc| acc[(k.is_a?(String) ? k.to_sym : k)] = v }
+    end
+
+    def format_text(data)
+      msg = data[:message] || data[:event]
+      "#{data[:timestamp]} #{data[:level]} #{data[:service]} #{data[:tool]} #{msg}"
     end
 
     def current_time_ms

@@ -113,3 +113,16 @@ lib/savant/
 **Author:** Ahmed Shabbir  
 **Date:** Oct 2025  
 **Status:** PRD v1 — Core Runtime
+
+---
+
+## Acceptance + TDD TODO (Compact)
+- Criteria: boots via `MCP_SERVICE`; auto tool registry; shared `ctx`; lifecycle hooks; middleware; CLI+config functional.
+- TODO:
+  - Red: specs for `Savant::Engine`, `Tool`, `Context` lifecycles and registry.
+  - Red: middleware contract (call/next), hooks `before_call`/`after_call`.
+  - Red: CLI smoke (`savant list tools`, `savant call` dry-run); config loader.
+  - Green: implement base classes, registry discovery, DI context wiring.
+  - Green: implement middleware stack and hook execution order.
+  - Green: minimal CLI commands and config loader integration.
+  - Refactor: align naming and directory structure; add docs.
