@@ -1,4 +1,4 @@
-# 🧾 PRD — Savant Logging Framework
+# 🧾 PRD — Savant Framework: Logging
 
 > **Goal:** Evolve `logger` from a utility into a *core, observable, and queryable telemetry subsystem* — fully integrated into the Savant engine and accessible across all MCPs.
 
@@ -198,3 +198,16 @@ logging:
 - [ ] `logger/query` tool returns structured results  
 - [ ] Configurable via `savant.yml`  
 - [ ] Unit tests for log creation, storage, and query  
+
+---
+
+## Acceptance + TDD TODO (Compact)
+- Criteria: ctx.logger everywhere; JSON logs; auto middleware; Postgres/stdout persistence; `logger/query`; configurable; tests.
+- TODO:
+  - Red: add `Savant::Framework::Logger`, DI via `ctx.logger` (spec first).
+  - Red: migration `savant_logs` and model; query API; tool `logger/query` specs.
+  - Red: middleware to emit start/end/duration; configuration loader for logging.
+  - Green: implement logger JSON formatter, Postgres writer, stdout sink.
+  - Green: implement query tool and summarize; wire into CLI if needed.
+  - Refactor: extract shared context fields; ensure minimal coupling.
+  - Tests: unit specs for formatter, DB writes/reads, middleware timing, config toggles.

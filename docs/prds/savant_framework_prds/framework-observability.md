@@ -99,3 +99,12 @@ lib/savant/
 **Author:** Ahmed Shabbir  
 **Date:** Oct 2025  
 **Status:** PRD v1 — Observability & Security
+
+---
+
+## Acceptance + TDD TODO (Compact)
+- Criteria: diagnostics hooks; security policies; governance controls as defined in PRD.
+- TODO:
+  - Red: specs for diagnostics events, policy enforcement, audit trails.
+  - Green: implement hooks/policies; integrate with core middleware.
+  - Refactor: unify config surface and docs.
