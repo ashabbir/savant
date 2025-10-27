@@ -16,21 +16,17 @@ module Savant
 
       def start
         log = prepare_logger(@service, @base_path)
-        log.info('=' * 80)
-        log.info("start: mode=stdio service=#{@service} tools=loading")
-        log.info("pwd=#{Dir.pwd}")
-        log.info("settings_path=#{File.join(@base_path, 'config', 'settings.json')}")
-        log.info("log_path=#{File.join(@base_path, 'logs', "#{@service}.log")}")
+        log.info(event: 'boot', mode: 'stdio', service: @service, message: 'tools=loading')
+        log.info(event: 'env', pwd: Dir.pwd, settings_path: File.join(@base_path, 'config', 'settings.json'), log_path: File.join(@base_path, 'logs', "#{@service}.log"))
 
         $stdout.sync = true
         $stderr.sync = true
         $stdin.sync = true
 
         dispatcher = Savant::MCP::Dispatcher.new(service: @service, log: log)
-        log.info('buffers synced, waiting for requests...')
-        log.info('=' * 80)
+        log.info(event: 'ready', message: 'buffers synced, waiting for requests...')
         while (line = $stdin.gets)
-          log.info("raw_input: #{line.strip[0..200]}")
+          log.trace(event: 'raw_input', preview: line.strip[0..200])
           req, err_json = dispatcher.parse(line)
           if err_json
             warn(err_json)
@@ -40,8 +36,8 @@ module Savant
           puts response_json
         end
       rescue Interrupt
-        log = Savant::Logger.new(component: 'mcp')
-        log.info('shutdown from Interrupt')
+        log = Savant::Logger.new(io: $stdout, file_path: File.join(@base_path, 'logs', "#{@service}.log"), level: :info, json: true, service: @service)
+        log.info(event: 'shutdown', reason: 'Interrupt')
       end
 
       private
@@ -58,9 +54,7 @@ module Savant
         log_dir = File.join(base_path, 'logs')
         FileUtils.mkdir_p(log_dir) unless Dir.exist?(log_dir)
         log_path = File.join(log_dir, "#{service}.log")
-        log_io = File.open(log_path, 'a')
-        log_io.sync = true
-        Savant::Logger.new(component: 'mcp', out: log_io)
+        Savant::Logger.new(io: $stdout, file_path: log_path, level: (ENV['LOG_LEVEL'] || 'info'), json: true, service: service)
       end
     end
   end

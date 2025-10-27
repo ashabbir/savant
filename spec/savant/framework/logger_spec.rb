@@ -27,4 +27,3 @@ RSpec.describe Savant::Logger do
     expect(payload['status']).to eq('ok')
   end
 end
-
