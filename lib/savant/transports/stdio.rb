@@ -41,7 +41,8 @@ module Savant
           puts response_json
         end
       rescue Interrupt
-        log = Savant::Logger.new(io: $stdout, file_path: File.join(@base_path, 'logs', "#{@service}.log"), level: :info, json: true, service: @service)
+        log = Savant::Logger.new(io: $stdout, file_path: File.join(@base_path, 'logs', "#{@service}.log"),
+                                 level: :info, json: true, service: @service)
         log.info(event: 'shutdown', reason: 'Interrupt')
       end
 
@@ -56,7 +57,8 @@ module Savant
       end
 
       def prepare_logger(service, _base_path, file_path: nil)
-        Savant::Logger.new(io: $stdout, file_path: file_path, level: ENV['LOG_LEVEL'] || 'info', json: true, service: service)
+        Savant::Logger.new(io: $stdout, file_path: file_path, level: ENV['LOG_LEVEL'] || 'info', json: true,
+                           service: service)
       end
 
       def load_settings(base_path)
@@ -70,7 +72,7 @@ module Savant
         ef = cfg.dig('logging', 'engine_file_path')
         return nil unless ef
 
-        if ef.end_with?('/') || File.extname(ef).empty? && !File.exist?(ef)
+        if ef.end_with?('/') || (File.extname(ef).empty? && !File.exist?(ef))
           File.join(ef, "#{service}.log")
         else
           ef

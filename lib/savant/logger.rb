@@ -18,7 +18,6 @@ module Savant
     LEVELS = %w[trace debug info warn error].freeze
 
     # Options: io:, file_path:, level:, json:, service:, tool:
-    # rubocop:disable Metrics/ParameterLists
     def initialize(io: $stdout, file_path: nil, level: :info, json: true, service: nil, tool: nil)
       @io = io
       @file_path = file_path
@@ -29,7 +28,6 @@ module Savant
       @slow_threshold_ms = (ENV['SLOW_THRESHOLD_MS'] || '2000').to_i
       @file_io = init_file_io(file_path)
     end
-    # rubocop:enable Metrics/ParameterLists
 
     def level_enabled?(lvl)
       LEVELS.index(lvl) >= LEVELS.index(@level)
@@ -96,7 +94,7 @@ module Savant
       return nil unless path && !path.to_s.empty?
 
       dir = File.dirname(path)
-      FileUtils.mkdir_p(dir) unless Dir.exist?(dir)
+      FileUtils.mkdir_p(dir)
       File.open(path, 'a')
     rescue StandardError
       nil

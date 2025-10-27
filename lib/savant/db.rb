@@ -21,7 +21,7 @@ module Savant
   # connection; callers may use transaction helpers for multi-step writes.
   class DB
     # @param url [String] Postgres connection URL (uses `ENV['DATABASE_URL']`).
-    def initialize(url = ENV['DATABASE_URL'])
+    def initialize(url = ENV.fetch('DATABASE_URL', nil))
       @url = url
       @conn = PG.connect(@url)
     end

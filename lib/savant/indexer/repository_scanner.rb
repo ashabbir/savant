@@ -131,7 +131,7 @@ module Savant
           end
         end
         # Always prune canonical heavy dirs
-        names.concat(%w[node_modules vendor dist build .next .git])
+        names.push('node_modules', 'vendor', 'dist', 'build', '.next', '.git')
         names.uniq
       end
 

@@ -33,7 +33,7 @@ module Savant
       # @return [void]
       def save!
         dir = File.dirname(@path)
-        Dir.mkdir(dir) unless Dir.exist?(dir)
+        FileUtils.mkdir_p(dir)
         File.write(@path, JSON.pretty_generate(@data))
       end
 

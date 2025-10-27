@@ -22,7 +22,8 @@ module Savant
       }.freeze
 
       def initialize(service: 'context', host: nil, port: nil, path: nil, max_connections: nil, base_path: nil)
-        init_params(service: service, host: host, port: port, path: path, max_connections: max_connections, base_path: base_path)
+        init_params(service: service, host: host, port: port, path: path, max_connections: max_connections,
+                    base_path: base_path)
       end
 
       def start
@@ -79,7 +80,7 @@ module Savant
 
       def prepare_logger(service, base_path)
         log_dir = File.join(base_path, 'logs')
-        Dir.mkdir(log_dir) unless Dir.exist?(log_dir)
+        FileUtils.mkdir_p(log_dir)
         log_path = File.join(log_dir, "#{service}.log")
         log_io = File.open(log_path, 'a')
         log_io.sync = true
@@ -106,7 +107,7 @@ module Savant
             return
           end
           # Path check
-          path = request_line.split(' ')[1]
+          path = request_line.split[1]
           if @path && !@path.empty? && path != @path
             write_http_response(socket, 404, 'Not Found', 'Invalid path')
             return
@@ -177,9 +178,9 @@ module Savant
         return nil unless h1 && h1.bytesize == 2
 
         b1, b2 = h1.bytes
-        fin = (b1 & 0b1000_0000) != 0
+        fin = b1.anybits?(0b1000_0000)
         opcode = b1 & 0b0000_1111
-        masked = (b2 & 0b1000_0000) != 0
+        masked = b2.anybits?(0b1000_0000)
         length = (b2 & 0b0111_1111)
 
         # Control frames: only support close immediately
