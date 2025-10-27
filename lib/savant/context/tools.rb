@@ -54,7 +54,8 @@ module Savant
               out
             rescue StandardError => e
               dur_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - start) * 1000).round
-              logger.error(event: 'exception', tool: nm, duration_ms: dur_ms, message: e.message, request_id: ctx[:request_id])
+              logger.error(event: 'exception', tool: nm, duration_ms: dur_ms, message: e.message,
+                           request_id: ctx[:request_id])
               raise
             end
           end

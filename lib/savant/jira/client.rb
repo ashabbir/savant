@@ -83,7 +83,7 @@ module Savant
       private
 
       def uri_for(path)
-        URI.parse("#{@base_url}#{path.start_with?('/') ? '' : '/'}#{path}")
+        URI.parse("#{@base_url}#{'/' unless path.start_with?('/')}#{path}")
       end
 
       def auth(req)

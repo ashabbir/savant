@@ -78,7 +78,8 @@ module Savant
     end
 
     def self.validate_repos_array!(cfg)
-      raise ConfigError, 'repos must be a non-empty array' unless cfg.dig('indexer', 'repos').is_a?(Array) && cfg['indexer']['repos'].any?
+      raise ConfigError, 'repos must be a non-empty array' unless cfg.dig('indexer',
+                                                                          'repos').is_a?(Array) && cfg['indexer']['repos'].any?
     end
 
     def self.validate_each_repo!(cfg)
@@ -103,7 +104,11 @@ module Savant
 
       ws = tr['websocket']
       raise ConfigError, 'transport.websocket must be an object' unless ws.is_a?(Hash)
-      raise ConfigError, 'transport.websocket.port must be integer' if ws.key?('port') && !(ws['port'].is_a?(Integer) || ws['port'].to_s =~ /^\d+$/)
+
+      if ws.key?('port') && !(ws['port'].is_a?(Integer) || ws['port'].to_s =~ /^\d+$/)
+        raise ConfigError,
+              'transport.websocket.port must be integer'
+      end
       raise ConfigError, 'transport.websocket.path must be string' if ws.key?('path') && !ws['path'].is_a?(String)
     end
   end

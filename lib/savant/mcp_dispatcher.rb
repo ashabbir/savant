@@ -21,7 +21,11 @@ module Savant
       # Returns [request_hash, error_json] where error_json is a string or nil.
       def parse(line)
         req = JSON.parse(line)
-        return [nil, json(response_error(nil, :invalid_request))] unless req.is_a?(Hash) && req['jsonrpc'].to_s == '2.0' && req['method']
+        unless req.is_a?(Hash) && req['jsonrpc'].to_s == '2.0' && req['method']
+          return [nil,
+                  json(response_error(nil,
+                                      :invalid_request))]
+        end
 
         @log.info(event: 'rpc_received', method: req['method'], id: req['id'], params: req['params']&.keys)
         [req, nil]

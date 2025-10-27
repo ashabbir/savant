@@ -46,9 +46,9 @@ module Savant
       # Execute the given block within a DB transaction when available.
       # @yield [] block executed transactionally
       # @return [Object] yield result
-      def with_transaction(&blk)
+      def with_transaction(&)
         if @db.respond_to?(:with_transaction)
-          @db.with_transaction(&blk)
+          @db.with_transaction(&)
         else
           yield
         end
