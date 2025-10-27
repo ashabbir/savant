@@ -28,7 +28,7 @@ module Savant
       # Create an Ops instance with a namespaced logger.
       # @param db [Savant::DB] database connection wrapper
       def initialize(db: Savant::DB.new)
-        @log = Savant::Logger.new(component: 'context.ops')
+        @log = Savant::Logger.new(io: $stdout, json: true, service: 'context.ops')
         @db = db
       end
 
