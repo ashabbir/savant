@@ -39,6 +39,15 @@ This makes it possible for Savant workflows (e.g., code review, ticket validatio
 
 ## 🔐 Auth
 
+---
+
+## Acceptance + TDD TODO (Compact)
+- Criteria: MVP tools operational (PRs, Issues, Repo, Files, Search); auth works for GH.com/Enterprise; JSON-RPC tools exposed; basic error handling.
+- TODO:
+  - Red: specs for each tool contract and auth flows.
+  - Green: implement tool handlers and GitHub client; wire to registrar.
+  - Refactor: pagination, rate limit handling; docs and examples.
+
 Use a GitHub Personal Access Token (PAT) scoped for `repo`, `read:org`, and `user:email`.  
 Stored securely in `.env` or Savant’s secrets store.
 

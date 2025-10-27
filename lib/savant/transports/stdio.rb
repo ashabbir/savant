@@ -4,6 +4,7 @@
 require_relative '../logger'
 require_relative '../mcp_dispatcher'
 require 'fileutils'
+require_relative '../config'
 
 module Savant
   module Transports
@@ -15,22 +16,22 @@ module Savant
       end
 
       def start
-        log = prepare_logger(@service, @base_path)
-        log.info('=' * 80)
-        log.info("start: mode=stdio service=#{@service} tools=loading")
-        log.info("pwd=#{Dir.pwd}")
-        log.info("settings_path=#{File.join(@base_path, 'config', 'settings.json')}")
-        log.info("log_path=#{File.join(@base_path, 'logs', "#{@service}.log")}")
+        cfg = load_settings(@base_path)
+        core_file = cfg.dig('logging', 'core_file_path')
+        resolve_engine_file(cfg, @service)
+
+        log = prepare_logger(@service, @base_path, file_path: core_file)
+        log.info(event: 'boot', mode: 'stdio', service: @service, message: 'tools=loading')
+        log.info(event: 'env', pwd: Dir.pwd, settings_path: File.join(@base_path, 'config', 'settings.json'))
 
         $stdout.sync = true
         $stderr.sync = true
         $stdin.sync = true
 
         dispatcher = Savant::MCP::Dispatcher.new(service: @service, log: log)
-        log.info('buffers synced, waiting for requests...')
-        log.info('=' * 80)
+        log.info(event: 'ready', message: 'buffers synced, waiting for requests...')
         while (line = $stdin.gets)
-          log.info("raw_input: #{line.strip[0..200]}")
+          log.trace(event: 'raw_input', preview: line.strip[0..200])
           req, err_json = dispatcher.parse(line)
           if err_json
             warn(err_json)
@@ -40,8 +41,9 @@ module Savant
           puts response_json
         end
       rescue Interrupt
-        log = Savant::Logger.new(component: 'mcp')
-        log.info('shutdown from Interrupt')
+        log = Savant::Logger.new(io: $stdout, file_path: File.join(@base_path, 'logs', "#{@service}.log"),
+                                 level: :info, json: true, service: @service)
+        log.info(event: 'shutdown', reason: 'Interrupt')
       end
 
       private
@@ -54,13 +56,27 @@ module Savant
          end)
       end
 
-      def prepare_logger(service, base_path)
-        log_dir = File.join(base_path, 'logs')
-        FileUtils.mkdir_p(log_dir) unless Dir.exist?(log_dir)
-        log_path = File.join(log_dir, "#{service}.log")
-        log_io = File.open(log_path, 'a')
-        log_io.sync = true
-        Savant::Logger.new(component: 'mcp', out: log_io)
+      def prepare_logger(service, _base_path, file_path: nil)
+        Savant::Logger.new(io: $stdout, file_path: file_path, level: ENV['LOG_LEVEL'] || 'info', json: true,
+                           service: service)
+      end
+
+      def load_settings(base_path)
+        settings_path = File.join(base_path, 'config', 'settings.json')
+        Savant::Config.load(settings_path)
+      rescue StandardError
+        {}
+      end
+
+      def resolve_engine_file(cfg, service)
+        ef = cfg.dig('logging', 'engine_file_path')
+        return nil unless ef
+
+        if ef.end_with?('/') || (File.extname(ef).empty? && !File.exist?(ef))
+          File.join(ef, "#{service}.log")
+        else
+          ef
+        end
       end
     end
   end

@@ -32,7 +32,7 @@ module Savant
 
           windows = []
           idxs.each do |pos|
-            s = [0, pos - window / 2].max
+            s = [0, pos - (window / 2)].max
             e = [t.length, s + window].min
             windows << [s, e]
           end

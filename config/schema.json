@@ -73,6 +73,17 @@
         "user": { "type": "string" },
         "password": { "type": "string" }
       }
+    },
+    "logging": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "level": { "type": "string", "enum": ["trace", "debug", "info", "warn", "error"] },
+        "format": { "type": "string", "enum": ["json", "text"] },
+        "stdout_enabled": { "type": "boolean" },
+        "core_file_path": { "type": "string" },
+        "engine_file_path": { "type": "string" }
+      }
     }
   }
 }

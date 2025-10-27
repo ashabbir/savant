@@ -83,7 +83,7 @@ RSpec.describe Savant::Indexer::Runner do
     mtime = Time.at(100)
     map = { 'a.rb' => { size: 10, mtime: mtime, data: "puts 1\n" } }
     stub_file_ops(map)
-    ns = mtime.nsec + mtime.to_i * 1_000_000_000
+    ns = mtime.nsec + (mtime.to_i * 1_000_000_000)
     cache['r::a.rb'] = { 'size' => 10, 'mtime_ns' => ns }
 
     res = runner.run(repo_name: 'r', verbose: false)

@@ -26,7 +26,7 @@ module Savant
         @api_token = api_token
         @username = username
         @password = password
-        @log = Savant::Logger.new(component: 'jira.http')
+        @log = Savant::Logger.new(io: $stdout, json: true, service: 'jira.http')
       end
 
       attr_reader :base_url
@@ -83,7 +83,7 @@ module Savant
       private
 
       def uri_for(path)
-        URI.parse("#{@base_url}#{path.start_with?('/') ? '' : '/'}#{path}")
+        URI.parse("#{@base_url}#{'/' unless path.start_with?('/')}#{path}")
       end
 
       def auth(req)

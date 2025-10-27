@@ -17,7 +17,7 @@ module Savant
       # operations without importing the indexer CLI.
       class RepoIndexer
         def initialize(db: Savant::DB.new, settings_path: 'config/settings.json',
-                       logger: Savant::Logger.new(component: 'context.repo_indexer'))
+                       logger: Savant::Logger.new(io: $stdout, json: true, service: 'context.repo_indexer'))
           @settings_path = settings_path
           @logger = logger
           @db = db

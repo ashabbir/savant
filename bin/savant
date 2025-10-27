@@ -37,7 +37,7 @@ when 'serve'
     transport: ENV['MCP_TRANSPORT'] || 'stdio',
     host: nil,
     port: nil,
-    service: ENV['MCP_SERVICE']
+    service: ENV.fetch('MCP_SERVICE', nil)
   }
 
   OptionParser.new do |o|
