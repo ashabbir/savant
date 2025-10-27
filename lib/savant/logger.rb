@@ -18,6 +18,7 @@ module Savant
     LEVELS = %w[trace debug info warn error].freeze
 
     # Options: io:, file_path:, level:, json:, service:, tool:
+    # rubocop:disable Metrics/ParameterLists
     def initialize(io: $stdout, file_path: nil, level: :info, json: true, service: nil, tool: nil)
       @io = io
       @file_path = file_path
@@ -28,6 +29,7 @@ module Savant
       @slow_threshold_ms = (ENV['SLOW_THRESHOLD_MS'] || '2000').to_i
       @file_io = init_file_io(file_path)
     end
+    # rubocop:enable Metrics/ParameterLists
 
     def level_enabled?(lvl)
       LEVELS.index(lvl) >= LEVELS.index(@level)
@@ -69,16 +71,16 @@ module Savant
         @io.puts(line)
         @io.flush if @io.respond_to?(:flush)
       end
-      if @file_io
-        @file_io.puts(line)
-        @file_io.flush
-      end
+      return unless @file_io
+
+      @file_io.puts(line)
+      @file_io.flush
     end
 
-    def symbolize_keys(h)
-      return {} unless h
+    def symbolize_keys(hash)
+      return {} unless hash
 
-      h.transform_keys { |k| (k.is_a?(String) ? k.to_sym : k) }
+      hash.transform_keys { |k| (k.is_a?(String) ? k.to_sym : k) }
     end
 
     def format_text(data)

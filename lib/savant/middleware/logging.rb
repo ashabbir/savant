@@ -2,6 +2,8 @@
 
 module Savant
   module Middleware
+    # Logging middleware that wraps tool calls with start/end events
+    # and logs exceptions in structured JSON.
     class Logging
       def initialize(app, logger:)
         @app = app
