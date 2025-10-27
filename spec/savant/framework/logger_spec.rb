@@ -4,7 +4,7 @@ require 'spec_helper'
 
 RSpec.describe Savant::Logger do
   let(:io) { StringIO.new }
-  let(:logger) { described_class.new(io: io, level: :info, json: true, service: 'test', tool: 'unit') }
+  let(:logger) { described_class.new(io: io, level: :trace, json: true, service: 'test', tool: 'unit') }
 
   it 'emits structured JSON with context fields' do
     logger.info(event: 'tool_call', data: { x: 1 }, request_id: 'req-1')
