@@ -33,7 +33,6 @@ RSpec.describe Savant::Indexer::Runner do
   end
 
   def stub_file_ops(map)
-    # map: rel => { size:, mtime:, data:, head: }
     allow(File).to receive(:stat) do |abs|
       rel = abs.split('/').last
       cfg = map.fetch(rel)
@@ -53,55 +52,38 @@ RSpec.describe Savant::Indexer::Runner do
     end
   end
 
-  it 'indexes files from scanner and writes chunks' do
+  it 'logs walk_strategy gitls when git-based enumeration is used' do
     scanner = instance_double(Savant::Indexer::RepositoryScanner)
     allow(Savant::Indexer::RepositoryScanner).to receive(:new).and_return(scanner)
     allow(scanner).to receive(:files).and_return([
-                                                   ['/repo/a.rb', 'a.rb'],
-                                                   ['/repo/b.md', 'b.md']
+                                                   ['/repo/a.rb', 'a.rb']
                                                  ])
-    allow(scanner).to receive(:last_used).and_return(:walk)
-    map = {
-      'a.rb' => { size: 10, mtime: Time.at(100), data: "line1\nline2\n" },
-      'b.md' => { size: 20, mtime: Time.at(200), data: "# Doc\nBody" }
-    }
+    allow(scanner).to receive(:last_used).and_return(:git)
+
+    expect(logger).to receive(:info).with(/walk_strategy: gitls/).at_least(:once)
+
+    map = { 'a.rb' => { size: 10, mtime: Time.at(100), data: "puts 1\n" } }
     stub_file_ops(map)
 
-    res = runner.run(repo_name: 'r', verbose: false)
-    expect(res).to eq(total: 2, changed: 2, skipped: 0)
-    # verify db has chunks for blob
-    expect(db.chunks.values.flatten.size).to be > 0
+    runner.run(repo_name: 'r', verbose: false)
   end
 
-  it 'skips unchanged files using cache' do
+  it 'emits repo header and footer counts' do
     scanner = instance_double(Savant::Indexer::RepositoryScanner)
     allow(Savant::Indexer::RepositoryScanner).to receive(:new).and_return(scanner)
     allow(scanner).to receive(:files).and_return([
                                                    ['/repo/a.rb', 'a.rb']
                                                  ])
     allow(scanner).to receive(:last_used).and_return(:walk)
-    mtime = Time.at(100)
-    map = { 'a.rb' => { size: 10, mtime: mtime, data: "puts 1\n" } }
-    stub_file_ops(map)
-    ns = mtime.nsec + (mtime.to_i * 1_000_000_000)
-    cache['r::a.rb'] = { 'size' => 10, 'mtime_ns' => ns }
 
-    res = runner.run(repo_name: 'r', verbose: false)
-    expect(res).to eq(total: 1, changed: 0, skipped: 1)
-    expect(db.chunks.values.flatten).to be_empty
-  end
-
-  it 'respects language allowlist' do
-    scanner = instance_double(Savant::Indexer::RepositoryScanner)
-    allow(Savant::Indexer::RepositoryScanner).to receive(:new).and_return(scanner)
-    allow(scanner).to receive(:files).and_return([
-                                                   ['/repo/a.json', 'a.json']
-                                                 ])
-    allow(scanner).to receive(:last_used).and_return(:walk)
-    map = { 'a.json' => { size: 10, mtime: Time.at(1), data: '{ }' } }
+    map = { 'a.rb' => { size: 10, mtime: Time.at(50), data: "puts 1\n" } }
     stub_file_ops(map)
 
-    res = runner.run(repo_name: 'r', verbose: false)
-    expect(res).to eq(total: 1, changed: 0, skipped: 1)
+    runner.run(repo_name: 'r', verbose: false)
+
+    expect(logger).to have_received(:info).with('name: r')
+    expect(logger).to have_received(:info).with('total_files: 1')
+    expect(logger).to have_received(:info).with('indexed: 1')
+    expect(logger).to have_received(:info).with('skipped: 0')
   end
 end
