@@ -29,7 +29,7 @@ module Savant
       # @param verbose [Boolean] emit per-file progress
       # @return [Hash] summary counts { total:, changed:, skipped: }
       def run(repo_name: nil, verbose: true)
-        totals = { total: 0, changed: 0, skipped: 0 }
+        totals = { total: 0, changed: 0, skipped: 0, errors: 0 }
 
         select_repos(repo_name).each do |repo|
           root = repo.fetch('path')
@@ -43,10 +43,16 @@ module Savant
           totals[:total] += files.length
           totals[:changed] += counts[:indexed]
           totals[:skipped] += counts[:skipped]
+          totals[:errors] += counts[:errors]
         end
 
         @cache.save!
-        @log.info("summary: scanned=#{totals[:total]} changed=#{totals[:changed]} skipped=#{totals[:skipped]}") if verbose
+        if verbose
+          @log.info(
+            "summary: scanned=#{totals[:total]} changed=#{totals[:changed]} " \
+            "skipped=#{totals[:skipped]} errors=#{totals[:errors]}"
+          )
+        end
         totals
       end
 
@@ -60,6 +66,7 @@ module Savant
         kind_counts = Hash.new(0)
         repo_indexed = 0
         repo_skipped = 0
+        repo_errors = 0
 
         @store.with_transaction do
           files.each do |abs, rel|
@@ -111,7 +118,8 @@ module Savant
               progress&.increment
             rescue StandardError => e
               repo_skipped += 1
-              @log.info("skip: item=#{rel} reason=error class=#{e.class} msg=#{e.message.inspect}") if verbose
+              repo_errors += 1
+              @log.debug("error: repo=#{repo['name']} item=#{rel} class=#{e.class} msg=#{e.message.inspect}") if verbose
               progress&.increment
               next
             end
@@ -131,9 +139,9 @@ module Savant
           @log.info("counts: #{counts_line}")
         end
         progress&.finish
-        @log.repo_footer(indexed: repo_indexed, skipped: repo_skipped)
+        @log.repo_footer(indexed: repo_indexed, skipped: repo_skipped, errors: repo_errors)
 
-        { indexed: repo_indexed, skipped: repo_skipped }
+        { indexed: repo_indexed, skipped: repo_skipped, errors: repo_errors }
       end
 
       def select_repos(name)

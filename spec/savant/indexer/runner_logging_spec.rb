@@ -85,5 +85,22 @@ RSpec.describe Savant::Indexer::Runner do
     expect(logger).to have_received(:info).with('total_files: 1')
     expect(logger).to have_received(:info).with('indexed: 1')
     expect(logger).to have_received(:info).with('skipped: 0')
+    expect(logger).to have_received(:info).with('errors: 0')
+  end
+
+  it 'summarizes errors without logging each failure' do
+    scanner = instance_double(Savant::Indexer::RepositoryScanner)
+    allow(Savant::Indexer::RepositoryScanner).to receive(:new).and_return(scanner)
+    allow(scanner).to receive(:files).and_return([
+                                                   ['/repo/a.rb', 'a.rb']
+                                                 ])
+    allow(scanner).to receive(:last_used).and_return(:walk)
+
+    allow(File).to receive(:stat).and_raise(Errno::ENOENT)
+
+    expect(logger).not_to receive(:info).with(/reason=error/)
+    expect(logger).to receive(:info).with('errors: 1').at_least(:once)
+
+    runner.run(repo_name: 'r', verbose: false)
   end
 end

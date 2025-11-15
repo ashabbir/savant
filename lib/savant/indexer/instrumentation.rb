@@ -45,16 +45,16 @@ module Savant
       end
 
       def repo_header(name:, total:, strategy:)
-        info('======')
         info("name: #{name}")
         info("total_files: #{total}")
         info("walk_strategy: #{strategy}")
       end
 
-      def repo_footer(indexed:, skipped:)
+      def repo_footer(indexed:, skipped:, errors: 0)
         info("indexed: #{indexed}")
         info("skipped: #{skipped}")
-        info('======')
+        info("errors: #{errors}")
+        info('====')
       end
 
       def progress_bar(title:, total:)
