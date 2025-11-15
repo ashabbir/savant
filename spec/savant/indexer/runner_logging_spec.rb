@@ -6,6 +6,7 @@ require_relative '../../../lib/savant/indexer'
 require_relative '../../support/fakes/fake_db'
 require_relative '../../support/fakes/fake_cache'
 
+# rubocop:disable Metrics/BlockLength
 RSpec.describe Savant::Indexer::Runner do
   let(:raw_cfg) do
     {
@@ -103,4 +104,28 @@ RSpec.describe Savant::Indexer::Runner do
 
     runner.run(repo_name: 'r', verbose: false)
   end
+
+  it 'falls back to textual progress when no tty is available' do
+    scanner = instance_double(Savant::Indexer::RepositoryScanner)
+    allow(Savant::Indexer::RepositoryScanner).to receive(:new).and_return(scanner)
+    allow(scanner).to receive(:files).and_return([
+                                                   ['/repo/a.rb', 'a.rb']
+                                                 ])
+    allow(scanner).to receive(:last_used).and_return(:walk)
+
+    map = { 'a.rb' => { size: 10, mtime: Time.at(50), data: "puts 1\n" } }
+    stub_file_ops(map)
+
+    progress_logs = []
+    allow(logger).to receive(:info) do |msg|
+      progress_logs << msg if msg.is_a?(String) && msg.include?('progress:')
+    end
+    allow($stdout).to receive(:tty?).and_return(false)
+
+    runner.run(repo_name: 'r', verbose: true)
+
+    expect(progress_logs.length).to be <= 6
+    expect(progress_logs.last).to match(%r{progress: indexing \[[#.]+\] 100% \(1/1\)})
+  end
 end
+# rubocop:enable Metrics/BlockLength
