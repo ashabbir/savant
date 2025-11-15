@@ -114,6 +114,16 @@ module Savant
             engine.resources_read(uri: (a['uri'] || '').to_s)
           end
 
+          tool 'repos/list', description: 'List indexed repos with README excerpts',
+                             schema: { type: 'object', properties: { filter: { type: 'string' }, max_length: { type: 'integer', minimum: 256, maximum: 16_384 } } } do |_ctx, a|
+            limit = begin
+              Integer(a['max_length'] || 4096)
+            rescue StandardError
+              4096
+            end
+            engine.repos_readme_list(filter: a['filter'], max_length: limit)
+          end
+
           tool 'fs/repo/index', description: 'Index all repos or a single repo by name',
                                 schema: { type: 'object', properties: { repo: { anyOf: [{ type: 'string' }, { type: 'null' }] }, verbose: { type: 'boolean' } } } do |_ctx, a|
             engine.repo_indexer_index(repo: a['repo'], verbose: !!a['verbose'])

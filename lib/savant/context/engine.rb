@@ -91,13 +91,21 @@ module Savant
         Savant::Context::FS::RepoIndexer.new(db: @db).status
       end
 
+      # List repos and README snippets from indexed data.
+      # @param filter [String, nil]
+      # @param max_length [Integer]
+      # @return [Array<Hash>]
+      def repos_readme_list(filter: nil, max_length: 4096)
+        @ops.repos_readme_list(filter: filter, max_length: max_length)
+      end
+
       # Server info metadata surfaced to MCP server during initialize
       # Returns: { name:, version:, description: }
       def server_info
         {
           name: 'savant-context',
           version: '1.1.0',
-          description: 'Context MCP: fts/search, memory/*, fs/repo/*'
+          description: 'Context MCP: fts/search, repos/list, memory/*, fs/repo/*'
         }
       end
     end

@@ -349,7 +349,7 @@ Docker commands
       - `MCP_SERVICE=context`
       - `DATABASE_URL=postgres://context:contextpw@localhost:5433/contextdb`
       - Optional: `SAVANT_PATH=$(pwd)`
-  - Tools available (Context): `fts/search`, `memory/search`, `memory/resources/*`, `fs/repo/*`.
+  - Tools available (Context): `fts/search`, `memory/search`, `repos/list`, `memory/resources/*`, `fs/repo/*`.
   - Make: `make mcp-test q='<term>' [repo=<name>] [limit=5]`
 
 - WebSocket transport (optional)
@@ -552,6 +552,9 @@ Tools
 - memory/resources/read: Read a memory bank resource by URI.
   - Input: `{ uri: string }` (e.g., `repo://<repo>/memory-bank/<path>`)
   - Output: `text`
+- repos/list: List indexed repos and README snippets sourced from DB.
+  - Input: `{ filter?: string, max_length?: number }`
+  - Output: `[ { name, readme, truncated } ]`
 
 #### Indexer (Context Engine)
 
@@ -614,7 +617,7 @@ flowchart LR
 #### Context Engine Details
 - Purpose: fast code/doc search and repo indexing using Postgres FTS + chunking
 - Tools:
-  - `fts/search` · `memory/search` · `memory/resources/*`
+  - `fts/search` · `memory/search` · `repos/list` · `memory/resources/*`
   - `fs/repo/index` · `fs/repo/delete` · `fs/repo/status`
 - Engine info: name `savant-context`, version `1.1.0` (exposed in MCP initialize)
 - Flow (FTS):
