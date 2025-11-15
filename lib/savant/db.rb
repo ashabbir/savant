@@ -19,6 +19,7 @@ module Savant
   #
   # Typical usage creates an instance per process and reuses a single
   # connection; callers may use transaction helpers for multi-step writes.
+  # rubocop:disable Metrics/ClassLength
   class DB
     # @param url [String] Postgres connection URL (uses `ENV['DATABASE_URL']`).
     def initialize(url = ENV.fetch('DATABASE_URL', nil))
@@ -218,6 +219,38 @@ module Savant
       true
     end
 
+    # List repos along with the first README chunk stored in the DB.
+    # @param filter [String, nil] optional substring filter on repo name
+    # @return [Array<Hash>] { name:, readme_text: }
+    def list_repos_with_readme(filter: nil)
+      params = []
+      where_clause = ''
+      unless filter.to_s.strip.empty?
+        params << "%#{filter}%"
+        where_clause = "WHERE r.name ILIKE $#{params.length}"
+      end
+
+      sql = <<~SQL
+        SELECT r.name, readme.chunk_text AS readme_text
+        FROM repos r
+        LEFT JOIN LATERAL (
+          SELECT c.chunk_text
+          FROM files f
+          JOIN file_blob_map fb ON fb.file_id = f.id
+          JOIN chunks c ON c.blob_id = fb.blob_id
+          WHERE f.repo_id = r.id
+            AND LOWER(f.rel_path) LIKE 'readme%'
+          ORDER BY f.rel_path ASC, c.idx ASC
+          LIMIT 1
+        ) readme ON true
+        #{where_clause}
+        ORDER BY r.name ASC
+      SQL
+
+      res = @conn.exec_params(sql, params)
+      res.map { |row| { name: row['name'], readme_text: row['readme_text'] } }
+    end
+
     private
 
     def text_array_encoder
@@ -227,4 +260,5 @@ module Savant
       )
     end
   end
+  # rubocop:enable Metrics/ClassLength
 end

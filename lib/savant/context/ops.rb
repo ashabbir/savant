@@ -152,6 +152,26 @@ module Savant
         File.read(path)
       end
 
+      # List repos with their README snippets sourced from indexed data.
+      # @param filter [String, nil] optional substring filter on repo name
+      # @param max_length [Integer] maximum characters to return per README
+      # @return [Array<Hash>] { name:, readme:, truncated: }
+      def repos_readme_list(filter: nil, max_length: 4096)
+        limit = max_length.to_i
+        limit = 4096 if limit <= 0
+        rows = @db.list_repos_with_readme(filter: filter)
+        rows.map do |row|
+          text = row[:readme_text]
+          if text.nil?
+            { name: row[:name], readme: nil, truncated: false }
+          else
+            snippet = text[0, limit]
+            truncated = text.length > snippet.length
+            { name: row[:name], readme: snippet, truncated: truncated }
+          end
+        end
+      end
+
       private
 
       # Resolve a repo identifier to a filesystem root path.
