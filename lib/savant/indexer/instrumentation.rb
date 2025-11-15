@@ -7,6 +7,12 @@
 # Allows the indexer to emit structured progress and timing information without
 # coupling to a specific logger implementation.
 
+begin
+  require 'ruby-progressbar'
+rescue LoadError
+  nil
+end
+
 module Savant
   module Indexer
     # Thin wrapper over logger for consistent timing and levels.
@@ -36,6 +42,31 @@ module Savant
           @logger.info("timing: #{label} duration_ms=#{dur_ms}")
           res
         end
+      end
+
+      def repo_header(name:, total:, strategy:)
+        info("name: #{name}")
+        info("total_files: #{total}")
+        info("walk_strategy: #{strategy}")
+      end
+
+      def repo_footer(indexed:, skipped:, errors: 0)
+        info("indexed: #{indexed}")
+        info("skipped: #{skipped}")
+        info("errors: #{errors}")
+        info('====')
+      end
+
+      def progress_bar(title:, total:)
+        ProgressBar.create(
+          title: title,
+          total: total,
+          format: '%t %B %p%% %c/%C',
+          progress_mark: '#',
+          remainder_mark: ' '
+        )
+      rescue StandardError
+        nil
       end
     end
   end

@@ -32,6 +32,7 @@ services:
     volumes:
       - ./:/app:rw
       - ../:/host:ro
+      - ../../ruby/crawler:/host-crawler:ro
     command: >-
       /bin/sh -lc '
         if [ ! -f /app/config/settings.json ]; then

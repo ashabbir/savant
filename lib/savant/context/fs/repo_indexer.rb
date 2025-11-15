@@ -29,11 +29,14 @@ module Savant
         end
 
         def delete(repo: nil)
+          cache = build_cache
           if repo.nil? || repo == 'all'
             @db.delete_all_data
+            cache.reset!
             { deleted: 'all', count: 1 }
           else
             n = @db.delete_repo_by_name(repo)
+            cache.remove_repo!(repo)
             { deleted: 'repo', count: n }
           end
         end
@@ -52,6 +55,13 @@ module Savant
               'last_mtime' => last_ts
             }
           end
+        end
+
+        private
+
+        def build_cache
+          cfg = Savant::Indexer::Config.new(Savant::Config.load(@settings_path))
+          Savant::Indexer::Cache.new(cfg.cache_path)
         end
       end
     end
