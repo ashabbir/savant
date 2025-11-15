@@ -42,10 +42,13 @@ module Savant
           files = scanner.files
           repo_id = @store.ensure_repo(repo.fetch('name'), root)
           using = scanner.last_used == :git ? 'gitls' : 'ls'
-          @log.info("start: repo=#{repo['name']} total=#{files.length} using=#{using}")
+          @log.repo_header(name: repo['name'], total: files.length, strategy: using)
+          progress = verbose ? @log.progress_bar(title: 'indexing', total: files.length) : nil
           kept = []
-          processed = 0
           kind_counts = Hash.new(0)
+          repo_indexed = 0
+          repo_skipped = 0
+          processed = 0
 
           @store.with_transaction do
             files.each do |abs, rel|
@@ -55,9 +58,12 @@ module Savant
                 stat = File.stat(abs)
                 if too_large?(stat.size)
                   skipped += 1
+                  repo_skipped += 1
                   if verbose
                     @log.debug("skip: item=#{rel} reason=too_large size=#{stat.size}B max=#{@config.max_bytes}B")
                   end
+                  processed += 1
+                  progress&.increment
                   next
                 end
 
@@ -65,7 +71,10 @@ module Savant
                 meta = { 'size' => stat.size, 'mtime_ns' => to_ns(stat.mtime) }
                 if unchanged?(key, meta)
                   skipped += 1
+                  repo_skipped += 1
                   @log.debug("skip: item=#{rel} reason=unchanged") if verbose
+                  processed += 1
+                  progress&.increment
                   next
                 end
 
@@ -74,14 +83,20 @@ module Savant
                 allowed = @config.languages
                 if !allowed.empty? && !allowed.include?(lang)
                   skipped += 1
+                  repo_skipped += 1
                   @log.debug("skip: item=#{rel} reason=unsupported_lang lang=#{lang}") if verbose
+                  processed += 1
+                  progress&.increment
                   next
                 end
 
                 # Binary check
                 if binary_file?(abs)
                   skipped += 1
+                  repo_skipped += 1
                   @log.debug("skip: item=#{rel} reason=binary") if verbose
+                  processed += 1
+                  progress&.increment
                   next
                 end
 
@@ -96,14 +111,15 @@ module Savant
                 @cache[key] = meta
                 kind_counts[lang] += 1
                 changed += 1
+                repo_indexed += 1
                 processed += 1
-                pct = files.length.positive? ? ((processed.to_f / files.length) * 100).round : 100
-                if verbose
-                  @log.info("progress: repo=#{repo['name']} item=#{rel} done=#{processed}/#{files.length} (~#{pct}%)")
-                end
+                progress&.increment
               rescue StandardError => e
                 skipped += 1
+                repo_skipped += 1
                 @log.info("skip: item=#{rel} reason=error class=#{e.class} msg=#{e.message.inspect}") if verbose
+                processed += 1
+                progress&.increment
                 next
               end
             end
@@ -121,7 +137,8 @@ module Savant
             counts_line = kind_counts.map { |k, v| "#{k}=#{v}" }.join(' ')
             @log.info("counts: #{counts_line}")
           end
-          @log.info("complete: repo=#{repo['name']} total=#{files.length}")
+          progress&.finish
+          @log.repo_footer(indexed: repo_indexed, skipped: repo_skipped)
         end
 
         @cache.save!
