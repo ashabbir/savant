@@ -105,7 +105,7 @@ RSpec.describe Savant::Indexer::Runner do
     expect(res).to eq(total: 1, changed: 0, skipped: 1)
   end
 
-  it 'logs using=gitls when git-based enumeration is used' do
+  it 'logs walk_strategy gitls when git-based enumeration is used' do
     scanner = instance_double(Savant::Indexer::RepositoryScanner)
     allow(Savant::Indexer::RepositoryScanner).to receive(:new).and_return(scanner)
     allow(scanner).to receive(:files).and_return([
@@ -113,12 +113,31 @@ RSpec.describe Savant::Indexer::Runner do
                                                  ])
     allow(scanner).to receive(:last_used).and_return(:git)
 
-    # Expect at least one log line to mention using=gitls
-    expect(logger).to receive(:info).with(/using=gitls/).at_least(:once)
+    # Expect at least one log line to mention walk_strategy
+    expect(logger).to receive(:info).with(/walk_strategy: gitls/).at_least(:once)
 
     map = { 'a.rb' => { size: 10, mtime: Time.at(100), data: "puts 1\n" } }
     stub_file_ops(map)
 
     runner.run(repo_name: 'r', verbose: false)
+  end
+
+  it 'emits repo header and footer counts' do
+    scanner = instance_double(Savant::Indexer::RepositoryScanner)
+    allow(Savant::Indexer::RepositoryScanner).to receive(:new).and_return(scanner)
+    allow(scanner).to receive(:files).and_return([
+                                                   ['/repo/a.rb', 'a.rb']
+                                                 ])
+    allow(scanner).to receive(:last_used).and_return(:walk)
+
+    map = { 'a.rb' => { size: 10, mtime: Time.at(50), data: "puts 1\n" } }
+    stub_file_ops(map)
+
+    runner.run(repo_name: 'r', verbose: false)
+
+    expect(logger).to have_received(:info).with('name: r')
+    expect(logger).to have_received(:info).with('total_files: 1')
+    expect(logger).to have_received(:info).with('indexed: 1')
+    expect(logger).to have_received(:info).with('skipped: 0')
   end
 end
