@@ -12,6 +12,8 @@ module Support
       @mapped = {}
       @next_id = 1
       @tx_depth = 0
+      @deleted_all = false
+      @deleted_repos = []
     end
 
     def with_transaction
@@ -65,6 +67,24 @@ module Support
       # no-op for fake, could simulate by pruning @files keys not in kept
       @kept = kept
       true
+    end
+
+    def delete_all_data
+      @deleted_all = true
+      true
+    end
+
+    def deleted_all?
+      @deleted_all
+    end
+
+    def delete_repo_by_name(name)
+      @deleted_repos << name
+      0
+    end
+
+    def deleted_repos
+      @deleted_repos.dup
     end
 
     private

@@ -13,7 +13,8 @@ end
 cmd = ARGV.shift
 usage! unless cmd
 
-repo_indexer = Savant::Context::FS::RepoIndexer.new(db: Savant::DB.new)
+logger = Savant::Logger.new(io: $stdout, json: false, service: 'context.repo_indexer')
+repo_indexer = Savant::Context::FS::RepoIndexer.new(db: Savant::DB.new, logger: logger)
 
 begin
   case cmd
