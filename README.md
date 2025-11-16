@@ -9,6 +9,8 @@ Savant is a lightweight Ruby framework for building and running local MCP servic
   - [Context](docs/engines/context.md)
   - [Jira](docs/engines/jira.md)
   - [Think](docs/engines/think.md)
+ - Examples:
+   - [Demo Engine (Hello)](docs/examples/demo-engine/README.md)
 
 ## Table of Contents
 - [Chapter 1 – Introduction](#chapter-1--introduction)
