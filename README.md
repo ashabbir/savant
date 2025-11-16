@@ -65,6 +65,24 @@ Savant is a lightweight Ruby framework for building and running local MCP servic
   ruby ./bin/savant call 'fts/search' --service=context --input='{"q":"User","limit":3}'
   ```
 
+### Quick Start — Think Engine
+- Start Think (stdio):
+  ```bash
+  MCP_SERVICE=think SAVANT_PATH=$(pwd) ruby ./bin/mcp_server
+  ```
+- List tools:
+  ```bash
+  ruby ./bin/savant list tools --service=think
+  ```
+- Plan a workflow (review_v1):
+  ```bash
+  ruby ./bin/savant call 'think.plan' --service=think --input='{"workflow":"review_v1","params":{"branch":"main"}}'
+  ```
+- Advance to next step (example):
+  ```bash
+  ruby ./bin/savant call 'think.next' --service=think --input='{"workflow":"review_v1","step_id":"lint","result_snapshot":{"rows":[]}}'
+  ```
+
 ## Chapter 3 – Framework
 - What it is: a host for a single active engine that provides transport, tool registration, config, logging, and optional DB wiring.
 - Why it’s needed: normalizes MCP boilerplate, encourages strict schemas and observability, and makes engines portable across editors and runtimes.
