@@ -105,7 +105,7 @@ lib/savant/
 
 **Author:** Ahmed Shabbir  
 **Date:** Oct 2025  
-**Status:** PRD v1 — Tool System & Interoperability
+**Status:** Done — Tool System & Interoperability implemented
 
 ---
 
@@ -115,3 +115,41 @@ lib/savant/
   - Red: specs for tool metadata, validation, discovery ordering.
   - Green: implement registry APIs and validation; invocation pipeline.
   - Refactor: consolidate error handling and docs.
+
+---
+
+## Agent Implementation Plan
+
+- Branch: feature/framework-tools
+- Strategy: TDD in small phases aligned with acceptance criteria.
+
+Phases
+- Phase 1 — Composition (`ctx.invoke`)
+  - Red: spec proving nested tool call via `ctx.invoke` goes through the same registrar/middleware chain.
+  - Green: implement `ctx.invoke` in dispatcher context (method + proc) and ensure recursion safe.
+  - Commit: “tools(composition): add ctx.invoke for nested tool calls (TDD)”
+
+- Phase 2 — Dynamic Tool Loading
+  - Red: spec that `DSL::Builder#load_dir` discovers and registers tools from a directory in sorted order.
+  - Green: implement `load_dir` evaluating files in the builder context.
+  - Commit: “tools(discovery): add DSL load_dir for auto-registration (TDD)”
+
+- Phase 3 — Validation Middleware
+  - Red: spec for core validation middleware performing input coercion and error shaping.
+  - Green: add `Savant::MCP::Core::ValidationMiddleware` and migrate one engine registrar to use it.
+  - Commit: “tools(validation): introduce reusable validation middleware (TDD)”
+
+- Phase 4 — SDK (Ruby)
+  - Red: spec for a minimal Ruby SDK that constructs JSON-RPC requests and supports `tools/list`.
+  - Green: implement `lib/savant/sdk/ruby_client.rb` with pluggable transport.
+  - Commit: “sdk(ruby): minimal JSON-RPC client (TDD)”
+
+- Phase 5 — Agent Runner (Sequential)
+  - Red: spec for sequential plan execution with ephemeral memory.
+  - Green: implement `lib/savant/ai/agent_runner.rb` using provided invoker.
+  - Commit: “ai(agent): add minimal sequential AgentRunner (TDD)”
+
+- Phase 6 — Docs & Polish
+  - Update README (ctx.invoke, dynamic discovery, SDK usage).
+  - RuboCop; move PRD to done and mark as Done.
+  - Commit: “docs(prd): framework-tools → Done; docs & polish”

@@ -21,15 +21,25 @@ module Savant
             @registrar.use_middleware(&)
           end
 
-          def tool(name, description: '', schema: nil, &handler)
+          def tool(name, description: '', schema: nil, output_schema: nil, &handler)
             raise 'handler block required' unless handler
 
             schema ||= { type: 'object', properties: {} }
-            t = Tool.new(name: name, description: description, schema: schema, handler: handler)
+            t = Tool.new(name: name, description: description, schema: schema, output_schema: output_schema, handler: handler)
             @registrar.add_tool(t)
           end
 
           attr_reader :registrar
+
+          # Load and evaluate all Ruby files under a directory, in sorted order,
+          # within the builder context so they can call `tool` and `middleware`.
+          def load_dir(path)
+            files = Dir.glob(File.join(path.to_s, '**', '*.rb')).sort
+            files.each do |f|
+              code = File.read(f)
+              instance_eval(code, f)
+            end
+          end
         end
 
         module_function
