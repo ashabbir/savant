@@ -125,6 +125,13 @@ module Savant
         tools_mod = mod.const_get(:Tools)
         engine = engine_class.new
         registrar = tools_mod.build_registrar(engine)
+        # Inject framework lifecycle hooks as a middleware if the engine
+        # supports wrap_call (Savant::Core::Engine or compatible API).
+        if engine.respond_to?(:wrap_call)
+          registrar.use_middleware do |ctx, nm, a, nxt|
+            engine.wrap_call(ctx, nm, a) { nxt.call(ctx, nm, a) }
+          end
+        end
         @services[key] = { engine: engine, registrar: registrar }
       rescue LoadError, NameError
         raise 'Unknown service'
