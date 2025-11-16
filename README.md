@@ -87,6 +87,13 @@ Framework Logger
 ### 3.2 Tool Registrar and Middleware
 - Tool DSL: declare `tool 'ns/name'` with JSON schema and Ruby handler.
 - Middleware: layer validation, timing, logging, and auth consistently.
+- Dynamic discovery: use `DSL::Builder#load_dir(path)` to auto-register tools from a folder.
+  ```ruby
+  reg = Savant::MCP::Core::DSL.build do
+    middleware { |ctx, nm, a, nxt| Savant::MCP::Core::ValidationMiddleware.new.call(ctx, nm, a, nxt) }
+    load_dir 'lib/savant/myengine/tools'
+  end
+  ```
 
 Lifecycle Hooks (Core Runtime)
 - Engines may opt into lifecycle hooks by implementing `wrap_call` or subclassing `Savant::Core::Engine`.
@@ -999,3 +1006,29 @@ Verify
 - Reset DB: `docker compose down -v` then `make dev && make migrate && make fts`.
 - Skips: indexer ignores `.git`, ignored/binary/oversize files; tune limits in `config/settings.json`.
 - Empty search results: confirm indexing finished (`make status`) and loosen `q`.
+### Tool Composition
+- From inside a tool handler, call another tool using `ctx.invoke(name, args)` (also available as `ctx[:invoke].call(name, args)`).
+  ```ruby
+  tool 'comp/relay', schema: { type: 'object', properties: { msg: { type: 'string' } } } do |ctx, a|
+    ctx.invoke('base/echo', { 'msg' => a['msg'] })
+  end
+  ```
+
+### Validation
+- Reusable validation middleware: `Savant::MCP::Core::ValidationMiddleware` performs input coercion and optional output validation.
+  - Provide `output_schema:` when declaring a tool to enable output checks.
+
+### SDK (Ruby)
+- Programmatically call tools via HTTP JSON-RPC:
+  ```ruby
+  client = Savant::SDK::RubyClient.new(url: 'http://localhost:8765/jsonrpc')
+  res = client.call_tool('fts/search', { 'q' => 'term', 'limit' => 3 })
+  ```
+
+### Agent Mode
+- Minimal sequential runner for chaining tools with ephemeral memory:
+  ```ruby
+  invoker = ->(name, args) { registrar.call(name, args, ctx: {}) }
+  agent = Savant::AI::AgentRunner.new(invoker: invoker)
+  out = agent.run([{ tool: 'a/one', args: {} }, { tool: 'b/two', args: { use_memory: true } }])
+  ```
