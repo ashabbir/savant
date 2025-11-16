@@ -24,4 +24,3 @@ RSpec.describe Savant::Core::Context do
     expect(ctx.config).to include('indexer', 'database')
   end
 end
-
