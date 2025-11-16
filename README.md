@@ -366,6 +366,35 @@ Workflow details
     - `ruby ./bin/savant list tools --service=myengine`
     - `ruby ./bin/savant call '<ns>/<tool>' --service=myengine --input='{}'`
 
+### Generator: create and wire a new engine (example)
+
+```bash
+# 1) Generate files
+bundle exec ruby ./bin/savant generate engine demo --with-db
+
+# Files created:
+#   lib/savant/demo/engine.rb
+#   lib/savant/demo/tools.rb
+#   spec/savant/demo/engine_spec.rb
+
+# 2) Run the engine over stdio
+MCP_SERVICE=demo ruby ./bin/mcp_server
+
+# 3) Introspect tools (in another shell)
+ruby ./bin/savant list tools --service=demo
+
+# 4) Call the sample tool
+ruby ./bin/savant call 'demo/hello' --service=demo --input='{"name":"dev"}'
+
+# Optional: run via the unified CLI (HTTP)
+ruby ./bin/savant serve --transport=http --service=demo --host=127.0.0.1 --port=8765
+```
+
+Notes
+- The dispatcher auto-loads `lib/savant/<engine>/{engine,tools}.rb` based on `MCP_SERVICE`.
+- The generator’s sample tool is `'<engine>/hello'`; customize `engine.rb` and `tools.rb` as needed.
+- Add more tools using the DSL in your `tools.rb` file and wire to real ops.
+
 ## Chapter 7 – IDE Integration
 - Overview: Editors launch Savant as a child process and communicate via stdio using JSON-RPC 2.0. No ports required. Alternatively, you can run HTTP mode for testing.
 
