@@ -74,6 +74,14 @@ module Savant
           begin
             svc = load_service(@service)
             ctx = { engine: svc[:engine], request_id: id, service: @service, logger: Savant::Logger.new(io: $stdout, json: true, service: @service) }
+            # Provide composition API: ctx.invoke(name, args) and ctx[:invoke]
+            invoker = proc { |nm, a| svc[:registrar].call(nm, a, ctx: ctx) }
+            ctx[:invoke] = invoker
+            begin
+              ctx.define_singleton_method(:invoke) { |nm, a| invoker.call(nm, a) }
+            rescue TypeError
+              # If ctx is frozen or doesn't accept singleton methods, ignore.
+            end
             data = svc[:registrar].call(name, args, ctx: ctx)
             content = [{ type: 'text', text: JSON.pretty_generate(data) }]
             json(response_ok(id, { content: content }))
