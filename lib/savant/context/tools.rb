@@ -35,7 +35,7 @@ module Savant
       def dispatch(engine, name, args)
         reg = build_registrar(engine)
         base_ctx = { engine: engine, service: 'context' }
-        base_ctx[:logger] = engine.logger if engine && engine.respond_to?(:logger)
+        base_ctx[:logger] = engine&.logger
         reg.call(name, args || {}, ctx: base_ctx)
       end
 

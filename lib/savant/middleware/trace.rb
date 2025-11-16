@@ -36,14 +36,22 @@ module Savant
 
         start_ms = now_ms
         @metrics_helper.record_start(tool: tool, service: service)
-        log_event(logger, 'tool_start', tool, trace_id, service)
+        log_event(logger, 'tool_start',
+                  tool: tool,
+                  trace_id: trace_id,
+                  service: service)
         append_audit(tool: tool, service: service, trace_id: trace_id, status: 'start')
 
         begin
           result = yield(ctx, tool, payload)
           duration_ms = now_ms - start_ms
           @metrics_helper.record_finish(tool: tool, service: service, duration_ms: duration_ms, error: false)
-          log_event(logger, 'tool_end', tool, trace_id, service, duration_ms: duration_ms, status: 'success')
+          log_event(logger, 'tool_end',
+                    tool: tool,
+                    trace_id: trace_id,
+                    service: service,
+                    duration_ms: duration_ms,
+                    status: 'success')
           append_audit(tool: tool, service: service, trace_id: trace_id, status: 'success', duration_ms: duration_ms)
           record_replay(tool: tool, service: service, trace_id: trace_id, status: 'success', duration_ms: duration_ms,
                         payload: payload)
@@ -51,8 +59,14 @@ module Savant
         rescue StandardError => e
           duration_ms = now_ms - start_ms
           @metrics_helper.record_finish(tool: tool, service: service, duration_ms: duration_ms, error: true)
-          log_event(logger, 'tool_error', tool, trace_id, service, duration_ms: duration_ms,
-                                                                   status: 'error', error: e.message, error_class: e.class.name)
+          log_event(logger, 'tool_error',
+                    tool: tool,
+                    trace_id: trace_id,
+                    service: service,
+                    duration_ms: duration_ms,
+                    status: 'error',
+                    error: e.message,
+                    error_class: e.class.name)
           append_audit(tool: tool, service: service, trace_id: trace_id, status: 'error',
                        duration_ms: duration_ms, error: e.message)
           record_replay(tool: tool, service: service, trace_id: trace_id, status: 'error',
@@ -75,8 +89,8 @@ module Savant
         @audit_store.append(entry.merge(timestamp: Time.now.utc.iso8601))
       end
 
-      def log_event(logger, event, tool, trace_id, service, extra = {})
-        payload = { event: event, tool: tool, trace_id: trace_id, service: service }.merge(extra)
+      def log_event(logger, event, attrs = {})
+        payload = { event: event }.merge(attrs)
         if payload[:status] == 'error'
           logger.error(payload)
         else

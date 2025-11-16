@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require 'thread'
-
 module Savant
   module Telemetry
     # Thread-safe counters + distributions that back the framework metrics.
