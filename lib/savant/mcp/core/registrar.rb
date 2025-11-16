@@ -34,9 +34,13 @@ module Savant
           tool = @tools[name]
           raise 'Unknown tool' unless tool
 
-          # Attach tool metadata into ctx for middlewares (e.g., validation)
-          ctx2 = (ctx || {}).merge(tool_name: tool.name, schema: tool.schema, description: tool.description,
-                                   output_schema: (tool.respond_to?(:output_schema) ? tool.output_schema : nil))
+          # Attach tool metadata into ctx for middlewares (e.g., validation).
+          # Mutate provided ctx to preserve any bound methods (e.g., ctx.invoke).
+          ctx2 = ctx || {}
+          ctx2[:tool_name] = tool.name
+          ctx2[:schema] = tool.schema
+          ctx2[:description] = tool.description
+          ctx2[:output_schema] = (tool.respond_to?(:output_schema) ? tool.output_schema : nil)
           @mw.call(ctx2, name, args) do |c, _nm, a|
             tool.handler.call(c, a)
           end
