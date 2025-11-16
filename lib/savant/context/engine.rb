@@ -27,9 +27,12 @@ module Savant
     # Purpose: Provide a stable façade between the MCP server and the Context
     # domain logic (Ops), handling wiring and exposing high-level methods.
     class Engine
+      attr_reader :logger
+
       # Initialize the engine with a namespaced logger and context ops.
       def initialize
-        @log = Savant::Logger.new(io: $stdout, json: true, service: 'context.engine')
+        @logger = Savant::Logger.new(io: $stdout, json: true, service: 'context.engine')
+        @log = @logger
         @db = Savant::DB.new
         @ops = Savant::Context::Ops.new(db: @db)
       end
