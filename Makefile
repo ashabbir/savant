@@ -1,5 +1,6 @@
 .PHONY: dev logs down ps migrate fts smoke mcp-test jira-test jira-self \
   repo-index-all repo-index-repo repo-delete-all repo-delete-repo repo-status
+  demo-engine demo-run demo-call
 
 # Ensure rbenv shims take precedence in Make subshells
 # (Reverted) Do not globally override PATH; use explicit rbenv shim per target.
@@ -59,3 +60,12 @@ jira-test:
 jira-self:
     @sh -lc 'printf "{\"tool\":\"jira_self\"}\n" | SAVANT_PATH=$(PWD) $(HOME)/.rbenv/shims/bundle exec ruby ./bin/mcp_server'
 
+# Demo engine helpers
+demo-engine:
+	@ruby ./bin/savant generate engine demo --with-db --force || true
+
+demo-run:
+	@MCP_SERVICE=demo ruby ./bin/mcp_server
+
+demo-call:
+	@ruby ./bin/savant call 'demo/hello' --service=demo --input='{"name":"dev"}'
