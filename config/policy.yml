@@ -1,0 +1,6 @@
+sandbox: true
+audit:
+  enabled: true
+  store: logs/savant_audit.json
+replay:
+  limit: 25
