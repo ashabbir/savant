@@ -112,7 +112,7 @@ lib/savant/
 
 **Author:** Ahmed Shabbir  
 **Date:** Oct 2025  
-**Status:** PRD v1 — Core Runtime
+**Status:** Done — Core Runtime implemented via TDD phases
 
 ---
 
