@@ -20,4 +20,3 @@ RSpec.describe Savant::SDK::RubyClient do
     expect(seen.first[1]['method']).to eq('tools/list')
   end
 end
-

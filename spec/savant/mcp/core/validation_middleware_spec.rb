@@ -12,8 +12,8 @@ RSpec.describe Savant::MCP::Core::ValidationMiddleware do
       end
 
       tool 'adder/sum', description: 'sum',
-           schema: { type: 'object', properties: { a: { type: 'integer' }, b: { type: 'integer' } }, required: %w[a b] },
-           output_schema: { type: 'object', properties: { result: { type: 'integer' } }, required: ['result'] } do |_ctx, a|
+                        schema: { type: 'object', properties: { a: { type: 'integer' }, b: { type: 'integer' } }, required: %w[a b] },
+                        output_schema: { type: 'object', properties: { result: { type: 'integer' } }, required: ['result'] } do |_ctx, a|
         { 'result' => Integer(a['a']) + Integer(a['b']) }
       end
     end
@@ -29,7 +29,7 @@ RSpec.describe Savant::MCP::Core::ValidationMiddleware do
       end
 
       tool 'echo/need', description: 'needs x',
-           schema: { type: 'object', properties: { x: { type: 'string' } }, required: ['x'] } do |_ctx, a|
+                        schema: { type: 'object', properties: { x: { type: 'string' } }, required: ['x'] } do |_ctx, a|
         a
       end
     end
@@ -37,4 +37,3 @@ RSpec.describe Savant::MCP::Core::ValidationMiddleware do
     expect { reg.call('echo/need', {}, ctx: {}) }.to raise_error(/validation error: missing required/)
   end
 end
-

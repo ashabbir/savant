@@ -33,7 +33,7 @@ module Savant
       end
 
       def next_id
-        (@_id ||= 0)
+        @_id ||= 0
         @_id += 1
       end
 
@@ -52,4 +52,3 @@ module Savant
     end
   end
 end
-
