@@ -28,7 +28,7 @@ module Savant
         reg_path = File.join(@root, 'prompts.yml')
         data = safe_yaml(File.read(reg_path))
         versions = data['versions'] || {}
-        ver = (version && versions[version]) ? version : versions.keys.last
+        ver = version && versions[version] ? version : versions.keys.last
         raise 'PROMPT_NOT_FOUND' unless ver && versions[ver]
 
         path = versions[ver]
@@ -130,6 +130,7 @@ module Savant
         h = safe_yaml(File.read(path))
         steps = h['steps']
         raise 'YAML_SCHEMA_VIOLATION: steps missing' unless steps.is_a?(Array) && steps.any?
+
         steps.each do |s|
           raise 'YAML_SCHEMA_VIOLATION: id required' unless s['id'].is_a?(String) && !s['id'].empty?
           raise 'YAML_SCHEMA_VIOLATION: call required' unless s['call'].is_a?(String) && !s['call'].empty?
@@ -138,10 +139,10 @@ module Savant
       end
 
       # Build adjacency list graph id => deps
-      def build_graph(wf)
+      def build_graph(workflow_hash)
         g = {}
-        ids = wf['steps'].map { |s| s['id'] }
-        wf['steps'].each do |s|
+        ids = workflow_hash['steps'].map { |s| s['id'] }
+        workflow_hash['steps'].each do |s|
           deps = Array(s['deps']).map(&:to_s)
           # keep only known ids
           g[s['id']] = deps.select { |d| ids.include?(d) }
@@ -152,11 +153,11 @@ module Savant
       # Topological order using Kahn's algorithm
       def topo_order(graph)
         indeg = Hash.new(0)
-        graph.each do |_k, ds|
+        graph.each_value do |ds|
           ds.each { |d| indeg[d] += 1 }
         end
         q = []
-        graph.keys.each { |k| q << k if indeg[k].zero? }
+        graph.each_key { |k| q << k if indeg[k].zero? }
         out = []
         until q.empty?
           n = q.shift
@@ -181,10 +182,10 @@ module Savant
         }
       end
 
-      def next_ready_step_id(st)
-        done = st['completed'] || []
-        order = st['order'] || []
-        nodes = st['nodes'] || {}
+      def next_ready_step_id(state)
+        done = state['completed'] || []
+        order = state['order'] || []
+        nodes = state['nodes'] || {}
         order.find do |sid|
           next false if done.include?(sid)
 
@@ -208,11 +209,10 @@ module Savant
 
       def write_state(workflow, obj)
         path = state_path_for(workflow)
-        tmp = path + '.tmp'
+        tmp = "#{path}.tmp"
         File.write(tmp, JSON.pretty_generate(obj))
         FileUtils.mv(tmp, path)
       end
     end
   end
 end
-
