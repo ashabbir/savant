@@ -36,10 +36,18 @@ Savant is a lightweight Ruby framework for building and running local MCP servic
   # Run server (stdio)
   MCP_SERVICE=context bundle exec ruby ./bin/mcp_server
   ```
+- Or via the unified CLI:
+  ```bash
+  MCP_SERVICE=context ruby ./bin/savant serve --transport=stdio
+  ```
 - Start an engine (HTTP transport):
   ```bash
   MCP_SERVICE=context LISTEN_HOST=0.0.0.0 LISTEN_PORT=8765 \
     bundle exec ruby ./bin/mcp_server --http
+  ```
+  Or with the CLI:
+  ```bash
+  MCP_SERVICE=context ruby ./bin/savant serve --transport=http --host=0.0.0.0 --port=8765
   ```
 - Start via Docker (Postgres + Indexer):
   ```bash
@@ -47,6 +55,14 @@ Savant is a lightweight Ruby framework for building and running local MCP servic
   make repo-index-all
   ```
 - Quick verification: run `make mcp-test q='User'` or invoke a JSON-RPC call against the HTTP endpoint.
+- Discover tools via CLI:
+  ```bash
+  ruby ./bin/savant list tools --service=context
+  ```
+- Call a tool via CLI (dry-run friendly):
+  ```bash
+  ruby ./bin/savant call 'fts/search' --service=context --input='{"q":"User","limit":3}'
+  ```
 
 ## Chapter 3 – Framework
 - What it is: a host for a single active engine that provides transport, tool registration, config, logging, and optional DB wiring.
@@ -72,9 +88,32 @@ Framework Logger
 - Tool DSL: declare `tool 'ns/name'` with JSON schema and Ruby handler.
 - Middleware: layer validation, timing, logging, and auth consistently.
 
+Lifecycle Hooks (Core Runtime)
+- Engines may opt into lifecycle hooks by implementing `wrap_call` or subclassing `Savant::Core::Engine`.
+- Hook DSL on `Savant::Core::Engine`:
+  ```ruby
+  class MyEngine < Savant::Core::Engine
+    before_call :authenticate
+    after_call  :audit
+
+    private
+    def authenticate(ctx, payload); end
+    def audit(ctx, payload); end
+  end
+  ```
+- The MCP dispatcher automatically wraps tool calls with `wrap_call` when available, executing `before_call` hooks, then the tool, then `after_call` hooks.
+
 ### 3.3 Runtime and Services
 - Engine loading via `MCP_SERVICE=<engine>`; convention maps to `lib/savant/<engine>`.
 - Engine DI: `db`, `config`, `logger` accessible inside handlers.
+- Shared Context: `Savant::Core::Context` provides a default `logger` and `config` (and optional `db`) for engines adopting the core.
+- Config (YAML or JSON): core looks for `config/savant.yml` first and falls back to existing `config/settings.json`.
+  - Example `config/savant.yml`:
+    ```yaml
+    env: development
+    logging:
+      level: info
+    ```
 
 ## Chapter 4 – Engines
 - What engines are: self-contained MCP implementations exposing tools (namespaces, schemas, handlers).
@@ -164,6 +203,9 @@ Docker commands
 - Resulting layout: `lib/savant/myengine/{engine.rb,ops.rb,tools.rb}` with registrar, schemas, and handlers.
 - Add tools: declare with the DSL, provide JSON schema, implement handler in `ops`.
 - Test and run: `bundle exec rubocop -A` and `bundle exec rspec` (if present), then run with `MCP_SERVICE=myengine`.
+  - CLI helpers during development:
+    - `ruby ./bin/savant list tools --service=myengine`
+    - `ruby ./bin/savant call '<ns>/<tool>' --service=myengine --input='{}'`
 
 ## Chapter 7 – IDE Integration
 - Overview: Editors launch Savant as a child process and communicate via stdio using JSON-RPC 2.0. No ports required. Alternatively, you can run HTTP mode for testing.
