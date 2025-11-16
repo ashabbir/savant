@@ -274,6 +274,36 @@ Notes
 - Tool names in workflows must match registrar names (e.g., `fts/search`, `memory/resources/list`). You may stub or implement `ci.*` tools in a separate engine.
 - Deterministic replay: given the same workflow + params and validated outputs, the step sequence is fixed.
 
+Workflow details
+
+- review_v1:
+  - Steps: `ci.checkout` → `context.search` (lint) → `ci.run_tests`
+  - Plan example:
+    ```bash
+    ruby ./bin/savant call 'think.plan' --service=think --input='{"workflow":"review_v1","params":{"branch":"main"}}'
+    ```
+
+- code_review_v1:
+  - Steps: `ci.checkout` → `fts/search`(lint) → `fts/search`(findings) → `fts/search`(security) → `ci.run_tests`
+  - Plan example:
+    ```bash
+    ruby ./bin/savant call 'think.plan' --service=think --input='{"workflow":"code_review_v1","params":{"branch":"main"}}'
+    ```
+
+- develop_ticket_v1:
+  - Steps: `jira_get_issue` → `ci.checkout`(base) → `ci.create_branch` → `fts/search`(issue key) → `ci.run_tests` → `ci.open_pr`
+  - Plan example:
+    ```bash
+    ruby ./bin/savant call 'think.plan' --service=think --input='{"workflow":"develop_ticket_v1","params":{"issueKey":"ABC-123","base_branch":"main","feature_branch":"feature/ABC-123","title":"Implement X"}}'
+    ```
+
+- ticket_grooming_v1:
+  - Steps: `jira_get_issue` → `fts/search`(summary/issue key) → `memory/resources/list` → `fts/search`(guides)
+  - Plan example:
+    ```bash
+    ruby ./bin/savant call 'think.plan' --service=think --input='{"workflow":"ticket_grooming_v1","params":{"issueKey":"ABC-123"}}'
+    ```
+
 ## Chapter 6 – Scaffolding an Engine
 - Use the generator CLI to scaffold a new engine and optional DB wiring:
   ```bash
