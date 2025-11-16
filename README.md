@@ -13,6 +13,7 @@ Savant is a lightweight Ruby framework for building and running local MCP servic
 - Chapter 5 – Current Engines
   - 5.1 Context
   - 5.2 Jira
+  - 5.3 Think
 - Chapter 6 – Scaffolding an Engine
 - Chapter 7 – IDE Integration
 - Chapter 8 – Additional Information
@@ -201,6 +202,77 @@ Docker commands
 | Command | Purpose |
 |---|---|
 | `docker compose run --rm -T mcp-jira` | Run in a container (if defined) |
+
+### 5.3 Think
+- Purpose: Deterministic planning/orchestration for editor workflows (plan → execute → next loop). Think emits instructions, maintains run state, and serves a driver prompt for LLM runtimes.
+- Workflow: Load YAML workflows from the repo, produce a DAG, return the first instruction, validate step results, persist state to disk, and advance to the next step until done.
+
+Variables (env/config)
+
+| Key | Purpose | Example/Default |
+|---|---|---|
+| `MCP_SERVICE` | must be `think` | `think` |
+| `SAVANT_PATH` | base path for workflows/prompts/state | repo root (default) |
+| `LOG_LEVEL` | logging level | `info` |
+
+Directory layout
+
+| Path | Purpose |
+|---|---|
+| `lib/savant/think/engine.rb` | Think engine implementation |
+| `lib/savant/think/tools.rb` | MCP registrar for `think.*` tools |
+| `lib/savant/think/workflows/*.yaml` | Workflow definitions (YAML) |
+| `lib/savant/think/prompts.yml` | Prompt version registry |
+| `lib/savant/think/prompts/*.md` | Driver prompt markdown versions |
+| `.savant/state/<workflow>.json` | On-disk run state snapshots |
+
+Tools
+
+| Tool | Purpose |
+|---|---|
+| `think.driver_prompt` | Return versioned bootstrap prompt `{version, hash, prompt_md}` |
+| `think.plan` | Initialize a run and return first instruction + state |
+| `think.next` | Accept a step result, persist, and return next instruction or final summary |
+| `think.workflows.list` | List available workflow IDs and basic metadata |
+| `think.workflows.read` | Return raw workflow YAML for inspection |
+
+Run (stdio)
+
+```bash
+MCP_SERVICE=think SAVANT_PATH=$(pwd) ruby ./bin/mcp_server
+```
+
+Discover and call via CLI
+
+```bash
+# List tools
+ruby ./bin/savant list tools --service=think
+
+# Get driver prompt (specific version)
+ruby ./bin/savant call 'think.driver_prompt' --service=think --input='{"version":"stable-2025-11"}'
+
+# Plan a workflow
+ruby ./bin/savant call 'think.plan' --service=think --input='{"workflow":"review_v1","params":{"branch":"main"}}'
+```
+
+Driver prompt
+- Registry: `lib/savant/think/prompts.yml`
+- Example version: `stable-2025-11` → `lib/savant/think/prompts/stable-2025-11.md`
+- Response shape: `{ "version": string, "hash": "sha256:...", "prompt_md": string }`
+
+Workflows (starter set)
+
+| ID | Purpose | Required params |
+|---|---|---|
+| `review_v1` | Basic review: checkout → lint search → tests | `branch` |
+| `code_review_v1` | Structured review with security scan | `branch` |
+| `develop_ticket_v1` | Develop ticket: fetch, branch, tests, PR | `issueKey`, `base_branch`, `feature_branch`, `title` |
+| `ticket_grooming_v1` | Groom/plan: fetch, code context, resources | `issueKey` |
+
+Notes
+- Think does not require a database; it uses the filesystem for workflows, prompts, and run state.
+- Tool names in workflows must match registrar names (e.g., `fts/search`, `memory/resources/list`). You may stub or implement `ci.*` tools in a separate engine.
+- Deterministic replay: given the same workflow + params and validated outputs, the step sequence is fixed.
 
 ## Chapter 6 – Scaffolding an Engine
 - Use the generator CLI to scaffold a new engine and optional DB wiring:
