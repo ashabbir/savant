@@ -133,7 +133,6 @@ Variables (env/config)
 |---|---|---|
 | `DATABASE_URL` | Postgres connection string | `postgres://context:contextpw@localhost:5432/contextdb` |
 | `SETTINGS_PATH` | Config path | `config/settings.json` |
-| `SAVANT_YAML` | Optional YAML config | `config/savant.yml` |
 | `SAVANT_PATH` | Repo base for logs/config | `./` |
 | `LOG_LEVEL` | Logging level | `info` |
 | `LISTEN_HOST` | HTTP transport host | `0.0.0.0` |
