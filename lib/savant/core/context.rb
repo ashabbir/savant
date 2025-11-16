@@ -20,4 +20,3 @@ module Savant
     end
   end
 end
-

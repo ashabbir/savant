@@ -37,12 +37,11 @@ module Savant
       # Engines may optionally be initialized with a shared context instance.
       def initialize(ctx: nil)
         # Lazy require to avoid circular dependency if context requires engine
-        begin
-          require_relative 'context'
-          @ctx = ctx || Savant::Core::Context.new
-        rescue LoadError
-          @ctx = ctx
-        end
+
+        require_relative 'context'
+        @ctx = ctx || Savant::Core::Context.new
+      rescue LoadError
+        @ctx = ctx
       end
 
       attr_reader :ctx
@@ -67,4 +66,3 @@ module Savant
     end
   end
 end
-

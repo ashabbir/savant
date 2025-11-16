@@ -10,4 +10,3 @@ RSpec.describe 'savant CLI' do
     expect(out).to include('fts/search')
   end
 end
-

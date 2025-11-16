@@ -25,4 +25,3 @@ RSpec.describe Savant::Core::Config::Loader do
     expect(cfg).to include('indexer', 'database')
   end
 end
-

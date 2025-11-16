@@ -4,15 +4,15 @@ require 'spec_helper'
 require 'savant/core/engine'
 
 RSpec.describe 'Savant::Core::Engine lifecycle hooks' do
-
   it 'runs before and after hooks around tool execution in order' do
     # Dummy engine with hooks capturing order
     klass = Class.new(Savant::Core::Engine) do
       def initialize
+        super()
         @events = []
       end
 
-      def events = @events
+      attr_reader :events
 
       before_call :auth
       after_call  :audit

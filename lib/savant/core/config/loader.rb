@@ -14,9 +14,7 @@ module Savant
         module_function
 
         def load(yaml_path: 'config/savant.yml', json_path: 'config/settings.json')
-          if File.exist?(yaml_path)
-            return safe_yaml(yaml_path)
-          end
+          return safe_yaml(yaml_path) if File.exist?(yaml_path)
 
           # Fall back to the existing JSON config to preserve current behavior
           Savant::Config.load(json_path)
@@ -32,4 +30,3 @@ module Savant
     end
   end
 end
-
