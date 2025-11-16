@@ -98,7 +98,7 @@ lib/savant/
 
 **Author:** Ahmed Shabbir  
 **Date:** Oct 2025  
-**Status:** PRD v1 — Observability & Security
+**Status:** Done — Observability & Security delivered
 
 ---
 
