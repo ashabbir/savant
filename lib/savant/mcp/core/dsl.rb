@@ -21,11 +21,11 @@ module Savant
             @registrar.use_middleware(&)
           end
 
-          def tool(name, description: '', schema: nil, &handler)
+          def tool(name, description: '', schema: nil, output_schema: nil, &handler)
             raise 'handler block required' unless handler
 
             schema ||= { type: 'object', properties: {} }
-            t = Tool.new(name: name, description: description, schema: schema, handler: handler)
+            t = Tool.new(name: name, description: description, schema: schema, output_schema: output_schema, handler: handler)
             @registrar.add_tool(t)
           end
 
