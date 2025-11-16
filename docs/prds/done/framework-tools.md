@@ -105,7 +105,7 @@ lib/savant/
 
 **Author:** Ahmed Shabbir  
 **Date:** Oct 2025  
-**Status:** PRD v1 — Tool System & Interoperability
+**Status:** Done — Tool System & Interoperability implemented
 
 ---
 
