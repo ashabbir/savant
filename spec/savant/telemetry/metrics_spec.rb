@@ -34,6 +34,6 @@ RSpec.describe Savant::Telemetry::Metrics do
     expect(entry[:max]).to be > 0.14
 
     text = Savant::Telemetry::Exporter.prometheus(snapshot)
-    expect(text).to include('tool_invocations_total{service="context",tool="fts/search"} 1')
+    expect(text).to include('tool_invocations_total{tool="fts/search",service="context"} 1')
   end
 end

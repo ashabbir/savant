@@ -34,7 +34,9 @@ module Savant
       # @return [Object] tool-specific result
       def dispatch(engine, name, args)
         reg = build_registrar(engine)
-        reg.call(name, args || {}, ctx: { engine: engine })
+        base_ctx = { engine: engine, service: 'context' }
+        base_ctx[:logger] = engine.logger if engine && engine.respond_to?(:logger)
+        reg.call(name, args || {}, ctx: base_ctx)
       end
 
       # Build the registrar containing all Context tools.
@@ -42,24 +44,6 @@ module Savant
       # @return [Savant::MCP::Core::Registrar]
       def build_registrar(engine = nil)
         Savant::MCP::Core::DSL.build do
-          # Structured logging middleware (framework default)
-          middleware do |ctx, nm, a, nxt|
-            logger = ctx[:logger] || Savant::Logger.new(io: $stdout, json: true, service: 'context')
-            start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-            begin
-              logger.trace(event: 'tool_start', tool: nm, request_id: ctx[:request_id])
-              out = nxt.call(ctx, nm, a)
-              dur_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - start) * 1000).round
-              logger.trace(event: 'tool_end', tool: nm, duration_ms: dur_ms, status: 'ok', request_id: ctx[:request_id])
-              out
-            rescue StandardError => e
-              dur_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - start) * 1000).round
-              logger.error(event: 'exception', tool: nm, duration_ms: dur_ms, message: e.message,
-                           request_id: ctx[:request_id])
-              raise
-            end
-          end
-
           # Validation middleware using tool schema
           require_relative '../mcp/core/validation'
           middleware do |ctx, nm, a, nxt|
@@ -70,18 +54,6 @@ module Savant
               raise "validation error: #{e.message}"
             end
             nxt.call(ctx, nm, a2)
-          end
-
-          # Structured logging middleware
-          middleware do |ctx, nm, a, nxt|
-            start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-            out = nxt.call(ctx, nm, a)
-            dur_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - start) * 1000).round
-            begin
-              engine.instance_variable_get(:@log).info("tool: name=#{nm} dur_ms=#{dur_ms}")
-            rescue StandardError
-            end
-            out
           end
 
           tool 'fts/search', description: 'Full‑text search over indexed repos (filter by repo name(s))',
