@@ -271,6 +271,12 @@ ruby ./bin/savant call 'think.driver_prompt' --service=think --input='{"version"
 
 # Plan a workflow
 ruby ./bin/savant call 'think.plan' --service=think --input='{"workflow":"review_v1","params":{"branch":"main"}}'
+
+# Enumerate workflows
+ruby ./bin/savant call 'think.workflows.list' --service=think --input='{}'
+
+# Read a workflow's YAML
+ruby ./bin/savant call 'think.workflows.read' --service=think --input='{"workflow":"develop_ticket_v1"}'
 ```
 
 Driver prompt
@@ -291,6 +297,23 @@ Notes
 - Think does not require a database; it uses the filesystem for workflows, prompts, and run state.
 - Tool names in workflows must match registrar names (e.g., `fts/search`, `memory/resources/list`). You may stub or implement `ci.*` tools in a separate engine.
 - Deterministic replay: given the same workflow + params and validated outputs, the step sequence is fixed.
+
+HTTP example (list workflows)
+
+```bash
+# Start HTTP transport (in another shell):
+MCP_SERVICE=think LISTEN_HOST=127.0.0.1 LISTEN_PORT=8765 ruby ./bin/mcp_server --http
+
+# List workflows via JSON-RPC over HTTP
+curl -s http://127.0.0.1:8765/jsonrpc \
+  -H 'content-type: application/json' \
+  -d '{
+    "jsonrpc":"2.0",
+    "id":1,
+    "method":"tools/call",
+    "params":{ "name":"think.workflows.list", "arguments":{} }
+  }'
+```
 
 Workflow details
 
