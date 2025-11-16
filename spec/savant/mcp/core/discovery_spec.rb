@@ -28,8 +28,9 @@ RSpec.describe 'DSL dynamic tool loading' do
   end
 
   it 'registers tools from files in sorted order' do
+    path = tmpdir
     reg = Savant::MCP::Core::DSL.build do
-      load_dir tmpdir
+      load_dir path
     end
 
     names = reg.specs.map { |s| s[:name] }
