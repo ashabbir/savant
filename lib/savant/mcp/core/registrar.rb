@@ -35,7 +35,8 @@ module Savant
           raise 'Unknown tool' unless tool
 
           # Attach tool metadata into ctx for middlewares (e.g., validation)
-          ctx2 = (ctx || {}).merge(tool_name: tool.name, schema: tool.schema, description: tool.description)
+          ctx2 = (ctx || {}).merge(tool_name: tool.name, schema: tool.schema, description: tool.description,
+                                   output_schema: (tool.respond_to?(:output_schema) ? tool.output_schema : nil))
           @mw.call(ctx2, name, args) do |c, _nm, a|
             tool.handler.call(c, a)
           end
