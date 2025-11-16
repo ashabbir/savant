@@ -30,6 +30,16 @@ module Savant
           end
 
           attr_reader :registrar
+
+          # Load and evaluate all Ruby files under a directory, in sorted order,
+          # within the builder context so they can call `tool` and `middleware`.
+          def load_dir(path)
+            files = Dir.glob(File.join(path.to_s, '**', '*.rb')).sort
+            files.each do |f|
+              code = File.read(f)
+              instance_eval(code, f)
+            end
+          end
         end
 
         module_function
