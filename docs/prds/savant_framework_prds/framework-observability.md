@@ -102,6 +102,15 @@ lib/savant/
 
 ---
 
+## Agent Implementation Plan
+- Build telemetry middleware (`lib/savant/middleware/trace.rb`, `metrics.rb`) that emits structured log events, counters, and durations per tool.
+- Add governance modules (`lib/savant/audit/policy.rb`, `store.rb`) that load `config/policy.yml`, enforce sandbox toggles, and persist audit entries.
+- Extend MCP registrar stack to apply logging + telemetry middleware plus a replay buffer for the last N calls.
+- Surface metrics exporter (`lib/savant/telemetry/metrics.rb`, `exporter.rb`) to track tool invocation totals/errors/durations with thread-safe helpers.
+- Update specs (`spec/savant/middleware/trace_spec.rb`, `spec/savant/audit/policy_spec.rb`, `spec/savant/telemetry/metrics_spec.rb`) to drive behavior end-to-end, and document policy file expectations.
+
+---
+
 ## Acceptance + TDD TODO (Compact)
 - Criteria: diagnostics hooks; security policies; governance controls as defined in PRD.
 - TODO:
