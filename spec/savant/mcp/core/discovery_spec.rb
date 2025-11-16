@@ -38,4 +38,3 @@ RSpec.describe 'DSL dynamic tool loading' do
     expect(reg.call('beta/two', {}, ctx: {})).to eq(2)
   end
 end
-

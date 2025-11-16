@@ -27,4 +27,3 @@ RSpec.describe Savant::AI::AgentRunner do
     expect(out[:results][1][:output]['sum']).to eq(3)
   end
 end
-

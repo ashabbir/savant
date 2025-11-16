@@ -40,4 +40,3 @@ RSpec.describe 'Tool composition via ctx.invoke' do
     expect(logs).to eq(['mw:comp/relay:before', 'mw:base/echo:before', 'mw:base/echo:after', 'mw:comp/relay:after'])
   end
 end
-
