@@ -35,17 +35,17 @@ module Savant
           end
 
           tool 'think.driver_prompt', description: 'Return versioned driver prompt markdown',
-                                       schema: { type: 'object', properties: { version: { type: 'string' } } } do |_ctx, a|
+                                      schema: { type: 'object', properties: { version: { type: 'string' } } } do |_ctx, a|
             eng.driver_prompt(version: a['version'])
           end
 
           tool 'think.plan', description: 'Initialize a workflow run and return first instruction',
-                              schema: { type: 'object', properties: { workflow: { type: 'string' }, params: { type: 'object' } }, required: ['workflow'] } do |_ctx, a|
+                             schema: { type: 'object', properties: { workflow: { type: 'string' }, params: { type: 'object' } }, required: ['workflow'] } do |_ctx, a|
             eng.plan(workflow: a['workflow'].to_s, params: a['params'] || {})
           end
 
           tool 'think.next', description: 'Advance a workflow by recording step result and returning next instruction',
-                              schema: { type: 'object', properties: { workflow: { type: 'string' }, step_id: { type: 'string' }, result_snapshot: { type: 'object' } }, required: %w[workflow step_id] } do |_ctx, a|
+                             schema: { type: 'object', properties: { workflow: { type: 'string' }, step_id: { type: 'string' }, result_snapshot: { type: 'object' } }, required: %w[workflow step_id] } do |_ctx, a|
             eng.next(workflow: a['workflow'].to_s, step_id: a['step_id'].to_s, result_snapshot: a['result_snapshot'] || {})
           end
 
@@ -63,4 +63,3 @@ module Savant
     end
   end
 end
-
