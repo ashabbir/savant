@@ -2,22 +2,31 @@
 
 Savant is a lightweight Ruby framework for building and running local MCP services. The core boots a single MCP server, loads an engine, and handles transport, logging, config, and dependency wiring. Each engine you mount becomes its own MCP service, so `MCP_SERVICE=context` launches the Context MCP, `MCP_SERVICE=jira` launches the Jira MCP, and custom engines plug in the same way.
 
+## Documentation
+- Docs index: [docs/](docs/README.md)
+- Framework docs: [Framework Overview](docs/framework/README.md)
+- Engine docs:
+  - [Context](docs/engines/context.md)
+  - [Jira](docs/engines/jira.md)
+  - [Think](docs/engines/think.md)
+
 ## Table of Contents
-- Chapter 1 – Introduction
-- Chapter 2 – Getting Started
-- Chapter 3 – Framework
-  - 3.1 Transport Layer
-  - 3.2 Tool Registrar and Middleware
-  - 3.3 Runtime and Services
-- Chapter 4 – Engines
-- Chapter 5 – Current Engines
-  - 5.1 Context
-  - 5.2 Jira
-  - 5.3 Think
-- Chapter 6 – Scaffolding an Engine
-- Chapter 7 – IDE Integration
-- Chapter 8 – Additional Information
-- Chapter 9 – Future Work
+- [Chapter 1 – Introduction](#chapter-1--introduction)
+- [Chapter 2 – Getting Started](#chapter-2--getting-started)
+- [Quick Start — Think Engine](#quick-start--think-engine)
+- [Chapter 3 – Framework](#chapter-3--framework)
+  - [3.1 Transport Layer](#31-transport-layer)
+  - [3.2 Tool Registrar and Middleware](#32-tool-registrar-and-middleware)
+  - [3.3 Runtime and Services](#33-runtime-and-services)
+- [Chapter 4 – Engines](#chapter-4--engines)
+- [Chapter 5 – Current Engines](#chapter-5--current-engines)
+  - [5.1 Context](#51-context)
+  - [5.2 Jira](#52-jira)
+  - [5.3 Think](#53-think)
+- [Chapter 6 – Scaffolding an Engine](#chapter-6--scaffolding-an-engine)
+- [Chapter 7 – IDE Integration](#chapter-7--ide-integration)
+- [Chapter 8 – Additional Information](#chapter-8--additional-information)
+- [Chapter 9 – Future Work](#chapter-9--future-work)
 
 ## Chapter 1 – Introduction
 - What Savant is: a small, focused framework to build MCP-compatible services that run locally and speak JSON-RPC over stdio or HTTP.
@@ -149,7 +158,7 @@ Lifecycle Hooks (Core Runtime)
 
 ## Chapter 5 – Current Engines
 
-### 5.1 Context
+### 5.1 Context ([full docs](docs/engines/context.md))
 - Purpose: Fast, ranked repo search via Postgres FTS populated by the Indexer.
 - Workflow: Indexer scans repos, dedupes blobs, chunks content, writes to DB; Context engine queries FTS and returns ranked snippets.
 
@@ -188,7 +197,7 @@ Docker commands
 | `docker compose build && make dev` | Build containers and start Postgres |
 | `make repo-index-all` | Index repos in containers |
 
-### 5.2 Jira
+### 5.2 Jira ([full docs](docs/engines/jira.md))
 - Purpose: Jira JQL search and self-check tools via Jira REST v3.
 - Workflow: Engine calls Jira REST with credentials from env or config; returns issues and metadata.
 
@@ -221,7 +230,7 @@ Docker commands
 |---|---|
 | `docker compose run --rm -T mcp-jira` | Run in a container (if defined) |
 
-### 5.3 Think
+### 5.3 Think ([full docs](docs/engines/think.md))
 - Purpose: Deterministic planning/orchestration for editor workflows (plan → execute → next loop). Think emits instructions, maintains run state, and serves a driver prompt for LLM runtimes.
 - Workflow: Load YAML workflows from the repo, produce a DAG, return the first instruction, validate step results, persist state to disk, and advance to the next step until done.
 
