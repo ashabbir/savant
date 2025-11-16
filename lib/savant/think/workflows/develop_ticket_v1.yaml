@@ -1,0 +1,43 @@
+name: develop_ticket_v1
+version: "1.0"
+description: "Develop a ticket: fetch, branch, context search, tests, PR"
+steps:
+  - id: fetch_ticket
+    call: jira_get_issue
+    input_template:
+      key: "{{params.issueKey}}"
+    capture_as: ticket
+
+  - id: checkout
+    call: ci.checkout
+    deps: ["fetch_ticket"]
+    input_template:
+      ref: "{{params.base_branch}}"
+
+  - id: feature_branch
+    call: ci.create_branch
+    deps: ["checkout"]
+    input_template:
+      name: "{{params.feature_branch}}"
+
+  - id: context_search
+    call: fts/search
+    deps: ["feature_branch"]
+    input_template:
+      q: "{{params.issueKey}}"
+    capture_as: code_refs
+
+  - id: run_tests
+    call: ci.run_tests
+    deps: ["context_search"]
+    input_template:
+      ref: "{{params.feature_branch}}"
+
+  - id: open_pr
+    call: ci.open_pr
+    deps: ["run_tests"]
+    input_template:
+      title: "[{{params.issueKey}}] {{params.title}}"
+      base: "{{params.base_branch}}"
+      head: "{{params.feature_branch}}"
+

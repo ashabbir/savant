@@ -2,21 +2,33 @@
 
 Savant is a lightweight Ruby framework for building and running local MCP services. The core boots a single MCP server, loads an engine, and handles transport, logging, config, and dependency wiring. Each engine you mount becomes its own MCP service, so `MCP_SERVICE=context` launches the Context MCP, `MCP_SERVICE=jira` launches the Jira MCP, and custom engines plug in the same way.
 
+## Documentation
+- Docs index: [docs/](docs/README.md)
+- Framework docs: [Framework Overview](docs/framework/README.md)
+- Engine docs:
+  - [Context](docs/engines/context.md)
+  - [Jira](docs/engines/jira.md)
+  - [Think](docs/engines/think.md)
+ - Examples:
+   - [Demo Engine (Hello)](docs/examples/demo-engine/README.md)
+
 ## Table of Contents
-- Chapter 1 – Introduction
-- Chapter 2 – Getting Started
-- Chapter 3 – Framework
-  - 3.1 Transport Layer
-  - 3.2 Tool Registrar and Middleware
-  - 3.3 Runtime and Services
-- Chapter 4 – Engines
-- Chapter 5 – Current Engines
-  - 5.1 Context
-  - 5.2 Jira
-- Chapter 6 – Scaffolding an Engine
-- Chapter 7 – IDE Integration
-- Chapter 8 – Additional Information
-- Chapter 9 – Future Work
+- [Chapter 1 – Introduction](#chapter-1--introduction)
+- [Chapter 2 – Getting Started](#chapter-2--getting-started)
+- [Quick Start — Think Engine](#quick-start--think-engine)
+- [Chapter 3 – Framework](#chapter-3--framework)
+  - [3.1 Transport Layer](#31-transport-layer)
+  - [3.2 Tool Registrar and Middleware](#32-tool-registrar-and-middleware)
+  - [3.3 Runtime and Services](#33-runtime-and-services)
+- [Chapter 4 – Engines](#chapter-4--engines)
+- [Chapter 5 – Current Engines](#chapter-5--current-engines)
+  - [5.1 Context](#51-context)
+  - [5.2 Jira](#52-jira)
+  - [5.3 Think](#53-think)
+- [Chapter 6 – Scaffolding an Engine](#chapter-6--scaffolding-an-engine)
+- [Chapter 7 – IDE Integration](#chapter-7--ide-integration)
+- [Chapter 8 – Additional Information](#chapter-8--additional-information)
+- [Chapter 9 – Future Work](#chapter-9--future-work)
 
 ## Chapter 1 – Introduction
 - What Savant is: a small, focused framework to build MCP-compatible services that run locally and speak JSON-RPC over stdio or HTTP.
@@ -62,6 +74,24 @@ Savant is a lightweight Ruby framework for building and running local MCP servic
 - Call a tool via CLI (dry-run friendly):
   ```bash
   ruby ./bin/savant call 'fts/search' --service=context --input='{"q":"User","limit":3}'
+  ```
+
+### Quick Start — Think Engine
+- Start Think (stdio):
+  ```bash
+  MCP_SERVICE=think SAVANT_PATH=$(pwd) ruby ./bin/mcp_server
+  ```
+- List tools:
+  ```bash
+  ruby ./bin/savant list tools --service=think
+  ```
+- Plan a workflow (review_v1):
+  ```bash
+  ruby ./bin/savant call 'think.plan' --service=think --input='{"workflow":"review_v1","params":{"branch":"main"}}'
+  ```
+- Advance to next step (example):
+  ```bash
+  ruby ./bin/savant call 'think.next' --service=think --input='{"workflow":"review_v1","step_id":"lint","result_snapshot":{"rows":[]}}'
   ```
 
 ## Chapter 3 – Framework
@@ -130,7 +160,7 @@ Lifecycle Hooks (Core Runtime)
 
 ## Chapter 5 – Current Engines
 
-### 5.1 Context
+### 5.1 Context ([full docs](docs/engines/context.md))
 - Purpose: Fast, ranked repo search via Postgres FTS populated by the Indexer.
 - Workflow: Indexer scans repos, dedupes blobs, chunks content, writes to DB; Context engine queries FTS and returns ranked snippets.
 
@@ -169,7 +199,7 @@ Docker commands
 | `docker compose build && make dev` | Build containers and start Postgres |
 | `make repo-index-all` | Index repos in containers |
 
-### 5.2 Jira
+### 5.2 Jira ([full docs](docs/engines/jira.md))
 - Purpose: Jira JQL search and self-check tools via Jira REST v3.
 - Workflow: Engine calls Jira REST with credentials from env or config; returns issues and metadata.
 
@@ -202,6 +232,130 @@ Docker commands
 |---|---|
 | `docker compose run --rm -T mcp-jira` | Run in a container (if defined) |
 
+### 5.3 Think ([full docs](docs/engines/think.md))
+- Purpose: Deterministic planning/orchestration for editor workflows (plan → execute → next loop). Think emits instructions, maintains run state, and serves a driver prompt for LLM runtimes.
+- Workflow: Load YAML workflows from the repo, produce a DAG, return the first instruction, validate step results, persist state to disk, and advance to the next step until done.
+
+Variables (env/config)
+
+| Key | Purpose | Example/Default |
+|---|---|---|
+| `MCP_SERVICE` | must be `think` | `think` |
+| `SAVANT_PATH` | base path for workflows/prompts/state | repo root (default) |
+| `LOG_LEVEL` | logging level | `info` |
+
+Directory layout
+
+| Path | Purpose |
+|---|---|
+| `lib/savant/think/engine.rb` | Think engine implementation |
+| `lib/savant/think/tools.rb` | MCP registrar for `think.*` tools |
+| `lib/savant/think/workflows/*.yaml` | Workflow definitions (YAML) |
+| `lib/savant/think/prompts.yml` | Prompt version registry |
+| `lib/savant/think/prompts/*.md` | Driver prompt markdown versions |
+| `.savant/state/<workflow>.json` | On-disk run state snapshots |
+
+Tools
+
+| Tool | Purpose |
+|---|---|
+| `think.driver_prompt` | Return versioned bootstrap prompt `{version, hash, prompt_md}` |
+| `think.plan` | Initialize a run and return first instruction + state |
+| `think.next` | Accept a step result, persist, and return next instruction or final summary |
+| `think.workflows.list` | List available workflow IDs and basic metadata |
+| `think.workflows.read` | Return raw workflow YAML for inspection |
+
+Run (stdio)
+
+```bash
+MCP_SERVICE=think SAVANT_PATH=$(pwd) ruby ./bin/mcp_server
+```
+
+Discover and call via CLI
+
+```bash
+# List tools
+ruby ./bin/savant list tools --service=think
+
+# Get driver prompt (specific version)
+ruby ./bin/savant call 'think.driver_prompt' --service=think --input='{"version":"stable-2025-11"}'
+
+# Plan a workflow
+ruby ./bin/savant call 'think.plan' --service=think --input='{"workflow":"review_v1","params":{"branch":"main"}}'
+
+# Enumerate workflows
+ruby ./bin/savant call 'think.workflows.list' --service=think --input='{}'
+
+# Read a workflow's YAML
+ruby ./bin/savant call 'think.workflows.read' --service=think --input='{"workflow":"develop_ticket_v1"}'
+```
+
+Driver prompt
+- Registry: `lib/savant/think/prompts.yml`
+- Example version: `stable-2025-11` → `lib/savant/think/prompts/stable-2025-11.md`
+- Response shape: `{ "version": string, "hash": "sha256:...", "prompt_md": string }`
+
+Workflows (starter set)
+
+| ID | Purpose | Required params |
+|---|---|---|
+| `review_v1` | Basic review: checkout → lint search → tests | `branch` |
+| `code_review_v1` | Structured review with security scan | `branch` |
+| `develop_ticket_v1` | Develop ticket: fetch, branch, tests, PR | `issueKey`, `base_branch`, `feature_branch`, `title` |
+| `ticket_grooming_v1` | Groom/plan: fetch, code context, resources | `issueKey` |
+
+Notes
+- Think does not require a database; it uses the filesystem for workflows, prompts, and run state.
+- Tool names in workflows must match registrar names (e.g., `fts/search`, `memory/resources/list`). You may stub or implement `ci.*` tools in a separate engine.
+- Deterministic replay: given the same workflow + params and validated outputs, the step sequence is fixed.
+
+HTTP example (list workflows)
+
+```bash
+# Start HTTP transport (in another shell):
+MCP_SERVICE=think LISTEN_HOST=127.0.0.1 LISTEN_PORT=8765 ruby ./bin/mcp_server --http
+
+# List workflows via JSON-RPC over HTTP
+curl -s http://127.0.0.1:8765/jsonrpc \
+  -H 'content-type: application/json' \
+  -d '{
+    "jsonrpc":"2.0",
+    "id":1,
+    "method":"tools/call",
+    "params":{ "name":"think.workflows.list", "arguments":{} }
+  }'
+```
+
+Workflow details
+
+- review_v1:
+  - Steps: `ci.checkout` → `context.search` (lint) → `ci.run_tests`
+  - Plan example:
+    ```bash
+    ruby ./bin/savant call 'think.plan' --service=think --input='{"workflow":"review_v1","params":{"branch":"main"}}'
+    ```
+
+- code_review_v1:
+  - Steps: `ci.checkout` → `fts/search`(lint) → `fts/search`(findings) → `fts/search`(security) → `ci.run_tests`
+  - Plan example:
+    ```bash
+    ruby ./bin/savant call 'think.plan' --service=think --input='{"workflow":"code_review_v1","params":{"branch":"main"}}'
+    ```
+
+- develop_ticket_v1:
+  - Steps: `jira_get_issue` → `ci.checkout`(base) → `ci.create_branch` → `fts/search`(issue key) → `ci.run_tests` → `ci.open_pr`
+  - Plan example:
+    ```bash
+    ruby ./bin/savant call 'think.plan' --service=think --input='{"workflow":"develop_ticket_v1","params":{"issueKey":"ABC-123","base_branch":"main","feature_branch":"feature/ABC-123","title":"Implement X"}}'
+    ```
+
+- ticket_grooming_v1:
+  - Steps: `jira_get_issue` → `fts/search`(summary/issue key) → `memory/resources/list` → `fts/search`(guides)
+  - Plan example:
+    ```bash
+    ruby ./bin/savant call 'think.plan' --service=think --input='{"workflow":"ticket_grooming_v1","params":{"issueKey":"ABC-123"}}'
+    ```
+
 ## Chapter 6 – Scaffolding an Engine
 - Use the generator CLI to scaffold a new engine and optional DB wiring:
   ```bash
@@ -213,6 +367,35 @@ Docker commands
   - CLI helpers during development:
     - `ruby ./bin/savant list tools --service=myengine`
     - `ruby ./bin/savant call '<ns>/<tool>' --service=myengine --input='{}'`
+
+### Generator: create and wire a new engine (example)
+
+```bash
+# 1) Generate files
+bundle exec ruby ./bin/savant generate engine demo --with-db
+
+# Files created:
+#   lib/savant/demo/engine.rb
+#   lib/savant/demo/tools.rb
+#   spec/savant/demo/engine_spec.rb
+
+# 2) Run the engine over stdio
+MCP_SERVICE=demo ruby ./bin/mcp_server
+
+# 3) Introspect tools (in another shell)
+ruby ./bin/savant list tools --service=demo
+
+# 4) Call the sample tool
+ruby ./bin/savant call 'demo/hello' --service=demo --input='{"name":"dev"}'
+
+# Optional: run via the unified CLI (HTTP)
+ruby ./bin/savant serve --transport=http --service=demo --host=127.0.0.1 --port=8765
+```
+
+Notes
+- The dispatcher auto-loads `lib/savant/<engine>/{engine,tools}.rb` based on `MCP_SERVICE`.
+- The generator’s sample tool is `'<engine>/hello'`; customize `engine.rb` and `tools.rb` as needed.
+- Add more tools using the DSL in your `tools.rb` file and wire to real ops.
 
 ## Chapter 7 – IDE Integration
 - Overview: Editors launch Savant as a child process and communicate via stdio using JSON-RPC 2.0. No ports required. Alternatively, you can run HTTP mode for testing.

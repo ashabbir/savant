@@ -1,0 +1,36 @@
+name: code_review_v1
+version: "1.0"
+description: "Structured code review: checkout, lint, static scans, tests"
+steps:
+  - id: checkout
+    call: ci.checkout
+    input_template:
+      ref: "{{params.branch}}"
+
+  - id: lint
+    call: fts/search
+    deps: ["checkout"]
+    input_template:
+      q: "rubocop offenses OR linter disable"
+    capture_as: lint_result
+
+  - id: findings
+    call: fts/search
+    deps: ["checkout"]
+    input_template:
+      q: "TODO|FIXME|binding.pry|puts|console.log"
+    capture_as: findings
+
+  - id: security
+    call: fts/search
+    deps: ["checkout"]
+    input_template:
+      q: "permit_all|skip_auth|eval(|OPENSSL_NO_VERIFY"
+    capture_as: security_findings
+
+  - id: tests
+    call: ci.run_tests
+    deps: ["lint", "findings", "security"]
+    input_template:
+      ref: "{{params.branch}}"
+
