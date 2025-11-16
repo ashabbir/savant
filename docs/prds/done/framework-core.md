@@ -112,7 +112,7 @@ lib/savant/
 
 **Author:** Ahmed Shabbir  
 **Date:** Oct 2025  
-**Status:** PRD v1 — Core Runtime
+**Status:** Done — Core Runtime implemented via TDD phases
 
 ---
 
@@ -126,3 +126,40 @@ lib/savant/
   - Green: implement middleware stack and hook execution order.
   - Green: minimal CLI commands and config loader integration.
   - Refactor: align naming and directory structure; add docs.
+
+---
+
+## Agent Implementation Plan
+
+- Branch: feature/framework-core
+- Strategy: Strict TDD in small phases with focused commits.
+
+Phases
+- Phase 1 — Core Engine Hooks (TDD)
+  - Red: spec for `Savant::Core::Engine` lifecycle hooks `before_call`/`after_call` and execution order around a tool call.
+  - Green: implement `lib/savant/core/engine.rb` with hook DSL + `wrap_call` and integrate via a registrar middleware in `MCP::Dispatcher`.
+  - Commit: “core(engine): add lifecycle hooks and dispatcher integration (TDD)”
+
+- Phase 2 — Shared Context (TDD)
+  - Red: spec for `Savant::Core::Context` exposing `logger`, `config`, and optional `db` lazy construction.
+  - Green: implement `lib/savant/core/context.rb` and attach instance to all engines via base class.
+  - Commit: “core(context): shared ctx with logger/config (TDD)”
+
+- Phase 3 — Config Loader (TDD)
+  - Red: spec for `Savant::Core::Config::Loader` that reads `config/savant.yml` and falls back to existing JSON settings.
+  - Green: implement `lib/savant/core/config/loader.rb` with precedence: YAML > env > defaults; non‑breaking with current JSON.
+  - Commit: “core(config): YAML loader with JSON fallback (TDD)”
+
+- Phase 4 — CLI DX (TDD)
+  - Red: CLI specs for `savant list tools` and `savant call <tool> --input` (dry‑run friendly; no DB required for list).
+  - Green: extend `bin/savant` with `list` and `call` subcommands using existing registrar discovery.
+  - Commit: “cli: add list/call for all engines (TDD)”
+
+- Phase 5 — Polish
+  - RuboCop auto‑correct and doc touch‑ups.
+  - Move PRD to `docs/prds/done/framework-core.md` and mark Status to Done.
+  - Commit: “docs(prd): framework-core → Done; polish & rubocop”
+
+Notes
+- Backwards compatible with existing Context/Jira tools and server.
+- No DB required for `list` or describe commands; `call` constructs engine on demand.
