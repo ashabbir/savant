@@ -8,6 +8,8 @@ def usage!
     usage:
       savant generate engine <name> [--with-db] [--force]
       savant serve [--transport=stdio|http] [--host=HOST] [--port=PORT] [--service=NAME]
+      savant list tools [--service=NAME]
+      savant call <tool> --input='{}' [--service=NAME]
   TXT
   exit 2
 end
@@ -62,5 +64,56 @@ when 'serve'
   end
 
 else
-  usage!
+  case cmd
+  when 'list'
+    sub = ARGV.shift
+    usage! unless sub == 'tools'
+
+    options = { service: ENV['MCP_SERVICE'] }
+    OptionParser.new do |o|
+      o.on('--service=NAME', 'MCP service to introspect (context, jira, etc.)') { |v| options[:service] = v }
+    end.parse!(ARGV)
+
+    svc = (options[:service] || 'context').to_s
+    # Load service tools registrar without constructing engine (to avoid side effects)
+    require File.join(__dir__, '..', 'lib', 'savant', svc, 'tools')
+    camel = svc.split(/[^a-zA-Z0-9]/).map { |s| s[0] ? s[0].upcase + s[1..] : '' }.join
+    mod = Savant.const_get(camel)
+    tools_mod = mod.const_get(:Tools)
+    registrar = tools_mod.build_registrar(nil)
+    registrar.specs.each do |spec|
+      puts "#{spec[:name]}\t— #{spec[:description]}"
+    end
+  when 'call'
+    tool = ARGV.shift
+    usage! if tool.nil? || tool.strip.empty?
+
+    options = { input: '{}', service: ENV['MCP_SERVICE'] }
+    OptionParser.new do |o|
+      o.on('--input=JSON', 'JSON payload for tool input') { |v| options[:input] = v }
+      o.on('--service=NAME', 'MCP service to run (context, jira, etc.)') { |v| options[:service] = v }
+    end.parse!(ARGV)
+
+    args = begin
+      JSON.parse(options[:input] || '{}')
+    rescue JSON::ParserError
+      warn 'invalid JSON for --input'
+      exit 2
+    end
+
+    svc = (options[:service] || 'context').to_s
+    require File.join(__dir__, '..', 'lib', 'savant', svc, 'engine')
+    require File.join(__dir__, '..', 'lib', 'savant', svc, 'tools')
+    camel = svc.split(/[^a-zA-Z0-9]/).map { |s| s[0] ? s[0].upcase + s[1..] : '' }.join
+    mod = Savant.const_get(camel)
+    engine_class = mod.const_get(:Engine)
+    tools_mod = mod.const_get(:Tools)
+    engine = engine_class.new
+    registrar = tools_mod.build_registrar(engine)
+    ctx = { engine: engine, request_id: 'cli', service: svc, logger: Savant::Logger.new(io: $stdout, json: true, service: svc) }
+    out = registrar.call(tool, args, ctx: ctx)
+    puts JSON.pretty_generate(out)
+  else
+    usage!
+  end
 end
