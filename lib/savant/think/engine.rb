@@ -250,10 +250,11 @@ module Savant
       end
 
       def validate_payload(snapshot)
+        snapshot_utf8 = sanitize_utf8(snapshot)
         begin
-          json = JSON.generate(snapshot)
+          json = JSON.generate(snapshot_utf8)
         rescue StandardError
-          return summarize_structure(snapshot)
+          return summarize_structure(snapshot_utf8)
         end
         sz = json.bytesize
         @limits[:warn_threshold_bytes]
@@ -261,10 +262,10 @@ module Savant
         if @limits[:log_payload_sizes]
           # Avoid requiring logger wiring here; annotate size in the snapshot itself
         end
-        return snapshot if sz <= max
+        return snapshot_utf8 if sz <= max
 
         # Truncate / summarize
-        truncate_snapshot(snapshot, max)
+        truncate_snapshot(snapshot_utf8, max)
       end
 
       def truncate_snapshot(obj, max_bytes, string_max: @limits[:max_string_bytes])
@@ -308,6 +309,24 @@ module Savant
         else
           { '_summary' => obj.class.name }
         end
+      end
+
+      def sanitize_utf8(obj)
+        case obj
+        when String
+          obj.encode('UTF-8', invalid: :replace, undef: :replace, replace: '')
+        when Array
+          obj.map { |el| sanitize_utf8(el) }
+        when Hash
+          obj.each_with_object({}) do |(k, v), h|
+            kk = k.is_a?(String) ? k.encode('UTF-8', invalid: :replace, undef: :replace, replace: '') : k
+            h[kk] = sanitize_utf8(v)
+          end
+        else
+          obj
+        end
+      rescue StandardError
+        obj
       end
 
       def next_ready_step_id(state)
