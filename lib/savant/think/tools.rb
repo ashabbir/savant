@@ -58,6 +58,19 @@ module Savant
                                        schema: { type: 'object', properties: { workflow: { type: 'string' } }, required: ['workflow'] } do |_ctx, a|
             eng.workflows_read(workflow: a['workflow'])
           end
+
+          tool 'prompt.say', description: 'Display a message to the LLM/user (no-op for engine)',
+                             schema: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'] } do |_ctx, a|
+            { message: a['text'].to_s, display: true, timestamp: Time.now.utc.iso8601 }
+          end
+
+          # NOTE: Think does not re‑expose Context FTS or local FS search.
+          # The Instruction Engine should guide the LLM to call Context MCP tools
+          # (e.g., 'fts/search') and perform local workspace searches using its
+          # editor capabilities.
+
+          # THINK NOTE: Think does not run rubocop/rspec itself. For quality gates,
+          # the instruction will ask the LLM to run local commands step-by-step.
         end
       end
     end
