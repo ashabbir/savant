@@ -182,16 +182,28 @@ steps:
     deps: ["rails_antipatterns_fs"]
     input_template:
       cmd: |
-        bundle exec rubocop -f progress || rubocop -f progress
+        # Run RuboCop only on changed Ruby files
+        CHANGED_RB=$(git diff --name-only origin/{{mr.target_branch}}...{{mr.source_branch}} | sed -n 's#^\(.*\.rb\)$#\1#p' | tr '\n' ' ')
+        if [ -n "$CHANGED_RB" ]; then
+          bundle exec rubocop -f progress $CHANGED_RB || rubocop -f progress $CHANGED_RB
+        else
+          echo "No changed Ruby files to lint"
+        fi
       expect: "no offenses detected"
     capture_as: rubocop_output
 
-  - id: rspec_full
+  - id: rspec_changed
     call: local.exec
     deps: ["rubocop"]
     input_template:
       cmd: |
-        bundle exec rspec --format progress || rspec --format progress
+        # Run RSpec only on changed spec files
+        CHANGED_SPECS=$(git diff --name-only origin/{{mr.target_branch}}...{{mr.source_branch}} | sed -n 's#^\(spec/.*\)$#\1#p' | tr '\n' ' ')
+        if [ -n "$CHANGED_SPECS" ]; then
+          bundle exec rspec --format progress $CHANGED_SPECS || rspec --format progress $CHANGED_SPECS
+        else
+          echo "No changed spec files to test"
+        fi
       min_coverage: 85
       note: "Ensure coverage >= 85% (SimpleCov or builtin)"
     capture_as: rspec_output
@@ -208,7 +220,7 @@ steps:
   # Phase 4 (Rules Application) in doc — apply code review rules
   - id: apply_rules
     call: analysis.apply_rules
-    deps: ["requirements_map", "rubocop", "rspec_full"]
+    deps: ["requirements_map", "rubocop", "rspec_changed"]
     input_template:
       rule_files:
         # Prefer underscore rule file names

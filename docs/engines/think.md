@@ -33,7 +33,7 @@ This workflow is MR‑first and orchestration‑only: Think tells the LLM what t
 - Load rules only from `.cline/rules/` (underscore names preferred):
   - `code_review_rules.md`, `backend_rules.md`, `testing_rules.md`, `style_rules.md`, `savant_rules.md`.
 - Fetch MR via GitLab MCP, extract Jira key and fetch the Jira issue.
-- Analyze changes, run Context FTS checks, verify with local search, then run RuboCop and RSpec (≥ 85% coverage) locally.
+- Analyze changes, run Context FTS checks, verify with local search, then run RuboCop and RSpec on changed files only (≥ 85% coverage where applicable).
 - Map Jira requirements, apply rules, summarize issues and quality, review discussions, compute final verdict, and write a report.
 
 Plan payload example
@@ -48,7 +48,7 @@ Flow (Mermaid)
 
 ```mermaid
 flowchart TD
-  A[think.plan(mr_iid)] --> B[local.read .cline/config.yml]
+  A[think.plan mr_iid] --> B[local.read .cline/config.yml]
   B --> C[analysis.parse_project_meta]
   C --> D[local.read .cline/rules/*]
   D --> E[gitlab.get_merge_request]
@@ -67,16 +67,16 @@ flowchart TD
   H --> N1[fts/search: Rails anti‑patterns]
   N1 --> N2[local.search: verify Rails]
 
-  I --> O[local.exec: rspec (affected) -f doc]
-  N2 --> P[local.exec: rubocop -f progress]
-  P --> Q[local.exec: rspec --format progress (≥85%)]
+  I --> O[local.exec: rspec changed specs -f doc]
+  N2 --> P[local.exec: rubocop only on changed .rb files]
+  P --> Q[local.exec: rspec only on changed specs ≥85%]
   G --> R[analysis.map_requirements]
   Q --> S[analysis.apply_rules + rules/*]
   S --> T[analysis.issues_table]
   T --> U[analysis.quality_summary]
   E --> V[gitlab.get_merge_request_discussions]
   V --> W[analysis.outstanding_items]
-  U --> X[analysis.final_matrix (thresholds)]
+  U --> X[analysis.final_matrix thresholds]
   X --> Y[local.write: code-reviews/<ticket>/<ts>.md]
 ```
 
@@ -109,7 +109,7 @@ sequenceDiagram
   JIRA-->>LLM: Jira issue
   LLM->>THINK: think.next(jira)
 
-  THINK-->>LLM: instruction: local.exec checkout + diff; analysis.graph
+  THINK-->>LLM: instruction: local.exec checkout + analysis.graph
   LLM->>LOCAL: git checkout + git diff
   LLM->>THINK: think.next(changes)
   THINK-->>LLM: instruction: analysis.graph
