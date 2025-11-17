@@ -351,13 +351,13 @@ module Savant
         path = state_path_for(workflow)
         return {} unless File.exist?(path)
 
-        JSON.parse(File.read(path))
+        JSON.parse(read_text_utf8(path))
       end
 
       def write_state(workflow, obj)
         path = state_path_for(workflow)
         tmp = "#{path}.tmp"
-        File.write(tmp, JSON.pretty_generate(obj))
+        File.open(tmp, 'w:UTF-8') { |f| f.write(JSON.pretty_generate(obj)) }
         FileUtils.mv(tmp, path)
       end
     end
