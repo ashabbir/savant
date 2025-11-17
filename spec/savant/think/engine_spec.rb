@@ -80,20 +80,20 @@ RSpec.describe 'Savant Think MCP' do
 
     # Advance driver bootstrap
     nxt1 = registrar.call('think.next', {
-                              'workflow' => 'review_v1',
-                              'step_id' => '__driver_bootstrap',
-                              'result_snapshot' => { 'version' => 'stable-2025-11', 'prompt_md' => '...' }
-                            }, ctx: {})
+                            'workflow' => 'review_v1',
+                            'step_id' => '__driver_bootstrap',
+                            'result_snapshot' => { 'version' => 'stable-2025-11', 'prompt_md' => '...' }
+                          }, ctx: {})
     expect(nxt1[:done]).to eq(false)
     expect(nxt1[:instruction][:step_id]).to eq('__driver_announce')
     expect(nxt1[:instruction][:call]).to eq('prompt.say')
 
     # Advance driver announce; expect actual first workflow step 'lint'
     nxt2 = registrar.call('think.next', {
-                              'workflow' => 'review_v1',
-                              'step_id' => '__driver_announce',
-                              'result_snapshot' => { 'ok' => true }
-                            }, ctx: {})
+                            'workflow' => 'review_v1',
+                            'step_id' => '__driver_announce',
+                            'result_snapshot' => { 'ok' => true }
+                          }, ctx: {})
     expect(nxt2[:done]).to eq(false)
     expect(nxt2[:instruction][:step_id]).to eq('lint')
     expect(nxt2[:instruction][:call]).to eq('context.search')
