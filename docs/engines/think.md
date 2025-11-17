@@ -18,7 +18,7 @@ Purpose: Deterministic orchestration and reasoning — plan → execute → next
 - `think.workflows.read`: return raw workflow YAML
 
 ## Starter Workflows
-- `review_v1`, `code_review_v1`, `develop_ticket_v1`, `ticket_grooming_v1`
+- `review_v1`, `code_review_v1`, `code_review_v2`, `develop_ticket_v1`, `ticket_grooming_v1`
 
 ## Run
 - Stdio: `MCP_SERVICE=think SAVANT_PATH=$(pwd) ruby ./bin/mcp_server`
@@ -42,6 +42,23 @@ Plan payload example
 ruby ./bin/savant call 'think.plan' \
   --service=think \
   --input='{"workflow":"code_review_v1","params":{"mr_iid":"!12345"}}'
+```
+
+## Code Review v2
+
+Local‑first code review with gated phases, visuals, and a final safety decision. Search policy is explicit:
+
+- Project‑local analysis only for the current repo (git diff, fs traversal, AST/static, ripgrep).
+- Cross‑repo/library impacts via Context MCP (`fts/search`, `memory/search`) and local FS index only.
+- Gates: Impact Analysis → Impact Graph → Sequence Diagram → Safety Decision.
+- Outputs: Mermaid `impact_graph.mmd`, `sequence_diagram.mmd`, and a single `report.md` under `reports/code_review_v2/<date>_<shortsha>/`.
+
+Plan payload example
+
+```bash
+ruby ./bin/savant call 'think.plan' \
+  --service=think \
+  --input='{"workflow":"code_review_v2","params":{"base_ref":"origin/main","cross_repo_query":"MyAPI::Client"}}'
 ```
 
 Changed-only commands (examples)
