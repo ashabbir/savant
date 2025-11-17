@@ -68,9 +68,9 @@ flowchart TD
   H --> N1[fts/search: Rails anti‑patterns]
   N1 --> N2[local.search: verify Rails]
 
-  I --> O[local.exec: rspec (changed specs from MR changes) -f doc]
-  N2 --> P[local.exec: rubocop only on changed .rb files (from MR changes)]
-  P --> Q[local.exec: rspec only on changed specs (from MR changes) ≥85%]
+  I --> O[local.exec: rspec changed specs from MR changes -f doc]
+  N2 --> P[local.exec: rubocop only on changed .rb files from MR changes]
+  P --> Q[local.exec: rspec only on changed specs from MR changes ≥85%]
   G --> R[analysis.map_requirements]
   Q --> S[analysis.apply_rules + rules/*]
   S --> T[analysis.issues_table]
@@ -115,12 +115,12 @@ sequenceDiagram
   GITLAB-->>LLM: list of changed files
   LLM->>THINK: think.next(changes)
   THINK-->>LLM: instruction: local.exec checkout + analysis.graph
-  LLM->>LOCAL: git checkout; build graph from changed paths
+  LLM->>LOCAL: git checkout build graph from changed paths
   THINK-->>LLM: instruction: analysis.graph
-  LLM->>THINK: think.next(graph)
+  LLM->>THINK: think.next graph
 
-  THINK-->>LLM: instruction: FTS + local verify (lint/debug/security/rails)
-  LLM->>FTS: fts/search(...)
+  THINK-->>LLM: instruction: FTS + local verify lint/debug/security/rails
+  LLM->>FTS: fts/search
   FTS-->>LLM: matches
   LLM->>LOCAL: file search verify
   LLM->>THINK: think.next(findings)
