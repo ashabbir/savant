@@ -8,29 +8,66 @@ steps:
       ref: "{{params.branch}}"
 
   - id: lint
-    call: fts/search
+    call: context.search
     deps: ["checkout"]
     input_template:
       q: "rubocop offenses OR linter disable"
     capture_as: lint_result
 
   - id: findings
-    call: fts/search
+    call: context.search
     deps: ["checkout"]
     input_template:
       q: "TODO|FIXME|binding.pry|puts|console.log"
     capture_as: findings
 
   - id: security
-    call: fts/search
+    call: context.search
     deps: ["checkout"]
     input_template:
       q: "permit_all|skip_auth|eval(|OPENSSL_NO_VERIFY"
     capture_as: security_findings
 
-  - id: tests
-    call: ci.run_tests
-    deps: ["lint", "findings", "security"]
+  - id: lint_fs_verify
+    call: fs/grep
+    deps: ["lint"]
     input_template:
-      ref: "{{params.branch}}"
+      q: "rubocop:disable|linter disable"
+      globs: ["**/*.rb","**/*.yml","**/*.yaml"]
+    capture_as: lint_fs
 
+  - id: security_fs_verify
+    call: fs/grep
+    deps: ["security"]
+    input_template:
+      q: "permit_all|skip_auth|eval\(|OPENSSL_NO_VERIFY"
+      globs: ["**/*"]
+    capture_as: security_fs
+
+  - id: rails_antipatterns_ctx
+    call: context.search
+    deps: ["checkout"]
+    input_template:
+      q: "update_all\(|find_by_sql\(|exec_query\(|skip_before_action :authenticate_user|rescue Exception|before_filter|after_filter"
+    capture_as: rails_anti_ctx
+
+  - id: rails_antipatterns_fs
+    call: fs/grep
+    deps: ["rails_antipatterns_ctx"]
+    input_template:
+      q: "update_all\(|find_by_sql\(|exec_query\(|skip_before_action :authenticate_user|rescue Exception|before_filter|after_filter"
+      globs: ["**/*.rb"]
+    capture_as: rails_anti_fs
+
+  - id: rubocop
+    call: check/rubocop
+    deps: ["lint", "findings", "security", "rails_antipatterns_fs"]
+    input_template: {}
+    capture_as: rubocop_summary
+
+  - id: rspec
+    call: check/rspec
+    deps: ["rubocop"]
+    input_template:
+      min_coverage: 85
+    capture_as: rspec_summary

@@ -336,7 +336,7 @@ Workflow details
     ```
 
 - code_review_v1:
-  - Steps: `ci.checkout` → `fts/search`(lint) → `fts/search`(findings) → `fts/search`(security) → `ci.run_tests`
+  - Steps: `ci.checkout` → `context.search`(lint) → `context.search`(findings) → `context.search`(security) → `fs/grep` verifications (lint/security/Rails anti‑patterns) → `check/rubocop` → `check/rspec` (min_coverage=85)
   - Plan example:
     ```bash
     ruby ./bin/savant call 'think.plan' --service=think --input='{"workflow":"code_review_v1","params":{"branch":"main"}}'
