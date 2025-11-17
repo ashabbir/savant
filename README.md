@@ -361,7 +361,7 @@ Workflow details
     - Project‑local analysis only for current repo (git diff, fs traversal, AST/static, ripgrep).
     - Cross‑repo/library checks via Context MCP (`fts/search`, `memory/search`) only; no public web.
     - Gates: Impact Analysis → Impact Graph → Sequence Diagram → Safety Decision.
-    - Outputs: Mermaid `impact_graph.mmd`, `sequence_diagram.mmd`, and a single `report.md` under `reports/code_review_v2/<date>_<shortsha>/`.
+    - Outputs: A single `report.md` under `reports/code_review_v2/<date>_<shortsha>/` that embeds both Mermaid diagrams (no separate .mmd files).
   - Plan example:
     ```bash
     ruby ./bin/savant call 'think.plan' --service=think \
