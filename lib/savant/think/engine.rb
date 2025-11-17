@@ -20,6 +20,7 @@ module Savant
         @env = env
         @base = resolve_base_path
         @root = File.join(@base, 'lib', 'savant', 'think')
+        @limits = load_think_limits
       end
 
       # Return prompt markdown for a version from prompts.yml
@@ -42,6 +43,9 @@ module Savant
       # @return [Hash] { instruction:, state:, done: false }
       def plan(workflow:, params: {})
         wf = load_workflow(workflow)
+        # Auto-inject driver bootstrap/announce if not present
+        drv_ver = wf['driver_version'] || 'stable-2025-11'
+        wf = inject_driver_step(wf, drv_ver) unless has_driver_step?(wf)
         graph = build_graph(wf)
         order = topo_order(graph)
         raise 'EMPTY_WORKFLOW' if order.empty?
@@ -70,7 +74,7 @@ module Savant
 
         # capture variable if requested
         cap = step['capture_as']
-        st['vars'][cap] = result_snapshot if cap
+        st['vars'][cap] = validate_payload(result_snapshot) if cap
         st['completed'] |= [step_id]
         write_state(workflow, st)
 
@@ -127,6 +131,23 @@ module Savant
         YAML.safe_load(str, permitted_classes: [], aliases: true) || {}
       end
 
+      def load_think_limits
+        cfg_path = File.join(@base, 'config', 'think.yml')
+        h = File.exist?(cfg_path) ? safe_yaml(File.read(cfg_path)) : {}
+        payload = h['payload'] || {}
+        logging = h['logging'] || {}
+        {
+          max_snapshot_bytes: (payload['max_snapshot_bytes'] || 50_000).to_i,
+          max_string_bytes: (payload['max_string_bytes'] || 5_000).to_i,
+          truncation_strategy: (payload['truncation_strategy'] || 'summarize').to_s,
+          log_payload_sizes: !logging.fetch('log_payload_sizes', true).nil?,
+          warn_threshold_bytes: (logging['warn_threshold_bytes'] || 40_000).to_i
+        }
+      rescue StandardError
+        { max_snapshot_bytes: 50_000, max_string_bytes: 5_000, truncation_strategy: 'summarize',
+          log_payload_sizes: true, warn_threshold_bytes: 40_000 }
+      end
+
       def load_workflow(id)
         path = File.join(@root, 'workflows', "#{id}.yaml")
         raise 'WORKFLOW_NOT_FOUND' unless File.exist?(path)
@@ -140,6 +161,38 @@ module Savant
           raise 'YAML_SCHEMA_VIOLATION: call required' unless s['call'].is_a?(String) && !s['call'].empty?
         end
         h
+      end
+
+      def inject_driver_step(wf, version)
+        driver_step = {
+          'id' => '__driver_bootstrap',
+          'call' => 'think.driver_prompt',
+          'deps' => [],
+          'input_template' => { 'version' => version },
+          'capture_as' => '__driver'
+        }
+
+        announce_step = {
+          'id' => '__driver_announce',
+          'call' => 'prompt.say',
+          'deps' => ['__driver_bootstrap'],
+          'input_template' => {
+            'text' => "📓 Think Driver: {{__driver.version}}\n\n{{__driver.prompt_md}}\n\n---\nFollow the driver for orchestration & payload discipline."
+          }
+        }
+
+        original = wf['steps'] || []
+        first_ids = original.select { |s| (s['deps'] || []).empty? }.map { |s| s['id'] }
+        original.each do |s|
+          s['deps'] = Array(s['deps'])
+          s['deps'] << '__driver_announce' if first_ids.include?(s['id'])
+        end
+        wf['steps'] = [driver_step, announce_step] + original
+        wf
+      end
+
+      def has_driver_step?(wf)
+        (wf['steps'] || []).any? { |s| s['call'] == 'think.driver_prompt' }
       end
 
       # Build adjacency list graph id => deps
@@ -184,6 +237,67 @@ module Savant
           rationale: step['rationale'],
           done: false
         }
+      end
+
+      def validate_payload(snapshot)
+        begin
+          json = JSON.generate(snapshot)
+        rescue StandardError
+          return summarize_structure(snapshot)
+        end
+        sz = json.bytesize
+        @limits[:warn_threshold_bytes]
+        max = @limits[:max_snapshot_bytes]
+        if @limits[:log_payload_sizes]
+          # Avoid requiring logger wiring here; annotate size in the snapshot itself
+        end
+        return snapshot if sz <= max
+
+        # Truncate / summarize
+        truncate_snapshot(snapshot, max)
+      end
+
+      def truncate_snapshot(obj, max_bytes, string_max: @limits[:max_string_bytes])
+        case obj
+        when String
+          return obj if obj.bytesize <= string_max
+
+          head = obj.byteslice(0, string_max)
+          "#{head}…(truncated #{obj.bytesize - head.bytesize} bytes)"
+        when Array
+          out = []
+          obj.each do |el|
+            out << truncate_snapshot(el, max_bytes, string_max: string_max)
+            break if JSON.generate(out).bytesize > max_bytes
+          end
+          out << "…(#{obj.length - out.length} more items)" if out.length < obj.length
+          out
+        when Hash
+          out = {}
+          obj.each do |k, v|
+            out[k] = truncate_snapshot(v, max_bytes, string_max: string_max)
+            break if JSON.generate(out).bytesize > max_bytes
+          end
+          out['_truncated'] = true if out.keys.sort != obj.keys.sort
+          out
+        else
+          obj
+        end
+      rescue StandardError
+        summarize_structure(obj)
+      end
+
+      def summarize_structure(obj)
+        case obj
+        when Array
+          { '_summary' => 'array', 'length' => obj.length }
+        when Hash
+          { '_summary' => 'object', 'keys' => obj.keys.take(20), 'key_count' => obj.keys.length }
+        when String
+          { '_summary' => 'string', 'bytes' => obj.bytesize }
+        else
+          { '_summary' => obj.class.name }
+        end
       end
 
       def next_ready_step_id(state)
