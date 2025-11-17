@@ -21,8 +21,10 @@ module Savant
         # Prefer per-engine file path if provided; else default to logs/<service>.log
         engine_file = resolve_engine_file(cfg, @service)
         file_path = engine_file || core_file || File.join(@base_path, 'logs', "#{@service}.log")
+        level = (cfg.dig('logging', 'level') || ENV['LOG_LEVEL'] || 'info').to_s
+        fmt = (cfg.dig('logging', 'format') || ENV['LOG_FORMAT'] || 'json').to_s
 
-        log = prepare_logger(@service, @base_path, file_path: file_path)
+        log = prepare_logger(@service, @base_path, file_path: file_path, level: level, format: fmt)
         log.info(event: 'boot', mode: 'stdio', service: @service, message: 'tools=loading')
         log.info(event: 'env', pwd: Dir.pwd, settings_path: File.join(@base_path, 'config', 'settings.json'))
 
@@ -58,9 +60,9 @@ module Savant
          end)
       end
 
-      def prepare_logger(service, _base_path, file_path: nil)
-        Savant::Logger.new(io: $stdout, file_path: file_path, level: ENV['LOG_LEVEL'] || 'info', json: true,
-                           service: service)
+      def prepare_logger(service, _base_path, file_path: nil, level: 'info', format: 'json')
+        json = format.to_s.downcase != 'text'
+        Savant::Logger.new(io: $stdout, file_path: file_path, level: level, json: json, service: service)
       end
 
       def load_settings(base_path)
