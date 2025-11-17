@@ -74,8 +74,29 @@ RSpec.describe 'Savant Think MCP' do
     plan = registrar.call('think.plan', { 'workflow' => 'review_v1', 'params' => { 'branch' => 'main' } }, ctx: {})
     expect(plan).to include(:instruction, :state, :done)
     expect(plan[:done]).to eq(false)
-    expect(plan[:instruction][:step_id]).to eq('lint')
-    expect(plan[:instruction][:call]).to eq('context.search')
+    # With driver injection, first instruction is driver bootstrap
+    expect(plan[:instruction][:step_id]).to eq('__driver_bootstrap')
+    expect(plan[:instruction][:call]).to eq('think.driver_prompt')
+
+    # Advance driver bootstrap
+    nxt1 = registrar.call('think.next', {
+                            'workflow' => 'review_v1',
+                            'step_id' => '__driver_bootstrap',
+                            'result_snapshot' => { 'version' => 'stable-2025-11', 'prompt_md' => '...' }
+                          }, ctx: {})
+    expect(nxt1[:done]).to eq(false)
+    expect(nxt1[:instruction][:step_id]).to eq('__driver_announce')
+    expect(nxt1[:instruction][:call]).to eq('prompt.say')
+
+    # Advance driver announce; expect actual first workflow step 'lint'
+    nxt2 = registrar.call('think.next', {
+                            'workflow' => 'review_v1',
+                            'step_id' => '__driver_announce',
+                            'result_snapshot' => { 'ok' => true }
+                          }, ctx: {})
+    expect(nxt2[:done]).to eq(false)
+    expect(nxt2[:instruction][:step_id]).to eq('lint')
+    expect(nxt2[:instruction][:call]).to eq('context.search')
 
     # Next: complete lint, expect tests
     nxt = registrar.call('think.next', {

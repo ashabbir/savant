@@ -140,6 +140,14 @@ Lifecycle Hooks (Core Runtime)
   ```
 - The MCP dispatcher automatically wraps tool calls with `wrap_call` when available, executing `before_call` hooks, then the tool, then `after_call` hooks.
 
+Logging
+- Configure per-engine logs via `config/settings.json` under `logging`:
+  - `level`: `trace|debug|info|warn|error` (can also use `LOG_LEVEL` env)
+  - `format`: `json|text` (can also use `LOG_FORMAT` env)
+  - `engine_file_path`: directory or file path. If a directory, the stdio server logs to `<dir>/<service>.log`.
+  - `core_file_path`: fallback file path when no engine path is set.
+- Defaults: both stdio and websocket write to `logs/<service>.log` if no paths are configured.
+
 ### 3.3 Runtime and Services
 - Engine loading via `MCP_SERVICE=<engine>`; convention maps to `lib/savant/<engine>`.
 - Engine DI: `db`, `config`, `logger` accessible inside handlers.
@@ -300,7 +308,7 @@ Workflows (starter set)
 | ID | Purpose | Required params |
 |---|---|---|
 | `review_v1` | Basic review: checkout → lint search → tests | `branch` |
-| `code_review_v1` | Structured review with security scan | `branch` |
+| `code_review_v1` | MR-first code review (GitLab MR changes, changed-only rubocop/rspec) | `mr_iid` |
 | `develop_ticket_v1` | Develop ticket: fetch, branch, tests, PR | `issueKey`, `base_branch`, `feature_branch`, `title` |
 | `ticket_grooming_v1` | Groom/plan: fetch, code context, resources | `issueKey` |
 
@@ -336,10 +344,15 @@ Workflow details
     ```
 
 - code_review_v1:
-  - Steps: `ci.checkout` → `fts/search`(lint) → `fts/search`(findings) → `fts/search`(security) → `ci.run_tests`
+  - MR‑first, orchestration‑only flow:
+    - Load `.cline/config.yml`, parse project meta; load rules from `.cline/rules/*` (underscore names preferred).
+    - Fetch MR and MR changes via GitLab MCP; extract Jira key and fetch Jira issue.
+    - Checkout MR branch; build code graph; run Context `fts/search` checks; verify with `local.search`.
+    - Run RuboCop only on changed `.rb` files; run RSpec only on changed specs (≥ 85% coverage where applicable).
+    - Map Jira requirements; apply rules; summarize issues/quality; fetch discussions; final verdict; write report.
   - Plan example:
     ```bash
-    ruby ./bin/savant call 'think.plan' --service=think --input='{"workflow":"code_review_v1","params":{"branch":"main"}}'
+    ruby ./bin/savant call 'think.plan' --service=think --input='{"workflow":"code_review_v1","params":{"mr_iid":"!12345"}}'
     ```
 
 - develop_ticket_v1:
