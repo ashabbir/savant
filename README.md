@@ -336,10 +336,15 @@ Workflow details
     ```
 
 - code_review_v1:
-  - Steps: `ci.checkout` → `context.search`(lint) → `context.search`(findings) → `context.search`(security) → `fs/grep` verifications (lint/security/Rails anti‑patterns) → `check/rubocop` → `check/rspec` (min_coverage=85)
+  - MR‑first, orchestration‑only flow:
+    - Load `.cline/config.yml`, parse project meta; load rules from `.cline/rules/*` (underscore names preferred).
+    - Fetch MR and MR changes via GitLab MCP; extract Jira key and fetch Jira issue.
+    - Checkout MR branch; build code graph; run Context `fts/search` checks; verify with `local.search`.
+    - Run RuboCop only on changed `.rb` files; run RSpec only on changed specs (≥ 85% coverage where applicable).
+    - Map Jira requirements; apply rules; summarize issues/quality; fetch discussions; final verdict; write report.
   - Plan example:
     ```bash
-    ruby ./bin/savant call 'think.plan' --service=think --input='{"workflow":"code_review_v1","params":{"branch":"main"}}'
+    ruby ./bin/savant call 'think.plan' --service=think --input='{"workflow":"code_review_v1","params":{"mr_iid":"!12345"}}'
     ```
 
 - develop_ticket_v1:
