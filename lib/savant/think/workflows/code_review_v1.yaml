@@ -5,6 +5,7 @@ steps:
   # Phase 1: Initial Setup & Context Loading
   - id: load_rules
     call: local.read
+    deps: ["parse_project_meta"]
     input_template:
       files:
         # Prefer underscore rule file names (compat with .clinerules/INDEX.md)
@@ -22,16 +23,9 @@ steps:
         - ".clinerules/INDEX.md"
     capture_as: rules_text
 
-  - id: load_workflow_doc
-    call: local.read
-    deps: ["load_rules"]
-    input_template:
-      files: [".clinerules/workflows/code-review.md"]
-    capture_as: workflow_doc
-
   - id: load_config
     call: local.read
-    deps: ["load_workflow_doc"]
+    
     input_template:
       files: [".cline/config.yml"]
     capture_as: project_config
@@ -54,32 +48,18 @@ steps:
 
         - Project Code: {{project_meta.project_code}}
 
-  - id: request_mr_iid
-    call: prompt.ask
-    deps: ["announce_project"]
-    input_template:
-      question: "Provide GitLab MR IID (e.g., !12345)"
-      capture: "mr_iid"
-
   - id: normalize_mr_iid
     call: analysis.normalize_mr_iid
-    deps: ["request_mr_iid"]
+    deps: ["announce_project"]
     input_template:
-      raw: "{{mr_iid}}"
+      raw: "{{params.mr_iid}}"
       strip_prefix: "!"
     capture_as: mr_iid_num
-
-  - id: confirm_task
-    call: prompt.confirm
-    deps: ["request_mr_iid"]
-    input_template:
-      question: "Confirm task type: Code Review?"
-      expected: "yes"
 
   # Phase 2: Fetch MR Details
   - id: mr_details
     call: gitlab.get_merge_request
-    deps: ["confirm_task"]
+    deps: ["normalize_mr_iid"]
     input_template:
       project: "{{project_meta.project_gitlab}}"
       mr_iid: "{{mr_iid_num}}"
