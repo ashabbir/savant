@@ -52,10 +52,11 @@ flowchart TD
   B --> C[analysis.parse_project_meta]
   C --> D[local.read .cline/rules/*]
   D --> E[gitlab.get_merge_request]
+  E --> E2[gitlab.get_merge_request_changes]
+  E2 --> I[analysis.extract_changed_paths]
   E --> F[analysis.extract_jira]
   F --> G[jira_get_issue]
   E --> H[local.exec: git checkout MR branch]
-  H --> I[local.exec: git diff changed files]
   I --> J[analysis.graph: code graph + sequence]
 
   H --> K1[fts/search: lint signals]
@@ -67,9 +68,9 @@ flowchart TD
   H --> N1[fts/search: Rails anti‑patterns]
   N1 --> N2[local.search: verify Rails]
 
-  I --> O[local.exec: rspec changed specs -f doc]
-  N2 --> P[local.exec: rubocop only on changed .rb files]
-  P --> Q[local.exec: rspec only on changed specs ≥85%]
+  I --> O[local.exec: rspec (changed specs from MR changes) -f doc]
+  N2 --> P[local.exec: rubocop only on changed .rb files (from MR changes)]
+  P --> Q[local.exec: rspec only on changed specs (from MR changes) ≥85%]
   G --> R[analysis.map_requirements]
   Q --> S[analysis.apply_rules + rules/*]
   S --> T[analysis.issues_table]
@@ -109,9 +110,12 @@ sequenceDiagram
   JIRA-->>LLM: Jira issue
   LLM->>THINK: think.next(jira)
 
-  THINK-->>LLM: instruction: local.exec checkout + analysis.graph
-  LLM->>LOCAL: git checkout + git diff
+  THINK-->>LLM: instruction: gitlab.get_merge_request_changes → analysis.extract_changed_paths
+  LLM->>GITLAB: get changes
+  GITLAB-->>LLM: list of changed files
   LLM->>THINK: think.next(changes)
+  THINK-->>LLM: instruction: local.exec checkout + analysis.graph
+  LLM->>LOCAL: git checkout; build graph from changed paths
   THINK-->>LLM: instruction: analysis.graph
   LLM->>THINK: think.next(graph)
 
