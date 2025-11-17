@@ -41,8 +41,10 @@ steps:
     deps: ["parse_project_meta"]
     input_template:
       text: |
-        Project Meta Loaded:\n
-        - GitLab Project ID: {{project_meta.project_gitlab}}\n
+        Project Meta Loaded:
+
+        - GitLab Project ID: {{project_meta.project_gitlab}}
+
         - Project Code: {{project_meta.project_code}}
 
   - id: request_mr_iid
@@ -73,7 +75,7 @@ steps:
     deps: ["mr_details"]
     input_template:
       title: "{{mr.title}}"
-      pattern: "[A-Z]+-\\d+"
+      pattern: '[A-Z]+-\d+'
     capture_as: ticket_key
 
   - id: jira_fetch
@@ -88,7 +90,8 @@ steps:
     call: local.exec
     deps: ["mr_details"]
     input_template:
-      cmd: "git fetch origin {{mr.source_branch}} && git checkout {{mr.source_branch}}"
+      cmd: |
+        git fetch origin {{mr.source_branch}} && git checkout {{mr.source_branch}}
       note: "Ensure you are on the MR source branch before analysis"
 
   # Phase 3: Code Analysis (changed files, understanding)
@@ -96,7 +99,8 @@ steps:
     call: local.exec
     deps: ["checkout_branch"]
     input_template:
-      cmd: "git diff --name-status origin/{{mr.target_branch}}...{{mr.source_branch}}"
+      cmd: |
+        git diff --name-status origin/{{mr.target_branch}}...{{mr.source_branch}}
     capture_as: changes
 
   - id: understand_change
@@ -112,14 +116,14 @@ steps:
     call: fts/search
     deps: ["checkout_branch"]
     input_template:
-      q: "rubocop disable|linter disable"
+      q: 'rubocop disable|linter disable'
     capture_as: lint_ctx
 
   - id: lint_signals_fs
     call: local.search
     deps: ["lint_signals_ctx"]
     input_template:
-      q: "rubocop:disable|linter disable"
+      q: 'rubocop:disable|linter disable'
       globs: ["**/*.rb", "**/*.yml", "**/*.yaml"]
     capture_as: lint_fs
 
@@ -127,14 +131,14 @@ steps:
     call: fts/search
     deps: ["checkout_branch"]
     input_template:
-      q: "TODO|FIXME|binding.pry|puts|console.log"
+      q: 'TODO|FIXME|binding.pry|puts|console.log'
     capture_as: findings_ctx
 
   - id: debug_findings_fs
     call: local.search
     deps: ["debug_findings_ctx"]
     input_template:
-      q: "TODO|FIXME|binding.pry|puts|console.log"
+      q: 'TODO|FIXME|binding.pry|puts|console.log'
       globs: ["**/*"]
     capture_as: findings_fs
 
@@ -142,14 +146,14 @@ steps:
     call: fts/search
     deps: ["checkout_branch"]
     input_template:
-      q: "permit_all|skip_auth|eval\\(|OPENSSL_NO_VERIFY|system\\(|`"
+      q: 'permit_all|skip_auth|eval\(|OPENSSL_NO_VERIFY|system\(|`'
     capture_as: security_ctx
 
   - id: security_fs
     call: local.search
     deps: ["security_ctx"]
     input_template:
-      q: "permit_all|skip_auth|eval\\(|OPENSSL_NO_VERIFY|system\\(|`"
+      q: 'permit_all|skip_auth|eval\(|OPENSSL_NO_VERIFY|system\(|`'
       globs: ["**/*"]
     capture_as: security_fs
 
@@ -157,14 +161,14 @@ steps:
     call: fts/search
     deps: ["checkout_branch"]
     input_template:
-      q: "update_all\\(|find_by_sql\\(|exec_query\\(|skip_before_action :authenticate_user|rescue Exception|before_filter|after_filter"
+      q: 'update_all\(|find_by_sql\(|exec_query\(|skip_before_action :authenticate_user|rescue Exception|before_filter|after_filter'
     capture_as: rails_anti_ctx
 
   - id: rails_antipatterns_fs
     call: local.search
     deps: ["rails_antipatterns_ctx"]
     input_template:
-      q: "update_all\\(|find_by_sql\\(|exec_query\\(|skip_before_action :authenticate_user|rescue Exception|before_filter|after_filter"
+      q: 'update_all\(|find_by_sql\(|exec_query\(|skip_before_action :authenticate_user|rescue Exception|before_filter|after_filter'
       globs: ["**/*.rb"]
     capture_as: rails_anti_fs
 
@@ -173,7 +177,8 @@ steps:
     call: local.exec
     deps: ["changed_files"]
     input_template:
-      cmd: "bundle exec rspec $(git diff --name-only origin/{{mr.target_branch}}...{{mr.source_branch}} | sed -n 's#^\(spec/.*\)$#\1#p') -f documentation || true"
+      cmd: |
+        bundle exec rspec $(git diff --name-only origin/{{mr.target_branch}}...{{mr.source_branch}} | sed -n 's#^\(spec/.*\)$#\1#p') -f documentation || true
       note: "Run tests for affected files if any; ignore if none"
     capture_as: tests_affected_output
 
@@ -181,7 +186,8 @@ steps:
     call: local.exec
     deps: ["rails_antipatterns_fs"]
     input_template:
-      cmd: "bundle exec rubocop -f progress || rubocop -f progress"
+      cmd: |
+        bundle exec rubocop -f progress || rubocop -f progress
       expect: "no offenses detected"
     capture_as: rubocop_output
 
@@ -189,7 +195,8 @@ steps:
     call: local.exec
     deps: ["rubocop"]
     input_template:
-      cmd: "bundle exec rspec --format progress || rspec --format progress"
+      cmd: |
+        bundle exec rspec --format progress || rspec --format progress
       min_coverage: 85
       note: "Ensure coverage >= 85% (SimpleCov or builtin)"
     capture_as: rspec_output
