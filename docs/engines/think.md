@@ -1,195 +1,70 @@
-# Think Engine (File‑by‑File)
+# Think Engine
 
-Purpose: Deterministic orchestration and reasoning — plan → execute → next loop.
+Deterministic orchestration for LLM‑driven workflows: plan → execute tool → next, repeat until done.
 
-## Files
-- Engine façade: [lib/savant/think/engine.rb](../../lib/savant/think/engine.rb)
-- Tools registrar: [lib/savant/think/tools.rb](../../lib/savant/think/tools.rb)
-- Workflows: [lib/savant/think/workflows/](../../lib/savant/think/workflows)
-- Prompts registry: [lib/savant/think/prompts.yml](../../lib/savant/think/prompts.yml)
-- Driver prompts: [lib/savant/think/prompts/](../../lib/savant/think/prompts)
-- State files (runtime): `.savant/state/<workflow>.json`
+## What Is Think
+Think is a lightweight workflow engine exposed over MCP (stdio/HTTP). It loads YAML workflows, enforces a directed acyclic graph (DAG) of steps, and coordinates tool calls by returning precise instructions to the client. It also provides a versioned driver prompt to keep agent behavior predictable across runs.
 
-## Tools
-- `think.driver_prompt`: versioned bootstrap prompt `{version, hash, prompt_md}`
-- `think.plan`: initialize a run and return the first instruction + state
-- `think.next`: record step result and return next instruction or final summary
-- `think.workflows.list`: list workflow IDs and metadata
-- `think.workflows.read`: return raw workflow YAML
+## Why It’s Needed
+- Consistency: Reproducible, step‑by‑step execution for complex tasks (e.g., code review).
+- Safety: Enforces payload discipline and schema checks (no invented tools; size limits).
+- Portability: No database; workflows, prompts, and state live in the repo.
+- Extensibility: Add or change workflows without code changes; Think validates and runs them.
 
-## Starter Workflows
-- `review_v1`, `code_review_v1`, `code_review_v2`, `develop_ticket_v1`, `ticket_grooming_v1`
+## Tools (API Surface)
+- `think.driver_prompt`: Returns the versioned driver prompt `{ version, hash, prompt_md }` from `prompts.yml`.
+- `think.plan`: Starts a run for a given `workflow` with `params`; returns the first instruction and engine state.
+- `think.next`: Records a step result (the tool snapshot) and returns the next instruction, or `done: true` when complete.
+- `think.workflows.list`: Lists available workflows and basic metadata.
+- `think.workflows.read`: Returns the raw YAML for a specific workflow (read‑only).
+
+## What You Can Do With It
+- Run the provided workflows:
+  - `code_review_initial` (Phase 1) and `code_review_final` (Phase 2)
+  - `review_v1`, `develop_ticket_v1`, `ticket_grooming_v1`
+- Create your own workflows under `lib/savant/think/workflows/` and iterate quickly.
+- See per‑workflow descriptions and diagrams here: [docs/engines/workflows](./workflows/)
+
+## How It Works
+1) Client calls `think.plan(workflow, params)` → Think loads YAML, validates schema, builds a DAG, injects the driver prompt if needed, and returns the first instruction `{ step_id, call, input_template }`.
+2) Client executes exactly that tool (e.g., `local.read`, `gitlab.get_merge_request`, `fts/search`).
+3) Client sends the tool’s snapshot to `think.next(workflow, run_id, step_id, result_snapshot)`.
+4) Think persists state (`.savant/state/<workflow>__<run_id>.json`), marks the step complete, and returns the next instruction. Repeat until finished.
+
+Details
+- Workflows: `.yml|.yaml` accepted; each step defines `id`, `call`, `deps`, and an `input_template`; optional `capture_as` stores the tool snapshot in state.
+- Driver prompt: Versioned via `lib/savant/think/prompts.yml` and returned by `think.driver_prompt`.
+- Limits: Payload size caps with truncation/summarization to keep snapshots manageable.
 
 ## Run
 - Stdio: `MCP_SERVICE=think SAVANT_PATH=$(pwd) ruby ./bin/mcp_server`
 - HTTP (testing): `MCP_SERVICE=think ruby ./bin/mcp_server --http`
 
-## Code Review Workflow
-
-This workflow is MR‑first and orchestration‑only: Think tells the LLM what to do, but does not run tools itself.
-
-- Start with MR IID (e.g., `!12345`).
-- Load project meta from `.cline/config.yml` and parse `project_gitlab`, `project_code`.
-- Load rules only from `.cline/rules/` (underscore names preferred):
-  - `code_review_rules.md`, `backend_rules.md`, `testing_rules.md`, `style_rules.md`, `savant_rules.md`.
-- Fetch MR via GitLab MCP, extract Jira key and fetch the Jira issue.
-- Analyze changes, run Context FTS checks, verify with local search, then run RuboCop and RSpec on changed files only (≥ 85% coverage where applicable).
-- Map Jira requirements, apply rules, summarize issues and quality, review discussions, compute final verdict, and write a report.
-
-Plan payload example
+## Sample Flow
+Example (CLI) showing the first loop of a workflow:
 
 ```bash
+# 1) Start the engine (stdio)
+MCP_SERVICE=think SAVANT_PATH=$(pwd) ruby ./bin/mcp_server
+
+# 2) Client asks for available workflows
+ruby ./bin/savant call 'think.workflows.list' --service=think --input='{}'
+
+# 3) Plan the run (e.g., code_review_initial)
 ruby ./bin/savant call 'think.plan' \
   --service=think \
-  --input='{"workflow":"code_review_v1","params":{"mr_iid":"!12345"}}'
+  --input='{"workflow":"code_review_initial","params":{"mr_iid":"!12345"},"run_id":"cr-init-001","start_fresh":true}'
+
+# -> returns: { instruction: { step_id, call, input_template }, state, run_id }
+
+# 4) Execute the instructed tool (example: local.read of .cline/config.yml)
+ruby ./bin/savant call 'local.read' --service=think \
+  --input='{"files":[".cline/config.yml"]}'
+
+# 5) Advance the workflow with that snapshot
+ruby ./bin/savant call 'think.next' --service=think \
+  --input='{"workflow":"code_review_initial","run_id":"cr-init-001","step_id":"load_config","result_snapshot":{"files":[".cline/config.yml"],"content":"..."}}'
+
+# -> returns next instruction; repeat until done
 ```
 
-## Code Review v2
-
-Local‑first code review with gated phases, visuals, and a final safety decision. Search policy is explicit:
-
-- Project‑local analysis only for the current repo (git diff, fs traversal, AST/static, ripgrep).
-- Cross‑repo/library impacts via Context MCP (`fts/search`, `memory/search`) and local FS index only.
-- Gates: Impact Analysis → Impact Graph → Sequence Diagram → Safety Decision.
-- Outputs: A single `report.md` under `reports/code_review_v2/<date>_<shortsha>/` that embeds both Mermaid diagrams (no separate .mmd files).
-
-Plan payload example
-
-```bash
-ruby ./bin/savant call 'think.plan' \
-  --service=think \
-  --input='{"workflow":"code_review_v2","params":{"base_ref":"origin/main","cross_repo_query":"MyAPI::Client"}}'
-```
-
-Changed-only commands (examples)
-
-Assume you have a list of changed file paths from GitLab MR changes (produced by `analysis.extract_changed_paths`). Here are two ways to run tools only on those files:
-
-1) If you have a newline-separated list in an env var `CHANGED` (or a temp file):
-
-```bash
-# RuboCop: only changed Ruby files
-FILES=$(printf "%s\n" "$CHANGED" | sed -n 's#^\(.*\.rb\)$#\1#p' | tr '\n' ' ')
-if [ -n "$FILES" ]; then
-  bundle exec rubocop -f progress $FILES || rubocop -f progress $FILES
-else
-  echo "No changed Ruby files"
-fi
-
-# RSpec: only changed spec files
-SPECS=$(printf "%s\n" "$CHANGED" | sed -n 's#^\(spec/.*\)$#\1#p' | tr '\n' ' ')
-if [ -n "$SPECS" ]; then
-  bundle exec rspec --format progress $SPECS || rspec --format progress $SPECS
-else
-  echo "No changed spec files"
-fi
-```
-
-2) If you have a JSON array in `changes.json` (e.g., `[{"new_path":"app/a.rb"},{"new_path":"spec/a_spec.rb"}]`), using `jq`:
-
-```bash
-# Extract flat list of paths (prefers new_path, falls back to old_path)
-CHANGED=$(jq -r '.[] | .new_path // .old_path' changes.json)
-
-# RuboCop / RSpec same as above
-FILES=$(printf "%s\n" "$CHANGED" | sed -n 's#^\(.*\.rb\)$#\1#p' | tr '\n' ' ')
-SPECS=$(printf "%s\n" "$CHANGED" | sed -n 's#^\(spec/.*\)$#\1#p' | tr '\n' ' ')
-```
-
-Flow (Mermaid)
-
-```mermaid
-flowchart TD
-  A[think.plan mr_iid] --> B[local.read .cline/config.yml]
-  B --> C[analysis.parse_project_meta]
-  C --> D[local.read .cline/rules/*]
-  D --> E[gitlab.get_merge_request]
-  E --> E2[gitlab.get_merge_request_changes]
-  E2 --> I[analysis.extract_changed_paths]
-  E --> F[analysis.extract_jira]
-  F --> G[jira_get_issue]
-  E --> H[local.exec: git checkout MR branch]
-  I --> J[analysis.graph: code graph + sequence]
-
-  H --> K1[fts/search: lint signals]
-  K1 --> K2[local.search: verify lint]
-  H --> L1[fts/search: TODO/FIXME/debug]
-  L1 --> L2[local.search: verify debug]
-  H --> M1[fts/search: security patterns]
-  M1 --> M2[local.search: verify security]
-  H --> N1[fts/search: Rails anti‑patterns]
-  N1 --> N2[local.search: verify Rails]
-
-  I --> O[local.exec: rspec changed specs from MR changes -f doc]
-  N2 --> P[local.exec: rubocop only on changed .rb files from MR changes]
-  P --> Q[local.exec: rspec only on changed specs from MR changes ≥85%]
-  G --> R[analysis.map_requirements]
-  Q --> S[analysis.apply_rules + rules/*]
-  S --> T[analysis.issues_table]
-  T --> U[analysis.quality_summary]
-  E --> V[gitlab.get_merge_request_discussions]
-  V --> W[analysis.outstanding_items]
-  U --> X[analysis.final_matrix thresholds]
-  X --> Y[local.write: code-reviews/<ticket>/<ts>.md]
-```
-
-Sequence (Mermaid)
-
-```mermaid
-sequenceDiagram
-  participant LLM
-  participant THINK as Think (orchestrator)
-  participant LOCAL as Local (workspace/terminal)
-  participant GITLAB as GitLab MCP
-  participant JIRA as Jira MCP
-  participant FTS as Context MCP (fts/search)
-
-  LLM->>THINK: think.plan({ mr_iid: "!12345" })
-  THINK-->>LLM: instruction: local.read(.cline/config.yml)
-  LLM->>LOCAL: read .cline/config.yml
-  LLM->>THINK: think.next(config)
-  THINK-->>LLM: instruction: parse_project_meta + load rules (.cline/rules/*)
-  LLM->>LOCAL: read rules
-  LLM->>THINK: think.next(rules_text)
-
-  THINK-->>LLM: instruction: gitlab.get_merge_request(project_gitlab, mr_iid)
-  LLM->>GITLAB: get_merge_request
-  GITLAB-->>LLM: MR details
-  LLM->>THINK: think.next(mr)
-
-  THINK-->>LLM: instruction: extract Jira key → jira_get_issue
-  LLM->>JIRA: jira_get_issue
-  JIRA-->>LLM: Jira issue
-  LLM->>THINK: think.next(jira)
-
-  THINK-->>LLM: instruction: gitlab.get_merge_request_changes → analysis.extract_changed_paths
-  LLM->>GITLAB: get changes
-  GITLAB-->>LLM: list of changed files
-  LLM->>THINK: think.next(changes)
-  THINK-->>LLM: instruction: local.exec checkout + analysis.graph
-  LLM->>LOCAL: git checkout build graph from changed paths
-  THINK-->>LLM: instruction: analysis.graph
-  LLM->>THINK: think.next graph
-
-  THINK-->>LLM: instruction: FTS + local verify lint/debug/security/rails
-  LLM->>FTS: fts/search
-  FTS-->>LLM: matches
-  LLM->>LOCAL: file search verify
-  LLM->>THINK: think.next(findings)
-
-  THINK-->>LLM: instruction: local.exec rspec(affected), rubocop, rspec(full ≥85%)
-  LLM->>LOCAL: run commands and capture output
-  LLM->>THINK: think.next(results)
-
-  THINK-->>LLM: instruction: map_requirements → apply_rules → issues_table → quality_summary
-  LLM->>THINK: think.next(assessments)
-
-  THINK-->>LLM: instruction: gitlab.get_merge_request_discussions → outstanding_items
-  LLM->>GITLAB: get discussions
-  GITLAB-->>LLM: threads
-  LLM->>THINK: think.next(outstanding)
-
-  THINK-->>LLM: instruction: final_matrix → local.write(report)
-  LLM->>LOCAL: write report file
-  LLM->>THINK: think.next(done)
-```

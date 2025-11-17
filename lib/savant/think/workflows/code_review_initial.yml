@@ -1,0 +1,684 @@
+name: code_review_initial
+version: "1.0"
+driver_version: "code_review"
+description: "Phase 1 of code review: Data collection, quality gates, and initial analysis. Uses GitLab MCP for diffs (non-blocking). Writes intermediate state file for code_review_final to consume."
+
+steps:
+  # Phase 0: Setup
+  - id: announce_start
+    call: prompt.say
+    input_template:
+      text: |
+        ðŸš€ Code Review Initial (Phase 1/2)
+
+        Collecting data â†’ Running quality gates â†’ Analyzing code
+        Will write intermediate state to: .savant/code-review/{ticket}-state.json
+
+  - id: load_config
+    call: local.read
+    deps: ["announce_start"]
+    input_template:
+      files: [".cline/config.yml"]
+    capture_as: config_raw
+
+  - id: parse_config
+    call: analysis.parse_yaml
+    deps: ["load_config"]
+    input_template:
+      yaml: "{{config_raw}}"
+      extract: ["project_gitlab", "project_code"]
+    capture_as: project
+
+  - id: normalize_mr_param
+    call: analysis.normalize_text
+    deps: ["parse_config"]
+    input_template:
+      text: "{{params.mr_iid}}"
+      strip: "!"
+      type: "integer"
+    capture_as: mr_iid
+
+  # Phase 1: GitLab MR Data Collection (non-blocking)
+  - id: fetch_mr
+    call: gitlab.get_merge_request
+    deps: ["normalize_mr_param"]
+    input_template:
+      project: "{{project.project_gitlab}}"
+      mr_iid: "{{mr_iid}}"
+    capture_as: mr_data
+
+  - id: fetch_mr_changes
+    call: gitlab.get_merge_request_changes
+    deps: ["fetch_mr"]
+    input_template:
+      project: "{{project.project_gitlab}}"
+      mr_iid: "{{mr_iid}}"
+    capture_as: mr_changes_data
+
+  # Use GitLab MCP data instead of local git (non-blocking)
+  - id: extract_changed_files_from_gitlab
+    call: analysis.extract_changed_paths
+    deps: ["fetch_mr_changes"]
+    input_template:
+      changes: "{{mr_changes_data}}"
+      note: "Extract file list from GitLab MR changes API (non-blocking)"
+    capture_as: changed_files_list
+
+  - id: extract_diffs_from_gitlab
+    call: analysis.extract_diffs
+    deps: ["fetch_mr_changes"]
+    input_template:
+      changes: "{{mr_changes_data}}"
+      note: "Extract full diffs from GitLab MR changes API (non-blocking)"
+    capture_as: full_diff_text
+
+  - id: diff_summary
+    call: analysis.diff_summary
+    deps: ["extract_diffs_from_gitlab", "extract_changed_files_from_gitlab"]
+    input_template:
+      diff: "{{full_diff_text}}"
+      note: "Summarize changed files, languages, LOC, and intent (compact)."
+    capture_as: change_summary
+
+  - id: get_metadata
+    call: local.exec
+    deps: ["fetch_mr"]
+    input_template:
+      cmd: |
+        echo "sha=$(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')"
+        echo "date=$(date +%Y-%m-%d)"
+        echo "timestamp=$(date +%Y%m%d-%H%M%S)"
+    capture_as: metadata_raw
+
+  - id: parse_metadata
+    call: analysis.parse_key_value
+    deps: ["get_metadata"]
+    input_template:
+      text: "{{metadata_raw}}"
+      note: "Parse key=value format into JSON"
+    capture_as: metadata
+
+  - id: understand_change
+    call: analysis.graph
+    deps: ["extract_changed_files_from_gitlab"]
+    input_template:
+      files: "{{changed_files_list}}"
+      require_sequence_diagram: true
+      note: "High-level change graph for early understanding (compact)."
+    capture_as: change_graph
+
+  # Phase 2: Analyze Changes (LLM classification)
+  - id: classify_changes
+    call: analysis.classify_mr_changes
+    deps: ["extract_changed_files_from_gitlab", "extract_diffs_from_gitlab"]
+    input_template:
+      files_list: "{{changed_files_list}}"
+      diff: "{{full_diff_text}}"
+      mr_data: "{{mr_data}}"
+      note: |
+        LLM analyzes MR and returns structured classification:
+        {
+          "summary": "Brief description of changes",
+          "change_types": {
+            "backend": { "detected": bool, "files": [...], "ruby_files": [...], "spec_files": [...] },
+            "frontend": { "detected": bool, "files": [...], "js_files": [...], "test_files": [...] },
+            "migrations": { "detected": bool, "files": [...] },
+            "database": { "detected": bool, "schema_changed": bool }
+          },
+          "ticket": "JIRA-123 or null",
+          "risk_level": "low|medium|high"
+        }
+    capture_as: changes_classified
+
+  # Phase 3: Jira Integration
+  - id: fetch_jira
+    call: jira_get_issue
+    deps: ["classify_changes"]
+    input_template:
+      key: "{{changes_classified.ticket}}"
+    capture_as: jira_data
+
+  - id: analyze_requirements
+    call: analysis.extract_requirements
+    deps: ["fetch_jira"]
+    input_template:
+      jira: "{{jira_data}}"
+      note: "LLM extracts requirements in structured format with acceptance criteria"
+    capture_as: requirements
+
+  - id: requirements_map
+    call: analysis.map_requirements
+    deps: ["analyze_requirements", "classify_changes"]
+    input_template:
+      jira: "{{jira_data}}"
+      requirements: "{{requirements}}"
+      files: "{{changed_files_list}}"
+      note: "Map Jira requirements to implementation locations (file:line refs)."
+    capture_as: req_map
+
+  # Phase 4: Database Setup (only if needed - local operations)
+  - id: check_db_files
+    call: local.exec
+    deps: ["classify_changes"]
+    input_template:
+      cmd: |
+        ls -la config/database.yml db/schema.rb Gemfile 2>/dev/null || echo "NONE"
+      note: "Quick check for Rails DB files"
+    capture_as: db_files_raw
+
+  - id: analyze_db_state
+    call: analysis.parse_db_status
+    deps: ["check_db_files", "classify_changes"]
+    input_template:
+      db_files: "{{db_files_raw}}"
+      status_output: "not_checked"
+      changes: "{{changes_classified}}"
+      note: "LLM determines if DB operations needed"
+    capture_as: db_state
+
+  # Phase 5: Development Migrations (only if DB detected)
+  - id: check_dev_db_status
+    call: local.exec
+    deps: ["analyze_db_state"]
+    input_template:
+      cmd: |
+        bundle exec rake db:migrate:status 2>&1 || echo "ERROR: Unable to check migration status"
+    capture_as: dev_db_status_raw
+
+  - id: parse_dev_db_status
+    call: analysis.parse_db_status
+    deps: ["check_dev_db_status"]
+    input_template:
+      db_files: "{{db_files_raw}}"
+      status_output: "{{dev_db_status_raw}}"
+      changes: "{{changes_classified}}"
+    capture_as: dev_db_parsed
+
+  - id: run_dev_migrations
+    call: local.exec
+    deps: ["parse_dev_db_status"]
+    input_template:
+      cmd: |
+        bundle exec rake db:migrate RAILS_ENV=development 2>&1 || echo "MIGRATION_FAILED"
+    capture_as: dev_migration_raw
+
+  - id: analyze_dev_migration_result
+    call: analysis.parse_migration_result
+    deps: ["run_dev_migrations"]
+    input_template:
+      output: "{{dev_migration_raw}}"
+    capture_as: dev_migration_result
+
+  - id: prompt_migration_error
+    call: prompt.say
+    deps: ["analyze_dev_migration_result"]
+    input_template:
+      text: |
+        âš ï¸ Dev Migration: {{dev_migration_result.status}}
+        {{dev_migration_result.error.message}}
+        ðŸ’¡ Fix: {{dev_migration_result.error.fix}}
+
+  # Phase 6: Backend Quality - RuboCop
+  - id: run_rubocop
+    call: local.exec
+    deps: ["prompt_migration_error"]
+    input_template:
+      cmd: |
+        bundle exec rubocop -f progress {{changes_classified.change_types.backend.ruby_files}} 2>&1 || echo "SKIPPED: No Ruby files or RuboCop not configured"
+    capture_as: rubocop_raw
+
+  - id: analyze_rubocop
+    call: analysis.parse_rubocop
+    deps: ["run_rubocop"]
+    input_template:
+      output: "{{rubocop_raw}}"
+    capture_as: rubocop_result
+
+  # Phase 7: Test DB & RSpec with auto-retry
+  - id: check_test_db_status
+    call: local.exec
+    deps: ["analyze_rubocop"]
+    input_template:
+      cmd: |
+        bundle exec rake db:migrate:status RAILS_ENV=test 2>&1 || echo "ERROR"
+    capture_as: test_db_status_raw
+
+  - id: parse_test_db_status
+    call: analysis.parse_db_status
+    deps: ["check_test_db_status"]
+    input_template:
+      db_files: "{{db_files_raw}}"
+      status_output: "{{test_db_status_raw}}"
+      changes: "{{changes_classified}}"
+    capture_as: test_db_parsed
+
+  - id: run_test_migrations
+    call: local.exec
+    deps: ["parse_test_db_status"]
+    input_template:
+      cmd: |
+        bundle exec rake db:migrate RAILS_ENV=test 2>&1 || echo "MIGRATION_FAILED"
+    capture_as: test_migration_raw
+
+  - id: analyze_test_migration_result
+    call: analysis.parse_migration_result
+    deps: ["run_test_migrations"]
+    input_template:
+      output: "{{test_migration_raw}}"
+    capture_as: test_migration_result
+
+  - id: run_rspec
+    call: local.exec
+    deps: ["analyze_test_migration_result"]
+    input_template:
+      cmd: |
+        bundle exec rspec --format documentation {{changes_classified.change_types.backend.spec_files}} 2>&1 || echo "SKIPPED: No spec files or RSpec not configured"
+    capture_as: rspec_raw
+
+  - id: analyze_rspec
+    call: analysis.parse_rspec
+    deps: ["run_rspec"]
+    input_template:
+      output: "{{rspec_raw}}"
+    capture_as: rspec_result
+
+  - id: check_rspec_migration_issue
+    call: local.exec
+    deps: ["analyze_rspec"]
+    input_template:
+      cmd: |
+        bundle exec rake db:migrate:status RAILS_ENV=test 2>&1 || echo "ERROR"
+    capture_as: rspec_migration_recheck_raw
+
+  - id: diagnose_rspec_migration
+    call: analysis.diagnose_rspec_migration_failure
+    deps: ["check_rspec_migration_issue", "analyze_rspec"]
+    input_template:
+      rspec_result: "{{rspec_result}}"
+      migration_status: "{{rspec_migration_recheck_raw}}"
+    capture_as: rspec_migration_diagnosis
+
+  - id: run_rspec_fix_migrations
+    call: local.exec
+    deps: ["diagnose_rspec_migration"]
+    input_template:
+      cmd: |
+        bundle exec rake db:migrate RAILS_ENV=test 2>&1 || echo "MIGRATION_FAILED"
+    capture_as: rspec_fix_migration_raw
+
+  - id: analyze_rspec_fix
+    call: analysis.parse_migration_result
+    deps: ["run_rspec_fix_migrations"]
+    input_template:
+      output: "{{rspec_fix_migration_raw}}"
+    capture_as: rspec_fix_migration_result
+
+  - id: retry_rspec
+    call: local.exec
+    deps: ["analyze_rspec_fix"]
+    input_template:
+      cmd: |
+        bundle exec rspec --format documentation {{changes_classified.change_types.backend.spec_files}} 2>&1 || echo "RETRY_FAILED"
+    capture_as: rspec_retry_raw
+
+  - id: analyze_rspec_final
+    call: analysis.parse_rspec_retry
+    deps: ["retry_rspec", "analyze_rspec"]
+    input_template:
+      original_result: "{{rspec_result}}"
+      retry_output: "{{rspec_retry_raw}}"
+      migration_diagnosis: "{{rspec_migration_diagnosis}}"
+      migration_fix: "{{rspec_fix_migration_result}}"
+    capture_as: rspec_final_result
+
+  # Phase 8: Frontend Quality
+  - id: check_package_json
+    call: local.exec
+    deps: ["classify_changes"]
+    input_template:
+      cmd: |
+        cat package.json 2>/dev/null || echo "{}"
+    capture_as: package_json_raw
+
+  - id: analyze_frontend_setup
+    call: analysis.detect_frontend_tools
+    deps: ["check_package_json", "classify_changes"]
+    input_template:
+      package_json: "{{package_json_raw}}"
+      changes: "{{changes_classified}}"
+    capture_as: frontend_tools
+
+  - id: run_eslint
+    call: local.exec
+    deps: ["analyze_frontend_setup"]
+    input_template:
+      cmd: |
+        npx eslint {{frontend_tools.files_to_lint}} 2>&1 || npm run lint 2>&1 || echo "SKIPPED: No frontend files or ESLint not configured"
+    capture_as: eslint_raw
+
+  - id: analyze_eslint
+    call: analysis.parse_eslint
+    deps: ["run_eslint"]
+    input_template:
+      output: "{{eslint_raw}}"
+    capture_as: eslint_result
+
+  - id: run_frontend_tests
+    call: local.exec
+    deps: ["analyze_eslint"]
+    input_template:
+      cmd: |
+        npm test {{frontend_tools.files_to_test}} 2>&1 || npx jest {{frontend_tools.files_to_test}} 2>&1 || npx vitest run {{frontend_tools.files_to_test}} 2>&1 || echo "SKIPPED: No test files or framework not configured"
+    capture_as: frontend_tests_raw
+
+  - id: analyze_frontend_tests
+    call: analysis.parse_frontend_tests
+    deps: ["run_frontend_tests"]
+    input_template:
+      output: "{{frontend_tests_raw}}"
+      framework: "{{frontend_tools.test_framework.tool}}"
+    capture_as: frontend_tests_result
+
+  # Phase 9: Security Scanning
+  - id: check_security_tools
+    call: local.exec
+    deps: ["classify_changes"]
+    input_template:
+      cmd: |
+        echo "GEMFILE: $(ls Gemfile 2>/dev/null || echo NO)"
+        echo "PACKAGE_LOCK: $(ls package-lock.json 2>/dev/null || echo NO)"
+        echo "YARN_LOCK: $(ls yarn.lock 2>/dev/null || echo NO)"
+    capture_as: security_tools_raw
+
+  - id: analyze_security_tools
+    call: analysis.detect_security_tools
+    deps: ["check_security_tools", "classify_changes"]
+    input_template:
+      tools_check: "{{security_tools_raw}}"
+      changes: "{{changes_classified}}"
+    capture_as: security_tools
+
+  # Phase 9.1: Repo Pattern Scans (context + filesystem)
+  - id: lint_signals_ctx
+    call: fts/search
+    deps: ["classify_changes"]
+    input_template:
+      q: 'rubocop disable|linter disable'
+    capture_as: lint_ctx
+
+  - id: lint_signals_fs
+    call: local.search
+    deps: ["lint_signals_ctx"]
+    input_template:
+      q: 'rubocop:disable|linter disable'
+      globs: ["**/*.rb", "**/*.yml", "**/*.yaml"]
+    capture_as: lint_fs
+
+  - id: debug_findings_ctx
+    call: fts/search
+    deps: ["classify_changes"]
+    input_template:
+      q: 'TODO|FIXME|binding.pry|puts|console.log'
+    capture_as: findings_ctx
+
+  - id: debug_findings_fs
+    call: local.search
+    deps: ["debug_findings_ctx"]
+    input_template:
+      q: 'TODO|FIXME|binding.pry|puts|console.log'
+      globs: ["**/*"]
+    capture_as: findings_fs
+
+  - id: security_ctx
+    call: fts/search
+    deps: ["classify_changes"]
+    input_template:
+      q: 'permit_all|skip_auth|eval\(|OPENSSL_NO_VERIFY|system\(|`'
+    capture_as: security_ctx
+
+  - id: security_fs
+    call: local.search
+    deps: ["security_ctx"]
+    input_template:
+      q: 'permit_all|skip_auth|eval\(|OPENSSL_NO_VERIFY|system\(|`'
+      globs: ["**/*"]
+    capture_as: security_fs
+
+  - id: rails_antipatterns_ctx
+    call: fts/search
+    deps: ["classify_changes"]
+    input_template:
+      q: 'update_all\(|find_by_sql\(|exec_query\(|skip_before_action :authenticate_user|rescue Exception|before_filter|after_filter'
+    capture_as: rails_anti_ctx
+
+  - id: rails_antipatterns_fs
+    call: local.search
+    deps: ["rails_antipatterns_ctx"]
+    input_template:
+      q: 'update_all\(|find_by_sql\(|exec_query\(|skip_before_action :authenticate_user|rescue Exception|before_filter|after_filter'
+      globs: ["**/*.rb"]
+    capture_as: rails_anti_fs
+
+  - id: run_brakeman
+    call: local.exec
+    deps: ["analyze_security_tools"]
+    input_template:
+      cmd: |
+        bundle exec brakeman -q -f json 2>&1 || bundle exec brakeman -q 2>&1 || echo "SKIPPED: Brakeman not available"
+    capture_as: brakeman_raw
+
+  - id: run_bundler_audit
+    call: local.exec
+    deps: ["analyze_security_tools"]
+    input_template:
+      cmd: |
+        bundle exec bundler-audit check 2>&1 || gem install bundler-audit && bundle exec bundler-audit check 2>&1 || echo "SKIPPED: bundler-audit not available"
+    capture_as: bundler_audit_raw
+
+  - id: run_npm_audit
+    call: local.exec
+    deps: ["analyze_security_tools"]
+    input_template:
+      cmd: |
+        npm audit --json 2>&1 || yarn audit --json 2>&1 || echo "SKIPPED: No package manager"
+    capture_as: npm_audit_raw
+
+  - id: analyze_security_results
+    call: analysis.parse_security_scans
+    deps: ["run_brakeman", "run_bundler_audit", "run_npm_audit"]
+    input_template:
+      brakeman: "{{brakeman_raw}}"
+      bundler_audit: "{{bundler_audit_raw}}"
+      npm_audit: "{{npm_audit_raw}}"
+    capture_as: security_results
+
+  # Phase 10: Code Quality Checks (using GitLab diffs - non-blocking)
+  - id: scan_for_secrets
+    call: analysis.detect_secrets_in_diff
+    deps: ["extract_diffs_from_gitlab"]
+    input_template:
+      diff: "{{full_diff_text}}"
+      files: "{{changed_files_list}}"
+      note: "LLM scans diff for secrets (non-blocking, from GitLab MCP)"
+    capture_as: secrets_result
+
+  - id: scan_debug_code
+    call: analysis.detect_debug_in_diff
+    deps: ["extract_diffs_from_gitlab"]
+    input_template:
+      diff: "{{full_diff_text}}"
+      note: "LLM scans diff for debug code (non-blocking, from GitLab MCP)"
+    capture_as: debug_result
+
+  - id: analyze_migration_safety
+    call: analysis.check_migration_safety_risks
+    deps: ["extract_diffs_from_gitlab", "classify_changes"]
+    input_template:
+      diff: "{{full_diff_text}}"
+      changes: "{{changes_classified}}"
+      note: "LLM checks migration safety from diff (non-blocking, from GitLab MCP)"
+    capture_as: migration_safety
+
+  # Phase 11: Quality Summary
+  - id: summarize_quality
+    call: analysis.summarize_all_quality_gates
+    deps: [
+      "analyze_rubocop",
+      "analyze_rspec_final",
+      "analyze_eslint",
+      "analyze_frontend_tests",
+      "analyze_security_results",
+      "scan_for_secrets",
+      "scan_debug_code",
+      "analyze_migration_safety"
+    ]
+    input_template:
+      rubocop: "{{rubocop_result}}"
+      rspec: "{{rspec_final_result}}"
+      eslint: "{{eslint_result}}"
+      frontend_tests: "{{frontend_tests_result}}"
+      security: "{{security_results}}"
+      secrets: "{{secrets_result}}"
+      debug: "{{debug_result}}"
+      migration_safety: "{{migration_safety}}"
+    capture_as: quality_summary
+
+  - id: evaluate_initial_gates
+    call: analysis.evaluate_initial_gates
+    deps: ["summarize_quality"]
+    input_template:
+      quality: "{{quality_summary}}"
+      thresholds:
+        coverage_percent: 85
+        rubocop_errors: 0
+        eslint_errors: 0
+        security_blockers: 0
+      note: |
+        Decide if Phase 1 quality gates are sufficient to proceed to Phase 2.
+        Returns: { "passed": bool, "reasons": [...], "summary": "..." }
+    capture_as: initial_pass
+
+  - id: quality_summary_v1
+    call: analysis.quality_summary
+    deps: ["summarize_quality", "rails_antipatterns_fs"]
+    input_template:
+      inputs:
+        rubocop: "{{rubocop_result}}"
+        rspec: "{{rspec_final_result}}"
+        security: "{{security_fs}}"
+        rails: "{{rails_anti_fs}}"
+    capture_as: quality_summary_alt
+
+  # Phase 12: Write Initial Report
+  - id: write_initial_report
+    call: local.write
+    deps: ["evaluate_initial_gates", "parse_metadata", "classify_changes", "diff_summary", "understand_change"]
+    input_template:
+      path: "code-reviews/{{changes_classified.ticket}}/{{metadata.timestamp}}/code_review_initial.md"
+      content_template: |
+        # Code Review: {{changes_classified.ticket}} (Initial)
+
+        Date: {{metadata.date}}  Time: {{metadata.timestamp}}
+        Commit: {{metadata.sha}}
+        MR: !{{mr_iid}} - {{mr_data.title}}
+
+        ## Change Summary
+        {{change_summary}}
+
+        ### Change Graph
+        ```mermaid
+        {{change_graph.mermaid}}
+        ```
+
+        ## Quality Gates
+        {{quality_summary}}
+
+        ### Decision
+        Passed: {{initial_pass.passed}}
+        {{initial_pass.summary}}
+
+        ---
+        Generated by Savant.Workflows (Phase 1)
+    capture_as: initial_report_write
+
+  - id: write_initial_report_alias
+    call: local.write
+    deps: ["write_initial_report"]
+    input_template:
+      path: "code-reviews/{{changes_classified.ticket}}/{{metadata.timestamp}}/code_review_inital.md"
+      content_template: |
+        # Alias: see code_review_initial.md in this folder
+        This file mirrors the contents of `code_review_initial.md` for compatibility.
+    capture_as: initial_report_alias_write
+
+  # Phase 12: Write Intermediate State
+  - id: write_intermediate_state
+    call: local.write
+    deps: ["summarize_quality", "requirements_map", "parse_metadata", "evaluate_initial_gates", "write_initial_report", "write_initial_report_alias"]
+    input_template:
+      path: ".savant/code-review/{{changes_classified.ticket}}-{{metadata.timestamp}}-state.json"
+      content_template: |
+        {
+          "workflow": "code_review_initial",
+          "version": "1.0",
+          "ticket": "{{changes_classified.ticket}}",
+          "mr_iid": "{{mr_iid}}",
+          "timestamp": "{{metadata.timestamp}}",
+          "date": "{{metadata.date}}",
+          "commit_sha": "{{metadata.sha}}",
+          "mr_data": {{mr_data}},
+          "project": {{project}},
+          "changes_classified": {{changes_classified}},
+          "changed_files": {{changed_files_list}},
+          "diff_text": {{full_diff_text}},
+          "change_summary": {{change_summary}},
+          "change_graph": {{change_graph}},
+          "jira_data": {{jira_data}},
+          "requirements": {{requirements}},
+          "requirements_map": {{req_map}},
+          "db_state": {{db_state}},
+          "dev_migration_result": {{dev_migration_result}},
+          "test_migration_result": {{test_migration_result}},
+          "quality_summary": {{quality_summary}},
+          "quality_summary_alt": {{quality_summary_alt}},
+          "initial_pass": {{initial_pass}},
+          "initial_report_path": "code-reviews/{{changes_classified.ticket}}/{{metadata.timestamp}}/code_review_initial.md",
+          "rubocop_result": {{rubocop_result}},
+          "rspec_final_result": {{rspec_final_result}},
+          "eslint_result": {{eslint_result}},
+          "frontend_tests_result": {{frontend_tests_result}},
+          "security_results": {{security_results}},
+          "secrets_result": {{secrets_result}},
+          "debug_result": {{debug_result}},
+          "lint_ctx": {{lint_ctx}},
+          "lint_fs": {{lint_fs}},
+          "findings_ctx": {{findings_ctx}},
+          "findings_fs": {{findings_fs}},
+          "security_ctx": {{security_ctx}},
+          "security_fs": {{security_fs}},
+          "rails_anti_ctx": {{rails_anti_ctx}},
+          "rails_anti_fs": {{rails_anti_fs}},
+          "migration_safety": {{migration_safety}},
+          "frontend_tools": {{frontend_tools}}
+        }
+    capture_as: state_write_result
+
+  - id: announce_completion
+    call: prompt.say
+    deps: ["write_intermediate_state"]
+    input_template:
+      text: |
+        Phase 1 Complete!
+
+        Intermediate state written to:
+        .savant/code-review/{{changes_classified.ticket}}-{{metadata.timestamp}}-state.json
+
+        Initial report:
+        code-reviews/{{changes_classified.ticket}}/{{metadata.timestamp}}/code_review_initial.md
+
+        Safe to proceed: {{initial_pass.passed}}
+        If true, run: code_review_final with ticket={{changes_classified.ticket}}
+
+        Quality Summary:
+        {{quality_summary.overall_status}}
+        {{quality_summary.pass_rate}}

@@ -91,7 +91,7 @@ Savant is a lightweight Ruby framework for building and running local MCP servic
   ```
 - Advance to next step (example):
   ```bash
-  ruby ./bin/savant call 'think.next' --service=think --input='{"workflow":"review_v1","step_id":"lint","result_snapshot":{"rows":[]}}'
+  ruby ./bin/savant call 'think.next' --service=think --input='{"workflow":"review_v1","run_id":"rv1-001","step_id":"lint","result_snapshot":{"rows":[]}}'
   ```
 
 ## Chapter 3 – Framework
@@ -258,10 +258,10 @@ Directory layout
 |---|---|
 | `lib/savant/think/engine.rb` | Think engine implementation |
 | `lib/savant/think/tools.rb` | MCP registrar for `think.*` tools |
-| `lib/savant/think/workflows/*.yaml` | Workflow definitions (YAML) |
+| `lib/savant/think/workflows/*.yml|*.yaml` | Workflow definitions (YAML) |
 | `lib/savant/think/prompts.yml` | Prompt version registry |
 | `lib/savant/think/prompts/*.md` | Driver prompt markdown versions |
-| `.savant/state/<workflow>.json` | On-disk run state snapshots |
+| `.savant/state/<workflow>__<run_id>.json` | On-disk run state snapshots (per run) |
 
 Tools
 
@@ -288,8 +288,8 @@ ruby ./bin/savant list tools --service=think
 # Get driver prompt (specific version)
 ruby ./bin/savant call 'think.driver_prompt' --service=think --input='{"version":"stable-2025-11"}'
 
-# Plan a workflow
-ruby ./bin/savant call 'think.plan' --service=think --input='{"workflow":"review_v1","params":{"branch":"main"}}'
+# Plan a workflow (start fresh, explicit run_id)
+ruby ./bin/savant call 'think.plan' --service=think --input='{"workflow":"code_review_initial","params":{"mr_iid":"!12345"},"run_id":"cr-init-001","start_fresh":true}'
 
 # Enumerate workflows
 ruby ./bin/savant call 'think.workflows.list' --service=think --input='{}'
@@ -308,8 +308,8 @@ Workflows (starter set)
 | ID | Purpose | Required params |
 |---|---|---|
 | `review_v1` | Basic review: checkout → lint search → tests | `branch` |
-| `code_review_v1` | MR-first code review (GitLab MR changes, changed-only rubocop/rspec) | `mr_iid` |
-| `code_review_v2` | Local-first code review with impact analysis, visuals (impact graph + sequence), and safety decision | `commit_range` or `base_ref` (optional `cross_repo_query`) |
+| `code_review_initial` | Phase 1: MR data → classify → quality gates → security scans → initial report + state | `mr_iid` |
+| `code_review_final` | Phase 2: load state → impact analysis → cross-repo search → diagrams → safety decision → final report | `ticket` |
 | `develop_ticket_v1` | Develop ticket: fetch, branch, tests, PR | `issueKey`, `base_branch`, `feature_branch`, `title` |
 | `ticket_grooming_v1` | Groom/plan: fetch, code context, resources | `issueKey` |
 
@@ -341,31 +341,31 @@ Workflow details
   - Steps: `ci.checkout` → `context.search` (lint) → `ci.run_tests`
   - Plan example:
     ```bash
-    ruby ./bin/savant call 'think.plan' --service=think --input='{"workflow":"review_v1","params":{"branch":"main"}}'
+    ruby ./bin/savant call 'think.plan' --service=think --input='{"workflow":"review_v1","params":{"branch":"main"},"run_id":"rv1-001","start_fresh":true}'
     ```
 
-- code_review_v1:
-  - MR‑first, orchestration‑only flow:
-    - Load `.cline/config.yml`, parse project meta; load rules from `.cline/rules/*` (underscore names preferred).
-    - Fetch MR and MR changes via GitLab MCP; extract Jira key and fetch Jira issue.
-    - Checkout MR branch; build code graph; run Context `fts/search` checks; verify with `local.search`.
-    - Run RuboCop only on changed `.rb` files; run RSpec only on changed specs (≥ 85% coverage where applicable).
-    - Map Jira requirements; apply rules; summarize issues/quality; fetch discussions; final verdict; write report.
+- code_review_initial:
+  - MR‑first Phase 1 flow:
+    - Load `.cline/config.yml` and GitLab MR data; extract diffs and changed paths via MCP.
+    - Classify changes; run RuboCop, RSpec (auto‑retry migrations), ESLint, and security scans.
+    - Generate initial report (with embedded Change Graph) and state snapshot for Phase 2. If gates pass, announce safe to proceed.
+  - Outputs:
+    - `code-reviews/{TICKET}/{TIMESTAMP}/code_review_initial.md` (includes embedded Mermaid Change Graph)
+    - `.savant/code-review/{TICKET}-{TIMESTAMP}-state.json`
   - Plan example:
     ```bash
-    ruby ./bin/savant call 'think.plan' --service=think --input='{"workflow":"code_review_v1","params":{"mr_iid":"!12345"}}'
+    ruby ./bin/savant call 'think.plan' --service=think --input='{"workflow":"code_review_initial","params":{"mr_iid":"!12345"},"run_id":"cr-init-001","start_fresh":true}'
     ```
 
-- code_review_v2:
-  - Local‑first, gated flow with explicit search policy:
-    - Project‑local analysis only for current repo (git diff, fs traversal, AST/static, ripgrep).
-    - Cross‑repo/library checks via Context MCP (`fts/search`, `memory/search`) only; no public web.
-    - Gates: Impact Analysis → Impact Graph → Sequence Diagram → Safety Decision.
-    - Outputs: A single `report.md` under `reports/code_review_v2/<date>_<shortsha>/` that embeds both Mermaid diagrams (no separate .mmd files).
+- code_review_final:
+  - Phase 2 flow:
+    - Load Phase 1 state; run impact analysis and cross‑repo checks (FTS + memory MCP).
+    - Apply rules; compute safety decision.
+  - Outputs:
+    - `code-reviews/{TICKET}-{TIMESTAMP}.md` (final report with embedded Mermaid Impact Graph and Sequence Diagram)
   - Plan example:
     ```bash
-    ruby ./bin/savant call 'think.plan' --service=think \
-      --input='{"workflow":"code_review_v2","params":{"base_ref":"origin/main","cross_repo_query":"MyAPI::Client"}}'
+    ruby ./bin/savant call 'think.plan' --service=think --input='{"workflow":"code_review_final","params":{"ticket":"ABC-123"},"run_id":"cr-final-001","start_fresh":true}'
     ```
 
 - develop_ticket_v1:
