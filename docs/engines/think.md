@@ -51,7 +51,7 @@ Local‑first code review with gated phases, visuals, and a final safety decisio
 - Project‑local analysis only for the current repo (git diff, fs traversal, AST/static, ripgrep).
 - Cross‑repo/library impacts via Context MCP (`fts/search`, `memory/search`) and local FS index only.
 - Gates: Impact Analysis → Impact Graph → Sequence Diagram → Safety Decision.
-- Outputs: Mermaid `impact_graph.mmd`, `sequence_diagram.mmd`, and a single `report.md` under `reports/code_review_v2/<date>_<shortsha>/`.
+- Outputs: A single `report.md` under `reports/code_review_v2/<date>_<shortsha>/` that embeds both Mermaid diagrams (no separate .mmd files).
 
 Plan payload example
 
