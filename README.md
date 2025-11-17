@@ -140,6 +140,14 @@ Lifecycle Hooks (Core Runtime)
   ```
 - The MCP dispatcher automatically wraps tool calls with `wrap_call` when available, executing `before_call` hooks, then the tool, then `after_call` hooks.
 
+Logging
+- Configure per-engine logs via `config/settings.json` under `logging`:
+  - `level`: `trace|debug|info|warn|error` (can also use `LOG_LEVEL` env)
+  - `format`: `json|text` (can also use `LOG_FORMAT` env)
+  - `engine_file_path`: directory or file path. If a directory, the stdio server logs to `<dir>/<service>.log`.
+  - `core_file_path`: fallback file path when no engine path is set.
+- Defaults: both stdio and websocket write to `logs/<service>.log` if no paths are configured.
+
 ### 3.3 Runtime and Services
 - Engine loading via `MCP_SERVICE=<engine>`; convention maps to `lib/savant/<engine>`.
 - Engine DI: `db`, `config`, `logger` accessible inside handlers.
