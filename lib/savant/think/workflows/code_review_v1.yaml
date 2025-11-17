@@ -220,6 +220,11 @@ steps:
     input_template:
       jira: "{{jira}}"
       files: "{{changes}}"
+      note: |
+        Produce a concise mapping of Jira requirements -> implementation locations.
+        - Do NOT include full ticket bodies or large file contents.
+        - Include only: requirement summary (<=120 chars), status (OK/NO), and a short list of file:line references.
+        - Keep total payload under ~50 KB.
     capture_as: req_map
 
   # Phase 4 (Rules Application) in doc — apply code review rules
@@ -240,6 +245,8 @@ steps:
         - ".cline/rules/testing-rules.md"
         - ".cline/rules/style-rules.md"
         - ".cline/rules/savant-rules.md"
+      note: |
+        Summarize findings; do not paste large diffs or full file contents. Use references and counts.
     capture_as: rules_assessment
 
   - id: issues_documentation
@@ -251,6 +258,9 @@ steps:
         - "{{findings_fs}}"
         - "{{security_fs}}"
         - "{{rails_anti_fs}}"
+      note: |
+        Return a compact table of issues with columns: issue, type, category, location(s), fix_required.
+        Keep payload size modest; prefer references to full text.
     capture_as: issues
 
   - id: quality_summary
