@@ -71,7 +71,7 @@ RSpec.describe 'Savant Think MCP' do
     registrar = Savant::Think::Tools.build_registrar(nil)
 
     # Plan the workflow
-    plan = registrar.call('think.plan', { 'workflow' => 'review_v1', 'params' => { 'branch' => 'main' } }, ctx: {})
+    plan = registrar.call('think.plan', { 'workflow' => 'review_v1', 'params' => { 'branch' => 'main' }, 'run_id' => 't-run', 'start_fresh' => true }, ctx: {})
     expect(plan).to include(:instruction, :state, :done)
     expect(plan[:done]).to eq(false)
     # With driver injection, first instruction is driver bootstrap
@@ -80,7 +80,7 @@ RSpec.describe 'Savant Think MCP' do
 
     # Advance driver bootstrap
     nxt1 = registrar.call('think.next', {
-                            'workflow' => 'review_v1',
+                            'workflow' => 'review_v1', 'run_id' => 't-run',
                             'step_id' => '__driver_bootstrap',
                             'result_snapshot' => { 'version' => 'stable-2025-11', 'prompt_md' => '...' }
                           }, ctx: {})
@@ -90,7 +90,7 @@ RSpec.describe 'Savant Think MCP' do
 
     # Advance driver announce; expect actual first workflow step 'lint'
     nxt2 = registrar.call('think.next', {
-                            'workflow' => 'review_v1',
+                            'workflow' => 'review_v1', 'run_id' => 't-run',
                             'step_id' => '__driver_announce',
                             'result_snapshot' => { 'ok' => true }
                           }, ctx: {})
@@ -100,7 +100,7 @@ RSpec.describe 'Savant Think MCP' do
 
     # Next: complete lint, expect tests
     nxt = registrar.call('think.next', {
-                           'workflow' => 'review_v1',
+                           'workflow' => 'review_v1', 'run_id' => 't-run',
                            'step_id' => 'lint',
                            'result_snapshot' => { 'rows' => [] }
                          }, ctx: {})
@@ -110,7 +110,7 @@ RSpec.describe 'Savant Think MCP' do
 
     # Next: complete tests, expect done summary
     fin = registrar.call('think.next', {
-                           'workflow' => 'review_v1',
+                           'workflow' => 'review_v1', 'run_id' => 't-run',
                            'step_id' => 'tests',
                            'result_snapshot' => { 'ok' => true }
                          }, ctx: {})
@@ -118,7 +118,7 @@ RSpec.describe 'Savant Think MCP' do
     expect(fin[:summary]).to be_a(String)
 
     # State file exists
-    state_path = File.join(tmp_root, '.savant', 'state', 'review_v1.json')
+    state_path = File.join(tmp_root, '.savant', 'state', 'review_v1__t-run.json')
     expect(File).to exist(state_path)
   end
 
