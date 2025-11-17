@@ -309,6 +309,7 @@ Workflows (starter set)
 |---|---|---|
 | `review_v1` | Basic review: checkout → lint search → tests | `branch` |
 | `code_review_v1` | MR-first code review (GitLab MR changes, changed-only rubocop/rspec) | `mr_iid` |
+| `code_review_v2` | Local-first code review with impact analysis, visuals (impact graph + sequence), and safety decision | `commit_range` or `base_ref` (optional `cross_repo_query`) |
 | `develop_ticket_v1` | Develop ticket: fetch, branch, tests, PR | `issueKey`, `base_branch`, `feature_branch`, `title` |
 | `ticket_grooming_v1` | Groom/plan: fetch, code context, resources | `issueKey` |
 
@@ -353,6 +354,18 @@ Workflow details
   - Plan example:
     ```bash
     ruby ./bin/savant call 'think.plan' --service=think --input='{"workflow":"code_review_v1","params":{"mr_iid":"!12345"}}'
+    ```
+
+- code_review_v2:
+  - Local‑first, gated flow with explicit search policy:
+    - Project‑local analysis only for current repo (git diff, fs traversal, AST/static, ripgrep).
+    - Cross‑repo/library checks via Context MCP (`fts/search`, `memory/search`) only; no public web.
+    - Gates: Impact Analysis → Impact Graph → Sequence Diagram → Safety Decision.
+    - Outputs: Mermaid `impact_graph.mmd`, `sequence_diagram.mmd`, and a single `report.md` under `reports/code_review_v2/<date>_<shortsha>/`.
+  - Plan example:
+    ```bash
+    ruby ./bin/savant call 'think.plan' --service=think \
+      --input='{"workflow":"code_review_v2","params":{"base_ref":"origin/main","cross_repo_query":"MyAPI::Client"}}'
     ```
 
 - develop_ticket_v1:
