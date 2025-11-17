@@ -13,7 +13,7 @@ steps:
         - Search policy: use ONLY local repo for project code analysis.
         - Cross‑repo/library impacts: use Context MCP `fts/search` and `memory/search` (no public web).
         - Gated phases: Impact Analysis → Impact Graph → Sequence Diagram → Safety Decision.
-        - Outputs: Mermaid impact_graph.mmd, sequence_diagram.mmd, and a single report.md embedding visuals.
+        - Outputs: A single report.md embedding all Mermaid visuals (no separate .mmd files).
         - Paths: reports/code_review_v2/<date>_<shortsha>/.
         - Keep payloads compact; prefer references over large blobs.
 
@@ -54,6 +54,55 @@ steps:
       diff: "{{changed_files}}"
       note: "Summarize by file, language, LOC, and intent. Keep concise."
     capture_as: change_summary
+
+  # Jira ticket discovery and requirements understanding
+  - id: current_branch
+    call: local.exec
+    deps: ["summarize_diff"]
+    input_template:
+      cmd: |
+        git rev-parse --abbrev-ref HEAD
+    capture_as: branch
+
+  - id: head_commit_msg
+    call: local.exec
+    deps: ["current_branch"]
+    input_template:
+      cmd: |
+        git log -1 --pretty=%B
+    capture_as: head_msg
+
+  - id: extract_ticket
+    call: analysis.extract_jira
+    deps: ["head_commit_msg"]
+    input_template:
+      title: "{{params.ticket_key}} {{branch}} {{head_msg}}"
+      pattern: '[A-Z]+-\d+'
+    capture_as: ticket_key
+
+  - id: jira_fetch
+    call: jira_get_issue
+    deps: ["extract_ticket"]
+    input_template:
+      key: "{{ticket_key}}"
+    capture_as: jira
+
+  - id: requirements_summary
+    call: analysis.requirements_summary
+    deps: ["jira_fetch"]
+    input_template:
+      jira: "{{jira}}"
+      note: "Summarize user-facing and system requirements; keep concise."
+    capture_as: requirements
+
+  - id: requirements_map
+    call: analysis.map_requirements
+    deps: ["requirements_summary"]
+    input_template:
+      jira: "{{jira}}"
+      files: "{{changed_files}}"
+      note: "Map Jira requirements to implementation locations (file:line refs)."
+    capture_as: req_map
 
   # Gate 1: Impact analysis
   - id: gate_impact
@@ -98,6 +147,16 @@ steps:
       limit: 50
     capture_as: memory_hits
 
+  - id: requirements_gap
+    call: analysis.requirements_gap
+    deps: ["cross_repo_memory"]
+    input_template:
+      requirements: "{{requirements}}"
+      mapping: "{{req_map}}"
+      impacts: "{{impacts}}"
+      note: "Identify gaps between requirements and current implementation."
+    capture_as: gaps
+
   # Gate 2: Impact graph
   - id: gate_graph
     call: prompt.say
@@ -117,13 +176,6 @@ steps:
       max_nodes: 150
     capture_as: impact_graph_mmd
 
-  - id: write_impact_graph
-    call: local.write
-    deps: ["build_impact_graph"]
-    input_template:
-      path: "reports/code_review_v2/{{today}}_{{shortsha}}/impact_graph.mmd"
-      content_template: "{{impact_graph_mmd}}"
-
   # Gate 3: Sequence diagram
   - id: gate_sequence
     call: prompt.say
@@ -142,13 +194,6 @@ steps:
       style: "mermaid"
       actors: ["User", "UI", "Controller", "Service", "DB", "External"]
     capture_as: sequence_mmd
-
-  - id: write_sequence
-    call: local.write
-    deps: ["build_sequence"]
-    input_template:
-      path: "reports/code_review_v2/{{today}}_{{shortsha}}/sequence_diagram.mmd"
-      content_template: "{{sequence_mmd}}"
 
   # Gate 4: Safety decision
   - id: gate_decision
@@ -175,6 +220,8 @@ steps:
         impacts: "{{impacts}}"
         fts: "{{fts_hits}}"
         memory: "{{memory_hits}}"
+        requirements: "{{requirements}}"
+        gaps: "{{gaps}}"
     capture_as: decision
 
   # Final report assembly (embeds visuals)
@@ -187,7 +234,7 @@ steps:
 
   - id: write_report
     call: local.write
-    deps: ["write_impacted_json", "write_impact_graph", "write_sequence"]
+    deps: ["write_impacted_json", "build_impact_graph", "build_sequence"]
     input_template:
       path: "reports/code_review_v2/{{today}}_{{shortsha}}/report.md"
       content_template: |
@@ -195,6 +242,11 @@ steps:
 
         ## Change Summary
         {{change_summary}}
+
+        ## Jira
+        - Ticket: {{ticket_key}}
+        - Summary & Requirements:
+        {{requirements}}
 
         ## Impact Analysis
         {{impacts}}
@@ -209,6 +261,12 @@ steps:
         {{sequence_mmd}}
         ```
 
+        ## Requirements Mapping
+        {{req_map}}
+
+        ## Requirements Gap Analysis
+        {{gaps}}
+
         ## Safety Decision
         {{decision}}
 
@@ -216,4 +274,3 @@ steps:
         - FTS hits: {{fts_hits}}
         - Memory hits: {{memory_hits}}
         - Changed files: {{changed_files}}
-
