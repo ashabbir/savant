@@ -1,73 +1,160 @@
 name: code_review_v1
-version: "1.0"
-description: "Structured code review: checkout, lint, static scans, tests"
+version: "1.1"
+description: "Comprehensive MR code review flow based on .clinerules/workflows/code-review.md"
 steps:
-  - id: checkout
-    call: ci.checkout
+  # Phase 1: Initial Setup & Context Loading
+  - id: load_rules
+    call: local.read
     input_template:
-      ref: "{{params.branch}}"
+      files:
+        - ".cline/rules/code-review-rules.md"
+        - ".cline/rules/backend-rules.md"
+        - ".cline/rules/testing-rules.md"
+        - ".cline/rules/style-rules.md"
+        - ".clinerules/INDEX.md"
+    capture_as: rules_text
 
-  - id: lint
+  - id: load_config
+    call: local.read
+    deps: ["load_rules"]
+    input_template:
+      files: [".cline/config.yml"]
+    capture_as: project_config
+
+  - id: confirm_task
+    call: prompt.confirm
+    deps: ["load_config"]
+    input_template:
+      question: "Confirm task type: Code Review?"
+      expected: "yes"
+
+  # Phase 2: Fetch MR Details
+  - id: mr_details
+    call: gitlab.get_merge_request
+    deps: ["confirm_task"]
+    input_template:
+      project: "{{params.project_id}}"
+      mr_iid: "{{params.mr_iid}}"
+    capture_as: mr
+
+  - id: extract_ticket
+    call: analysis.extract_jira
+    deps: ["mr_details"]
+    input_template:
+      title: "{{mr.title}}"
+      pattern: "[A-Z]+-\\d+"
+    capture_as: ticket_key
+
+  - id: jira_fetch
+    call: jira_get_issue
+    deps: ["extract_ticket"]
+    input_template:
+      key: "{{ticket_key}}"
+    capture_as: jira
+
+  # Phase 2.1: Branch checkout (announcement + checkout if needed)
+  - id: checkout_branch
+    call: local.exec
+    deps: ["mr_details"]
+    input_template:
+      cmd: "git fetch origin {{mr.source_branch}} && git checkout {{mr.source_branch}}"
+      note: "Ensure you are on the MR source branch before analysis"
+
+  # Phase 3: Code Analysis (changed files, understanding)
+  - id: changed_files
+    call: local.exec
+    deps: ["checkout_branch"]
+    input_template:
+      cmd: "git diff --name-status origin/{{mr.target_branch}}...{{mr.source_branch}}"
+    capture_as: changes
+
+  - id: understand_change
+    call: analysis.graph
+    deps: ["changed_files"]
+    input_template:
+      files: "{{changes}}"
+      require_sequence_diagram: true
+    capture_as: change_graph
+
+  # Lint/Findings/Security — context + local verification
+  - id: lint_signals_ctx
     call: fts/search
-    deps: ["checkout"]
+    deps: ["checkout_branch"]
     input_template:
-      q: "rubocop offenses OR linter disable"
-    capture_as: lint_result
+      q: "rubocop disable|linter disable"
+    capture_as: lint_ctx
 
-  - id: findings
-    call: fts/search
-    deps: ["checkout"]
-    input_template:
-      q: "TODO|FIXME|binding.pry|puts|console.log"
-    capture_as: findings
-
-  - id: security
-    call: fts/search
-    deps: ["checkout"]
-    input_template:
-      q: "permit_all|skip_auth|eval(|OPENSSL_NO_VERIFY"
-    capture_as: security_findings
-
-  - id: lint_fs_verify
+  - id: lint_signals_fs
     call: local.search
-    deps: ["lint"]
+    deps: ["lint_signals_ctx"]
     input_template:
       q: "rubocop:disable|linter disable"
-      globs: ["**/*.rb","**/*.yml","**/*.yaml"]
+      globs: ["**/*.rb", "**/*.yml", "**/*.yaml"]
     capture_as: lint_fs
 
-  - id: security_fs_verify
-    call: local.search
-    deps: ["security"]
+  - id: debug_findings_ctx
+    call: fts/search
+    deps: ["checkout_branch"]
     input_template:
-      q: "permit_all|skip_auth|eval\(|OPENSSL_NO_VERIFY"
+      q: "TODO|FIXME|binding.pry|puts|console.log"
+    capture_as: findings_ctx
+
+  - id: debug_findings_fs
+    call: local.search
+    deps: ["debug_findings_ctx"]
+    input_template:
+      q: "TODO|FIXME|binding.pry|puts|console.log"
+      globs: ["**/*"]
+    capture_as: findings_fs
+
+  - id: security_ctx
+    call: fts/search
+    deps: ["checkout_branch"]
+    input_template:
+      q: "permit_all|skip_auth|eval\\(|OPENSSL_NO_VERIFY|system\\(|`"
+    capture_as: security_ctx
+
+  - id: security_fs
+    call: local.search
+    deps: ["security_ctx"]
+    input_template:
+      q: "permit_all|skip_auth|eval\\(|OPENSSL_NO_VERIFY|system\\(|`"
       globs: ["**/*"]
     capture_as: security_fs
 
   - id: rails_antipatterns_ctx
     call: fts/search
-    deps: ["checkout"]
+    deps: ["checkout_branch"]
     input_template:
-      q: "update_all\(|find_by_sql\(|exec_query\(|skip_before_action :authenticate_user|rescue Exception|before_filter|after_filter"
+      q: "update_all\\(|find_by_sql\\(|exec_query\\(|skip_before_action :authenticate_user|rescue Exception|before_filter|after_filter"
     capture_as: rails_anti_ctx
 
   - id: rails_antipatterns_fs
     call: local.search
     deps: ["rails_antipatterns_ctx"]
     input_template:
-      q: "update_all\(|find_by_sql\(|exec_query\(|skip_before_action :authenticate_user|rescue Exception|before_filter|after_filter"
+      q: "update_all\\(|find_by_sql\\(|exec_query\\(|skip_before_action :authenticate_user|rescue Exception|before_filter|after_filter"
       globs: ["**/*.rb"]
     capture_as: rails_anti_fs
 
+  # Phase 4: Test Execution & Validation (affected paths first)
+  - id: tests_affected
+    call: local.exec
+    deps: ["changed_files"]
+    input_template:
+      cmd: "bundle exec rspec $(git diff --name-only origin/{{mr.target_branch}}...{{mr.source_branch}} | sed -n 's#^\(spec/.*\)$#\1#p') -f documentation || true"
+      note: "Run tests for affected files if any; ignore if none"
+    capture_as: tests_affected_output
+
   - id: rubocop
     call: local.exec
-    deps: ["lint", "findings", "security", "rails_antipatterns_fs"]
+    deps: ["rails_antipatterns_fs"]
     input_template:
       cmd: "bundle exec rubocop -f progress || rubocop -f progress"
       expect: "no offenses detected"
     capture_as: rubocop_output
 
-  - id: rspec
+  - id: rspec_full
     call: local.exec
     deps: ["rubocop"]
     input_template:
@@ -75,3 +162,83 @@ steps:
       min_coverage: 85
       note: "Ensure coverage >= 85% (SimpleCov or builtin)"
     capture_as: rspec_output
+
+  # Phase 5: Requirements Validation
+  - id: requirements_map
+    call: analysis.map_requirements
+    deps: ["jira_fetch", "understand_change"]
+    input_template:
+      jira: "{{jira}}"
+      files: "{{changes}}"
+    capture_as: req_map
+
+  # Phase 4 (Rules Application) in doc — apply code review rules
+  - id: apply_rules
+    call: analysis.apply_rules
+    deps: ["requirements_map", "rubocop", "rspec_full"]
+    input_template:
+      rule_files:
+        - ".cline/rules/code-review-rules.md"
+        - ".cline/rules/backend-rules.md"
+        - ".cline/rules/testing-rules.md"
+        - ".cline/rules/style-rules.md"
+    capture_as: rules_assessment
+
+  - id: quality_summary
+    call: analysis.quality_summary
+    deps: ["apply_rules"]
+    input_template:
+      inputs:
+        rubocop: "{{rubocop_output}}"
+        rspec: "{{rspec_output}}"
+        security: "{{security_fs}}"
+        rails: "{{rails_anti_fs}}"
+    capture_as: quality
+
+  # Phase 5: Discussion Review
+  - id: discussions
+    call: gitlab.get_merge_request_discussions
+    deps: ["mr_details"]
+    input_template:
+      project: "{{params.project_id}}"
+      mr_iid: "{{params.mr_iid}}"
+    capture_as: discussion_list
+
+  - id: outstanding
+    call: analysis.outstanding_items
+    deps: ["discussions"]
+    input_template:
+      discussions: "{{discussion_list}}"
+    capture_as: outstanding
+
+  # Phase 6: Final Assessment
+  - id: final_verdict
+    call: analysis.final_matrix
+    deps: ["quality_summary", "outstanding", "requirements_map"]
+    input_template:
+      thresholds: { coverage: 85 }
+    capture_as: verdict
+
+  # Phase 7: Deliverable
+  - id: write_report
+    call: local.write
+    deps: ["final_verdict"]
+    input_template:
+      path: "code-reviews/{{ticket_key}}/{{timestamp}}.md"
+      content_template: |
+        # MR !{{params.mr_iid}} Final Review Report - {{ticket_key}}
+
+        ## JIRA Compliance: {{ticket_key}}
+        {{req_map}}
+
+        ## Code Review Rules Assessment
+        {{rules_assessment}}
+
+        ## Quality Summary
+        {{quality}}
+
+        ## Outstanding Discussions
+        {{outstanding}}
+
+        ## Final Verdict
+        {{verdict}}
