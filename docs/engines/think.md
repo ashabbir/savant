@@ -44,6 +44,41 @@ ruby ./bin/savant call 'think.plan' \
   --input='{"workflow":"code_review_v1","params":{"mr_iid":"!12345"}}'
 ```
 
+Changed-only commands (examples)
+
+Assume you have a list of changed file paths from GitLab MR changes (produced by `analysis.extract_changed_paths`). Here are two ways to run tools only on those files:
+
+1) If you have a newline-separated list in an env var `CHANGED` (or a temp file):
+
+```bash
+# RuboCop: only changed Ruby files
+FILES=$(printf "%s\n" "$CHANGED" | sed -n 's#^\(.*\.rb\)$#\1#p' | tr '\n' ' ')
+if [ -n "$FILES" ]; then
+  bundle exec rubocop -f progress $FILES || rubocop -f progress $FILES
+else
+  echo "No changed Ruby files"
+fi
+
+# RSpec: only changed spec files
+SPECS=$(printf "%s\n" "$CHANGED" | sed -n 's#^\(spec/.*\)$#\1#p' | tr '\n' ' ')
+if [ -n "$SPECS" ]; then
+  bundle exec rspec --format progress $SPECS || rspec --format progress $SPECS
+else
+  echo "No changed spec files"
+fi
+```
+
+2) If you have a JSON array in `changes.json` (e.g., `[{"new_path":"app/a.rb"},{"new_path":"spec/a_spec.rb"}]`), using `jq`:
+
+```bash
+# Extract flat list of paths (prefers new_path, falls back to old_path)
+CHANGED=$(jq -r '.[] | .new_path // .old_path' changes.json)
+
+# RuboCop / RSpec same as above
+FILES=$(printf "%s\n" "$CHANGED" | sed -n 's#^\(.*\.rb\)$#\1#p' | tr '\n' ' ')
+SPECS=$(printf "%s\n" "$CHANGED" | sed -n 's#^\(spec/.*\)$#\1#p' | tr '\n' ' ')
+```
+
 Flow (Mermaid)
 
 ```mermaid
