@@ -61,6 +61,14 @@ steps:
       question: "Provide GitLab MR IID (e.g., !12345)"
       capture: "mr_iid"
 
+  - id: normalize_mr_iid
+    call: analysis.normalize_mr_iid
+    deps: ["request_mr_iid"]
+    input_template:
+      raw: "{{mr_iid}}"
+      strip_prefix: "!"
+    capture_as: mr_iid_num
+
   - id: confirm_task
     call: prompt.confirm
     deps: ["request_mr_iid"]
@@ -73,8 +81,8 @@ steps:
     call: gitlab.get_merge_request
     deps: ["confirm_task"]
     input_template:
-      project: "{{params.project_id}}"
-      mr_iid: "{{params.mr_iid}}"
+      project: "{{project_meta.project_gitlab}}"
+      mr_iid: "{{mr_iid_num}}"
     capture_as: mr
 
   - id: extract_ticket
@@ -264,8 +272,8 @@ steps:
     call: gitlab.get_merge_request_discussions
     deps: ["mr_details"]
     input_template:
-      project: "{{params.project_id}}"
-      mr_iid: "{{params.mr_iid}}"
+      project: "{{project_meta.project_gitlab}}"
+      mr_iid: "{{mr_iid_num}}"
     capture_as: discussion_list
 
   - id: outstanding
@@ -290,7 +298,7 @@ steps:
     input_template:
       path: "code-reviews/{{ticket_key}}/{{timestamp}}.md"
       content_template: |
-        # MR !{{params.mr_iid}} Final Review Report - {{ticket_key}}
+        # MR !{{mr_iid_num}} Final Review Report - {{ticket_key}}
 
         ## JIRA Compliance: {{ticket_key}}
         {{req_map}}
