@@ -60,14 +60,18 @@ steps:
     capture_as: rails_anti_fs
 
   - id: rubocop
-    call: check/rubocop
+    call: local.exec
     deps: ["lint", "findings", "security", "rails_antipatterns_fs"]
-    input_template: {}
-    capture_as: rubocop_summary
+    input_template:
+      cmd: "bundle exec rubocop -f progress || rubocop -f progress"
+      expect: "no offenses detected"
+    capture_as: rubocop_output
 
   - id: rspec
-    call: check/rspec
+    call: local.exec
     deps: ["rubocop"]
     input_template:
+      cmd: "bundle exec rspec --format progress || rspec --format progress"
       min_coverage: 85
-    capture_as: rspec_summary
+      note: "Ensure coverage >= 85% (SimpleCov or builtin)"
+    capture_as: rspec_output

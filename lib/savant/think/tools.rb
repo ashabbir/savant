@@ -64,43 +64,8 @@ module Savant
           # (e.g., 'fts/search') and perform local workspace searches using its
           # editor capabilities.
 
-          # Check: RuboCop offenses summary (does not modify files)
-          tool 'check/rubocop', description: 'Run RuboCop and return offense counts',
-                                schema: { type: 'object', properties: { format: { type: 'string' } } } do |_ctx, _a|
-            require 'open3'
-            cmd = ['bash', '-lc', 'bundle exec rubocop -f json || rubocop -f json']
-            out, err, status = Open3.capture3(*cmd)
-            if status.exitstatus.nil?
-              { ok: false, error: 'rubocop_not_available', stderr: err }
-            else
-              begin
-                data = JSON.parse(out)
-                summary = data['summary'] || {}
-                offenses = summary['offense_count'] || 0
-                files = summary['inspected_file_count'] || 0
-                { ok: offenses.to_i.zero?, offenses: offenses, files_inspected: files }
-              rescue StandardError
-                { ok: status.success?, raw: out[-2000..], stderr: err[-1000..] }
-              end
-            end
-          end
-
-          # Check: RSpec run with coverage threshold (parses SimpleCov/builtin output)
-          tool 'check/rspec', description: 'Run RSpec and assert minimum coverage',
-                              schema: { type: 'object', properties: { min_coverage: { type: 'integer', minimum: 0, maximum: 100 } } } do |_ctx, a|
-            require 'open3'
-            min_cov = (a['min_coverage'] || 85).to_i
-            out, err, status = Open3.capture3('bash', '-lc', 'rspec --format progress')
-            coverage = nil
-            # Try SimpleCov line
-            if (m = out.match(/Line Coverage:\s*(\d+(?:\.\d+)?)%/))
-              coverage = m[1].to_f
-            elsif (m = out.match(/Coverage \(builtin\):\s*(\d+(?:\.\d+)?)%/))
-              coverage = m[1].to_f
-            end
-            meets = !coverage.nil? && coverage >= min_cov
-            { ok: status.success? && meets, passed: status.success?, coverage: coverage, min_coverage: min_cov, meets_threshold: meets, stderr: err[-500..] }
-          end
+          # THINK NOTE: Think does not run rubocop/rspec itself. For quality gates,
+          # the instruction will ask the LLM to run local commands step-by-step.
         end
       end
     end
