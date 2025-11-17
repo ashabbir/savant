@@ -18,9 +18,11 @@ module Savant
       def start
         cfg = load_settings(@base_path)
         core_file = cfg.dig('logging', 'core_file_path')
-        resolve_engine_file(cfg, @service)
+        # Prefer per-engine file path if provided; else default to logs/<service>.log
+        engine_file = resolve_engine_file(cfg, @service)
+        file_path = engine_file || core_file || File.join(@base_path, 'logs', "#{@service}.log")
 
-        log = prepare_logger(@service, @base_path, file_path: core_file)
+        log = prepare_logger(@service, @base_path, file_path: file_path)
         log.info(event: 'boot', mode: 'stdio', service: @service, message: 'tools=loading')
         log.info(event: 'env', pwd: Dir.pwd, settings_path: File.join(@base_path, 'config', 'settings.json'))
 
@@ -70,8 +72,9 @@ module Savant
 
       def resolve_engine_file(cfg, service)
         ef = cfg.dig('logging', 'engine_file_path')
-        return nil unless ef
+        return nil unless ef && !ef.to_s.strip.empty?
 
+        # If a directory is given (trailing slash or no extension and non-existent), append service filename
         if ef.end_with?('/') || (File.extname(ef).empty? && !File.exist?(ef))
           File.join(ef, "#{service}.log")
         else
