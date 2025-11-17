@@ -8,28 +8,28 @@ steps:
       ref: "{{params.branch}}"
 
   - id: lint
-    call: context.search
+    call: fts/search
     deps: ["checkout"]
     input_template:
       q: "rubocop offenses OR linter disable"
     capture_as: lint_result
 
   - id: findings
-    call: context.search
+    call: fts/search
     deps: ["checkout"]
     input_template:
       q: "TODO|FIXME|binding.pry|puts|console.log"
     capture_as: findings
 
   - id: security
-    call: context.search
+    call: fts/search
     deps: ["checkout"]
     input_template:
       q: "permit_all|skip_auth|eval(|OPENSSL_NO_VERIFY"
     capture_as: security_findings
 
   - id: lint_fs_verify
-    call: fs/grep
+    call: local.search
     deps: ["lint"]
     input_template:
       q: "rubocop:disable|linter disable"
@@ -37,7 +37,7 @@ steps:
     capture_as: lint_fs
 
   - id: security_fs_verify
-    call: fs/grep
+    call: local.search
     deps: ["security"]
     input_template:
       q: "permit_all|skip_auth|eval\(|OPENSSL_NO_VERIFY"
@@ -45,14 +45,14 @@ steps:
     capture_as: security_fs
 
   - id: rails_antipatterns_ctx
-    call: context.search
+    call: fts/search
     deps: ["checkout"]
     input_template:
       q: "update_all\(|find_by_sql\(|exec_query\(|skip_before_action :authenticate_user|rescue Exception|before_filter|after_filter"
     capture_as: rails_anti_ctx
 
   - id: rails_antipatterns_fs
-    call: fs/grep
+    call: local.search
     deps: ["rails_antipatterns_ctx"]
     input_template:
       q: "update_all\(|find_by_sql\(|exec_query\(|skip_before_action :authenticate_user|rescue Exception|before_filter|after_filter"
