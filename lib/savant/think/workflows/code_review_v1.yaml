@@ -7,6 +7,13 @@ steps:
     call: local.read
     input_template:
       files:
+        # Prefer underscore rule file names (compat with .clinerules/INDEX.md)
+        - ".cline/rules/code_review_rules.md"
+        - ".cline/rules/backend_rules.md"
+        - ".cline/rules/testing_rules.md"
+        - ".cline/rules/style_rules.md"
+        - ".cline/rules/savant_rules.md"
+        # Fallbacks for hyphenated variants
         - ".cline/rules/code-review-rules.md"
         - ".cline/rules/backend-rules.md"
         - ".cline/rules/testing-rules.md"
@@ -216,6 +223,13 @@ steps:
     deps: ["requirements_map", "rubocop", "rspec_full"]
     input_template:
       rule_files:
+        # Prefer underscore rule file names
+        - ".cline/rules/code_review_rules.md"
+        - ".cline/rules/backend_rules.md"
+        - ".cline/rules/testing_rules.md"
+        - ".cline/rules/style_rules.md"
+        - ".cline/rules/savant_rules.md"
+        # Fallbacks for hyphenated variants
         - ".cline/rules/code-review-rules.md"
         - ".cline/rules/backend-rules.md"
         - ".cline/rules/testing-rules.md"
