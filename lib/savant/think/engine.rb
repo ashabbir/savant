@@ -27,7 +27,7 @@ module Savant
       # @return [Hash] { version:, hash:, prompt_md: }
       def driver_prompt(version: nil)
         reg_path = File.join(@root, 'prompts.yml')
-        data = safe_yaml(File.read(reg_path))
+        data = safe_yaml(read_text_utf8(reg_path))
         versions = data['versions'] || {}
         ver = version && versions[version] ? version : versions.keys.last
         raise 'PROMPT_NOT_FOUND' unless ver && versions[ver]
@@ -35,7 +35,7 @@ module Savant
         path = versions[ver]
         # Resolve relative to lib/savant/think/
         p_path = File.join(@root, path)
-        md = File.read(p_path)
+        md = read_text_utf8(p_path)
         { version: ver, hash: "sha256:#{Digest::SHA256.hexdigest(md)}", prompt_md: md }
       end
 
@@ -95,7 +95,7 @@ module Savant
           id = File.basename(fn, File.extname(fn))
           next if filter && !id.include?(filter.to_s)
 
-          h = safe_yaml(File.read(File.join(dir, fn)))
+          h = safe_yaml(read_text_utf8(File.join(dir, fn)))
           { id: id, version: (h['version'] || '1.0').to_s, desc: h['description'] || '' }
         end
         { workflows: rows.compact }
@@ -106,7 +106,7 @@ module Savant
         path = File.join(@root, 'workflows', "#{workflow}.yaml")
         raise 'WORKFLOW_NOT_FOUND' unless File.exist?(path)
 
-        { workflow_yaml: File.read(path) }
+        { workflow_yaml: read_text_utf8(path) }
       end
 
       # For MCP initialize handshake
@@ -131,6 +131,15 @@ module Savant
         YAML.safe_load(str, permitted_classes: [], aliases: true) || {}
       end
 
+      # Read a text file as UTF-8, tolerating BOM and invalid bytes.
+      def read_text_utf8(path)
+        File.open(path, 'r:bom|utf-8') { |f| f.read }
+      rescue ArgumentError, Encoding::InvalidByteSequenceError, Encoding::UndefinedConversionError
+        data = File.binread(path)
+        # Force-convert to UTF-8, replacing invalid/undefined bytes
+        data.encode('UTF-8', invalid: :replace, undef: :replace, replace: '')
+      end
+
       def load_think_limits
         cfg_path = File.join(@base, 'config', 'think.yml')
         h = File.exist?(cfg_path) ? safe_yaml(File.read(cfg_path)) : {}
@@ -152,7 +161,7 @@ module Savant
         path = File.join(@root, 'workflows', "#{id}.yaml")
         raise 'WORKFLOW_NOT_FOUND' unless File.exist?(path)
 
-        h = safe_yaml(File.read(path))
+        h = safe_yaml(read_text_utf8(path))
         steps = h['steps']
         raise 'YAML_SCHEMA_VIOLATION: steps missing' unless steps.is_a?(Array) && steps.any?
 
