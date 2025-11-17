@@ -59,53 +59,10 @@ module Savant
             eng.workflows_read(workflow: a['workflow'])
           end
 
-          # Bridge: Context FTS search from Think service
-          tool 'context.search', description: 'Proxy: Full‑text search over indexed repos (Context FTS)',
-                                 schema: { type: 'object', properties: { q: { type: 'string' }, repo: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }, { type: 'null' }] }, limit: { type: 'integer', minimum: 1, maximum: 200 } }, required: ['q'] } do |_ctx, a|
-            require_relative '../..//savant/context/fts'
-            require_relative '../..//savant/db'
-            db = Savant::DB.new
-            Savant::Context::FTS.new(db).search(q: (a['q'] || '').to_s, repo: a['repo'], limit: a['limit'] || 20)
-          end
-
-          # Filesystem grep in current codebase (verification alongside FTS)
-          tool 'fs/grep', description: 'Search current codebase files for a pattern (regex or plain)',
-                          schema: { type: 'object', properties: { q: { type: 'string' }, path: { type: 'string' }, globs: { type: 'array', items: { type: 'string' } }, ignore: { type: 'array', items: { type: 'string' } }, limit: { type: 'integer', minimum: 1, maximum: 1000 } }, required: ['q'] } do |_ctx, a|
-            require 'find'
-            root = a['path'].to_s.strip
-            root = Dir.pwd if root.empty?
-            pattern = a['q'].to_s
-            regex = begin
-              Regexp.new(pattern)
-            rescue StandardError
-              Regexp.new(Regexp.escape(pattern))
-            end
-            include_globs = Array(a['globs']).map(&:to_s)
-            ignore_globs = Array(a['ignore']).map(&:to_s)
-            limit = (a['limit'] || 200).to_i
-            matches = []
-            Find.find(root) do |path|
-              break if matches.length >= limit
-              next if File.directory?(path)
-
-              rel = path.sub(%r{^#{Regexp.escape(root)}/?}, '')
-              next if rel.start_with?('.git/')
-              next if !include_globs.empty? && include_globs.none? { |g| File.fnmatch?(g, rel, File::FNM_EXTGLOB | File::FNM_PATHNAME) }
-              next if ignore_globs.any? { |g| File.fnmatch?(g, rel, File::FNM_EXTGLOB | File::FNM_PATHNAME) }
-
-              begin
-                File.foreach(path, chomp: true).with_index do |line, idx|
-                  if regex.match?(line)
-                    matches << { path: rel, line_no: idx + 1, line: line }
-                    break if matches.length >= limit
-                  end
-                end
-              rescue StandardError
-                next
-              end
-            end
-            { root: File.expand_path(root), count: matches.length, matches: matches }
-          end
+          # NOTE: Think does not re‑expose Context FTS or local FS search.
+          # The Instruction Engine should guide the LLM to call Context MCP tools
+          # (e.g., 'fts/search') and perform local workspace searches using its
+          # editor capabilities.
 
           # Check: RuboCop offenses summary (does not modify files)
           tool 'check/rubocop', description: 'Run RuboCop and return offense counts',
