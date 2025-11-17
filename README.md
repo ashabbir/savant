@@ -300,7 +300,7 @@ Workflows (starter set)
 | ID | Purpose | Required params |
 |---|---|---|
 | `review_v1` | Basic review: checkout → lint search → tests | `branch` |
-| `code_review_v1` | Structured review with security scan | `branch` |
+| `code_review_v1` | MR-first code review (GitLab MR changes, changed-only rubocop/rspec) | `mr_iid` |
 | `develop_ticket_v1` | Develop ticket: fetch, branch, tests, PR | `issueKey`, `base_branch`, `feature_branch`, `title` |
 | `ticket_grooming_v1` | Groom/plan: fetch, code context, resources | `issueKey` |
 
