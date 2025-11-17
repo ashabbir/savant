@@ -1,6 +1,6 @@
 name: code_review_v1
-version: "1.1"
-description: "Comprehensive MR code review flow based on .clinerules/workflows/code-review.md"
+version: "1.2"
+description: "Comprehensive MR code review flow based on .clinerules/workflows/code-review.md (use .cline/rules/*)"
 steps:
   # Phase 1: Initial Setup & Context Loading
   - id: load_rules
@@ -11,19 +11,50 @@ steps:
         - ".cline/rules/backend-rules.md"
         - ".cline/rules/testing-rules.md"
         - ".cline/rules/style-rules.md"
+        - ".cline/rules/savant-rules.md"
         - ".clinerules/INDEX.md"
     capture_as: rules_text
 
-  - id: load_config
+  - id: load_workflow_doc
     call: local.read
     deps: ["load_rules"]
+    input_template:
+      files: [".clinerules/workflows/code-review.md"]
+    capture_as: workflow_doc
+
+  - id: load_config
+    call: local.read
+    deps: ["load_workflow_doc"]
     input_template:
       files: [".cline/config.yml"]
     capture_as: project_config
 
+  - id: parse_project_meta
+    call: analysis.parse_project_meta
+    deps: ["load_config"]
+    input_template:
+      config: "{{project_config}}"
+    capture_as: project_meta
+
+  - id: announce_project
+    call: prompt.say
+    deps: ["parse_project_meta"]
+    input_template:
+      text: |
+        Project Meta Loaded:\n
+        - GitLab Project ID: {{project_meta.project_gitlab}}\n
+        - Project Code: {{project_meta.project_code}}
+
+  - id: request_mr_iid
+    call: prompt.ask
+    deps: ["announce_project"]
+    input_template:
+      question: "Provide GitLab MR IID (e.g., !12345)"
+      capture: "mr_iid"
+
   - id: confirm_task
     call: prompt.confirm
-    deps: ["load_config"]
+    deps: ["request_mr_iid"]
     input_template:
       question: "Confirm task type: Code Review?"
       expected: "yes"
@@ -182,11 +213,23 @@ steps:
         - ".cline/rules/backend-rules.md"
         - ".cline/rules/testing-rules.md"
         - ".cline/rules/style-rules.md"
+        - ".cline/rules/savant-rules.md"
     capture_as: rules_assessment
+
+  - id: issues_documentation
+    call: analysis.issues_table
+    deps: ["apply_rules"]
+    input_template:
+      sources:
+        - "{{rules_assessment}}"
+        - "{{findings_fs}}"
+        - "{{security_fs}}"
+        - "{{rails_anti_fs}}"
+    capture_as: issues
 
   - id: quality_summary
     call: analysis.quality_summary
-    deps: ["apply_rules"]
+    deps: ["issues_documentation"]
     input_template:
       inputs:
         rubocop: "{{rubocop_output}}"
@@ -231,8 +274,14 @@ steps:
         ## JIRA Compliance: {{ticket_key}}
         {{req_map}}
 
+        ## Commit Analysis
+        {{change_graph}}
+
         ## Code Review Rules Assessment
         {{rules_assessment}}
+
+        ## Issues
+        {{issues}}
 
         ## Quality Summary
         {{quality}}
