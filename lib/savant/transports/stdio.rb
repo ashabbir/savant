@@ -31,6 +31,14 @@ module Savant
         $stdout.sync = true
         $stderr.sync = true
         $stdin.sync = true
+        # Force UTF-8 on stdio to avoid Encoding::UndefinedConversionError on US-ASCII terminals
+        begin
+          $stdout.set_encoding(Encoding::UTF_8, Encoding::UTF_8)
+          $stderr.set_encoding(Encoding::UTF_8, Encoding::UTF_8)
+          $stdin.set_encoding(Encoding::UTF_8, Encoding::UTF_8)
+        rescue StandardError
+          # Some environments may not support set_encoding on stdio; ignore
+        end
 
         dispatcher = Savant::MCP::Dispatcher.new(service: @service, log: log)
         log.info(event: 'ready', message: 'buffers synced, waiting for requests...')
