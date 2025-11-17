@@ -15,6 +15,7 @@ module Savant
     # - next(workflow:, step_id:, result_snapshot:)
     # - workflows_list(filter:)
     # - workflows_read(workflow:)
+    # rubocop:disable Metrics/ClassLength
     class Engine
       def initialize(env: ENV)
         @env = env
@@ -45,7 +46,7 @@ module Savant
         wf = load_workflow(workflow)
         # Auto-inject driver bootstrap/announce if not present
         drv_ver = wf['driver_version'] || 'stable-2025-11'
-        wf = inject_driver_step(wf, drv_ver) unless has_driver_step?(wf)
+        wf = inject_driver_step(wf, drv_ver) unless driver_step?(wf)
         graph = build_graph(wf)
         order = topo_order(graph)
         raise 'EMPTY_WORKFLOW' if order.empty?
@@ -133,7 +134,7 @@ module Savant
 
       # Read a text file as UTF-8, tolerating BOM and invalid bytes.
       def read_text_utf8(path)
-        File.open(path, 'r:bom|utf-8') { |f| f.read }
+        File.open(path, 'r:bom|utf-8', &:read)
       rescue ArgumentError, Encoding::InvalidByteSequenceError, Encoding::UndefinedConversionError
         data = File.binread(path)
         # Force-convert to UTF-8, replacing invalid/undefined bytes
@@ -172,7 +173,7 @@ module Savant
         h
       end
 
-      def inject_driver_step(wf, version)
+      def inject_driver_step(workflow_hash, version)
         driver_step = {
           'id' => '__driver_bootstrap',
           'call' => 'think.driver_prompt',
@@ -190,18 +191,18 @@ module Savant
           }
         }
 
-        original = wf['steps'] || []
+        original = workflow_hash['steps'] || []
         first_ids = original.select { |s| (s['deps'] || []).empty? }.map { |s| s['id'] }
         original.each do |s|
           s['deps'] = Array(s['deps'])
           s['deps'] << '__driver_announce' if first_ids.include?(s['id'])
         end
-        wf['steps'] = [driver_step, announce_step] + original
-        wf
+        workflow_hash['steps'] = [driver_step, announce_step] + original
+        workflow_hash
       end
 
-      def has_driver_step?(wf)
-        (wf['steps'] || []).any? { |s| s['call'] == 'think.driver_prompt' }
+      def driver_step?(workflow_hash)
+        (workflow_hash['steps'] || []).any? { |s| s['call'] == 'think.driver_prompt' }
       end
 
       # Build adjacency list graph id => deps
@@ -341,5 +342,6 @@ module Savant
         FileUtils.mv(tmp, path)
       end
     end
+    # rubocop:enable Metrics/ClassLength
   end
 end
