@@ -246,14 +246,6 @@ steps:
         Returns: { "mermaid": "sequenceDiagram\n...", "actors": [...] }
     capture_as: sequence_diagram
 
-  # Phase 5.1: Persist impact data (optional JSON)
-  - id: write_impacted_json
-    call: local.write
-    deps: ["make_safety_decision"]
-    input_template:
-      path: "reports/code_review_v2/{{state.date}}_{{state.commit_sha}}/impacted_areas.json"
-      content_template: "{{impact_analysis}}"
-
   # Phase 5: Final Safety Decision
   - id: make_safety_decision
     call: analysis.evaluate_safety
@@ -367,10 +359,8 @@ steps:
 
         {{state.quality_summary}}
 
-        {{# state.quality_summary_alt }}
         #### Alternate Summary (Pattern Scans)
         {{state.quality_summary_alt}}
-        {{/ state.quality_summary_alt }}
 
         ### Backend Quality
 
@@ -431,10 +421,8 @@ steps:
 
         {{impact_analysis}}
 
-        {{# state.change_summary }}
         ### Change Summary (Diff)
         {{state.change_summary}}
-        {{/ state.change_summary }}
 
         ### Cross-Repository Impact
         {{cross_repo_impact}}
@@ -449,10 +437,8 @@ steps:
         {{sequence_diagram.mermaid}}
         ```
 
-        {{# state.change_graph }}
         ### Change Graph (Early Understanding)
         {{state.change_graph}}
-        {{/ state.change_graph }}
 
         ---
 
