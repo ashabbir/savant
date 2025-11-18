@@ -9,9 +9,9 @@ steps:
     call: prompt.say
     input_template:
       text: |
-        ðŸš€ Code Review Initial (Phase 1/2)
+        Code Review Initial (Phase 1/2)
 
-        Collecting data â†’ Running quality gates â†’ Analyzing code
+        Collecting data -> Running quality gates -> Analyzing code
         Will write intermediate state to: .savant/code-review/{ticket}-state.json
 
   - id: load_config
@@ -214,9 +214,9 @@ steps:
     deps: ["analyze_dev_migration_result"]
     input_template:
       text: |
-        âš ï¸ Dev Migration: {{dev_migration_result.status}}
+        WARNING Dev Migration: {{dev_migration_result.status}}
         {{dev_migration_result.error.message}}
-        ðŸ’¡ Fix: {{dev_migration_result.error.fix}}
+        Fix: {{dev_migration_result.error.fix}}
 
   # Phase 6: Backend Quality - RuboCop
   - id: run_rubocop
