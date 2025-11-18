@@ -85,14 +85,7 @@ Savant is a lightweight Ruby framework for building and running local MCP servic
   ```bash
   ruby ./bin/savant list tools --service=think
   ```
-- Plan a workflow (review_v1):
-  ```bash
-  ruby ./bin/savant call 'think.plan' --service=think --input='{"workflow":"review_v1","params":{"branch":"main"}}'
-  ```
-- Advance to next step (example):
-  ```bash
-  ruby ./bin/savant call 'think.next' --service=think --input='{"workflow":"review_v1","run_id":"rv1-001","step_id":"lint","result_snapshot":{"rows":[]}}'
-  ```
+  
 
 ## Chapter 3 – Framework
 - What it is: a host for a single active engine that provides transport, tool registration, config, logging, and optional DB wiring.
@@ -307,7 +300,6 @@ Workflows (starter set)
 
 | ID | Purpose | Required params |
 |---|---|---|
-| `review_v1` | Basic review: checkout → lint search → tests | `branch` |
 | `code_review_initial` | Phase 1: MR data → classify → quality gates → security scans → initial report + state | `mr_iid` |
 | `code_review_final` | Phase 2: load state → impact analysis → cross-repo search → diagrams → safety decision → final report | `ticket` |
 | `develop_ticket_v1` | Develop ticket: fetch, branch, tests, PR | `issueKey`, `base_branch`, `feature_branch`, `title` |
@@ -336,13 +328,6 @@ curl -s http://127.0.0.1:8765/jsonrpc \
 ```
 
 Workflow details
-
-- review_v1:
-  - Steps: `ci.checkout` → `context.search` (lint) → `ci.run_tests`
-  - Plan example:
-    ```bash
-    ruby ./bin/savant call 'think.plan' --service=think --input='{"workflow":"review_v1","params":{"branch":"main"},"run_id":"rv1-001","start_fresh":true}'
-    ```
 
 - code_review_initial:
   - MR‑first Phase 1 flow:
