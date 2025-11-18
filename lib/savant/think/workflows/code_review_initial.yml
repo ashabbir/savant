@@ -561,6 +561,9 @@ steps:
         ## Change Summary
         {{change_summary}}
 
+        ## Changed Files
+        {{changed_files_list}}
+
         ### Change Graph
         ```mermaid
         {{change_graph.mermaid}}
@@ -591,6 +594,9 @@ steps:
 
         ## Change Summary
         {{change_summary}}
+
+        ## Changed Files
+        {{changed_files_list}}
 
         ### Change Graph
         ```mermaid
