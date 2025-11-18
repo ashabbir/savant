@@ -289,7 +289,7 @@ steps:
     call: local.write
     deps: ["make_safety_decision"]
     input_template:
-      path: "code-reviews/{{state.ticket}}/{{state.timestamp}}/code_review_final.md"
+      path: "code-reviews/{{state.ticket}}/{{state.date}}/code_review_final.md"
       content_template: |
         # Code Review: {{state.ticket}}
 
@@ -475,7 +475,7 @@ steps:
         Code Review Complete!
 
         Final report:
-        code-reviews/{{state.ticket}}/{{state.timestamp}}/code_review_final.md
+        code-reviews/{{state.ticket}}/{{state.date}}/code_review_final.md
 
         Safety Decision: {{safety_decision.verdict}} ({{safety_decision.confidence}} confidence)
         Recommendation: {{safety_decision.recommendation}}
