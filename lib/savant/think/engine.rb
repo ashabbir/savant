@@ -108,12 +108,17 @@ module Savant
       def workflows_list(filter: nil)
         dir = File.join(@root, 'workflows')
         entries = Dir.exist?(dir) ? Dir.children(dir).select { |f| f.end_with?('.yaml', '.yml') } : []
-        rows = entries.map do |fn|
+        rows = entries.filter_map do |fn|
           id = File.basename(fn, File.extname(fn))
           next if filter && !id.include?(filter.to_s)
 
-          h = safe_yaml(read_text_utf8(File.join(dir, fn)))
-          { id: id, version: (h['version'] || '1.0').to_s, desc: h['description'] || '' }
+          begin
+            h = safe_yaml(read_text_utf8(File.join(dir, fn)))
+            { id: id, version: (h['version'] || '1.0').to_s, desc: h['description'] || '' }
+          rescue StandardError
+            # Skip invalid or unreadable workflow files during listing
+            nil
+          end
         end
         { workflows: rows.compact }
       end
