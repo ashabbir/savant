@@ -339,8 +339,8 @@ Workflow details
     - DB policy: run DB status/migrate only when `migrations_present == true`, otherwise skip.
     - Report includes Change Summary, Changed Files, and an embedded Change Graph. Writes state for Phase 2. If gates pass, announces safe to proceed.
   - Outputs:
-    - `code-reviews/{TICKET}/{TIMESTAMP}/code_review_initial.md` (includes embedded Mermaid Change Graph)
-    - `code-reviews/{TICKET}/{TIMESTAMP}/code_review_inital.md` (alias, same content)
+    - `code-reviews/{TICKET}/{DATE}/code_review_initial.md` (includes embedded Mermaid Change Graph)
+    - `code-reviews/{TICKET}/{DATE}/code_review_inital.md` (alias, same content)
     - `.savant/code-review/{TICKET}-{TIMESTAMP}-state.json`
   - Plan example:
     ```bash
@@ -352,7 +352,7 @@ Workflow details
     - Load Phase 1 state; run impact analysis and cross‑repo checks (FTS + memory MCP).
     - Apply rules; compute safety decision.
   - Outputs:
-    - `code-reviews/{TICKET}/{TIMESTAMP}/code_review_final.md` (final report with embedded Mermaid Impact Graph and Sequence Diagram)
+    - `code-reviews/{TICKET}/{DATE}/code_review_final.md` (final report with embedded Mermaid Impact Graph and Sequence Diagram)
   - Plan example:
     ```bash
     ruby ./bin/savant call 'think.plan' --service=think --input='{"workflow":"code_review_final","params":{"ticket":"ABC-123"},"run_id":"cr-final-001","start_fresh":true}'

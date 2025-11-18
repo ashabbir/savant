@@ -637,7 +637,7 @@ steps:
     call: local.write
     deps: ["evaluate_initial_gates", "parse_metadata", "classify_changes", "diff_summary", "understand_change"]
     input_template:
-      path: "code-reviews/{{changes_classified.ticket}}/{{metadata.timestamp}}/code_review_initial.md"
+      path: "code-reviews/{{changes_classified.ticket}}/{{metadata.date}}/code_review_initial.md"
       content_template: |
         # Code Review: {{changes_classified.ticket}} (Initial)
 
@@ -675,7 +675,7 @@ steps:
     call: local.write
     deps: ["write_initial_report"]
     input_template:
-      path: "code-reviews/{{changes_classified.ticket}}/{{metadata.timestamp}}/code_review_inital.md"
+      path: "code-reviews/{{changes_classified.ticket}}/{{metadata.date}}/code_review_inital.md"
       content_template: |
         # Code Review: {{changes_classified.ticket}} (Initial)
 
@@ -741,7 +741,7 @@ steps:
           "quality_summary": {{quality_summary}},
           "quality_summary_alt": {{quality_summary_alt}},
           "initial_pass": {{initial_pass}},
-          "initial_report_path": "code-reviews/{{changes_classified.ticket}}/{{metadata.timestamp}}/code_review_inital.md",
+          "initial_report_path": "code-reviews/{{changes_classified.ticket}}/{{metadata.date}}/code_review_inital.md",
           "rubocop_result": {{rubocop_result}},
           "rspec_final_result": {{rspec_final_result}},
           "eslint_result": {{eslint_result}},
@@ -769,7 +769,7 @@ steps:
         .savant/code-review/{{changes_classified.ticket}}-{{metadata.timestamp}}-state.json
 
         Initial report:
-        code-reviews/{{changes_classified.ticket}}/{{metadata.timestamp}}/code_review_inital.md
+        code-reviews/{{changes_classified.ticket}}/{{metadata.date}}/code_review_inital.md
 
         Safe to proceed: {{initial_pass.passed}}
         If true, run: code_review_final with ticket={{changes_classified.ticket}}
