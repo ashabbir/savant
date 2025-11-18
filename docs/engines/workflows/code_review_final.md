@@ -6,7 +6,7 @@ Prerequisite
 - Run `code_review_initial` first. Use `ticket={TICKET}` to load the latest state.
 
 Key outputs
-- `code-reviews/{TICKET}-{TIMESTAMP}.md` (embedded Mermaid Impact Graph and Sequence Diagram)
+- `code-reviews/{TICKET}/{TIMESTAMP}/code_review_final.md` (embedded Mermaid Impact Graph and Sequence Diagram)
 
 Mermaid (high‑level flow)
 ```mermaid

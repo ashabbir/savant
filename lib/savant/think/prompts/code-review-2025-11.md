@@ -167,7 +167,7 @@ Pattern scans policy (Phase 1)
 2. Impact analysis, cross-repo search (FTS + memory MCP)
 3. Requirements gap analysis, generate Mermaid diagrams (impact graph + sequence)
 4. Final safety decision
-5. Write final report: `code-reviews/{TICKET}-{TIMESTAMP}.md` (embed both diagrams)
+5. Write final report: `code-reviews/{TICKET}/{TIMESTAMP}/code_review_final.md` (embed both diagrams)
 
 Database policy
 - Phase 1 (Initial): Run DB migration status/migrate commands only when MR changes include migration files.
