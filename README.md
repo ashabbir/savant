@@ -352,7 +352,7 @@ Workflow details
     - Load Phase 1 state; run impact analysis and cross‑repo checks (FTS + memory MCP).
     - Apply rules; compute safety decision.
   - Outputs:
-    - `code-reviews/{TICKET}-{TIMESTAMP}.md` (final report with embedded Mermaid Impact Graph and Sequence Diagram)
+    - `code-reviews/{TICKET}/{TIMESTAMP}/code_review_final.md` (final report with embedded Mermaid Impact Graph and Sequence Diagram)
   - Plan example:
     ```bash
     ruby ./bin/savant call 'think.plan' --service=think --input='{"workflow":"code_review_final","params":{"ticket":"ABC-123"},"run_id":"cr-final-001","start_fresh":true}'
