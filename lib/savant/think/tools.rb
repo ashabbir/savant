@@ -40,13 +40,14 @@ module Savant
           end
 
           tool 'think.plan', description: 'Initialize a workflow run and return first instruction',
-                             schema: { type: 'object', properties: { workflow: { type: 'string' }, params: { type: 'object' } }, required: ['workflow'] } do |_ctx, a|
-            eng.plan(workflow: a['workflow'].to_s, params: a['params'] || {})
+                             schema: { type: 'object', properties: { workflow: { type: 'string' }, params: { type: 'object' }, run_id: { type: 'string' }, start_fresh: { type: 'boolean' } }, required: ['workflow'] } do |_ctx, a|
+            start_fresh = a.key?('start_fresh') ? !!a['start_fresh'] : true
+            eng.plan(workflow: a['workflow'].to_s, params: a['params'] || {}, run_id: a['run_id'], start_fresh: start_fresh)
           end
 
           tool 'think.next', description: 'Advance a workflow by recording step result and returning next instruction',
-                             schema: { type: 'object', properties: { workflow: { type: 'string' }, step_id: { type: 'string' }, result_snapshot: { type: 'object' } }, required: %w[workflow step_id] } do |_ctx, a|
-            eng.next(workflow: a['workflow'].to_s, step_id: a['step_id'].to_s, result_snapshot: a['result_snapshot'] || {})
+                             schema: { type: 'object', properties: { workflow: { type: 'string' }, run_id: { type: 'string' }, step_id: { type: 'string' }, result_snapshot: { type: 'object' } }, required: %w[workflow run_id step_id] } do |_ctx, a|
+            eng.next(workflow: a['workflow'].to_s, run_id: a['run_id'].to_s, step_id: a['step_id'].to_s, result_snapshot: a['result_snapshot'] || {})
           end
 
           tool 'think.workflows.list', description: 'List available workflows',

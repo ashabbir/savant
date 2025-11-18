@@ -5,6 +5,7 @@ require 'yaml'
 require 'json'
 require 'digest'
 require 'fileutils'
+require 'securerandom'
 
 module Savant
   module Think
@@ -41,8 +42,12 @@ module Savant
       end
 
       # Plan a workflow and return the first instruction and initial state
-      # @return [Hash] { instruction:, state:, done: false }
-      def plan(workflow:, params: {})
+      # @param workflow [String]
+      # @param params [Hash]
+      # @param run_id [String, nil] optional explicit run identifier
+      # @param start_fresh [Boolean] when true, remove any prior state for this run_id
+      # @return [Hash] { instruction:, state:, done: false, run_id: }
+      def plan(workflow:, params: {}, run_id: nil, start_fresh: true)
         wf = load_workflow(workflow)
         # Auto-inject driver bootstrap/announce if not present
         drv_ver = wf['driver_version'] || 'stable-2025-11'
@@ -53,22 +58,33 @@ module Savant
 
         nodes = wf['steps'].map { |s| [s['id'], s] }.to_h
         first = order.find { |sid| (graph[sid] || []).empty? || (nodes[sid]['deps'] || []).empty? } || order.first
+        rid = normalize_run_id(run_id) || generate_run_id(workflow)
+        # Reset state for this run when requested
+        if start_fresh
+          path = state_path_for(workflow, rid)
+          FileUtils.rm_f(path)
+        end
         st = {
           'workflow' => workflow,
           'params' => params || {},
           'completed' => [],
           'order' => order,
           'vars' => {},
-          'nodes' => nodes
+          'nodes' => nodes,
+          'run_id' => rid
         }
-        write_state(workflow, st)
-        { instruction: instruction_for(nodes[first]), state: st, done: false }
+        write_state(workflow, rid, st)
+        { instruction: instruction_for(nodes[first]), state: st, run_id: rid, done: false }
       end
 
       # Advance workflow by recording result and computing next instruction
+      # @param workflow [String]
+      # @param run_id [String]
+      # @param step_id [String]
+      # @param result_snapshot [Hash]
       # @return [Hash] { instruction:, done: false } or { done: true, summary: }
-      def next(workflow:, step_id:, result_snapshot: {})
-        st = read_state(workflow)
+      def next(workflow:, run_id:, step_id:, result_snapshot: {})
+        st = read_state(workflow, run_id)
         nodes = st['nodes'] || {}
         step = nodes[step_id]
         raise 'UNKNOWN_STEP' unless step
@@ -77,7 +93,7 @@ module Savant
         cap = step['capture_as']
         st['vars'][cap] = validate_payload(result_snapshot) if cap
         st['completed'] |= [step_id]
-        write_state(workflow, st)
+        write_state(workflow, run_id, st)
 
         nxt_id = next_ready_step_id(st)
         if nxt_id
@@ -92,20 +108,25 @@ module Savant
       def workflows_list(filter: nil)
         dir = File.join(@root, 'workflows')
         entries = Dir.exist?(dir) ? Dir.children(dir).select { |f| f.end_with?('.yaml', '.yml') } : []
-        rows = entries.map do |fn|
+        rows = entries.filter_map do |fn|
           id = File.basename(fn, File.extname(fn))
           next if filter && !id.include?(filter.to_s)
 
-          h = safe_yaml(read_text_utf8(File.join(dir, fn)))
-          { id: id, version: (h['version'] || '1.0').to_s, desc: h['description'] || '' }
+          begin
+            h = safe_yaml(read_text_utf8(File.join(dir, fn)))
+            { id: id, version: (h['version'] || '1.0').to_s, desc: h['description'] || '' }
+          rescue StandardError
+            # Skip invalid or unreadable workflow files during listing
+            nil
+          end
         end
         { workflows: rows.compact }
       end
 
       # Read raw workflow YAML
       def workflows_read(workflow:)
-        path = File.join(@root, 'workflows', "#{workflow}.yaml")
-        raise 'WORKFLOW_NOT_FOUND' unless File.exist?(path)
+        path = resolve_workflow_path(workflow)
+        raise 'WORKFLOW_NOT_FOUND' unless path
 
         { workflow_yaml: read_text_utf8(path) }
       end
@@ -159,8 +180,8 @@ module Savant
       end
 
       def load_workflow(id)
-        path = File.join(@root, 'workflows', "#{id}.yaml")
-        raise 'WORKFLOW_NOT_FOUND' unless File.exist?(path)
+        path = resolve_workflow_path(id)
+        raise 'WORKFLOW_NOT_FOUND' unless path
 
         h = safe_yaml(read_text_utf8(path))
         steps = h['steps']
@@ -171,6 +192,15 @@ module Savant
           raise 'YAML_SCHEMA_VIOLATION: call required' unless s['call'].is_a?(String) && !s['call'].empty?
         end
         h
+      end
+
+      def resolve_workflow_path(id)
+        dir = File.join(@root, 'workflows')
+        yml = File.join(dir, "#{id}.yml")
+        yaml = File.join(dir, "#{id}.yaml")
+        return yaml if File.exist?(yaml)
+        return yml if File.exist?(yml)
+        nil
       end
 
       def inject_driver_step(workflow_hash, version)
@@ -341,24 +371,41 @@ module Savant
         end
       end
 
-      def state_path_for(workflow)
+      def state_path_for(workflow, run_id)
         dir = File.join(@base, '.savant', 'state')
         FileUtils.mkdir_p(dir)
-        File.join(dir, "#{workflow}.json")
+        rid = normalize_run_id(run_id) || generate_run_id(workflow)
+        File.join(dir, "#{workflow}__#{rid}.json")
       end
 
-      def read_state(workflow)
-        path = state_path_for(workflow)
+      def read_state(workflow, run_id)
+        path = state_path_for(workflow, run_id)
         return {} unless File.exist?(path)
 
         JSON.parse(read_text_utf8(path))
       end
 
-      def write_state(workflow, obj)
-        path = state_path_for(workflow)
+      def write_state(workflow, run_id, obj)
+        path = state_path_for(workflow, run_id)
         tmp = "#{path}.tmp"
         File.open(tmp, 'w:UTF-8') { |f| f.write(JSON.pretty_generate(obj)) }
         FileUtils.mv(tmp, path)
+      end
+
+      def generate_run_id(workflow)
+        ts = Time.now.utc.strftime('%Y%m%d%H%M%S')
+        rnd = SecureRandom.hex(4)
+        base = Digest::SHA256.hexdigest("#{workflow}|#{ts}|#{rnd}")[0, 8]
+        "#{ts}-#{base}"
+      end
+
+      def normalize_run_id(run_id)
+        return nil if run_id.nil?
+
+        s = run_id.to_s.strip
+        return nil if s.empty?
+
+        s.gsub(/[^A-Za-z0-9_.-]/, '_')
       end
     end
     # rubocop:enable Metrics/ClassLength
