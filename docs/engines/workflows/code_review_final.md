@@ -13,16 +13,23 @@ Mermaid (high‑level flow)
 flowchart TD
   A[Start: think.plan ticket] --> B[Find + load latest state]
   B --> C[Validate state]
-  C --> D[Impact analysis static]
+  C --> C2[MR discussions]
+  C2 --> C3[Outstanding items]
+
+  C --> D[Impact analysis (static)]
   D --> E[Cross‑repo FTS + Memory]
   E --> F[Cross‑repo impact summary]
   F --> G[Requirements gap analysis]
   G --> H[Load rules + apply]
   H --> I[Issues table]
-  F --> J[Impact Graph Mermaid]
-  J --> K[Sequence Diagram Mermaid]
+
+  F --> J[Impact Graph (Mermaid)]
+  J --> K[Sequence Diagram (Mermaid)]
+
   K --> L[Safety decision]
+  C3 --> L
+  I --> L
+
   L --> M[Write final report]
   M --> N[Announce completion]
 ```
-
