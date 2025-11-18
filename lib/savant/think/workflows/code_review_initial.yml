@@ -398,65 +398,41 @@ steps:
       changes: "{{changes_classified}}"
     capture_as: security_tools
 
-  # Phase 9.1: Repo Pattern Scans (context + filesystem)
-  - id: lint_signals_ctx
-    call: fts/search
-    deps: ["classify_changes"]
-    input_template:
-      q: 'rubocop disable|linter disable'
-    capture_as: lint_ctx
-
+  # Phase 9.1: Pattern Scans (changed files only, local)
   - id: lint_signals_fs
     call: local.search
-    deps: ["lint_signals_ctx"]
-    input_template:
-      q: 'rubocop:disable|linter disable'
-      globs: ["**/*.rb", "**/*.yml", "**/*.yaml"]
-    capture_as: lint_fs
-
-  - id: debug_findings_ctx
-    call: fts/search
     deps: ["classify_changes"]
     input_template:
-      q: 'TODO|FIXME|binding.pry|puts|console.log'
-    capture_as: findings_ctx
+      q: 'rubocop:disable|linter disable'
+      paths: "{{changed_files_list}}"
+      note: "Search only within changed files; do not use FTS."
+    capture_as: lint_fs
 
   - id: debug_findings_fs
     call: local.search
-    deps: ["debug_findings_ctx"]
-    input_template:
-      q: 'TODO|FIXME|binding.pry|puts|console.log'
-      globs: ["**/*"]
-    capture_as: findings_fs
-
-  - id: security_ctx
-    call: fts/search
     deps: ["classify_changes"]
     input_template:
-      q: 'permit_all|skip_auth|eval\(|OPENSSL_NO_VERIFY|system\(|`'
-    capture_as: security_ctx
+      q: 'TODO|FIXME|binding.pry|puts|console.log'
+      paths: "{{changed_files_list}}"
+      note: "Search only within changed files; do not use FTS."
+    capture_as: findings_fs
 
   - id: security_fs
     call: local.search
-    deps: ["security_ctx"]
-    input_template:
-      q: 'permit_all|skip_auth|eval\(|OPENSSL_NO_VERIFY|system\(|`'
-      globs: ["**/*"]
-    capture_as: security_fs
-
-  - id: rails_antipatterns_ctx
-    call: fts/search
     deps: ["classify_changes"]
     input_template:
-      q: 'update_all\(|find_by_sql\(|exec_query\(|skip_before_action :authenticate_user|rescue Exception|before_filter|after_filter'
-    capture_as: rails_anti_ctx
+      q: 'permit_all|skip_auth|eval\(|OPENSSL_NO_VERIFY|system\(|`'
+      paths: "{{changed_files_list}}"
+      note: "Search only within changed files; do not use FTS."
+    capture_as: security_fs
 
   - id: rails_antipatterns_fs
     call: local.search
-    deps: ["rails_antipatterns_ctx"]
+    deps: ["classify_changes"]
     input_template:
       q: 'update_all\(|find_by_sql\(|exec_query\(|skip_before_action :authenticate_user|rescue Exception|before_filter|after_filter'
-      globs: ["**/*.rb"]
+      paths: "{{changed_files_list}}"
+      note: "Search only within changed Ruby files; do not use FTS."
     capture_as: rails_anti_fs
 
   - id: run_brakeman
@@ -671,13 +647,9 @@ steps:
           "security_results": {{security_results}},
           "secrets_result": {{secrets_result}},
           "debug_result": {{debug_result}},
-          "lint_ctx": {{lint_ctx}},
           "lint_fs": {{lint_fs}},
-          "findings_ctx": {{findings_ctx}},
           "findings_fs": {{findings_fs}},
-          "security_ctx": {{security_ctx}},
           "security_fs": {{security_fs}},
-          "rails_anti_ctx": {{rails_anti_ctx}},
           "rails_anti_fs": {{rails_anti_fs}},
           "migration_safety": {{migration_safety}},
           "frontend_tools": {{frontend_tools}}

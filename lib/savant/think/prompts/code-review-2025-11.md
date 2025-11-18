@@ -157,6 +157,10 @@ Green flags: Better data integrity, corrects test anti-patterns, catches product
 5. Write state: `.savant/code-review/{TICKET}-{TIMESTAMP}-state.json`
 6. Decision: If initial gates pass, proceed to `code_review_final` with `ticket={TICKET}`
 
+Pattern scans policy (Phase 1)
+- Search only within the changed files from the MR (use local search/terminal).
+- Do not use Context FTS for pattern scans in Phase 1.
+
 ### code_review_final (Phase 2)
 1. Load state from Phase 1
 2. Impact analysis, cross-repo search (FTS + memory MCP)
