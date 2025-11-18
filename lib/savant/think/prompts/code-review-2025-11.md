@@ -77,19 +77,19 @@ For instructions where `call` looks like `local.exec`, `local.read`, `local.writ
 - Return snapshots of findings/output to `think.next`
 
 **Local exec usage**:
-- âœ… Running quality gates (RuboCop, RSpec, ESLint)
-- âœ… Running security scans (Brakeman, bundler-audit)
-- âœ… Database migrations
-- âŒ Getting diffs (use `gitlab.get_merge_request_changes` instead)
-- âŒ Listing changed files (use GitLab MCP)
+- OK: Running quality gates (RuboCop, RSpec, ESLint)
+- OK: Running security scans (Brakeman, bundler-audit)
+- OK: Database migrations
+- Avoid: Getting diffs (use `gitlab.get_merge_request_changes` instead)
+- Avoid: Listing changed files (use GitLab MCP)
 
 ### Cross-Service Calls
 
 For instructions where `call` is a tool exposed by another MCP service:
-- `gitlab.*` â†’ GitLab MCP (e.g., `gitlab.get_merge_request_changes`)
-- `fts/search` â†’ Context MCP full-text search
-- `memory/search` â†’ Context MCP memory search
-- `jira_get_issue` â†’ Jira MCP
+- `gitlab.*` -> GitLab MCP (e.g., `gitlab.get_merge_request_changes`)
+- `fts/search` -> Context MCP full-text search
+- `memory/search` -> Context MCP memory search
+- `jira_get_issue` -> Jira MCP
 
 Call that service directly and pass the result to `think.next`.
 
@@ -99,7 +99,7 @@ Call that service directly and pass the result to `think.next`.
 
 ### Backend (Ruby/Rails)
 - RuboCop: 0 offenses (or documented exceptions)
-- RSpec: â‰¥85% coverage, all passing
+- RSpec: >=85% coverage, all passing
 - Brakeman: No high-confidence warnings
 - No SQL injection, proper authorization checks
 - Migrations: Reversible, non-destructive, indexed
@@ -107,7 +107,7 @@ Call that service directly and pass the result to `think.next`.
 ### Frontend (React/TypeScript)
 - ESLint: 0 errors
 - TypeScript: No `any` types
-- Test coverage: â‰¥90%
+- Test coverage: >=90%
 - No XSS vulnerabilities
 
 ### Security
@@ -177,7 +177,7 @@ Green flags: Better data integrity, corrects test anti-patterns, catches product
 
 ## Quality Thresholds
 
-**Must Pass**: RuboCop 0 offenses, RSpec â‰¥85% coverage, ESLint 0 errors, No critical/high security vulnerabilities
+**Must Pass**: RuboCop 0 offenses, RSpec >=85% coverage, ESLint 0 errors, No critical/high security vulnerabilities
 
 **Warnings**: Test coverage 70-85%, moderate vulnerabilities, partial requirements
 

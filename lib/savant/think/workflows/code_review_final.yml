@@ -10,7 +10,7 @@ steps:
       text: |
         Code Review Final (Phase 2/2)
 
-        Loading state â†’ Impact analysis â†’ Visual diagrams â†’ Final verdict
+        Loading state -> Impact analysis -> Visual diagrams -> Final verdict
         Reading from: .savant/code-review/{{params.ticket}}-*-state.json
 
   - id: find_state_file
@@ -296,7 +296,7 @@ steps:
         **Date**: {{state.date}} {{state.timestamp}}
         **Commit**: {{state.commit_sha}}
         **MR**: !{{state.mr_iid}} - {{state.mr_data.title}}
-        **Powered by**: Savant.Workflows â†’ Savant.Think â†’ Savant.Next
+        **Powered by**: Savant.Workflows -> Savant.Think -> Savant.Next
 
         ## Safety Decision: {{safety_decision.verdict}}
 
@@ -310,7 +310,7 @@ steps:
         | Criterion | Status | Notes |
         |-----------|--------|-------|
         | Backward Compatibility | {{safety_decision.criteria_met.backward_compat}} | |
-        | Test Coverage (â‰¥85%) | {{safety_decision.criteria_met.test_coverage}} | |
+        | Test Coverage (>=85%) | {{safety_decision.criteria_met.test_coverage}} | |
         | Security Clean | {{safety_decision.criteria_met.security}} | |
         | Code Quality | {{safety_decision.criteria_met.quality}} | |
         | Requirements Met | {{safety_decision.criteria_met.requirements}} | |
@@ -345,7 +345,7 @@ steps:
 
         ---
 
-        ## ðŸ“‹ Requirements ({{state.ticket}})
+        ## Requirements ({{state.ticket}})
 
         {{state.requirements}}
 
@@ -355,7 +355,7 @@ steps:
 
         ---
 
-        ## ðŸ§ª Quality Gates Summary
+        ## Quality Gates Summary
 
         {{state.quality_summary}}
 
@@ -391,7 +391,7 @@ steps:
 
         ---
 
-        ## ðŸ”’ Security & Safety
+        ## Security & Safety
 
         ### Security Scans
         {{state.security_results}}
