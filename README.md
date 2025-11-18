@@ -332,10 +332,15 @@ Workflow details
 - code_review_initial:
   - MR‑first Phase 1 flow:
     - Load `.cline/config.yml` and GitLab MR data; extract diffs and changed paths via MCP.
-    - Classify changes; run RuboCop, RSpec (auto‑retry migrations), ESLint, and security scans.
-    - Generate initial report (with embedded Change Graph) and state snapshot for Phase 2. If gates pass, announce safe to proceed.
+    - Ensure local branch context: checkout MR source branch, then run a safe dev DB migrate (no‑op if not Rails).
+    - Classify changes; derive flags `migrations_present` and `frontend_present` and announce conditions for LLM.
+    - Pattern scans: search only within changed files using local terminal (no Context FTS in Phase 1).
+    - Gates: RuboCop (changed Ruby files), RSpec (changed specs; auto‑retry on migrations), ESLint (when frontend changes present), and security scans.
+    - DB policy: run DB status/migrate only when `migrations_present == true`, otherwise skip.
+    - Report includes Change Summary, Changed Files, and an embedded Change Graph. Writes state for Phase 2. If gates pass, announces safe to proceed.
   - Outputs:
     - `code-reviews/{TICKET}/{TIMESTAMP}/code_review_initial.md` (includes embedded Mermaid Change Graph)
+    - `code-reviews/{TICKET}/{TIMESTAMP}/code_review_inital.md` (alias, same content)
     - `.savant/code-review/{TICKET}-{TIMESTAMP}-state.json`
   - Plan example:
     ```bash
