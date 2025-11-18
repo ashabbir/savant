@@ -34,6 +34,7 @@ flowchart TD
 
   %% Security + diff scans
   E --> L[Security scans: Brakeman, audits]
+  E --> L2[Pattern scans (changed files only)]
   D --> M[Diff scans: secrets, debug, migration safety]
 
   %% Summarize + persist
@@ -41,6 +42,7 @@ flowchart TD
   J --> N
   K1 --> N
   L --> N
+  L2 --> N
   M --> N
   N --> O[Evaluate initial gates]
   O --> P[Write code_review_initial.md]
