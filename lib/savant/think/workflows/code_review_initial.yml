@@ -651,6 +651,10 @@ steps:
         ## Changed Files
         {{changed_files_list}}
 
+        ## Flags
+        - migrations_present: {{change_flags.migrations_present}}
+        - frontend_present: {{change_flags.frontend_present}}
+
         ### Change Graph
         ```mermaid
         {{change_graph.mermaid}}
@@ -684,6 +688,10 @@ steps:
 
         ## Changed Files
         {{changed_files_list}}
+
+        ## Flags
+        - migrations_present: {{change_flags.migrations_present}}
+        - frontend_present: {{change_flags.frontend_present}}
 
         ### Change Graph
         ```mermaid
