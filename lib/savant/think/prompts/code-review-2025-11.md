@@ -153,6 +153,7 @@ Green flags: Better data integrity, corrects test anti-patterns, catches product
 1. GitLab MCP: Fetch MR data, diffs, files (non-blocking)
 2. Classify changes, run quality gates (RuboCop, RSpec, ESLint)
 3. Run security scans (Brakeman, audits)
+4. Ensure local branch context: checkout MR source branch, then run a safe dev DB migrate (no-op if not Rails).
 4. Generate initial report: `code-reviews/{TICKET}/{TIMESTAMP}/code_review_initial.md` (embed Change Graph)
 5. Write state: `.savant/code-review/{TICKET}-{TIMESTAMP}-state.json`
 6. Decision: If initial gates pass, proceed to `code_review_final` with `ticket={TICKET}`
@@ -167,6 +168,10 @@ Pattern scans policy (Phase 1)
 3. Requirements gap analysis, generate Mermaid diagrams (impact graph + sequence)
 4. Final safety decision
 5. Write final report: `code-reviews/{TICKET}-{TIMESTAMP}.md` (embed both diagrams)
+
+Database policy
+- Phase 1 (Initial): Run DB migration status/migrate commands only when MR changes include migration files.
+- Phase 2 (Final): No DB operations are executed; analysis only.
 
 ---
 
