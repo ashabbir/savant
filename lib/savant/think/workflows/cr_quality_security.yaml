@@ -1,0 +1,217 @@
+name: cr_quality_security
+version: "1.0"
+description: "Code Review — Quality & Security report (independent workflow)"
+driver_version: "stable-2025-11"
+
+steps:
+  - id: pr_snapshot
+    call: github.pr.snapshot
+    input_template:
+      pr_number: "{{params.pr_number}}"
+      fields: [title, body, labels, files, commits]
+    capture_as: pr
+
+  - id: requirements_understanding
+    call: prompt.say
+    deps: [pr_snapshot]
+    input_template:
+      text: |
+        Understand business requirements and acceptance criteria from PRD/Jira and PR context.
+        Output keys: { criteria: [..], flows: [..] }
+    capture_as: reqs
+
+  - id: gate_business_flow
+    call: prompt.say
+    deps: [pr_snapshot]
+    input_template:
+      text: |
+        Gate applicability: Does this PR change user-visible behavior or business rules?
+        Answer with { applicable: boolean, confidence: 0..1, rationale }
+    capture_as: gate_biz
+
+  - id: business_flow_analysis
+    call: prompt.say
+    deps: [gate_business_flow, requirements_understanding]
+    applicable_when:
+      var: gate_biz
+      field: applicable
+      equals: true
+      min_conf_field: confidence
+      min_conf: 0.6
+    input_template:
+      text: |
+        Compare implementation vs expected flows. Provide pros/cons and rating.
+        Output keys: { pros: [..], cons: [..], rating: 1..5 }
+    capture_as: biz_review
+
+  - id: gate_tests
+    call: prompt.say
+    deps: [pr_snapshot]
+    input_template:
+      text: |
+        Gate applicability: Do runtime code or tests change requiring a test run?
+        Answer with { applicable: boolean, confidence: 0..1, rationale }
+    capture_as: gate_tests
+
+  - id: run_tests
+    call: local.exec
+    deps: [gate_tests]
+    applicable_when:
+      var: gate_tests
+      field: applicable
+      equals: true
+      min_conf_field: confidence
+      min_conf: 0.6
+    input_template:
+      cmd: "{{global.commands.test_cmd}}"
+    capture_as: tests
+
+  - id: coverage_delta
+    call: prompt.say
+    deps: [run_tests]
+    applicable_when:
+      var: gate_tests
+      field: applicable
+      equals: true
+      min_conf_field: confidence
+      min_conf: 0.6
+    input_template:
+      text: |
+        Compute coverage delta and critical path coverage.
+        Output keys: { delta: "±%", critical_paths: [..], ok: boolean }
+    capture_as: coverage
+
+  - id: gate_lint
+    call: prompt.say
+    deps: [pr_snapshot]
+    input_template:
+      text: |
+        Gate applicability: Should lint/static checks run for these file types?
+        Answer with { applicable: boolean, confidence: 0..1, rationale }
+    capture_as: gate_lint
+
+  - id: run_lint
+    call: local.exec
+    deps: [gate_lint]
+    applicable_when:
+      var: gate_lint
+      field: applicable
+      equals: true
+      min_conf_field: confidence
+      min_conf: 0.6
+    input_template:
+      cmd: "{{global.commands.lint_cmd}}"
+    capture_as: lint
+
+  - id: gate_perf
+    call: prompt.say
+    deps: [pr_snapshot]
+    input_template:
+      text: |
+        Gate applicability: Are performance-sensitive paths likely affected?
+        Answer with { applicable: boolean, confidence: 0..1, rationale }
+    capture_as: gate_perf
+
+  - id: perf_assessment
+    call: prompt.say
+    deps: [gate_perf]
+    applicable_when:
+      var: gate_perf
+      field: applicable
+      equals: true
+      min_conf_field: confidence
+      min_conf: 0.6
+    input_template:
+      text: |
+        Assess complexity shifts and potential regressions; provide hotspots.
+        Output keys: { hotspots: [ {path, reason} ], risk: low|med|high }
+    capture_as: perf
+
+  - id: secret_scan_light
+    call: prompt.say
+    deps: [pr_snapshot]
+    input_template:
+      text: |
+        Run lightweight diff secret scan (always).
+        Output keys: { findings: [..] }
+    capture_as: secrets_light
+
+  - id: gate_secret_scan_deep
+    call: prompt.say
+    deps: [pr_snapshot]
+    input_template:
+      text: |
+        Gate applicability: Is a deep secret scan warranted beyond a lightweight diff scan?
+        Answer with { applicable: boolean, confidence: 0..1, rationale }
+    capture_as: gate_secret
+
+  - id: secret_scan_deep
+    call: local.exec
+    deps: [gate_secret_scan_deep]
+    applicable_when:
+      var: gate_secret
+      field: applicable
+      equals: true
+      min_conf_field: confidence
+      min_conf: 0.6
+    input_template:
+      cmd: "{{global.commands.secret_scan_cmd}}"
+    capture_as: secrets_deep
+
+  - id: gate_authz
+    call: prompt.say
+    deps: [pr_snapshot]
+    input_template:
+      text: |
+        Gate applicability: Do changes touch authentication/authorization logic?
+        Answer with { applicable: boolean, confidence: 0..1, rationale }
+    capture_as: gate_auth
+
+  - id: authz_review
+    call: prompt.say
+    deps: [gate_authz]
+    applicable_when:
+      var: gate_auth
+      field: applicable
+      equals: true
+      min_conf_field: confidence
+      min_conf: 0.6
+    input_template:
+      text: |
+        Review enforcement points and role checks for touched endpoints.
+        Output keys: { endpoints: [..], gaps: [..] }
+    capture_as: authz
+
+  - id: gate_dep_cve
+    call: prompt.say
+    deps: [pr_snapshot]
+    input_template:
+      text: |
+        Gate applicability: Do dependency changes require a CVE check?
+        Answer with { applicable: boolean, confidence: 0..1, rationale }
+    capture_as: gate_cve
+
+  - id: dep_cve_review
+    call: local.exec
+    deps: [gate_dep_cve]
+    applicable_when:
+      var: gate_cve
+      field: applicable
+      equals: true
+      min_conf_field: confidence
+      min_conf: 0.6
+    input_template:
+      cmd: "{{global.commands.dependency_audit_cmd}}"
+    capture_as: cves
+
+  - id: finalize_report
+    call: prompt.say
+    deps: [requirements_understanding, business_flow_analysis, run_tests, coverage_delta, run_lint, perf_assessment, secret_scan_light, secret_scan_deep, authz_review, dep_cve_review]
+    input_template:
+      text: |
+        Assemble cr_quality_security report with mandatory header, summary, visuals, findings, and actions.
+        Visuals (if available): requirements coverage matrix, coverage delta chart, security severity bar, perf hotspots.
+        Respect skipped sections by noting "N/A (skipped by gate)".
+        Output keys: { header, summary, visuals, findings, actions, quality_score, security_score, overall_risk }
+    capture_as: report
+
