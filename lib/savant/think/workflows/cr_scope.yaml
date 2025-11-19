@@ -1,0 +1,132 @@
+name: cr_scope
+version: "1.0"
+description: "Code Review — Scope & Impact report (independent workflow)"
+driver_version: "stable-2025-11"
+
+steps:
+  - id: pr_snapshot
+    call: github.pr.snapshot
+    input_template:
+      pr_number: "{{params.pr_number}}"
+      fields: [title, body, labels, files, commits]
+    capture_as: pr
+
+  - id: summary_scope
+    call: prompt.say
+    deps: [pr_snapshot]
+    input_template:
+      text: |
+        Summarize PR scope and size.
+        Inputs: {{pr.title}} {{pr.labels}} {{pr.files}}.
+        Output keys: { size_loc, file_count, hotspots: [path, score], summary }
+    capture_as: scope_summary
+
+  - id: gate_public_api
+    call: prompt.say
+    deps: [pr_snapshot]
+    input_template:
+      text: |
+        Gate applicability: Does this PR change any public API/contract?
+        Consider changed files, exported symbols, endpoints, schemas.
+        Answer with { applicable: boolean, confidence: 0..1, rationale }
+    capture_as: gate_api
+
+  - id: api_bc_analysis
+    call: prompt.say
+    deps: [gate_public_api]
+    applicable_when:
+      var: gate_api
+      field: applicable
+      equals: true
+      min_conf_field: confidence
+      min_conf: 0.6
+    input_template:
+      text: |
+        Analyze API and backward compatibility risks.
+        Inputs: {{pr.files}} {{pr.diff_summary}}.
+        Output keys: { bc_flags, breaking_changes, deprecations, notes }
+    capture_as: api_bc
+
+  - id: gate_dependencies
+    call: prompt.say
+    deps: [pr_snapshot]
+    input_template:
+      text: |
+        Gate applicability: Were runtime/build dependencies changed?
+        Check manifests/lockfiles.
+        Answer with { applicable: boolean, confidence: 0..1, rationale }
+    capture_as: gate_deps
+
+  - id: deps_diff
+    call: prompt.say
+    deps: [gate_dependencies]
+    applicable_when:
+      var: gate_deps
+      field: applicable
+      equals: true
+      min_conf_field: confidence
+      min_conf: 0.6
+    input_template:
+      text: |
+        Summarize dependency changes (added/updated/removed) and licenses.
+        Output keys: { added, updated, removed, license_notes }
+    capture_as: deps
+
+  - id: gate_config
+    call: prompt.say
+    deps: [pr_snapshot]
+    input_template:
+      text: |
+        Gate applicability: Are configs or environment variables added/changed/removed?
+        Answer with { applicable: boolean, confidence: 0..1, rationale }
+    capture_as: gate_cfg
+
+  - id: config_env_analysis
+    call: prompt.say
+    deps: [gate_config]
+    applicable_when:
+      var: gate_cfg
+      field: applicable
+      equals: true
+      min_conf_field: confidence
+      min_conf: 0.6
+    input_template:
+      text: |
+        Summarize config/env changes and safe defaults.
+        Output keys: { added, changed, removed, risks }
+    capture_as: cfg
+
+  - id: gate_cross_repo
+    call: prompt.say
+    deps: [gate_public_api]
+    input_template:
+      text: |
+        Gate applicability: If public API/contract changed, are downstream repos likely impacted?
+        Answer with { applicable: boolean, confidence: 0..1, rationale }
+    capture_as: gate_xrepo
+
+  - id: cross_repo_impact
+    call: context.fts_search
+    deps: [gate_cross_repo]
+    applicable_when:
+      var: gate_xrepo
+      field: applicable
+      equals: true
+      min_conf_field: confidence
+      min_conf: 0.6
+    input_template:
+      q: "{{api_bc.breaking_changes}} {{api_bc.deprecations}}"
+      limit: 20
+    capture_as: xrepo
+
+  - id: finalize_report
+    call: prompt.say
+    deps: [summary_scope, api_bc_analysis, deps_diff, config_env_analysis, cross_repo_impact]
+    input_template:
+      text: |
+        Assemble cr_scope report with mandatory header, summary, visuals, findings, and actions.
+        Visuals (if available): impact map, dependency graph, size/churn bars.
+        Respect skipped sections by noting "N/A (skipped by gate)".
+        Output keys: { header, summary, visuals, findings, actions, risk_score }
+    capture_as: report
+
