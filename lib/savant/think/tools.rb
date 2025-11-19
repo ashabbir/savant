@@ -41,7 +41,7 @@ module Savant
 
           tool 'think.plan', description: 'Initialize a workflow run and return first instruction',
                              schema: { type: 'object', properties: { workflow: { type: 'string' }, params: { type: 'object' }, run_id: { type: 'string' }, start_fresh: { type: 'boolean' } }, required: ['workflow'] } do |_ctx, a|
-            start_fresh = a.key?('start_fresh') ? !!a['start_fresh'] : true
+            start_fresh = a.fetch('start_fresh', true)
             eng.plan(workflow: a['workflow'].to_s, params: a['params'] || {}, run_id: a['run_id'], start_fresh: start_fresh)
           end
 

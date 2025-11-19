@@ -72,9 +72,9 @@ RSpec.describe 'Savant Think step gating (applicable_when)' do
 
     # Submit gate result: not applicable with high confidence and expect the engine to skip the conditional step
     nxt2 = registrar.call('think.next', {
-                           'workflow' => 'gate_demo', 'run_id' => 'g1', 'step_id' => 'gate_migrations',
-                           'result_snapshot' => { 'applicable' => false, 'confidence' => 0.95 }
-                         }, ctx: {})
+      'workflow' => 'gate_demo', 'run_id' => 'g1', 'step_id' => 'gate_migrations',
+      'result_snapshot' => { 'applicable' => false, 'confidence' => 0.95 }
+    }, ctx: {})
 
     # Next instruction should skip run_migration_checks and proceed directly to after_checks
     expect(nxt2[:done]).to eq(false)

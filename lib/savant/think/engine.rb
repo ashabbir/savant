@@ -199,7 +199,9 @@ module Savant
         yml = File.join(dir, "#{id}.yml")
         yaml = File.join(dir, "#{id}.yaml")
         return yaml if File.exist?(yaml)
+
         return yml if File.exist?(yml)
+
         nil
       end
 
@@ -442,9 +444,7 @@ module Savant
         # Confidence gating: if provided and below threshold, treat as not applicable to avoid heavy work
         if gate['min_conf_field'] && gate['min_conf']
           conf = cap.is_a?(Hash) ? cap[gate['min_conf_field']] : nil
-          if conf.is_a?(Numeric) && conf.to_f < gate['min_conf'].to_f
-            return true
-          end
+          return true if conf.is_a?(Numeric) && conf.to_f < gate['min_conf'].to_f
         end
 
         # If value does not match expected applicability, then step is inapplicable and should be skipped
