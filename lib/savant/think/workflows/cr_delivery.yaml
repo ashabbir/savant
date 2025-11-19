@@ -165,7 +165,7 @@ steps:
     capture_as: gate_rel
 
   - id: cross_repo_release_coord
-    call: context.fts_search
+    call: fts/search
     deps: [gate_release_coord]
     applicable_when:
       var: gate_rel
@@ -188,4 +188,3 @@ steps:
         Respect skipped sections by noting "N/A (skipped by gate)".
         Output keys: { header, summary, visuals, findings, actions, merge_readiness }
     capture_as: report
-

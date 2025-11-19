@@ -106,7 +106,7 @@ steps:
     capture_as: gate_xrepo
 
   - id: cross_repo_impact
-    call: context.fts_search
+    call: fts/search
     deps: [gate_cross_repo]
     applicable_when:
       var: gate_xrepo
@@ -115,7 +115,7 @@ steps:
       min_conf_field: confidence
       min_conf: 0.6
     input_template:
-      q: "{{api_bc.breaking_changes}} {{api_bc.deprecations}}"
+      q: "{{pr.title}} {{pr.files}}"
       limit: 20
     capture_as: xrepo
 
@@ -129,4 +129,3 @@ steps:
         Respect skipped sections by noting "N/A (skipped by gate)".
         Output keys: { header, summary, visuals, findings, actions, risk_score }
     capture_as: report
-
