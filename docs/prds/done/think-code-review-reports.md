@@ -1,5 +1,7 @@
 # Code Review Reports PRD (Three Independent, Global Workflows)
 
+> Status: Done — Implemented on branch feature/cr-workflows (LLM gating + 3 workflows + templates)
+
 ## Summary
 Replace the previous “initial/final” review with three independent, globally configured reports: `cr_scope`, `cr_quality_security`, and `cr_delivery`. Each report runs locally on the checked‑out branch, uses GitHub MCP for diffs/commits (not direct `git diff`), scans the local repo for in‑repo impact, and uses Savant Context only for cross‑repo impact. Reports are stored under `<ticket_id>/<YYYY-MM-DD>/<review_type>.md` and include a mandatory header.
 
