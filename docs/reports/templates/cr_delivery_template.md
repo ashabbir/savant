@@ -18,12 +18,35 @@ data_sources:
 
 <one-paragraph verdict and merge readiness>
 
-# Visuals
+# Visuals (Mermaid)
 
-![Migration flow](./assets/cr_delivery-migration-flow.svg)
-![CI status](./assets/cr_delivery-ci-status.svg)
-![Config and flags](./assets/cr_delivery-config-flags.svg)
-![Rollout plan](./assets/cr_delivery-rollout-swimlane.svg)
+```mermaid
+%% Migration Flow (mock)
+flowchart TD
+  Dev -->|migrate| Stage
+  Stage -->|verify| Prod
+  Prod -->|rollback?| Stage
+```
+
+```mermaid
+%% CI Checks Status (mock)
+flowchart LR
+  Build --> Test --> Lint --> Deploy
+```
+
+```mermaid
+%% Config/Flags (mock)
+flowchart TD
+  Config --> Added
+  Config --> Changed
+  Config --> Removed
+```
+
+```mermaid
+%% Rollout Plan (mock)
+flowchart LR
+  Plan --> Canary --> Ramp --> Monitor --> Backout
+```
 
 # Evidence
 
@@ -45,4 +68,3 @@ data_sources:
 # Actions
 
 - [ ] <action item> — owner: <name>, due: <date>
-

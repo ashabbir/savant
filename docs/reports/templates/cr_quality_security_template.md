@@ -18,12 +18,39 @@ data_sources:
 
 <one-paragraph verdict and key scores>
 
-# Visuals
+# Visuals (Mermaid)
 
-![Requirements coverage](./assets/cr_quality_security-coverage-matrix.svg)
-![Coverage delta](./assets/cr_quality_security-coverage-delta.svg)
-![Security issues](./assets/cr_quality_security-security-severity.svg)
-![Perf hotspots](./assets/cr_quality_security-perf-hotspots.svg)
+```mermaid
+%% Requirements Coverage Matrix (mock)
+flowchart TD
+  R1[Req 1] --> T1[Test A]
+  R2[Req 2] --> T2[Test B]
+```
+
+```mermaid
+%% Coverage Delta (mock)
+graph LR
+  Before ---|75%| B[Coverage]
+  After  ---|78%| A[Coverage]
+```
+
+```mermaid
+%% Security Severity (mock)
+graph LR
+  High:::h ---|3| H[High]
+  Med:::m  ---|5| M[Medium]
+  Low:::l  ---|8| L[Low]
+  classDef h fill:#f66,stroke:#f00;
+  classDef m fill:#fc6,stroke:#f90;
+  classDef l fill:#6f6,stroke:#0a0;
+```
+
+```mermaid
+%% Perf Hotspots (mock)
+flowchart TD
+  Hot1[Path A] --> Reason1
+  Hot2[Path B] --> Reason2
+```
 
 # Evidence
 
@@ -44,4 +71,3 @@ data_sources:
 # Actions
 
 - [ ] <action item> — owner: <name>, due: <date>
-

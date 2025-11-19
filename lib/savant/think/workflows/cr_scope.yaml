@@ -125,8 +125,8 @@ steps:
     input_template:
       text: |
         Assemble cr_scope report with mandatory header, summary, visuals, findings, and actions.
-        Visuals (if available): impact map, dependency graph, size/churn bars.
-        Write the markdown report to path: code-reviews/{{params.ticket_id}}/cr_scope.md and place any image assets under code-reviews/{{params.ticket_id}}/assets/.
+        Visuals (if available): embed Mermaid diagrams (impact map, dependency graph, size/churn bars) directly in the markdown.
+        Write the markdown report to path: code-reviews/{{params.ticket_id}}/{{params.date}}/cr_scope.md.
         Respect skipped sections by noting "N/A (skipped by gate)".
         Output keys: { header, summary, visuals, findings, actions, risk_score }
     capture_as: report

@@ -18,11 +18,27 @@ data_sources:
 
 <one-paragraph verdict and key scores>
 
-# Visuals
+# Visuals (Mermaid)
 
-![Impact map](./assets/cr_scope-impact-map.svg)
-![Dependency changes](./assets/cr_scope-deps.svg)
-![Size and churn](./assets/cr_scope-size-churn.svg)
+```mermaid
+graph TD
+  A[Module A] -->|calls| B[Service B]
+  A --> C[Config C]
+```
+
+```mermaid
+flowchart LR
+  Deps[Dependencies] --> Added
+  Deps --> Updated
+  Deps --> Removed
+```
+
+```mermaid
+%% Size/Churn bars (mock)
+graph LR
+  File1[File1] ---|120 LOC| LOC1
+  File2[File2] ---|80 LOC| LOC2
+```
 
 # Evidence
 
@@ -41,4 +57,3 @@ data_sources:
 # Actions
 
 - [ ] <action item> — owner: <name>, due: <date>
-

@@ -210,8 +210,8 @@ steps:
     input_template:
       text: |
         Assemble cr_quality_security report with mandatory header, summary, visuals, findings, and actions.
-        Visuals (if available): requirements coverage matrix, coverage delta chart, security severity bar, perf hotspots.
-        Write the markdown report to path: code-reviews/{{params.ticket_id}}/cr_quality_security.md and place any image assets under code-reviews/{{params.ticket_id}}/assets/.
+        Visuals (if available): embed Mermaid diagrams (requirements coverage matrix, coverage delta chart, security severity bars, perf hotspots) directly in the markdown.
+        Write the markdown report to path: code-reviews/{{params.ticket_id}}/{{params.date}}/cr_quality_security.md.
         Respect skipped sections by noting "N/A (skipped by gate)".
         Output keys: { header, summary, visuals, findings, actions, quality_score, security_score, overall_risk }
     capture_as: report

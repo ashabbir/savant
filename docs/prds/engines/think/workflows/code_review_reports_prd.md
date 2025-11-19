@@ -55,21 +55,18 @@ Replace the previous “initial/final” review with three independent, globally
 
 ## Output Location & Naming
 - Code review directory: `code-reviews/`
-- File path per report: `code-reviews/<ticket_id>/<review_type>.md`
-- Assets directory (visuals): `code-reviews/<ticket_id>/assets/`
+- File path per report: `code-reviews/<ticket_id>/<YYYY-MM-DD>/<review_type>.md`
 
 ## Visuals (Global Requirements)
-- Purpose: Communicate structure, scope, risk, and readiness quickly through diagrams/plots.
-- Authoring standard: Mermaid‑first (embedded in Markdown). If target viewer lacks Mermaid, export as SVG/PNG and store under `assets/`.
-- Storage: `code-reviews/<ticket_id>/assets/` with filenames prefixed by review type (e.g., `cr_scope-impact-map.svg`).
-- Embedding: Use relative paths in Markdown (e.g., `![caption](./assets/cr_scope-impact-map.svg)`).
-- Gating: Only generate visuals for applicable sections (respect Conditional Step Gates). If skipped, omit the visual and note “N/A (skipped by gate)”.
+- Purpose: Communicate structure, scope, risk, and readiness via embedded diagrams.
+- Authoring standard: Mermaid embedded directly in the Markdown report; no external images or assets directories.
+- Embedding: Use fenced code blocks with `mermaid` language tag.
+- Gating: Only include visuals for applicable sections (respect Conditional Step Gates). If skipped, note “N/A (skipped by gate)”.
 - Data sources: Visuals derive only from MCP snapshot, local analysis outputs, and Savant queries (for cross‑repo); never from other reports.
 - Minimum set per report (when applicable):
-  - cr_scope: Impact map (modules/services/APIs), dependency diff graph, size/churn bar(s).
-  - cr_quality_security: Requirements coverage matrix, test coverage delta chart, security issues severity bar, perf risk hotspots.
+  - cr_scope: Impact map (modules/services/APIs), dependency diff graph, size/churn bars.
+  - cr_quality_security: Requirements coverage matrix, coverage delta chart, security severity bars, perf hotspots.
   - cr_delivery: Migration flow diagram, CI checks status chart, config/flag change tree, rollout plan swimlane.
-- Export guidance: Prefer SVG; fall back to PNG for environments lacking SVG support.
 
 ## Mandatory Header (identical in all reports)
 ```yaml
@@ -262,7 +259,7 @@ data_sources:
 ## Report Structure (Markdown)
 - Header: mandatory fields block (YAML at top).
 - Summary: one‑paragraph verdict and key scores.
-- Visuals: embedded Mermaid blocks and/or links to exported SVG/PNG in `assets/`.
+- Visuals: embedded Mermaid code blocks.
 - Evidence: MCP links/snippets, local outputs, Savant queries.
 - Findings: bulleted checks with Pass/Warn/Fail and rationale.
 - Actions: required fixes/follow‑ups with owners and due dates.
@@ -280,13 +277,13 @@ data_sources:
 ## Acceptance Criteria
 - Global config is the only configuration source; no per‑repo overrides.
 - Each report runs with only the Required Run Parameters.
-- Reports write to `code-reviews/<ticket>/<review_type>.md` and include the mandatory header.
+- Reports write to `code-reviews/<ticket>/<YYYY-MM-DD>/<review_type>.md` and include the mandatory header.
 - GitHub MCP is the sole source for diffs/commits/files.
 - Local analysis runs on the checked‑out branch.
 - Savant Context is used only for cross‑repo impact.
 - Clear scores, verdicts, and actionable items are present in every report.
 - Applicability gates are enforced for all skippable steps with confidence thresholding.
-- Visuals are included for applicable sections per Visuals requirements; otherwise explicitly marked skipped by gate.
+- Visuals are included as Mermaid code blocks for applicable sections; otherwise explicitly marked skipped by gate.
 
 ## Risks & Mitigations
 - MCP availability: implement retries and local caching of MCP responses.
