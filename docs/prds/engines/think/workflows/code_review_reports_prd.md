@@ -54,13 +54,14 @@ Replace the previous “initial/final” review with three independent, globally
 - Savant Context: cross‑repo usage/impact lookups.
 
 ## Output Location & Naming
-- Folder: `<ticket_id>/<YYYY-MM-DD>/`
-- Files: `cr_scope.md`, `cr_quality_security.md`, `cr_delivery.md`
+- Code review directory: `code-reviews/`
+- File path per report: `code-reviews/<ticket_id>/<review_type>.md`
+- Assets directory (visuals): `code-reviews/<ticket_id>/assets/`
 
 ## Visuals (Global Requirements)
 - Purpose: Communicate structure, scope, risk, and readiness quickly through diagrams/plots.
 - Authoring standard: Mermaid‑first (embedded in Markdown). If target viewer lacks Mermaid, export as SVG/PNG and store under `assets/`.
-- Storage: `<ticket_id>/<YYYY-MM-DD>/assets/` with filenames prefixed by review type (e.g., `cr_scope-impact-map.svg`).
+- Storage: `code-reviews/<ticket_id>/assets/` with filenames prefixed by review type (e.g., `cr_scope-impact-map.svg`).
 - Embedding: Use relative paths in Markdown (e.g., `![caption](./assets/cr_scope-impact-map.svg)`).
 - Gating: Only generate visuals for applicable sections (respect Conditional Step Gates). If skipped, omit the visual and note “N/A (skipped by gate)”.
 - Data sources: Visuals derive only from MCP snapshot, local analysis outputs, and Savant queries (for cross‑repo); never from other reports.
@@ -279,7 +280,7 @@ data_sources:
 ## Acceptance Criteria
 - Global config is the only configuration source; no per‑repo overrides.
 - Each report runs with only the Required Run Parameters.
-- Reports write to `<ticket>/<date>/<review_type>.md` and include the mandatory header.
+- Reports write to `code-reviews/<ticket>/<review_type>.md` and include the mandatory header.
 - GitHub MCP is the sole source for diffs/commits/files.
 - Local analysis runs on the checked‑out branch.
 - Savant Context is used only for cross‑repo impact.
