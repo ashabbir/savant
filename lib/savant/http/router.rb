@@ -150,7 +150,7 @@ module Savant
       end
 
       def format_sse_event(event, data)
-        "event: #{event}\n" \
+        "event: #{event}\n" +
           "data: #{JSON.generate(data)}\n\n"
       end
 
