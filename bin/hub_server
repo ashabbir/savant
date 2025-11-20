@@ -5,15 +5,18 @@ require 'yaml'
 require 'rack'
 
 handler = nil
+handler_name = nil
 begin
   require 'puma'
   require 'rack/handler/puma'
   handler = Rack::Handler::Puma
+  handler_name = :puma
 rescue LoadError
   begin
     require 'webrick'
     require 'rack/handler/webrick'
     handler = Rack::Handler::WEBrick
+    handler_name = :webrick
   rescue LoadError
     warn 'No Rack handler available. Install the puma or webrick gems.'
     exit 1
@@ -44,8 +47,11 @@ rescue StandardError
   {}
 end
 
-host = '0.0.0.0'
-port = 8765
+default_host = '0.0.0.0'
+default_port = 9999
+
+host = nil
+port = nil
 
 ARGV.each do |arg|
   host = arg.split('=', 2)[1] if arg.start_with?('--host=')
@@ -57,8 +63,14 @@ ARGV.each do |arg|
 end
 
 cfg = transport_config
-host = cfg.dig('transport', 'host') || host
-port = Integer(cfg.dig('transport', 'port') || port)
+config_host = cfg.dig('transport', 'host')
+config_port = cfg.dig('transport', 'port')
+env_host = ENV['SAVANT_HOST'] || ENV['LISTEN_HOST']
+env_port = ENV['SAVANT_PORT'] || ENV['LISTEN_PORT']
+
+# Precedence: CLI > ENV > config > default
+host = (host || env_host || config_host || default_host)
+port = Integer(port || env_port || config_port || default_port)
 
 app = Savant::Hub.build_from_config(base_path: base_path)
 
@@ -68,7 +80,7 @@ STDOUT.sync = true
 STDERR.sync = true
 
 puts "Savant Hub starting on #{host}:#{port} (logs: #{log_dir})"
-if handler == Rack::Handler::WEBrick
+if handler_name == :webrick
   handler.run(app, Host: host, Port: port, AccessLog: [], Logger: WEBrick::Log.new(nil, 0))
 else
   # Puma
