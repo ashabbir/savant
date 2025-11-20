@@ -9,6 +9,7 @@ Savant is a lightweight Ruby framework for building and running local MCP servic
   - [Context](docs/engines/context.md)
   - [Jira](docs/engines/jira.md)
   - [Think](docs/engines/think.md)
+  - [Hub (HTTP/SSE)](docs/hub/README.md)
  - Examples:
    - [Demo Engine (Hello)](docs/examples/demo-engine/README.md)
 
@@ -65,6 +66,35 @@ Savant is a lightweight Ruby framework for building and running local MCP servic
   ```bash
   docker compose build && make dev
   make repo-index-all
+  ```
+- Start the HTTP/SSE Hub in Docker (port 9999):
+  ```bash
+  # Optional: copy secrets to repo root
+  cp secrets.example.yml secrets.yml  # edit per-user Jira creds
+  # Start Postgres (if needed) and the hub
+  make dev && make hub
+  # Follow logs
+  make hub-logs
+  ```
+  - Call the hub (header required):
+    ```bash
+    curl -s -H 'x-savant-user-id: amd' http://localhost:9999/
+    curl -s -H 'x-savant-user-id: amd' http://localhost:9999/context/tools
+    curl -s -H 'x-savant-user-id: amd' 'http://localhost:9999/context/logs?n=20'
+    curl -s -H 'x-savant-user-id: amd' 'http://localhost:9999/context/logs?stream=1&once=1&n=5'
+    ```
+  - Full Hub docs: [docs/hub/README.md](docs/hub/README.md)
+
+- Run the Hub without Docker (CLI runner):
+  ```bash
+  bundle install
+  cp secrets.example.yml secrets.yml  # edit per-user Jira creds
+  # Defaults: host 0.0.0.0, port 9999
+  ruby ./bin/savant hub
+  # then test
+  curl -s -H 'x-savant-user-id: amd' http://127.0.0.1:9999/
+  # list routes (like rake routes)
+  ruby ./bin/savant routes --expand
   ```
 - Quick verification: run `make mcp-test q='User'` or invoke a JSON-RPC call against the HTTP endpoint.
 - Discover tools via CLI:

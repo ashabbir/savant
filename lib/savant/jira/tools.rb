@@ -29,6 +29,19 @@ module Savant
       end
 
       def apply_middlewares(builder)
+        # Per-user credential overlay using SecretStore and ctx[:user_id]
+        builder.middleware do |ctx, nm, a, nxt|
+          begin
+            user = ctx[:user_id]
+            if user
+              @engine.with_user_credentials(user) { return nxt.call(ctx, nm, a) }
+            end
+          rescue StandardError
+            # Fall through to default credentials on any issue
+          end
+          nxt.call(ctx, nm, a)
+        end
+
         log_mw = lambda do |ctx, nm, a, nxt|
           logger = ctx[:logger] || Savant::Logger.new(io: $stdout, json: true, service: 'jira')
           start = Process.clock_gettime(Process::CLOCK_MONOTONIC)

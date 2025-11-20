@@ -1,0 +1,272 @@
+# frozen_string_literal: true
+
+require 'json'
+require 'rack/request'
+
+require_relative '../middleware/user_header'
+require_relative 'sse'
+
+module Savant
+  module HTTP
+    # Lightweight hub router for multi-engine HTTP + SSE endpoints.
+    class Router
+      def self.build(mounts:, transport: 'http', heartbeat_interval: SSE::DEFAULT_HEARTBEAT_SECS, logs_dir: nil)
+        new(mounts: mounts, transport: transport, heartbeat_interval: heartbeat_interval, logs_dir: logs_dir)
+      end
+
+      def initialize(mounts:, transport:, heartbeat_interval: SSE::DEFAULT_HEARTBEAT_SECS, logs_dir: nil)
+        @mounts = mounts # { 'engine_name' => ServiceManager-like }
+        @transport = transport
+        @sse = SSE.new(heartbeat_interval: heartbeat_interval)
+        @logs_dir = logs_dir || ENV['SAVANT_LOG_PATH'] || '/tmp/savant'
+      end
+
+      def call(env)
+        Savant::Middleware::UserHeader.new(method(:dispatch)).call(env)
+      end
+
+      # Public: Return a simple overview of mounted engines for startup logs.
+      def engine_overview
+        mounts.map do |name, manager|
+          { name: name,
+            path: "/#{name}",
+            tools: (safe_specs(manager) || []).size,
+            status: 'running',
+            uptime_seconds: (manager.respond_to?(:uptime) ? manager.uptime : 0) }
+        end
+      end
+
+      # Public: Build a list of route entries similar to `rake routes`.
+      # Each entry: { method:, path:, description: }
+      def routes(expand_tools: false)
+        list = []
+        list << { method: 'GET', path: '/', description: 'Hub dashboard' }
+        list << { method: 'GET', path: '/routes', description: 'Routes list (add ?expand=1 to include tool calls)' }
+
+        mounts.keys.sort.each do |engine_name|
+          base = "/#{engine_name}"
+          list << { method: 'GET', path: "#{base}/status", description: 'Engine uptime and info' }
+          list << { method: 'GET', path: "#{base}/tools", description: 'List tool specs' }
+          list << { method: 'GET', path: "#{base}/logs", description: 'Tail last N lines as JSON (?n=100)' }
+          list << { method: 'GET', path: "#{base}/logs?stream=1", description: 'Stream logs via SSE (?n=100, &once=1)' }
+          list << { method: 'GET', path: "#{base}/stream", description: 'SSE heartbeat' }
+
+          next unless expand_tools
+
+          specs = safe_specs(mounts[engine_name])
+          specs.each do |spec|
+            name = spec[:name] || spec['name']
+            desc = spec[:description] || spec['description'] || 'Tool call'
+            list << { method: 'POST', path: "#{base}/tools/#{name}/call", description: desc }
+          end
+        end
+        list
+      end
+
+      private
+
+      attr_reader :mounts, :transport, :sse, :logs_dir
+
+      def dispatch(env)
+        req = Rack::Request.new(env)
+        return hub_root(req) if req.get? && req.path_info == '/'
+        return hub_routes(req) if req.get? && req.path_info == '/routes'
+
+        # Engine scoped routes: /:engine/...
+        segments = req.path_info.split('/').reject(&:empty?)
+        return not_found unless segments.size >= 1
+
+        engine_name = segments[0]
+        manager = mounts[engine_name]
+        return not_found unless manager
+
+        case req.request_method
+        when 'GET'
+          handle_get(req, engine_name, manager, segments[1..])
+        when 'POST'
+          handle_post(req, engine_name, manager, segments[1..])
+        else
+          not_found
+        end
+      rescue JSON::ParserError
+        respond(400, { error: 'invalid JSON' })
+      rescue StandardError => e
+        respond(500, { error: 'internal error', message: e.message })
+      end
+
+      def handle_get(req, engine_name, manager, rest)
+        case rest
+        when ['tools']
+          tools = safe_specs(manager)
+          respond(200, { engine: engine_name, tools: tools })
+        when ['status']
+          info = manager.service_info
+          uptime = manager.respond_to?(:uptime) ? manager.uptime : 0
+          respond(200, { engine: engine_name, status: 'running', uptime_seconds: uptime, info: info })
+        when ['logs']
+          if req.params['stream']
+            sse_logs(req, engine_name)
+          else
+            n = (req.params['n'] || '100').to_i
+            path = log_path(engine_name)
+            return respond(404, { error: 'log not found' }) unless File.file?(path)
+            lines = read_last_lines(path, n)
+            respond(200, { engine: engine_name, count: lines.length, path: path, lines: lines })
+          end
+        when ['stream']
+          sse.call(req.env)
+        else
+          not_found
+        end
+      end
+
+      def handle_post(req, engine_name, manager, rest)
+        if rest.size >= 3 && rest[0] == 'tools' && rest[-1] == 'call'
+          tool = rest[1..-2].join('/')
+          payload = parse_json_body(req)
+          params = payload.is_a?(Hash) ? (payload['params'] || {}) : {}
+          result = call_with_user_context(manager, engine_name, tool, params, req.env['savant.user_id'])
+          respond(200, result)
+        else
+          not_found
+        end
+      end
+
+      def hub_root(_req)
+        engines = engine_overview
+        payload = {
+          service: 'Savant MCP Hub',
+          version: '3.0.0',
+          transport: transport,
+          hub: { pid: Process.pid, uptime_seconds: uptime_seconds },
+          engines: engines
+        }
+        respond(200, payload)
+      end
+
+      def hub_routes(req)
+        expand = req.params['expand'] == '1' || req.params['expand'] == 'true'
+        respond(200, { routes: routes(expand_tools: expand) })
+      end
+
+      def uptime_seconds
+        @started ||= Process.clock_gettime(Process::CLOCK_MONOTONIC)
+        (Process.clock_gettime(Process::CLOCK_MONOTONIC) - @started).to_i
+      end
+
+      def parse_json_body(req)
+        req.body.rewind if req.body.respond_to?(:rewind)
+        raw = req.body.read.to_s
+        req.body.rewind if req.body.respond_to?(:rewind)
+        return {} if raw.empty?
+
+        JSON.parse(raw)
+      end
+
+      def respond(status, body_hash)
+        [status, { 'Content-Type' => 'application/json' }, [JSON.generate(body_hash)]]
+      end
+
+      def not_found
+        respond(404, { error: 'not found' })
+      end
+
+      def log_path(engine_name)
+        File.join(logs_dir, "#{engine_name}.log")
+      end
+
+      def read_last_lines(path, n)
+        return [] unless File.file?(path)
+        lines = []
+        File.foreach(path) { |l| lines << l.chomp }
+        lines.last(n)
+      end
+
+      def safe_specs(manager)
+        # Avoid instantiating engines on startup summary; require tools file and build registrar with nil engine
+        svc = (manager.respond_to?(:service) ? manager.service.to_s : nil)
+        return [] if svc.nil? || svc.empty?
+
+        begin
+          require File.join(__dir__, '..', svc, 'tools')
+          camel = svc.split(/[^a-zA-Z0-9]/).map { |seg| seg.empty? ? '' : seg[0].upcase + seg[1..] }.join
+          mod = Savant.const_get(camel)
+          tools_mod = mod.const_get(:Tools)
+          reg = tools_mod.build_registrar(nil)
+          return reg.specs
+        rescue StandardError
+          return []
+        end
+      end
+
+      def call_with_user_context(manager, engine_name, tool, params, user_id)
+        # Prefer registrar to pass user_id in ctx (enables per-user creds middleware)
+        begin
+          manager.specs # ensure service is loaded when ServiceManager
+          reg = manager.send(:registrar)
+          return reg.call(tool, params, ctx: { engine: engine_name, user_id: user_id })
+        rescue StandardError
+          # Fall through to other strategies
+        end
+
+        if manager.respond_to?(:registrar)
+          return manager.registrar.call(tool, params, ctx: { engine: engine_name, user_id: user_id })
+        end
+
+        # Last resort: use public API (no user context)
+        manager.call_tool(tool, params)
+      end
+
+      def sse_headers
+        {
+          'Content-Type' => 'text/event-stream',
+          'Cache-Control' => 'no-cache',
+          'X-Accel-Buffering' => 'no'
+        }
+      end
+
+      def format_sse_event(event, data)
+        "event: #{event}\n" +
+          "data: #{JSON.generate(data)}\n\n"
+      end
+
+      def sse_logs(req, engine_name)
+        n = (req.params['n'] || '100').to_i
+        once = req.params.key?('once') && req.params['once'] != '0'
+        path = log_path(engine_name)
+        return respond(404, { error: 'log not found' }) unless File.file?(path)
+
+        body = Enumerator.new do |y|
+          # Emit last N lines immediately
+          read_last_lines(path, n).each do |line|
+            y << format_sse_event('log', { line: line })
+          end
+          break if once
+
+          # Follow mode: stream appended lines
+          File.open(path, 'r') do |f|
+            pos = f.size
+            loop do
+              size = File.size(path)
+              if size > pos
+                f.seek(pos)
+                chunk = f.read(size - pos)
+                pos = size
+                chunk.to_s.split(/\r?\n/).each do |ln|
+                  next if ln.empty?
+                  y << format_sse_event('log', { line: ln })
+                end
+              end
+              sleep 0.5
+            end
+          end
+        rescue StandardError
+          # Client disconnect or file issues; end stream
+        end
+
+        [200, sse_headers, body]
+      end
+
+    end
+  end
+end
