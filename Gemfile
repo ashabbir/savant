@@ -12,6 +12,7 @@ gem 'protocol-websocket', '~> 0.7'
 gem 'summarize'
 gem 'tty-logger', '~> 0.6'
 gem 'webrick'
+gem 'rackup'
 
 group :development do
   gem 'guard', '~> 2.18', require: false
