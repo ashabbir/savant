@@ -43,10 +43,9 @@ module Savant
       private
 
       def format_event(event, data)
-        "event: #{event}\n" \
+        "event: #{event}\n" +
           "data: #{JSON.generate(data)}\n\n"
       end
     end
   end
 end
-
