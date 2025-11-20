@@ -25,6 +25,7 @@ Quick Start (Docker)
   - `curl -s -H "$H" 'http://localhost:9999/context/logs?stream=1&once=1&n=10'`
 
 Ports
+- Defaults: host `0.0.0.0`, port `9999`
 - Exposed: `9999` (host → container)
 - Service path: `/:engine/...` (e.g., `/context/tools`)
 
@@ -32,6 +33,18 @@ Make Targets
 - `make hub`: start the Hub service
 - `make hub-logs`: follow Hub logs
 - `make hub-down`: stop the Hub container
+- `make hub-local`: run Hub locally (no Docker)
+- `make hub-local-logs`: tail `/tmp/savant/hub.log`
+
+Quick Start (Local, no Docker)
+- Install gems: `bundle install`
+- Secrets: `cp secrets.example.yml secrets.yml`
+- Run Hub: `bundle exec ruby ./bin/savant hub` (defaults host `0.0.0.0`, port `9999`)
+- List routes (CLI): `bundle exec ruby ./bin/savant routes --expand`
+- Curl routes endpoint (server running):
+  - `H='x-savant-user-id: amd'`
+  - `curl -s -H "$H" http://localhost:9999/routes`
+  - `curl -s -H "$H" 'http://localhost:9999/routes?expand=1'`
 
 Configuration
 - Header (required): `x-savant-user-id: <user-id>` used for per-user secrets and isolation
@@ -59,8 +72,8 @@ Configuration
 - Transport: `config/transport.yml` (optional)
   - transport:
     - mode: "sse"
-    - host: "0.0.0.0"
-    - port: 9999
+    - host: "0.0.0.0"   # default
+    - port: 9999        # default
 
 Endpoints
 - Hub: `GET /` → `{ service, version, transport, hub: {pid, uptime_seconds}, engines: [...] }`
@@ -87,3 +100,4 @@ Troubleshooting
 - No secrets for a user → falls back to ENV Jira creds if present
 - Logs empty → ensure engine writes to `/tmp/savant/<engine>.log`
 - Port in use → change Compose port mapping or update `--port` in the hub command
+- `/context/status` shows unavailable → Context engine needs `DATABASE_URL`; run `make dev` or export a valid DB URL.
