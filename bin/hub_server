@@ -3,13 +3,8 @@
 
 require 'yaml'
 require 'rack'
-begin
-  require 'webrick'
-  require 'rackup/handler/webrick'
-rescue LoadError
-  warn 'WEBrick handler not available; ensure gems webrick and rackup are installed'
-  raise
-end
+require 'webrick'
+require 'rack/handler/webrick'
 require 'fileutils'
 
 require_relative '../lib/savant/hub'
@@ -59,4 +54,4 @@ STDOUT.sync = true
 STDERR.sync = true
 
 puts "Savant Hub starting on #{host}:#{port} (logs: #{log_dir})"
-Rackup::Handler::WEBrick.run(app, Host: host, Port: port, AccessLog: [], Logger: WEBrick::Log.new(nil, 0))
+Rack::Handler::WEBrick.run(app, Host: host, Port: port, AccessLog: [], Logger: WEBrick::Log.new(nil, 0))
