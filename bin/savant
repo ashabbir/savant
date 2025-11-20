@@ -93,6 +93,15 @@ when 'hub'
   end
 
   app = Savant::Hub.build_from_config
+  if app.respond_to?(:engine_overview)
+    begin
+      engines = app.engine_overview
+      summary = engines.map { |e| "#{e[:name]}(#{e[:tools]})" }.join(', ')
+      puts "Mounted engines: #{summary}"
+    rescue StandardError
+      # ignore any startup summary errors
+    end
+  end
   if handler_name == :webrick
     handler.run(app, Host: options[:host], Port: options[:port], AccessLog: [], Logger: WEBrick::Log.new(nil, 0))
   else

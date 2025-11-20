@@ -25,6 +25,17 @@ module Savant
         Savant::Middleware::UserHeader.new(method(:dispatch)).call(env)
       end
 
+      # Public: Return a simple overview of mounted engines for startup logs.
+      def engine_overview
+        mounts.map do |name, manager|
+          { name: name,
+            path: "/#{name}",
+            tools: (safe_specs(manager) || []).size,
+            status: 'running',
+            uptime_seconds: (manager.respond_to?(:uptime) ? manager.uptime : 0) }
+        end
+      end
+
       private
 
       attr_reader :mounts, :transport, :sse, :logs_dir
@@ -58,7 +69,7 @@ module Savant
       def handle_get(req, engine_name, manager, rest)
         case rest
         when ['tools']
-          tools = manager.registrar.specs
+          tools = safe_specs(manager)
           respond(200, { engine: engine_name, tools: tools })
         when ['status']
           info = manager.service_info
@@ -86,7 +97,7 @@ module Savant
           tool = rest[1..-2].join('/')
           payload = parse_json_body(req)
           params = payload.is_a?(Hash) ? (payload['params'] || {}) : {}
-          result = manager.registrar.call(tool, params, ctx: { engine: engine_name, user_id: req.env['savant.user_id'] })
+          result = call_with_user_context(manager, engine_name, tool, params, req.env['savant.user_id'])
           respond(200, result)
         else
           not_found
@@ -94,10 +105,7 @@ module Savant
       end
 
       def hub_root(_req)
-        engines = mounts.map do |name, manager|
-          tool_count = (manager.registrar.specs || []).size
-          { name: name, path: "/#{name}", tools: tool_count, status: 'running', uptime_seconds: (manager.respond_to?(:uptime) ? manager.uptime : 0) }
-        end
+        engines = engine_overview
         payload = {
           service: 'Savant MCP Hub',
           version: '3.0.0',
@@ -139,6 +147,41 @@ module Savant
         lines = []
         File.foreach(path) { |l| lines << l.chomp }
         lines.last(n)
+      end
+
+      def safe_specs(manager)
+        if manager.respond_to?(:specs)
+          manager.specs
+        elsif manager.respond_to?(:registrar)
+          manager.registrar.specs
+        else
+          # Attempt to obtain registrar from ServiceManager privately
+          begin
+            manager.specs
+            reg = manager.send(:registrar)
+            reg.specs
+          rescue StandardError
+            []
+          end
+        end
+      end
+
+      def call_with_user_context(manager, engine_name, tool, params, user_id)
+        # Prefer registrar to pass user_id in ctx (enables per-user creds middleware)
+        begin
+          manager.specs # ensure service is loaded when ServiceManager
+          reg = manager.send(:registrar)
+          return reg.call(tool, params, ctx: { engine: engine_name, user_id: user_id })
+        rescue StandardError
+          # Fall through to other strategies
+        end
+
+        if manager.respond_to?(:registrar)
+          return manager.registrar.call(tool, params, ctx: { engine: engine_name, user_id: user_id })
+        end
+
+        # Last resort: use public API (no user context)
+        manager.call_tool(tool, params)
       end
 
       def sse_headers
