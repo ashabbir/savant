@@ -150,19 +150,19 @@ module Savant
       end
 
       def safe_specs(manager)
-        if manager.respond_to?(:specs)
-          manager.specs
-        elsif manager.respond_to?(:registrar)
-          manager.registrar.specs
-        else
-          # Attempt to obtain registrar from ServiceManager privately
-          begin
-            manager.specs
-            reg = manager.send(:registrar)
-            reg.specs
-          rescue StandardError
-            []
-          end
+        # Avoid instantiating engines on startup summary; require tools file and build registrar with nil engine
+        svc = (manager.respond_to?(:service) ? manager.service.to_s : nil)
+        return [] if svc.nil? || svc.empty?
+
+        begin
+          require File.join(__dir__, '..', svc, 'tools')
+          camel = svc.split(/[^a-zA-Z0-9]/).map { |seg| seg.empty? ? '' : seg[0].upcase + seg[1..] }.join
+          mod = Savant.const_get(camel)
+          tools_mod = mod.const_get(:Tools)
+          reg = tools_mod.build_registrar(nil)
+          return reg.specs
+        rescue StandardError
+          return []
         end
       end
 
