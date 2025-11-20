@@ -173,7 +173,7 @@ module Savant
         return yield unless creds
 
         base_url = creds[:base_url] || creds['base_url']
-        email = creds[:email] || creds['email']
+        email = creds[:email] || creds['email'] || creds[:jira_email] || creds['jira_email']
         api_token = creds[:api_token] || creds['api_token'] || creds[:jira_token] || creds['jira_token']
         username = creds[:username] || creds['username']
         password = creds[:password] || creds['password']
