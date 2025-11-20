@@ -11,7 +11,14 @@ module Savant
       base = base_path || (ENV['SAVANT_PATH'] && !ENV['SAVANT_PATH'].empty? ? ENV['SAVANT_PATH'] : File.expand_path('..', __dir__))
       mounts_cfg = safe_load(File.join(base, 'config', 'mounts.yml'))
       transport_cfg = safe_load(File.join(base, 'config', 'transport.yml'))
-      secrets_path = ENV['SAVANT_SECRETS_PATH'] || File.join(base, 'config', 'secrets.yml')
+      # Prefer explicit env, otherwise try repo root secrets.yml then config/secrets.yml
+      secrets_path = if ENV['SAVANT_SECRETS_PATH'] && !ENV['SAVANT_SECRETS_PATH'].empty?
+                       ENV['SAVANT_SECRETS_PATH']
+                     else
+                       root_candidate = File.join(base, 'secrets.yml')
+                       cfg_candidate = File.join(base, 'config', 'secrets.yml')
+                       File.file?(root_candidate) ? root_candidate : cfg_candidate
+                     end
       begin
         require_relative 'secret_store'
         Savant::SecretStore.load_file(secrets_path)
