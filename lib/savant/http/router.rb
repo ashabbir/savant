@@ -43,6 +43,7 @@ module Savant
       def dispatch(env)
         req = Rack::Request.new(env)
         return hub_root(req) if req.get? && req.path_info == '/'
+        return hub_routes(req) if req.get? && req.path_info == '/routes'
 
         # Engine scoped routes: /:engine/...
         segments = req.path_info.split('/').reject(&:empty?)
@@ -114,6 +115,11 @@ module Savant
           engines: engines
         }
         respond(200, payload)
+      end
+
+      def hub_routes(req)
+        expand = req.params['expand'] == '1' || req.params['expand'] == 'true'
+        respond(200, { routes: routes(expand_tools: expand) })
       end
 
       def uptime_seconds
@@ -232,6 +238,33 @@ module Savant
         end
 
         [200, sse_headers, body]
+      end
+
+      # Build a list of route entries similar to `rake routes` output.
+      # Each entry: { method:, path:, description: }
+      def routes(expand_tools: false)
+        list = []
+        list << { method: 'GET', path: '/', description: 'Hub dashboard' }
+        list << { method: 'GET', path: '/routes', description: 'Routes list (add ?expand=1 to include tool calls)' }
+
+        mounts.each_key.sort.each do |engine_name|
+          base = "/#{engine_name}"
+          list << { method: 'GET', path: "#{base}/status", description: 'Engine uptime and info' }
+          list << { method: 'GET', path: "#{base}/tools", description: 'List tool specs' }
+          list << { method: 'GET', path: "#{base}/logs", description: 'Tail last N lines as JSON (?n=100)' }
+          list << { method: 'GET', path: "#{base}/logs?stream=1", description: 'Stream logs via SSE (?n=100, &once=1)' }
+          list << { method: 'GET', path: "#{base}/stream", description: 'SSE heartbeat' }
+
+          next unless expand_tools
+
+          specs = safe_specs(mounts[engine_name])
+          specs.each do |spec|
+            name = spec[:name] || spec['name']
+            desc = spec[:description] || spec['description'] || 'Tool call'
+            list << { method: 'POST', path: "#{base}/tools/#{name}/call", description: desc }
+          end
+        end
+        list
       end
     end
   end
