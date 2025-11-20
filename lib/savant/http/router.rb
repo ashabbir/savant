@@ -10,14 +10,15 @@ module Savant
   module HTTP
     # Lightweight hub router for multi-engine HTTP + SSE endpoints.
     class Router
-      def self.build(mounts:, transport: 'http', heartbeat_interval: SSE::DEFAULT_HEARTBEAT_SECS)
-        new(mounts: mounts, transport: transport, heartbeat_interval: heartbeat_interval)
+      def self.build(mounts:, transport: 'http', heartbeat_interval: SSE::DEFAULT_HEARTBEAT_SECS, logs_dir: nil)
+        new(mounts: mounts, transport: transport, heartbeat_interval: heartbeat_interval, logs_dir: logs_dir)
       end
 
-      def initialize(mounts:, transport:, heartbeat_interval: SSE::DEFAULT_HEARTBEAT_SECS)
+      def initialize(mounts:, transport:, heartbeat_interval: SSE::DEFAULT_HEARTBEAT_SECS, logs_dir: nil)
         @mounts = mounts # { 'engine_name' => ServiceManager-like }
         @transport = transport
         @sse = SSE.new(heartbeat_interval: heartbeat_interval)
+        @logs_dir = logs_dir || ENV['SAVANT_LOG_PATH'] || '/tmp/savant'
       end
 
       def call(env)
@@ -26,7 +27,7 @@ module Savant
 
       private
 
-      attr_reader :mounts, :transport, :sse
+      attr_reader :mounts, :transport, :sse, :logs_dir
 
       def dispatch(env)
         req = Rack::Request.new(env)
@@ -64,7 +65,15 @@ module Savant
           uptime = manager.respond_to?(:uptime) ? manager.uptime : 0
           respond(200, { engine: engine_name, status: 'running', uptime_seconds: uptime, info: info })
         when ['logs']
-          respond(200, { engine: engine_name, logs: [], note: 'not_implemented' })
+          if req.params['stream']
+            sse_logs(req, engine_name)
+          else
+            n = (req.params['n'] || '100').to_i
+            path = log_path(engine_name)
+            return respond(404, { error: 'log not found' }) unless File.file?(path)
+            lines = read_last_lines(path, n)
+            respond(200, { engine: engine_name, count: lines.length, path: path, lines: lines })
+          end
         when ['stream']
           sse.call(req.env)
         else
@@ -120,7 +129,67 @@ module Savant
       def not_found
         respond(404, { error: 'not found' })
       end
+
+      def log_path(engine_name)
+        File.join(logs_dir, "#{engine_name}.log")
+      end
+
+      def read_last_lines(path, n)
+        return [] unless File.file?(path)
+        lines = []
+        File.foreach(path) { |l| lines << l.chomp }
+        lines.last(n)
+      end
+
+      def sse_headers
+        {
+          'Content-Type' => 'text/event-stream',
+          'Cache-Control' => 'no-cache',
+          'X-Accel-Buffering' => 'no'
+        }
+      end
+
+      def format_sse_event(event, data)
+        "event: #{event}\n" \
+          "data: #{JSON.generate(data)}\n\n"
+      end
+
+      def sse_logs(req, engine_name)
+        n = (req.params['n'] || '100').to_i
+        once = req.params.key?('once') && req.params['once'] != '0'
+        path = log_path(engine_name)
+        return respond(404, { error: 'log not found' }) unless File.file?(path)
+
+        body = Enumerator.new do |y|
+          # Emit last N lines immediately
+          read_last_lines(path, n).each do |line|
+            y << format_sse_event('log', { line: line })
+          end
+          break if once
+
+          # Follow mode: stream appended lines
+          File.open(path, 'r') do |f|
+            pos = f.size
+            loop do
+              size = File.size(path)
+              if size > pos
+                f.seek(pos)
+                chunk = f.read(size - pos)
+                pos = size
+                chunk.to_s.split(/\r?\n/).each do |ln|
+                  next if ln.empty?
+                  y << format_sse_event('log', { line: ln })
+                end
+              end
+              sleep 0.5
+            end
+          end
+        rescue StandardError
+          # Client disconnect or file issues; end stream
+        end
+
+        [200, sse_headers, body]
+      end
     end
   end
 end
-
