@@ -13,13 +13,19 @@ module Savant
       end
 
       def call(env)
-        user = env[HEADER]
-        if user.nil? || user.strip.empty?
-          return [
-            400,
-            { 'Content-Type' => 'application/json' },
-            [JSON.generate({ error: 'missing required header x-savant-user-id' })]
-          ]
+        user = (env[HEADER] || '').to_s
+        if user.strip.empty?
+          # Fallback to query param for browser SSE / simple clients
+          begin
+            req = Rack::Request.new(env)
+            user = (req.params['x-savant-user-id'] || req.params['user'] || req.params['uid'] || '').to_s
+          rescue StandardError
+            user = ''
+          end
+        end
+
+        if user.strip.empty?
+          return [400, { 'Content-Type' => 'application/json' }, [JSON.generate({ error: 'missing required header x-savant-user-id' })]]
         end
 
         env['savant.user_id'] = user
@@ -28,4 +34,3 @@ module Savant
     end
   end
 end
-

@@ -10,3 +10,4 @@ CLAUDE.md
 coverage/*
 *.DS_Store*
 .savant/*
+secrets.yml
