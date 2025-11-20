@@ -11,6 +11,7 @@ gem 'pg', '~> 1.5'
 gem 'protocol-websocket', '~> 0.7'
 gem 'summarize'
 gem 'tty-logger', '~> 0.6'
+gem 'webrick'
 
 group :development do
   gem 'guard', '~> 2.18', require: false

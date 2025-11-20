@@ -1,6 +1,6 @@
 .PHONY: dev logs down ps migrate fts smoke mcp-test jira-test jira-self \
-  repo-index-all repo-index-repo repo-delete-all repo-delete-repo repo-status
-  demo-engine demo-run demo-call
+  repo-index-all repo-index-repo repo-delete-all repo-delete-repo repo-status \
+  demo-engine demo-run demo-call hub hub-logs hub-down
 
 # Ensure rbenv shims take precedence in Make subshells
 # (Reverted) Do not globally override PATH; use explicit rbenv shim per target.
@@ -45,6 +45,16 @@ repo-delete-repo:
 
 repo-status:
 	@docker compose exec -T indexer-ruby ./bin/context_repo_indexer status
+
+# Hub service
+hub:
+	@docker compose up -d hub
+
+hub-logs:
+	@docker compose logs -f hub
+
+hub-down:
+	@docker compose stop hub
 
 # Usage: make mcp-test q='User' limit=5 repo=crawler
 mcp-test:
