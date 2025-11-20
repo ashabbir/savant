@@ -74,6 +74,16 @@ port = Integer(port || env_port || config_port || default_port)
 
 app = Savant::Hub.build_from_config(base_path: base_path)
 
+if app.respond_to?(:engine_overview)
+  begin
+    engines = app.engine_overview
+    summary = engines.map { |e| "#{e[:name]}(#{e[:tools]})" }.join(', ')
+    puts "Mounted engines: #{summary}"
+  rescue StandardError
+    # ignore summary errors on startup
+  end
+end
+
 log_dir = ENV['SAVANT_LOG_PATH'] || '/tmp/savant'
 FileUtils.mkdir_p(log_dir)
 STDOUT.sync = true
