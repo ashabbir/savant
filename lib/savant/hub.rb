@@ -37,7 +37,9 @@ module Savant
       builder = Rack::Builder.new
       builder.map('/ui') { run Savant::HTTP::StaticUI.new(root: ui_root) }
       builder.run router
-      builder.to_app
+
+      # Wrap the composed app to expose router metadata (for startup logs and CLI routes)
+      ComposedHubApp.new(builder.to_app, router, ui_root)
     end
 
     def self.build_mounts(cfg, base_path: nil)
@@ -71,6 +73,31 @@ module Savant
       YAML.safe_load(File.read(path)) || {}
     rescue StandardError
       {}
+    end
+  end
+
+  # Wrapper exposing metadata while delegating Rack calls to the composed app
+  class ComposedHubApp
+    def initialize(app, router, ui_root)
+      @app = app
+      @router = router
+      @ui_root = ui_root
+    end
+
+    def call(env)
+      @app.call(env)
+    end
+
+    def engine_overview
+      @router.engine_overview
+    end
+
+    def routes(expand_tools: false)
+      @router.routes(expand_tools: expand_tools)
+    end
+
+    def ui_root
+      @ui_root
     end
   end
 end
