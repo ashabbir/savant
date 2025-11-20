@@ -13,6 +13,7 @@ gem 'summarize'
 gem 'tty-logger', '~> 0.6'
 gem 'webrick'
 gem 'rackup'
+gem 'puma', '~> 6.5'
 
 group :development do
   gem 'guard', '~> 2.18', require: false
