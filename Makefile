@@ -48,17 +48,17 @@ repo-status:
 
 # Usage: make mcp-test q='User' limit=5 repo=crawler
 mcp-test:
-    @sh -lc 'Q="$(q)"; R="$(repo)"; L="$(limit)"; [ -n "$$Q" ] || Q="User"; [ -n "$$L" ] || L=5; if [ -n "$$R" ]; then RJSON="\"$$R\""; else RJSON=null; fi; \
-      printf "{\"tool\":\"fts/search\",\"q\":\"%s\",\"repo\":%s,\"limit\":%s}\n" "$$Q" "$$RJSON" "$$L" | SAVANT_PATH=$(PWD) DATABASE_URL=postgres://context:contextpw@localhost:5433/contextdb $(HOME)/.rbenv/shims/bundle exec ruby ./bin/mcp_server'
+	@sh -lc 'Q="$(q)"; R="$(repo)"; L="$(limit)"; [ -n "$$Q" ] || Q="User"; [ -n "$$L" ] || L=5; if [ -n "$$R" ]; then RJSON="\"$$R\""; else RJSON=null; fi; \
+	  printf "{\"tool\":\"fts/search\",\"q\":\"%s\",\"repo\":%s,\"limit\":%s}\n" "$$Q" "$$RJSON" "$$L" | SAVANT_PATH=$(PWD) DATABASE_URL=postgres://context:contextpw@localhost:5433/contextdb $(HOME)/.rbenv/shims/bundle exec ruby ./bin/mcp_server'
 
 # Usage: make jira-test jql='project = ABC order by updated desc' limit=5
 jira-test:
-    @sh -lc 'JQL="$(jql)"; L="$(limit)"; [ -n "$$JQL" ] || { echo "usage: make jira-test jql=... [limit=10]"; exit 2; }; [ -n "$$L" ] || L=10; \
-      printf "{\"tool\":\"jira_search\",\"jql\":\"%s\",\"limit\":%s}\n" "$$JQL" "$$L" | SAVANT_PATH=$(PWD) $(HOME)/.rbenv/shims/bundle exec ruby ./bin/mcp_server'
+	@sh -lc 'JQL="$(jql)"; L="$(limit)"; [ -n "$$JQL" ] || { echo "usage: make jira-test jql=... [limit=10]"; exit 2; }; [ -n "$$L" ] || L=10; \
+	  printf "{\"tool\":\"jira_search\",\"jql\":\"%s\",\"limit\":%s}\n" "$$JQL" "$$L" | SAVANT_PATH=$(PWD) $(HOME)/.rbenv/shims/bundle exec ruby ./bin/mcp_server'
 
 # Quick auth check for Jira credentials
 jira-self:
-    @sh -lc 'printf "{\"tool\":\"jira_self\"}\n" | SAVANT_PATH=$(PWD) $(HOME)/.rbenv/shims/bundle exec ruby ./bin/mcp_server'
+	@sh -lc 'printf "{\"tool\":\"jira_self\"}\n" | SAVANT_PATH=$(PWD) $(HOME)/.rbenv/shims/bundle exec ruby ./bin/mcp_server'
 
 # Demo engine helpers
 demo-engine:
