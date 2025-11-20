@@ -59,6 +59,7 @@ services:
     environment:
       SAVANT_PATH: /app
       SAVANT_LOG_PATH: /tmp/savant
+      SAVANT_SECRETS_PATH: /app/secrets.yml
     volumes:
       - ./:/app:rw
     command: >-

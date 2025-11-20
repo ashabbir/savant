@@ -69,8 +69,8 @@ Savant is a lightweight Ruby framework for building and running local MCP servic
   ```
 - Start the HTTP/SSE Hub in Docker (port 9999):
   ```bash
-  # Optional: copy config and secrets
-  cp config/secrets.example.yml config/secrets.yml  # edit per-user Jira creds
+  # Optional: copy secrets to repo root
+  cp secrets.example.yml secrets.yml  # edit per-user Jira creds
   # Start Postgres (if needed) and the hub
   make dev && make hub
   # Follow logs

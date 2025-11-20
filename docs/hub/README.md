@@ -15,8 +15,8 @@ Quick Start (Docker)
   - `make dev`
   - `make hub`
   - `make hub-logs` (follow logs)
-- Optional: copy secrets template and edit:
-  - `cp config/secrets.example.yml config/secrets.yml`
+- Optional: copy secrets template and edit (repo root):
+  - `cp secrets.example.yml secrets.yml`
 - Call the Hub (header required):
   - `H='x-savant-user-id: amd'`
   - `curl -s -H "$H" http://localhost:9999/`
@@ -36,7 +36,7 @@ Make Targets
 Configuration
 - Header (required): `x-savant-user-id: <user-id>` used for per-user secrets and isolation
 - Secrets (file-backed):
-  - Path: `config/secrets.yml` (autoloaded) or override with `SAVANT_SECRETS_PATH`
+  - Path: repo root `secrets.yml` (autoloaded), or override with `SAVANT_SECRETS_PATH`. If root file is absent, falls back to `config/secrets.yml`.
   - Shape:
     - users:
       - amd:
