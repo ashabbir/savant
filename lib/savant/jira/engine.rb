@@ -172,11 +172,12 @@ module Savant
         creds = Savant::SecretStore.for(user_id, :jira)
         return yield unless creds
 
-        base_url = creds[:base_url] || creds['base_url']
-        email = creds[:email] || creds['email'] || creds[:jira_email] || creds['jira_email']
-        api_token = creds[:api_token] || creds['api_token'] || creds[:jira_token] || creds['jira_token']
-        username = creds[:username] || creds['username']
-        password = creds[:password] || creds['password']
+        # From secrets file with ENV fallbacks so partial config works
+        base_url = creds[:base_url] || creds['base_url'] || creds[:jira_base_url] || creds['jira_base_url'] || ENV['JIRA_BASE_URL']
+        email = creds[:email] || creds['email'] || creds[:jira_email] || creds['jira_email'] || ENV['JIRA_EMAIL']
+        api_token = creds[:api_token] || creds['api_token'] || creds[:jira_token] || creds['jira_token'] || ENV['JIRA_API_TOKEN']
+        username = creds[:username] || creds['username'] || ENV['JIRA_USERNAME']
+        password = creds[:password] || creds['password'] || ENV['JIRA_PASSWORD']
 
         # Require at least base_url and one auth method
         return yield if base_url.to_s.strip.empty?
