@@ -84,6 +84,15 @@ Savant is a lightweight Ruby framework for building and running local MCP servic
     curl -s -H 'x-savant-user-id: amd' 'http://localhost:9999/context/logs?stream=1&once=1&n=5'
     ```
   - Full Hub docs: [docs/hub/README.md](docs/hub/README.md)
+
+- Run the Hub without Docker (CLI runner):
+  ```bash
+  bundle install
+  cp secrets.example.yml secrets.yml  # edit per-user Jira creds
+  ruby ./bin/savant hub --host=127.0.0.1 --port=9999
+  # then test
+  curl -s -H 'x-savant-user-id: amd' http://127.0.0.1:9999/
+  ```
 - Quick verification: run `make mcp-test q='User'` or invoke a JSON-RPC call against the HTTP endpoint.
 - Discover tools via CLI:
   ```bash
