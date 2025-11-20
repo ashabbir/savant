@@ -82,8 +82,8 @@ module Savant
       end
 
       def handle_post(req, engine_name, manager, rest)
-        if rest.size == 3 && rest[0] == 'tools' && rest[2] == 'call'
-          tool = rest[1]
+        if rest.size >= 3 && rest[0] == 'tools' && rest[-1] == 'call'
+          tool = rest[1..-2].join('/')
           payload = parse_json_body(req)
           params = payload.is_a?(Hash) ? (payload['params'] || {}) : {}
           result = manager.registrar.call(tool, params, ctx: { engine: engine_name, user_id: req.env['savant.user_id'] })
