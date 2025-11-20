@@ -8,7 +8,7 @@ module Savant
   # Hub builder: loads engines and returns a Rack app.
   class Hub
     def self.build_from_config(base_path: nil)
-      base = base_path || (ENV['SAVANT_PATH'] && !ENV['SAVANT_PATH'].empty? ? ENV['SAVANT_PATH'] : File.expand_path('../../..', __dir__))
+      base = base_path || (ENV['SAVANT_PATH'] && !ENV['SAVANT_PATH'].empty? ? ENV['SAVANT_PATH'] : File.expand_path('../..', __dir__))
       mounts_cfg = safe_load(File.join(base, 'config', 'mounts.yml'))
       transport_cfg = safe_load(File.join(base, 'config', 'transport.yml'))
       # Prefer explicit env, otherwise try repo root secrets.yml then config/secrets.yml
@@ -43,7 +43,7 @@ module Savant
 
       # Fallback: auto-discover engines under lib/savant/*/engine.rb with tools.rb present
       begin
-        lib_root = base_path ? File.join(base_path, 'lib', 'savant') : File.join(File.expand_path('../../..', __dir__), 'lib', 'savant')
+        lib_root = base_path ? File.join(base_path, 'lib', 'savant') : File.join(File.expand_path('../..', __dir__), 'lib', 'savant')
         Dir.glob(File.join(lib_root, '*', 'engine.rb')).each do |engine_rb|
           name = File.basename(File.dirname(engine_rb))
           tools_rb = File.join(File.dirname(engine_rb), 'tools.rb')
