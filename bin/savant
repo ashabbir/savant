@@ -9,6 +9,7 @@ def usage!
       savant generate engine <name> [--with-db] [--force]
       savant serve [--transport=stdio|http] [--host=HOST] [--port=PORT] [--service=NAME]
       savant hub [--host=HOST] [--port=PORT]
+      savant routes [--expand]
       savant list tools [--service=NAME]
       savant call <tool> --input='{}' [--service=NAME]
   TXT
@@ -106,6 +107,25 @@ when 'hub'
     handler.run(app, Host: options[:host], Port: options[:port], AccessLog: [], Logger: WEBrick::Log.new(nil, 0))
   else
     handler.run(app, Host: options[:host], Port: options[:port])
+  end
+
+when 'routes'
+  options = { expand: false }
+  OptionParser.new do |o|
+    o.on('--expand', 'Expand tool call routes') { options[:expand] = true }
+  end.parse!(ARGV)
+
+  require_relative '../lib/savant/hub'
+  app = Savant::Hub.build_from_config
+  unless app.respond_to?(:routes)
+    warn 'Hub router does not support routes listing'
+    exit 1
+  end
+  routes = app.routes(expand_tools: options[:expand])
+  width_m = routes.map { |r| r[:method].length }.max
+  width_p = routes.map { |r| r[:path].length }.max
+  routes.each do |r|
+    puts sprintf("%-#{width_m}s  %-#{width_p}s  %s", r[:method], r[:path], r[:description])
   end
 
 else
