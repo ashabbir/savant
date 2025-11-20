@@ -1,7 +1,9 @@
 # frozen_string_literal: true
 
 require 'yaml'
+require 'rack'
 require_relative 'http/router'
+require_relative 'http/static_ui'
 require_relative 'transport/base'
 
 module Savant
@@ -28,7 +30,14 @@ module Savant
 
       transport_mode = (transport_cfg.dig('transport', 'mode') || 'http').to_s
       mounts = build_mounts(mounts_cfg, base_path: base)
-      Savant::HTTP::Router.build(mounts: mounts, transport: transport_mode)
+      router = Savant::HTTP::Router.build(mounts: mounts, transport: transport_mode)
+
+      # Compose Rack app with static UI under /ui
+      ui_root = File.join(base, 'public', 'ui')
+      builder = Rack::Builder.new
+      builder.map('/ui') { run Savant::HTTP::StaticUI.new(root: ui_root) }
+      builder.run router
+      builder.to_app
     end
 
     def self.build_mounts(cfg, base_path: nil)
