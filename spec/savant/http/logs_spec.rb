@@ -42,12 +42,10 @@ RSpec.describe 'Logs endpoint' do
       res2 = req.get('/context/logs?stream=1&n=2&once=1', 'HTTP_X_SAVANT_USER_ID' => 'bob')
       expect(res2.status).to eq(200)
       expect(res2['Content-Type']).to eq('text/event-stream')
-      body = ''
-      res2.body.each { |c| body << c }
+      body = res2.body.to_s
       expect(body).to include('event: log')
       expect(body).to include('data: {"line":"one"}')
       expect(body).to include('data: {"line":"two"}')
     end
   end
 end
-
