@@ -3,8 +3,22 @@
 
 require 'yaml'
 require 'rack'
-require 'webrick'
-require 'rack/handler/webrick'
+
+handler = nil
+begin
+  require 'puma'
+  require 'rack/handler/puma'
+  handler = Rack::Handler::Puma
+rescue LoadError
+  begin
+    require 'webrick'
+    require 'rack/handler/webrick'
+    handler = Rack::Handler::WEBrick
+  rescue LoadError
+    warn 'No Rack handler available. Install the puma or webrick gems.'
+    exit 1
+  end
+end
 require 'fileutils'
 
 require_relative '../lib/savant/hub'
@@ -54,4 +68,9 @@ STDOUT.sync = true
 STDERR.sync = true
 
 puts "Savant Hub starting on #{host}:#{port} (logs: #{log_dir})"
-Rack::Handler::WEBrick.run(app, Host: host, Port: port, AccessLog: [], Logger: WEBrick::Log.new(nil, 0))
+if handler == Rack::Handler::WEBrick
+  handler.run(app, Host: host, Port: port, AccessLog: [], Logger: WEBrick::Log.new(nil, 0))
+else
+  # Puma
+  handler.run(app, Host: host, Port: port)
+end
