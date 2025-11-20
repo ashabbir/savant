@@ -41,6 +41,7 @@ module Savant
           password: password
         )
         @ops = Ops.new(@client)
+        @mutex = Mutex.new
       end
 
       # Run a JQL search with sane defaults.
@@ -162,6 +163,38 @@ module Savant
       end
 
       public
+
+      # Temporarily apply per-user credentials for the duration of the block.
+      # Looks up from SecretStore using provided user_id and expected keys.
+      # Supported keys under service :jira: base_url, email+api_token OR username+password.
+      def with_user_credentials(user_id)
+        require_relative '../secret_store'
+        creds = Savant::SecretStore.for(user_id, :jira)
+        return yield unless creds
+
+        base_url = creds[:base_url] || creds['base_url']
+        email = creds[:email] || creds['email']
+        api_token = creds[:api_token] || creds['api_token'] || creds[:jira_token] || creds['jira_token']
+        username = creds[:username] || creds['username']
+        password = creds[:password] || creds['password']
+
+        # Require at least base_url and one auth method
+        return yield if base_url.to_s.strip.empty?
+        return yield if (email.to_s.strip.empty? || api_token.to_s.strip.empty?) && (username.to_s.strip.empty? || password.to_s.strip.empty?)
+
+        old_client = @client
+        old_ops = @ops
+        @mutex.synchronize do
+          begin
+            @client = Client.new(base_url: base_url, email: email, api_token: api_token, username: username, password: password)
+            @ops = Ops.new(@client)
+            return yield
+          ensure
+            @client = old_client
+            @ops = old_ops
+          end
+        end
+      end
 
       # Server info metadata surfaced to MCP server during initialize
       # Returns: { name:, version:, description: }
