@@ -1,6 +1,6 @@
 .PHONY: dev logs down ps migrate fts smoke mcp-test jira-test jira-self \
   repo-index-all repo-index-repo repo-delete-all repo-delete-repo repo-status \
-  demo-engine demo-run demo-call hub hub-logs hub-down
+  demo-engine demo-run demo-call hub hub-logs hub-down hub-local hub-local-logs
 
 # Ensure rbenv shims take precedence in Make subshells
 # (Reverted) Do not globally override PATH; use explicit rbenv shim per target.
@@ -79,3 +79,10 @@ demo-run:
 
 demo-call:
 	@ruby ./bin/savant call 'demo/hello' --service=demo --input='{"name":"dev"}'
+
+# Run Hub locally (no Docker)
+hub-local:
+	@SAVANT_PATH=$(PWD) $(HOME)/.rbenv/shims/bundle exec ruby ./bin/savant hub
+
+hub-local-logs:
+	@tail -f /tmp/savant/hub.log
