@@ -1,0 +1,57 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'yaml'
+require 'rack'
+require 'rack/handler/webrick'
+require 'fileutils'
+
+require_relative '../lib/savant/hub'
+
+def base_path
+  return ENV['SAVANT_PATH'] unless ENV['SAVANT_PATH'].to_s.empty?
+  File.expand_path('..', __dir__)
+end
+
+def transport_config
+  path = File.join(base_path, 'config', 'transport.yml')
+  return {} unless File.file?(path)
+  YAML.safe_load(File.read(path)) || {}
+rescue StandardError
+  {}
+end
+
+def mounts_config
+  path = File.join(base_path, 'config', 'mounts.yml')
+  return {} unless File.file?(path)
+  YAML.safe_load(File.read(path)) || {}
+rescue StandardError
+  {}
+end
+
+host = '0.0.0.0'
+port = 8765
+
+ARGV.each do |arg|
+  host = arg.split('=', 2)[1] if arg.start_with?('--host=')
+  port = Integer(arg.split('=', 2)[1]) if arg.start_with?('--port=')
+  if ['--help', '-h'].include?(arg)
+    puts 'Usage: bin/hub_server [--host=HOST] [--port=PORT]'
+    exit 0
+  end
+end
+
+cfg = transport_config
+host = cfg.dig('transport', 'host') || host
+port = Integer(cfg.dig('transport', 'port') || port)
+
+app = Savant::Hub.build_from_config(base_path: base_path)
+
+log_dir = ENV['SAVANT_LOG_PATH'] || '/tmp/savant'
+FileUtils.mkdir_p(log_dir)
+STDOUT.sync = true
+STDERR.sync = true
+
+puts "Savant Hub starting on #{host}:#{port} (logs: #{log_dir})"
+Rack::Handler::WEBrick.run(app, Host: host, Port: port, AccessLog: [], Logger: WEBrick::Log.new(nil, 0))
+
