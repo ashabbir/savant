@@ -48,5 +48,23 @@ services:
 
   # MCP servers now run on host (not in Docker). Use DATABASE_URL to connect to this Postgres.
 
+  hub:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    depends_on:
+      postgres:
+        condition: service_healthy
+    working_dir: /app
+    environment:
+      SAVANT_PATH: /app
+      SAVANT_LOG_PATH: /tmp/savant
+    volumes:
+      - ./:/app:rw
+    command: >-
+      /bin/sh -lc 'mkdir -p /tmp/savant && bundle exec ruby ./bin/hub_server --host=0.0.0.0 --port=9999'
+    ports:
+      - "9999:9999"
+
 volumes:
   pgdata:
