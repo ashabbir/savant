@@ -122,22 +122,22 @@
         <div class="title">${e.name}</div>
         <div class="meta">tools: ${e.tools} · status: ${status}</div>
       `;
-      card.onclick = () => selectEngine(e.name);
+      card.onclick = () => openDrawerForEngine(e.name);
       container.appendChild(card);
     });
   }
 
-  async function selectEngine(name) {
+  async function openDrawerForEngine(name) {
     state.currentEngine = name;
     // highlight selected card
     $$('#engineCards .card').forEach((c) => c.classList.toggle('selected', c.dataset.engine === name));
-    $('#toolList').innerHTML = '';
-    $('#toolDetail').textContent = '';
-    $('#toolResult').textContent = '';
+    const ul = $('#drawerToolList');
+    ul.innerHTML = '';
+    const drawer = $('#drawer');
+    drawer.classList.add('open');
     try {
       const data = await api(`/${name}/tools`);
       const tools = data.tools || [];
-      const ul = $('#toolList');
       tools.forEach((t) => {
         const nm = t.name || t['name'];
         const desc = t.description || t['description'] || '';
@@ -155,10 +155,10 @@
         li.appendChild(icon);
         li.appendChild(nameEl);
         li.appendChild(descEl);
-        li.onclick = () => selectTool(nm, desc, t.schema || t['schema']);
+        li.onclick = () => openSheetForTool(nm, desc, t.schema || t['schema']);
         ul.appendChild(li);
       });
-    } catch (e) { $('#toolList').innerHTML = `<li>${e}</li>`; }
+    } catch (e) { ul.innerHTML = `<li>${e}</li>`; }
   }
 
   function iconForTool(name) {
@@ -171,16 +171,17 @@
     return '🛠️';
   }
 
-  function selectTool(name, desc, schema) {
+  function openSheetForTool(name, desc, schema) {
     state.currentTool = name;
     state.currentSchema = schema || {};
-    const d = $('#toolDetail');
+    const sh = $('#sheet');
+    sh.classList.add('open');
+    const d = $('#sheetToolDetail');
     d.innerHTML = `<div><b>${name}</b></div><div>${desc || ''}</div><details><summary>Schema</summary><pre>${JSON.stringify(schema || {}, null, 2)}</pre></details>`;
-    // Default to form mode if schema is simple object, otherwise JSON
     const simple = isSimpleObjectSchema(state.currentSchema);
     setInputMode(simple ? 'form' : 'json');
     if (simple) buildForm(state.currentSchema);
-    $('#toolInput').value = '{}';
+    $('#sheetToolInput').value = '{}';
   }
 
   async function runTool() {
@@ -188,7 +189,7 @@
     const mode = currentMode();
     let payload = {};
     if (mode === 'json') {
-      try { payload = JSON.parse($('#toolInput').value || '{}'); } catch { payload = {}; }
+      try { payload = JSON.parse($('#sheetToolInput').value || '{}'); } catch { payload = {}; }
     } else {
       payload = collectForm();
     }
@@ -197,9 +198,9 @@
     try {
       const res = await api(`/${state.currentEngine}/tools/${state.currentTool}/call`, { method: 'POST', headers: { 'content-type': 'application/json' }, body });
       const ms = Math.round(performance.now() - t0);
-      $('#toolResult').textContent = JSON.stringify({ elapsed_ms: ms, result: res }, null, 2);
+      $('#sheetToolResult').textContent = JSON.stringify({ elapsed_ms: ms, result: res }, null, 2);
     } catch (e) {
-      $('#toolResult').textContent = String(e);
+      $('#sheetToolResult').textContent = String(e);
     }
   }
 
@@ -208,28 +209,28 @@
     const mode = currentMode();
     let payload = {};
     if (mode === 'json') {
-      try { payload = JSON.parse($('#toolInput').value || '{}'); } catch { payload = {}; }
+      try { payload = JSON.parse($('#sheetToolInput').value || '{}'); } catch { payload = {}; }
     } else {
       payload = collectForm();
     }
     const qp = encodeURIComponent(JSON.stringify(payload));
     const url = `${state.baseUrl}/${state.currentEngine}/tools/${state.currentTool}/stream?params=${qp}&user=${encodeURIComponent(state.userId)}`;
     try { state.sse && state.sse.close(); } catch {}
-    $('#toolResult').textContent = '';
+    $('#sheetToolResult').textContent = '';
     state.sse = new EventSource(url);
     state.sse.onmessage = (ev) => {
       try {
         const data = JSON.parse(ev.data);
-        $('#toolResult').textContent += `${ev.type || 'event'}: ${JSON.stringify(data)}\n`;
+        $('#sheetToolResult').textContent += `${ev.type || 'event'}: ${JSON.stringify(data)}\n`;
       } catch {
-        $('#toolResult').textContent += `${ev.type || 'event'}: ${ev.data}\n`;
+        $('#sheetToolResult').textContent += `${ev.type || 'event'}: ${ev.data}\n`;
       }
     };
     state.sse.addEventListener('result', (ev) => {
-      try { const d = JSON.parse(ev.data); $('#toolResult').textContent += `result: ${JSON.stringify(d, null, 2)}\n`; } catch {}
+      try { const d = JSON.parse(ev.data); $('#sheetToolResult').textContent += `result: ${JSON.stringify(d, null, 2)}\n`; } catch {}
     });
-    state.sse.addEventListener('error', (ev) => { $('#toolResult').textContent += `error: ${ev.data}\n`; try { state.sse.close(); } catch {} });
-    state.sse.addEventListener('done', () => { $('#toolResult').textContent += `done\n`; try { state.sse.close(); } catch {} });
+    state.sse.addEventListener('error', (ev) => { $('#sheetToolResult').textContent += `error: ${ev.data}\n`; try { state.sse.close(); } catch {} });
+    state.sse.addEventListener('done', () => { $('#sheetToolResult').textContent += `done\n`; try { state.sse.close(); } catch {} });
   }
 
   function currentMode() {
@@ -385,9 +386,11 @@
     // Views
     $$('#settingsSave').forEach((b) => b.onclick = saveSettingsView);
     $('#routesExpand').onchange = loadRoutes;
-    $('#runTool').onclick = runTool;
-    $('#streamTool').onclick = streamTool;
-    $$('input[name="mode"]').forEach((el) => el.addEventListener('change', (ev) => {
+    $('#sheetRunTool').onclick = runTool;
+    $('#sheetStreamTool').onclick = streamTool;
+    $('#drawerClose').onclick = () => $('#drawer').classList.remove('open');
+    $('#sheetClose').onclick = () => $('#sheet').classList.remove('open');
+    $$('input[name="sheet-mode"]').forEach((el) => el.addEventListener('change', (ev) => {
       const mode = ev.target.value;
       setInputMode(mode);
       if (mode === 'form' && isSimpleObjectSchema(state.currentSchema)) {

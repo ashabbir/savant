@@ -39,26 +39,34 @@
             <h3>Mounted Engines</h3>
             <div id="engineCards" class="cards"></div>
           </div>
-          <div class="col">
-            <h3>Tools</h3>
-            <ul id="toolList" class="tools"></ul>
+        </div>
+        <!-- Right drawer for tools -->
+        <aside id="drawer" class="drawer">
+          <div class="drawer-header">
+            <div class="drawer-title">Tools</div>
+            <button id="drawerClose" title="Close">✕</button>
           </div>
-          <div class="col">
-            <h3>Call Tool</h3>
-            <div id="toolDetail"></div>
-            <div id="inputMode">
-              <label><input type="radio" name="mode" value="form" checked /> Form</label>
-              <label><input type="radio" name="mode" value="json" /> JSON</label>
-            </div>
-            <form id="toolForm" class="tool-form"></form>
-            <textarea id="toolInput" class="hidden" rows="8" placeholder='{"param":"value"}'></textarea>
-            <div>
-              <button id="runTool">Run</button>
-              <button id="streamTool">Stream</button>
-            </div>
-            <h4>Result</h4>
-            <pre id="toolResult"></pre>
+          <ul id="drawerToolList" class="tools"></ul>
+        </aside>
+        <!-- Bottom sheet for tool call -->
+        <div id="sheet" class="sheet">
+          <div class="sheet-header">
+            <div class="sheet-title">Call Tool</div>
+            <button id="sheetClose" title="Close">▼</button>
           </div>
+          <div id="sheetToolDetail"></div>
+          <div id="sheetInputMode" class="mode">
+            <label><input type="radio" name="sheet-mode" value="form" checked /> Form</label>
+            <label><input type="radio" name="sheet-mode" value="json" /> JSON</label>
+          </div>
+          <form id="sheetToolForm" class="tool-form"></form>
+          <textarea id="sheetToolInput" class="hidden" rows="8" placeholder='{"param":"value"}'></textarea>
+          <div class="actions">
+            <button id="sheetRunTool">Run</button>
+            <button id="sheetStreamTool" type="button">Stream</button>
+          </div>
+          <h4>Result</h4>
+          <pre id="sheetToolResult"></pre>
         </div>
       </section>
 
