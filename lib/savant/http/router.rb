@@ -98,7 +98,8 @@ module Savant
         case rest
         when ['tools']
           tools = safe_specs(manager)
-          respond(200, { engine: engine_name, tools: tools })
+          normalized = tools.map { |t| normalize_tool_spec(t) }
+          respond(200, { engine: engine_name, tools: normalized })
         when *rest
           # Stream tool call via SSE: /:engine/tools/:name/stream
           if rest.length >= 3 && rest[0] == 'tools' && rest[-1] == 'stream'
@@ -280,6 +281,18 @@ module Savant
         end
 
         [200, sse_headers, body]
+      end
+
+      def normalize_tool_spec(spec)
+        return spec unless spec.is_a?(Hash)
+        h = {}
+        spec.each { |k, v| h[k.to_s] = v }
+        schema = h['inputSchema'] || h['schema'] || h['input_schema'] || {}
+        h['inputSchema'] = schema
+        h['schema'] = schema
+        h['name'] = h['name'] || spec[:name]
+        h['description'] = h['description'] || spec[:description]
+        h
       end
 
       def sse_tool_call(req, engine_name, manager, tool)
