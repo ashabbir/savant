@@ -37,19 +37,19 @@ module Savant
       end
 
       # Public: Build a list of route entries similar to `rake routes`.
-      # Each entry: { method:, path:, description: }
+      # Each entry: { module:, method:, path:, description: }
       def routes(expand_tools: false)
         list = []
-        list << { method: 'GET', path: '/', description: 'Hub dashboard' }
-        list << { method: 'GET', path: '/routes', description: 'Routes list (add ?expand=1 to include tool calls)' }
+        list << { module: 'hub', method: 'GET', path: '/', description: 'Hub dashboard' }
+        list << { module: 'hub', method: 'GET', path: '/routes', description: 'Routes list (add ?expand=1 to include tool calls)' }
 
         mounts.keys.sort.each do |engine_name|
           base = "/#{engine_name}"
-          list << { method: 'GET', path: "#{base}/status", description: 'Engine uptime and info' }
-          list << { method: 'GET', path: "#{base}/tools", description: 'List tool specs' }
-          list << { method: 'GET', path: "#{base}/logs", description: 'Tail last N lines as JSON (?n=100)' }
-          list << { method: 'GET', path: "#{base}/logs?stream=1", description: 'Stream logs via SSE (?n=100, &once=1)' }
-          list << { method: 'GET', path: "#{base}/stream", description: 'SSE heartbeat' }
+          list << { module: engine_name, method: 'GET', path: "#{base}/status", description: 'Engine uptime and info' }
+          list << { module: engine_name, method: 'GET', path: "#{base}/tools", description: 'List tool specs' }
+          list << { module: engine_name, method: 'GET', path: "#{base}/logs", description: 'Tail last N lines as JSON (?n=100)' }
+          list << { module: engine_name, method: 'GET', path: "#{base}/logs?stream=1", description: 'Stream logs via SSE (?n=100, &once=1)' }
+          list << { module: engine_name, method: 'GET', path: "#{base}/stream", description: 'SSE heartbeat' }
 
           next unless expand_tools
 
@@ -57,7 +57,7 @@ module Savant
           specs.each do |spec|
             name = spec[:name] || spec['name']
             desc = spec[:description] || spec['description'] || 'Tool call'
-            list << { method: 'POST', path: "#{base}/tools/#{name}/call", description: desc }
+            list << { module: engine_name, method: 'POST', path: "#{base}/tools/#{name}/call", description: desc }
           end
         end
         list
@@ -98,7 +98,14 @@ module Savant
         case rest
         when ['tools']
           tools = safe_specs(manager)
-          respond(200, { engine: engine_name, tools: tools })
+          normalized = tools.map { |t| normalize_tool_spec(t) }
+          respond(200, { engine: engine_name, tools: normalized })
+        when *rest
+          # Stream tool call via SSE: /:engine/tools/:name/stream
+          if rest.length >= 3 && rest[0] == 'tools' && rest[-1] == 'stream'
+            tool = rest[1..-2].join('/')
+            return sse_tool_call(req, engine_name, manager, tool)
+          end
         when ['status']
           info = manager.service_info
           uptime = manager.respond_to?(:uptime) ? manager.uptime : 0
@@ -109,7 +116,10 @@ module Savant
           else
             n = (req.params['n'] || '100').to_i
             path = log_path(engine_name)
-            return respond(404, { error: 'log not found' }) unless File.file?(path)
+            unless File.file?(path)
+              # Return empty set with note rather than 404 for better UX
+              return respond(200, { engine: engine_name, count: 0, path: path, lines: [], note: 'log file not found' })
+            end
             lines = read_last_lines(path, n)
             respond(200, { engine: engine_name, count: lines.length, path: path, lines: lines })
           end
@@ -234,7 +244,13 @@ module Savant
         n = (req.params['n'] || '100').to_i
         once = req.params.key?('once') && req.params['once'] != '0'
         path = log_path(engine_name)
-        return respond(404, { error: 'log not found' }) unless File.file?(path)
+        unless File.file?(path)
+          body = Enumerator.new do |y|
+            y << format_sse_event('log', { line: 'log file not found' })
+            y << format_sse_event('done', {})
+          end
+          return [200, sse_headers, body]
+        end
 
         body = Enumerator.new do |y|
           # Emit last N lines immediately
@@ -264,6 +280,42 @@ module Savant
           # Client disconnect or file issues; end stream
         end
 
+        [200, sse_headers, body]
+      end
+
+      def normalize_tool_spec(spec)
+        return spec unless spec.is_a?(Hash)
+        h = {}
+        spec.each { |k, v| h[k.to_s] = v }
+        schema = h['inputSchema'] || h['schema'] || h['input_schema'] || {}
+        h['inputSchema'] = schema
+        h['schema'] = schema
+        h['name'] = h['name'] || spec[:name]
+        h['description'] = h['description'] || spec[:description]
+        h
+      end
+
+      def sse_tool_call(req, engine_name, manager, tool)
+        # Params passed as JSON string via ?params=... to fit GET semantics
+        raw = (req.params['params'] || '').to_s
+        params = {}
+        begin
+          params = raw.empty? ? {} : JSON.parse(raw)
+        rescue StandardError
+          params = {}
+        end
+        user_id = req.env['savant.user_id']
+
+        body = Enumerator.new do |y|
+          y << format_sse_event('start', { tool: tool })
+          begin
+            result = call_with_user_context(manager, engine_name, tool, params, user_id)
+            y << format_sse_event('result', result)
+            y << format_sse_event('done', {})
+          rescue StandardError => e
+            y << format_sse_event('error', { message: e.message })
+          end
+        end
         [200, sse_headers, body]
       end
 
