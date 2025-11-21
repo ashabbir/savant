@@ -75,3 +75,12 @@ li:hover { background:#f2f6fb; }
 .sheet #sheetClose { background:#eef2f7; border:1px solid var(--border); border-radius:6px; padding:4px 8px; cursor:pointer; }
 .mode { margin: 8px 0; }
 .actions { margin: 8px 0; display:flex; gap: 8px; }
+
+/* Routes table */
+.table-wrap { border:1px solid var(--border); border-radius:8px; overflow:auto; background:#fff; }
+.table { width:100%; border-collapse:collapse; font-size: 14px; }
+.table thead th { text-align:left; background:#f3f6fa; color:#24303d; border-bottom:1px solid var(--border); padding:8px 10px; }
+.table tbody td { border-bottom:1px solid var(--border); padding:8px 10px; vertical-align: top; }
+.table tbody tr:hover { background:#f7faff; }
+.routes-table td:nth-child(2) { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; color:#1f2a36; }
+.routes-controls { margin-bottom: 8px; }

@@ -75,8 +75,17 @@
 
       <section id="view-routes" class="view hidden">
         <h2>Routes</h2>
-        <label><input type="checkbox" id="routesExpand" /> Expand tool calls</label>
-        <pre id="routes"></pre>
+        <div class="routes-controls">
+          <label><input type="checkbox" id="routesExpand" /> Expand tool calls</label>
+        </div>
+        <div class="table-wrap">
+          <table id="routesTable" class="table routes-table">
+            <thead>
+              <tr><th style="width:10rem;">Method</th><th>Path</th><th>Description</th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
       </section>
 
       <section id="view-logs" class="view hidden">
