@@ -11,6 +11,8 @@
     currentSchema: null,
     sse: null,
     routes: [],
+    routesSort: { key: 'path', dir: 'asc' },
+    routesFilters: { module: 'hub', method: 'GET' },
   };
 
   function saveSettings() {
@@ -114,13 +116,14 @@
       card.className = 'card ripple';
       card.dataset.engine = e.name;
       const up = formatUptime(e.uptime_seconds || 0);
+      const running = (e.status || 'running').toLowerCase() === 'running';
+      const statusDot = `<span class=\"status-dot ${running ? 'status-ok' : 'status-bad'}\"></span>`;
       card.innerHTML = `
-        <div class="title"><span class="dot-badge badge-${e.name}"></span>${e.name}<span class="uptime"> · ${up}</span></div>
+        <div class="title">${e.name}</div>
         <div class="subtitle">${e.path}</div>
-        <ul class="meta-list">
-          <li>tools: ${e.tools}</li>
-          <li>status: ${e.status || 'running'}</li>
-        </ul>
+        <div class="meta-line">tools: ${e.tools}</div>
+        <div class="meta-line">uptime: ${up}</div>
+        <div class="meta-line">${statusDot}<span>status: ${e.status || 'unknown'}</span></div>
       `;
       // Make the whole card clickable
       card.addEventListener('click', () => openRightDrawerForEngine(e.name));
@@ -145,15 +148,14 @@
       card.className = 'card ripple';
       card.dataset.engine = e.name;
       const status = e.status || 'running';
+      const running = (status || 'running').toLowerCase() === 'running';
+      const statusDot = `<span class=\"status-dot ${running ? 'status-ok' : 'status-bad'}\"></span>`;
       card.innerHTML = `
-        <div class="title"><span class="dot-badge badge-${e.name}"></span>${e.name}<span class="uptime"></span></div>
+        <div class="title">${e.name}</div>
         <div class="subtitle">${e.path || ''}</div>
-        <ul class="meta-list">
-          <li>tools: ${e.tools}</li>
-          <li>status: ${status}</li>
-        </ul>
+        <div class="meta-line">tools: ${e.tools}</div>
+        <div class="meta-line">${statusDot}<span>status: ${status}</span></div>
       `;
-      // Click anywhere on card
       card.onclick = () => openRightDrawerForEngine(e.name);
       container.appendChild(card);
     });
@@ -299,16 +301,34 @@
     if (!schema || typeof schema !== 'object') return false;
     if ((schema.type || schema['type']) !== 'object') return false;
     const props = schema.properties || schema['properties'] || {};
-    return Object.values(props).every((p) => {
-      const t = (p.type || p['type']);
-      if (t === 'string' || t === 'integer' || t === 'number' || t === 'boolean') return true;
-      if (t === 'array') {
-        const it = p.items || p['items'] || {};
-        const itType = it.type || it['type'];
-        return itType === 'string';
-      }
-      return false;
-    });
+    // schema considered simple if all props resolve to a known simple kind
+    return Object.values(props).every((p) => getSimpleKind(p) !== 'unknown');
+  }
+
+  // Map a JSON Schema property to a simple kind we can render
+  // Returns: 'string' | 'number' | 'integer' | 'boolean' | 'array-string' | 'array-number' | 'select' | 'unknown'
+  function getSimpleKind(prop) {
+    if (!prop || typeof prop !== 'object') return 'unknown';
+    if (Array.isArray(prop.enum) && (prop.type === 'string' || !prop.type)) return 'select';
+    const t = prop.type || prop['type'];
+    if (t === 'string' || t === 'number' || t === 'integer' || t === 'boolean') return t;
+    if (t === 'array') {
+      const it = prop.items || prop['items'] || {};
+      const itType = it.type || it['type'];
+      if (itType === 'string') return 'array-string';
+      if (itType === 'number' || itType === 'integer') return 'array-number';
+    }
+    // anyOf with simple types
+    if (Array.isArray(prop.anyOf)) {
+      const kinds = prop.anyOf.map(getSimpleKind);
+      if (kinds.includes('array-string')) return 'array-string';
+      if (kinds.includes('string')) return 'string';
+      if (kinds.includes('array-number')) return 'array-number';
+      if (kinds.includes('number')) return 'number';
+      if (kinds.includes('integer')) return 'integer';
+      if (kinds.includes('boolean')) return 'boolean';
+    }
+    return 'unknown';
   }
 
   function buildForm(schema) {
@@ -317,7 +337,8 @@
     const props = schema.properties || schema['properties'] || {};
     const required = new Set(schema.required || schema['required'] || []);
     Object.entries(props).forEach(([key, prop]) => {
-      const t = prop.type || prop['type'];
+      const kind = getSimpleKind(prop);
+      if (kind === 'unknown') return; // skip unsupported fields
       const label = document.createElement('label');
       label.textContent = `${key}${required.has(key) ? ' *' : ''}`;
       label.title = prop.description || prop['description'] || '';
@@ -325,21 +346,30 @@
       fieldWrap.className = 'field';
       fieldWrap.appendChild(label);
       let input;
-      if (t === 'boolean') {
+      if (kind === 'boolean') {
         input = document.createElement('input');
         input.type = 'checkbox';
         input.dataset.key = key;
-      } else if (t === 'integer' || t === 'number') {
+      } else if (kind === 'integer' || kind === 'number') {
         input = document.createElement('input');
         input.type = 'number';
-        input.step = t === 'integer' ? '1' : 'any';
+        input.step = kind === 'integer' ? '1' : 'any';
         input.dataset.key = key;
-      } else if (t === 'array') {
+      } else if (kind === 'array-string' || kind === 'array-number') {
         input = document.createElement('textarea');
         input.rows = 3;
         input.placeholder = 'one per line';
         input.dataset.key = key;
-        input.dataset.kind = 'array-string';
+        input.dataset.kind = kind;
+      } else if (kind === 'select') {
+        input = document.createElement('select');
+        input.dataset.key = key;
+        (prop.enum || []).forEach((optVal) => {
+          const opt = document.createElement('option');
+          opt.value = String(optVal);
+          opt.textContent = String(optVal);
+          input.appendChild(opt);
+        });
       } else {
         input = document.createElement('input');
         input.type = 'text';
@@ -360,12 +390,17 @@
       } else if (el.dataset.kind === 'array-string') {
         const lines = (el.value || '').split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
         out[key] = lines;
+      } else if (el.dataset.kind === 'array-number') {
+        const lines = (el.value || '').split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+        out[key] = lines.map((v) => (v.includes('.') ? parseFloat(v) : parseInt(v, 10)));
       } else if (el.type === 'number') {
         const v = el.value;
         if (v === '' || v == null) { out[key] = null; }
         else {
           out[key] = el.step === '1' ? parseInt(v, 10) : parseFloat(v);
         }
+      } else if (el.tagName === 'SELECT') {
+        out[key] = el.value;
       } else {
         out[key] = el.value;
       }
@@ -375,10 +410,11 @@
 
   async function loadRoutes() {
     try {
-      const expanded = $('#routesExpand').checked;
-      const data = await api(`/routes${expanded ? '?expand=1' : ''}`);
+      // Always expanded; no UI toggle
+      const data = await api(`/routes?expand=1`);
       state.routes = Array.isArray(data.routes) ? data.routes : (Array.isArray(data) ? data : []);
-      renderRoutesTable(filterRoutes(state.routes, ($('#routesSearch')?.value || '')));
+      ensureRoutesFilters(state.routes);
+      renderRoutesTable(applyRoutesView(state.routes));
     } catch (e) {
       const tbody = document.querySelector('#routesTable tbody');
       if (tbody) {
@@ -395,6 +431,7 @@
     const tbody = document.querySelector('#routesTable tbody');
     if (!tbody) return;
     tbody.innerHTML = '';
+    updateRoutesSortHeaders();
     if (!Array.isArray(routes) || routes.length === 0) {
       const tr = document.createElement('tr');
       const td = document.createElement('td');
@@ -425,6 +462,67 @@
       const d = (r.description || '').toString().toLowerCase();
       return mod.includes(query) || m.includes(query) || p.includes(query) || d.includes(query);
     });
+  }
+
+  function applyRoutesView(routes) {
+    // Apply module/method filters and search, then sort
+    const moduleSel = ($('#routesModule')?.value || state.routesFilters.module || '').toLowerCase();
+    const methodSel = ($('#routesMethod')?.value || state.routesFilters.method || '').toUpperCase();
+    const searchQ = ($('#routesSearch')?.value || '');
+    let list = routes.slice();
+    if (moduleSel && moduleSel !== 'all') list = list.filter((r) => routeModule(r).toLowerCase() === moduleSel);
+    if (methodSel && methodSel !== 'ALL') list = list.filter((r) => (r.method || '').toUpperCase() === methodSel);
+    list = filterRoutes(list, searchQ);
+    const { key, dir } = state.routesSort || { key: 'path', dir: 'asc' };
+    const mul = dir === 'desc' ? -1 : 1;
+    const getVal = (r) => {
+      if (key === 'module') return routeModule(r).toLowerCase();
+      if (key === 'method') return (r.method || '').toUpperCase();
+      if (key === 'path') return (r.path || '').toLowerCase();
+      if (key === 'description') return (r.description || '').toLowerCase();
+      return '';
+    };
+    list.sort((a, b) => (getVal(a) > getVal(b) ? 1 * mul : (getVal(a) < getVal(b) ? -1 * mul : 0)));
+    return list;
+  }
+
+  function updateRoutesSortHeaders() {
+    const { key, dir } = state.routesSort || {};
+    $$('#routesTable thead th[data-key]').forEach((th) => {
+      th.classList.remove('sort-asc', 'sort-desc');
+      if (th.dataset.key === key) th.classList.add(dir === 'desc' ? 'sort-desc' : 'sort-asc');
+    });
+  }
+
+  function ensureRoutesFilters(routes) {
+    // Populate dropdowns for module and method with defaults
+    const mods = new Set(['all']);
+    const methods = new Set(['ALL']);
+    routes.forEach((r) => { mods.add(routeModule(r).toLowerCase()); methods.add((r.method || '').toUpperCase()); });
+    const modSel = document.getElementById('routesModule');
+    const methSel = document.getElementById('routesMethod');
+    if (modSel) {
+      const current = modSel.value || state.routesFilters.module || 'hub';
+      modSel.innerHTML = '';
+      Array.from(mods).sort().forEach((m) => {
+        const opt = document.createElement('option');
+        opt.value = m; opt.textContent = m === 'all' ? 'All Modules' : m;
+        modSel.appendChild(opt);
+      });
+      modSel.value = (Array.from(mods).includes(current.toLowerCase()) ? current.toLowerCase() : 'hub');
+      state.routesFilters.module = modSel.value;
+    }
+    if (methSel) {
+      const current = methSel.value || state.routesFilters.method || 'GET';
+      methSel.innerHTML = '';
+      Array.from(methods).sort().forEach((m) => {
+        const opt = document.createElement('option');
+        opt.value = m; opt.textContent = m === 'ALL' ? 'All Methods' : m;
+        methSel.appendChild(opt);
+      });
+      methSel.value = (Array.from(methods).includes(current.toUpperCase()) ? current.toUpperCase() : 'GET');
+      state.routesFilters.method = methSel.value;
+    }
   }
 
   // Derive module (engine name) if not provided by backend
@@ -487,10 +585,27 @@
 
     // Views
     $$('#settingsSave').forEach((b) => b.onclick = saveSettingsView);
-    $('#routesExpand').onchange = loadRoutes;
+    // Always expanded; no checkbox handler
     const rs = document.getElementById('routesSearch');
     if (rs) rs.addEventListener('input', (ev) => {
-      renderRoutesTable(filterRoutes(state.routes, ev.target.value));
+      renderRoutesTable(applyRoutesView(state.routes));
+    });
+    const modSel = document.getElementById('routesModule');
+    if (modSel) modSel.addEventListener('change', (ev) => { state.routesFilters.module = ev.target.value; renderRoutesTable(applyRoutesView(state.routes)); });
+    const methSel = document.getElementById('routesMethod');
+    if (methSel) methSel.addEventListener('change', (ev) => { state.routesFilters.method = ev.target.value; renderRoutesTable(applyRoutesView(state.routes)); });
+    // Sortable table headers
+    $$('#routesTable thead th[data-key]').forEach((th) => {
+      th.classList.add('sortable');
+      th.addEventListener('click', () => {
+        const key = th.dataset.key;
+        if (state.routesSort.key === key) {
+          state.routesSort.dir = (state.routesSort.dir === 'asc') ? 'desc' : 'asc';
+        } else {
+          state.routesSort = { key, dir: 'asc' };
+        }
+        renderRoutesTable(applyRoutesView(state.routes));
+      });
     });
     $('#drawerRunTool').onclick = runTool;
     $('#drawerStreamTool').onclick = streamTool;

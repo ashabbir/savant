@@ -49,14 +49,13 @@ li:hover { background:#f2f6fb; box-shadow: 0 2px 6px rgba(0,0,0,0.06); }
 .card.selected { outline: 2px solid var(--accent); }
 .card .title { font-weight:600; margin-bottom:4px; }
 .card .title .uptime { color: var(--muted); font-weight: 400; margin-left: 6px; font-size: 12px; }
-.dot-badge { display:inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; background: var(--accent); vertical-align: middle; }
-.badge-context { background: #2e7d32; }
-.badge-jira { background: #1565c0; }
-.badge-think { background: #6a1b9a; }
+/* status dot for running/error */
+.status-dot { display:inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: middle; background: #b0b0b0; }
+.status-ok { background: #2e7d32; }
+.status-bad { background: #c62828; }
 .card .subtitle { color: var(--muted); font-size: 12px; margin-bottom: 6px; }
 .card .meta { color: var(--muted); font-size: 12px; }
-.card .meta-list { list-style: disc; margin: 6px 0 8px 18px; padding: 0; color: var(--muted); font-size: 12px; }
-.card .meta-list li { margin: 2px 0; }
+.card .meta-line { color: var(--muted); font-size: 12px; margin: 2px 0; display:flex; align-items:center; gap:6px; }
 .card .actions { margin-top: 8px; display:flex; justify-content:flex-end; }
 .card .actions button { background: var(--md-tonal); border:1px solid var(--border); color:#2d3a4a; border-radius:18px; padding:6px 12px; cursor:pointer; font-weight:500; }
 .card .actions button:hover { background:#e3e9f3; }
@@ -90,6 +89,8 @@ li:hover { background:#f2f6fb; box-shadow: 0 2px 6px rgba(0,0,0,0.06); }
 .drawer .tool-panel.hidden { display:none; }
 .drawer .tool-panel { display:block; }
 .drawer.mode-tool .tools { display:none; }
+.drawer.mode-list .tools { display:block; }
+.drawer.mode-list #drawerToolPanel { display:none; }
 
 /* Bottom sheet */
 .sheet { position: fixed; left: 0; right: 0; bottom: 0; height: 52vh; background:#fff; border-top:1px solid var(--border); box-shadow: 0 -4px 12px rgba(0,0,0,0.06); transform: translateY(110%); transition: transform .2s ease; z-index: 1100; padding: 12px; overflow: auto; }
@@ -104,11 +105,24 @@ li:hover { background:#f2f6fb; box-shadow: 0 2px 6px rgba(0,0,0,0.06); }
 .table-wrap { border:1px solid var(--border); border-radius:8px; overflow:auto; background:#fff; }
 .table { width:100%; border-collapse:collapse; font-size: 14px; }
 .table thead th { text-align:left; background:#f3f6fa; color:#24303d; border-bottom:1px solid var(--border); padding:8px 10px; }
+.table thead th.sortable { cursor: pointer; user-select: none; }
+.table thead th.sort-asc::after { content: " \25B2"; font-size: 12px; color:#556;
+}
+.table thead th.sort-desc::after { content: " \25BC"; font-size: 12px; color:#556; }
 .table tbody td { border-bottom:1px solid var(--border); padding:8px 10px; vertical-align: top; }
 .table tbody tr:hover { background:#f7faff; }
 .routes-table td:nth-child(2) { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; color:#1f2a36; }
-.routes-controls { margin-bottom: 8px; }
-.routes-controls input[type="text"] { min-width: 260px; padding:8px 12px; border:1px solid var(--border); border-radius:8px; background:#fff; color:var(--fg); }
+.routes-controls { margin-bottom: 8px; display:flex; align-items:center; gap:8px; flex-wrap: wrap; }
+.routes-controls label { display:flex; align-items:center; gap:6px; }
+.routes-controls input[type="text"],
+.routes-controls select { min-width: 180px; padding:8px 12px; border:1px solid var(--border); border-radius:8px; background:#fff; color:var(--fg); }
+.routes-controls #routesSearch { flex: 1; min-width: 260px; }
+
+/* Logs controls */
+.logs-controls { margin: 8px 0; display:flex; align-items:center; gap: 12px; flex-wrap: wrap; }
+.logs-controls label { display:flex; align-items:center; gap:6px; }
+.logs-controls select,
+.logs-controls input[type="number"] { padding:6px 10px; border:1px solid var(--border); border-radius:8px; background:#fff; color:var(--fg); }
 
 /* Material-like ripple */
 .ripple { position: relative; overflow: hidden; }
