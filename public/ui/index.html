@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Savant Hub UI</title>
+    <link rel="stylesheet" href="/ui/styles.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Savant Hub</h1>
+      <div id="status"></div>
+      <div id="settings-panel">
+        <label>Base URL <input id="baseUrl" placeholder="http://localhost:9999" /></label>
+        <label>User ID <input id="userId" placeholder="amd" /></label>
+        <button id="saveSettings">Save</button>
+      </div>
+    </header>
+    <nav>
+      <button data-view="dashboard">Dashboard</button>
+      <button data-view="engines">Engines</button>
+      <button data-view="routes">Routes</button>
+      <button data-view="logs">Logs</button>
+      <button data-view="settings">Settings</button>
+    </nav>
+
+    <main>
+      <section id="view-dashboard" class="view hidden">
+        <h2>Dashboard</h2>
+        <pre id="dashboard"></pre>
+      </section>
+
+      <section id="view-engines" class="view hidden">
+        <h2>Engines</h2>
+        <div class="row">
+          <div class="col">
+            <h3>Mounted Engines</h3>
+            <ul id="engineList"></ul>
+          </div>
+          <div class="col">
+            <h3>Tools</h3>
+            <ul id="toolList"></ul>
+          </div>
+          <div class="col">
+            <h3>Call Tool</h3>
+            <div id="toolDetail"></div>
+            <textarea id="toolInput" rows="8" placeholder='{"param":"value"}'></textarea>
+            <button id="runTool">Run</button>
+            <h4>Result</h4>
+            <pre id="toolResult"></pre>
+          </div>
+        </div>
+      </section>
+
+      <section id="view-routes" class="view hidden">
+        <h2>Routes</h2>
+        <label><input type="checkbox" id="routesExpand" /> Expand tool calls</label>
+        <pre id="routes"></pre>
+      </section>
+
+      <section id="view-logs" class="view hidden">
+        <h2>Logs</h2>
+        <label>Engine <input id="logsEngine" placeholder="context" /></label>
+        <label>Lines <input id="logsN" type="number" value="100" /></label>
+        <div>
+          <button id="logsTail">Tail JSON</button>
+          <button id="logsFollow">Follow SSE</button>
+          <button id="logsStop" disabled>Stop</button>
+          <button id="logsClear">Clear</button>
+        </div>
+        <pre id="logsOut"></pre>
+      </section>
+
+      <section id="view-settings" class="view hidden">
+        <h2>Settings</h2>
+        <p>Configure the Hub base URL and user header. These are stored in your browser only.</p>
+        <div>
+          <label>Base URL <input id="settingsBaseUrl" placeholder="http://localhost:9999" /></label>
+        </div>
+        <div>
+          <label>User ID <input id="settingsUserId" placeholder="amd" /></label>
+        </div>
+        <button id="settingsSave">Save</button>
+      </section>
+    </main>
+
+    <script src="/ui/app.js"></script>
+  </body>
+  </html>
+
