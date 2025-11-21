@@ -8,7 +8,8 @@
 }
 * { box-sizing: border-box; }
 body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background: var(--bg); color: var(--fg); }
-header { display:flex; align-items:center; justify-content:space-between; padding: 12px 16px; background: var(--panel); border-bottom: 1px solid var(--border); }
+header { display:flex; align-items:center; justify-content:space-between; padding: 16px 20px; background: var(--panel); border-bottom: 1px solid var(--border); }
+.app-title { font-size: 22px; margin: 0; }
 nav { display:flex; gap:8px; padding:8px 12px; border-bottom:1px solid var(--border); background: #fbfcfe; }
 nav button { background:#eef2f7; color:var(--fg); border:1px solid var(--border); padding:6px 10px; border-radius:6px; cursor:pointer; }
 nav button:hover { background:#e3e9f3; }
@@ -22,7 +23,7 @@ li { padding:6px 8px; border:1px solid var(--border); border-radius:6px; margin-
 li:hover { background:#f2f6fb; }
 .hidden { display:none; }
 #settings-panel label { margin-right: 8px; }
-#status { color: var(--muted); margin-right:auto; margin-left: 16px; }
+#status { color: var(--muted); margin-left: 16px; font-size: 13px; }
 .tool-form .field { margin-bottom: 8px; }
 .tool-form label { display:block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
 .tool-form input[type="checkbox"] { width:auto; }
