@@ -13,11 +13,7 @@
   };
 
   function saveSettings() {
-    const baseUrl = $('#baseUrl')?.value || state.baseUrl;
-    const userId = $('#userId')?.value || state.userId;
-    state.baseUrl = baseUrl; state.userId = userId;
-    localStorage.setItem('savant.baseUrl', baseUrl);
-    localStorage.setItem('savant.userId', userId);
+    // Only used from Settings tab; header no longer contains inputs
     renderStatus();
   }
 
@@ -415,8 +411,9 @@
 
   function init() {
     // Header settings panel
-    $('#baseUrl').value = state.baseUrl; $('#userId').value = state.userId;
-    $('#saveSettings').onclick = saveSettings;
+    // Header inputs removed; settings managed in Settings tab only
+    const saveBtn = document.getElementById('saveSettings');
+    if (saveBtn) saveBtn.onclick = saveSettings;
     renderStatus();
 
     // Views
