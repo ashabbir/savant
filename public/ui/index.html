@@ -30,6 +30,14 @@
         <div id="dashboardSummary" class="summary"></div>
         <h3>Mounted Engines</h3>
         <div id="dashEngineCards" class="cards"></div>
+        <!-- Left drawer for tools (Dashboard) -->
+        <aside id="dashDrawer" class="drawer left">
+          <div class="drawer-header">
+            <div class="drawer-title">Tools</div>
+            <button id="dashDrawerClose" title="Close">✕</button>
+          </div>
+          <ul id="dashDrawerToolList" class="tools"></ul>
+        </aside>
       </section>
 
       <section id="view-engines" class="view hidden">
@@ -48,26 +56,28 @@
           </div>
           <ul id="drawerToolList" class="tools"></ul>
         </aside>
-        <!-- Bottom sheet for tool call -->
-        <div id="sheet" class="sheet">
-          <div class="sheet-header">
-            <div class="sheet-title">Call Tool</div>
-            <button id="sheetClose" title="Close">▼</button>
-          </div>
-          <div id="sheetToolDetail"></div>
-          <div id="sheetInputMode" class="mode">
-            <label><input type="radio" name="sheet-mode" value="form" checked /> Form</label>
-            <label><input type="radio" name="sheet-mode" value="json" /> JSON</label>
-          </div>
-          <form id="sheetToolForm" class="tool-form"></form>
-          <textarea id="sheetToolInput" class="hidden" rows="8" placeholder='{"param":"value"}'></textarea>
-          <div class="actions">
-            <button id="sheetRunTool">Run</button>
-            <button id="sheetStreamTool" type="button">Stream</button>
-          </div>
-          <h4>Result</h4>
-          <pre id="sheetToolResult"></pre>
+      </section>
+
+      <!-- Bottom sheet for tool call (global) -->
+      <div id="sheet" class="sheet">
+        <div class="sheet-header">
+          <div class="sheet-title">Call Tool</div>
+          <button id="sheetClose" title="Close">▼</button>
         </div>
+        <div id="sheetToolDetail"></div>
+        <div id="sheetInputMode" class="mode">
+          <label><input type="radio" name="sheet-mode" value="form" checked /> Form</label>
+          <label><input type="radio" name="sheet-mode" value="json" /> JSON</label>
+        </div>
+        <form id="sheetToolForm" class="tool-form"></form>
+        <textarea id="sheetToolInput" class="hidden" rows="8" placeholder='{"param":"value"}'></textarea>
+        <div class="actions">
+          <button id="sheetRunTool">Run</button>
+          <button id="sheetStreamTool" type="button">Stream</button>
+        </div>
+        <h4>Result</h4>
+        <pre id="sheetToolResult"></pre>
+      </div>
       </section>
 
       <section id="view-routes" class="view hidden">
