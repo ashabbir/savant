@@ -243,13 +243,13 @@
   }
 
   function currentMode() {
-    const selected = document.querySelector('input[name="mode"]:checked');
+    const selected = document.querySelector('input[name="drawer-mode"]:checked');
     return selected ? selected.value : 'json';
   }
 
   function setInputMode(mode) {
-    const formEl = $('#sheetToolForm');
-    const jsonEl = $('#sheetToolInput');
+    const formEl = $('#drawerToolForm');
+    const jsonEl = $('#drawerToolInput');
     if (mode === 'form') {
       formEl.classList.remove('hidden');
       jsonEl.classList.add('hidden');
@@ -276,7 +276,7 @@
   }
 
   function buildForm(schema) {
-    const form = $('#sheetToolForm');
+    const form = $('#drawerToolForm');
     form.innerHTML = '';
     const props = schema.properties || schema['properties'] || {};
     const required = new Set(schema.required || schema['required'] || []);
@@ -317,7 +317,7 @@
 
   function collectForm() {
     const out = {};
-    $$('#sheetToolForm [data-key]').forEach((el) => {
+    $$('#drawerToolForm [data-key]').forEach((el) => {
       const key = el.dataset.key;
       if (el.type === 'checkbox') {
         out[key] = !!el.checked;
@@ -438,7 +438,9 @@
     $$('#view-settings #settingsUserId').forEach((i) => i.value = state.userId);
 
     // Nav
-    $$('nav button').forEach((btn) => btn.onclick = () => switchView(btn.dataset.view));
+    $$('nav button[data-view]').forEach((btn) => btn.onclick = () => switchView(btn.dataset.view));
+    const cog = document.getElementById('settingsCog');
+    if (cog) cog.onclick = () => switchView('settings');
 
     // Default to dashboard
     switchView('dashboard');
