@@ -49,7 +49,11 @@
       state.engines = data.engines || [];
       renderDashboardSummary(data);
       renderDashboardEngines();
-    } catch (e) { $('#dashboard').textContent = String(e); }
+    } catch (e) {
+      console.error('Dashboard load error', e);
+      const errEl = document.getElementById('dashboardSummary');
+      if (errEl) errEl.textContent = String(e);
+    }
   }
 
   function renderDashboardSummary(data) {
