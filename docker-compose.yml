@@ -60,6 +60,7 @@ services:
       SAVANT_PATH: /app
       SAVANT_LOG_PATH: /tmp/savant
       SAVANT_SECRETS_PATH: /app/secrets.yml
+      DATABASE_URL: postgres://context:contextpw@postgres:5432/contextdb
     volumes:
       - ./:/app:rw
     command: >-
