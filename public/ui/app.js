@@ -181,6 +181,7 @@
       tools.forEach((t) => {
         const nm = t.name || t['name'];
         const desc = t.description || t['description'] || '';
+        const schema = getToolSchema(t);
         const li = document.createElement('li');
         li.className = 'tool-item ripple';
         const icon = document.createElement('span');
@@ -195,7 +196,7 @@
         li.appendChild(icon);
         li.appendChild(nameEl);
         li.appendChild(descEl);
-        li.onclick = () => openToolInDrawer(nm, desc, t.schema || t['schema']);
+        li.onclick = () => openToolInDrawer(nm, desc, schema);
         ul.appendChild(li);
       });
     } catch (e) { ul.innerHTML = `<li>${e}</li>`; }
@@ -229,6 +230,12 @@
     setInputMode(simple ? 'form' : 'json');
     if (simple) buildForm(state.currentSchema);
     $('#drawerToolInput').value = '{}';
+  }
+
+  function getToolSchema(toolSpec) {
+    if (!toolSpec || typeof toolSpec !== 'object') return {};
+    // Prefer inputSchema from backend Tool.spec
+    return toolSpec.inputSchema || toolSpec['inputSchema'] || toolSpec.schema || toolSpec['schema'] || {};
   }
 
   async function runTool() {
