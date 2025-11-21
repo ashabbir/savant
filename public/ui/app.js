@@ -25,10 +25,34 @@
     localStorage.setItem('savant.baseUrl', baseUrl);
     localStorage.setItem('savant.userId', userId);
     renderStatus();
+    loadHeaderInfo();
   }
 
   function renderStatus() {
     $('#status').textContent = `URL: ${state.baseUrl} · user: ${state.userId || '—'}`;
+  }
+
+  async function loadHeaderInfo() {
+    const infoEl = document.getElementById('headerInfo');
+    if (!infoEl) return;
+    try {
+      const data = await api('/');
+      const service = data.service || 'Savant MCP Hub';
+      const version = data.version || '';
+      const transport = (data.transport || '').toUpperCase();
+      const pid = (data.hub && data.hub.pid) ? data.hub.pid : '';
+      const engines = (data.engines || []).map((e) => e.name).join(', ');
+      const parts = [];
+      if (service) parts.push(service);
+      if (version) parts.push(version);
+      if (transport) parts.push(transport);
+      if (pid) parts.push(`PID ${pid}`);
+      if (engines) parts.push(`Engines: ${engines}`);
+      infoEl.textContent = parts.join(' · ');
+    } catch (e) {
+      // Leave header info blank if user not set yet
+      infoEl.textContent = '';
+    }
   }
 
   async function api(path, opts = {}) {
@@ -66,6 +90,8 @@
     const service = data.service || 'Savant MCP Hub';
     const pid = hub.pid || '';
     const up = formatUptime(hub.uptime_seconds || 0);
+    const engines = (data.engines || []);
+    const chips = engines.map((e) => `<span class="chip">${e.name} · ${formatUptime(e.uptime_seconds || 0)}</span>`).join(' ');
     el.innerHTML = `
       <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 8px;">
         <div><strong>${service}</strong> <span class="chip">${version}</span> <span class="chip">${trans.toUpperCase()}</span></div>
@@ -73,8 +99,9 @@
       </div>
       <div class="grid">
         <div class="kv"><span class="k">Uptime</span><span class="v">${up}</span></div>
-        <div class="kv"><span class="k">Mounted Engines</span><span class="v">${(data.engines||[]).length}</span></div>
+        <div class="kv"><span class="k">Mounted Engines</span><span class="v">${engines.length}</span></div>
       </div>
+      <div class="badge-row">${chips}</div>
     `;
   }
 
@@ -88,12 +115,11 @@
       card.dataset.engine = e.name;
       const up = formatUptime(e.uptime_seconds || 0);
       card.innerHTML = `
-        <div class="title">${e.name}</div>
+        <div class="title"><span class="dot-badge badge-${e.name}"></span>${e.name}<span class="uptime"> · ${up}</span></div>
         <div class="subtitle">${e.path}</div>
         <ul class="meta-list">
           <li>tools: ${e.tools}</li>
           <li>status: ${e.status || 'running'}</li>
-          <li>uptime: ${up}</li>
         </ul>
       `;
       // Make the whole card clickable
@@ -120,7 +146,7 @@
       card.dataset.engine = e.name;
       const status = e.status || 'running';
       card.innerHTML = `
-        <div class="title">${e.name}</div>
+        <div class="title"><span class="dot-badge badge-${e.name}"></span>${e.name}<span class="uptime"></span></div>
         <div class="subtitle">${e.path || ''}</div>
         <ul class="meta-list">
           <li>tools: ${e.tools}</li>
@@ -457,6 +483,7 @@
     const saveBtn = document.getElementById('saveSettings');
     if (saveBtn) saveBtn.onclick = saveSettings;
     renderStatus();
+    loadHeaderInfo();
 
     // Views
     $$('#settingsSave').forEach((b) => b.onclick = saveSettingsView);
