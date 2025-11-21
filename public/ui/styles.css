@@ -48,6 +48,11 @@ li:hover { background:#f2f6fb; box-shadow: 0 2px 6px rgba(0,0,0,0.06); }
 .card:hover { background: var(--md-surface-variant); border-color: #cfe2df; }
 .card.selected { outline: 2px solid var(--accent); }
 .card .title { font-weight:600; margin-bottom:4px; }
+.card .title .uptime { color: var(--muted); font-weight: 400; margin-left: 6px; font-size: 12px; }
+.dot-badge { display:inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; background: var(--accent); vertical-align: middle; }
+.badge-context { background: #2e7d32; }
+.badge-jira { background: #1565c0; }
+.badge-think { background: #6a1b9a; }
 .card .subtitle { color: var(--muted); font-size: 12px; margin-bottom: 6px; }
 .card .meta { color: var(--muted); font-size: 12px; }
 .card .meta-list { list-style: disc; margin: 6px 0 8px 18px; padding: 0; color: var(--muted); font-size: 12px; }
