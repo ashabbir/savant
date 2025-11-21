@@ -380,7 +380,7 @@
     }
     routes.forEach((r) => {
       const tr = document.createElement('tr');
-      const tdMod = document.createElement('td'); tdMod.textContent = r.module || r.mod || 'hub';
+      const tdMod = document.createElement('td'); tdMod.textContent = routeModule(r);
       const tdM = document.createElement('td'); tdM.textContent = (r.method || r.METHOD || '').toUpperCase();
       const tdP = document.createElement('td'); tdP.textContent = r.path || r.PATH || '';
       const tdD = document.createElement('td'); tdD.textContent = r.description || '';
@@ -393,12 +393,20 @@
     const query = (q || '').toLowerCase().trim();
     if (!query) return routes;
     return routes.filter((r) => {
-      const mod = (r.module || '').toString().toLowerCase();
+      const mod = routeModule(r).toLowerCase();
       const m = (r.method || '').toString().toLowerCase();
       const p = (r.path || '').toString().toLowerCase();
       const d = (r.description || '').toString().toLowerCase();
       return mod.includes(query) || m.includes(query) || p.includes(query) || d.includes(query);
     });
+  }
+
+  // Derive module (engine name) if not provided by backend
+  function routeModule(r) {
+    if (r && r.module) return String(r.module);
+    const path = (r && r.path) ? String(r.path) : '';
+    const seg = path.split('/').filter(Boolean)[0];
+    return seg || 'hub';
   }
 
   async function logsTail() {
@@ -440,6 +448,7 @@
     $(`#view-${id}`)?.classList.remove('hidden');
     if (id === 'dashboard') loadDashboard();
     if (id === 'routes') loadRoutes();
+    if (id === 'logs') ensureLogsEngines();
   }
 
   function init() {
@@ -481,6 +490,28 @@
 
     // Default to dashboard
     switchView('dashboard');
+  }
+
+  async function ensureLogsEngines() {
+    try {
+      if (!state.engines || state.engines.length === 0) {
+        const data = await api('/');
+        state.engines = data.engines || [];
+      }
+    } catch (e) {
+      // ignore; api() will error if user not set
+    }
+    const sel = document.getElementById('logsEngine');
+    if (!sel) return;
+    const current = sel.value;
+    sel.innerHTML = '';
+    (state.engines || []).forEach((e) => {
+      const opt = document.createElement('option');
+      opt.value = e.name; opt.textContent = e.name;
+      sel.appendChild(opt);
+    });
+    // Restore selection or default to first
+    if (current && Array.from(sel.options).some((o) => o.value === current)) sel.value = current;
   }
 
   document.addEventListener('DOMContentLoaded', init);
