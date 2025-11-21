@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require 'fileutils'
 require_relative '../logger'
 
 module Savant
@@ -14,7 +15,7 @@ module Savant
 
       def initialize(service:, logger: nil)
         @service = service.to_s.empty? ? 'context' : service.to_s
-        @logger = logger
+        @logger = logger || default_file_logger
         @services = {}
       end
 
@@ -22,7 +23,7 @@ module Savant
         tool = normalize_tool_name(name)
         with_tool_logging(tool, request_id) do
           ensure_service
-          registrar.call(tool, args || {}, ctx: { engine: engine, request_id: request_id })
+          registrar.call(tool, args || {}, ctx: { engine: engine, request_id: request_id, logger: logger })
         end
       end
 
@@ -117,3 +118,16 @@ module Savant
     end
   end
 end
+      def default_file_logger
+        begin
+          base = (ENV['SAVANT_LOG_PATH'] && !ENV['SAVANT_LOG_PATH'].empty?) ? ENV['SAVANT_LOG_PATH'] : '/tmp/savant'
+          FileUtils.mkdir_p(base)
+          path = File.join(base, "#{service}.log")
+          io = File.open(path, 'a')
+          io.sync = true
+          Savant::Logger.new(io: io, json: true, service: service)
+        rescue StandardError
+          # Fallback to stdout logger if file path is not writable
+          Savant::Logger.new(io: $stdout, json: true, service: service)
+        end
+      end
