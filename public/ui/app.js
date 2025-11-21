@@ -84,13 +84,15 @@
     container.innerHTML = '';
     state.engines.forEach((e) => {
       const card = document.createElement('div');
-      card.className = 'card';
+      card.className = 'card ripple';
       card.dataset.engine = e.name;
       const up = formatUptime(e.uptime_seconds || 0);
       card.innerHTML = `
         <div class="title">${e.name}</div>
-        <div class="meta">path: ${e.path}</div>
-        <div class="meta">tools: ${e.tools} · status: ${e.status || 'running'} · up: ${up}</div>
+        <ul class="meta-list">
+          <li>path: ${e.path}</li>
+          <li>tools: ${e.tools} · status: ${e.status || 'running'} · up: ${up}</li>
+        </ul>
         <div class="actions"><button data-engine="${e.name}" class="openEngine">Open</button></div>
       `;
       // Make the whole card clickable besides the button
@@ -121,14 +123,22 @@
     container.innerHTML = '';
     state.engines.forEach((e) => {
       const card = document.createElement('div');
-      card.className = 'card';
+      card.className = 'card ripple';
       card.dataset.engine = e.name;
       const status = e.status || 'running';
       card.innerHTML = `
         <div class="title">${e.name}</div>
-        <div class="meta">tools: ${e.tools} · status: ${status}</div>
+        <ul class="meta-list">
+          <li>tools: ${e.tools}</li>
+          <li>status: ${status}</li>
+        </ul>
+        <div class="actions"><button data-engine="${e.name}" class="openEngine">Open</button></div>
       `;
-      card.onclick = () => openDrawerForEngine(e.name);
+      // Click anywhere on card
+      card.onclick = (ev) => {
+        if (ev.target && ev.target.classList && ev.target.classList.contains('openEngine')) return;
+        openRightDrawerForEngine(e.name);
+      };
       container.appendChild(card);
     });
   }
@@ -154,7 +164,7 @@
         const nm = t.name || t['name'];
         const desc = t.description || t['description'] || '';
         const li = document.createElement('li');
-        li.className = 'tool-item';
+        li.className = 'tool-item ripple';
         const icon = document.createElement('span');
         icon.className = 'tool-icon';
         icon.textContent = iconForTool(nm);
