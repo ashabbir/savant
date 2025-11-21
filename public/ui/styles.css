@@ -85,3 +85,4 @@ li:hover { background:#f2f6fb; }
 .table tbody tr:hover { background:#f7faff; }
 .routes-table td:nth-child(2) { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; color:#1f2a36; }
 .routes-controls { margin-bottom: 8px; }
+.routes-controls input[type="text"] { min-width: 260px; padding:6px 10px; border:1px solid var(--border); border-radius:6px; background:#fff; color:var(--fg); }

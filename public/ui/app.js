@@ -10,6 +10,7 @@
     currentTool: null,
     currentSchema: null,
     sse: null,
+    routes: [],
   };
 
   function saveSettings() {
@@ -345,8 +346,18 @@
     try {
       const expanded = $('#routesExpand').checked;
       const data = await api(`/routes${expanded ? '?expand=1' : ''}`);
-      renderRoutesTable(data.routes || data || []);
-    } catch (e) { $('#routes').textContent = String(e); }
+      state.routes = Array.isArray(data.routes) ? data.routes : (Array.isArray(data) ? data : []);
+      renderRoutesTable(filterRoutes(state.routes, ($('#routesSearch')?.value || '')));
+    } catch (e) {
+      const tbody = document.querySelector('#routesTable tbody');
+      if (tbody) {
+        tbody.innerHTML = '';
+        const tr = document.createElement('tr');
+        const td = document.createElement('td');
+        td.colSpan = 3; td.textContent = String(e);
+        tr.appendChild(td); tbody.appendChild(tr);
+      }
+    }
   }
 
   function renderRoutesTable(routes) {
@@ -369,6 +380,17 @@
       const tdD = document.createElement('td'); tdD.textContent = r.description || '';
       tr.appendChild(tdM); tr.appendChild(tdP); tr.appendChild(tdD);
       tbody.appendChild(tr);
+    });
+  }
+
+  function filterRoutes(routes, q) {
+    const query = (q || '').toLowerCase().trim();
+    if (!query) return routes;
+    return routes.filter((r) => {
+      const m = (r.method || '').toString().toLowerCase();
+      const p = (r.path || '').toString().toLowerCase();
+      const d = (r.description || '').toString().toLowerCase();
+      return m.includes(query) || p.includes(query) || d.includes(query);
     });
   }
 
@@ -423,6 +445,10 @@
     // Views
     $$('#settingsSave').forEach((b) => b.onclick = saveSettingsView);
     $('#routesExpand').onchange = loadRoutes;
+    const rs = document.getElementById('routesSearch');
+    if (rs) rs.addEventListener('input', (ev) => {
+      renderRoutesTable(filterRoutes(state.routes, ev.target.value));
+    });
     $('#drawerRunTool').onclick = runTool;
     $('#drawerStreamTool').onclick = streamTool;
     $('#drawerClose').onclick = () => { const d = $('#drawer'); d.classList.remove('open', 'wide', 'mode-tool'); d.classList.add('mode-list'); $('#drawerToolPanel').classList.add('hidden'); };
