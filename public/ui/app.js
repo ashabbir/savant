@@ -96,8 +96,8 @@
     });
     $$('.openEngine').forEach((btn) => btn.onclick = (ev) => {
       const name = ev.currentTarget.dataset.engine;
-      // Stay on dashboard; open left drawer with tools
-      openDashDrawerForEngine(name);
+      // Stay on dashboard; open right drawer (narrow) with tools
+      openRightDrawerForEngine(name);
     });
   }
 
@@ -127,14 +127,18 @@
     });
   }
 
-  async function openDrawerForEngine(name) {
+  async function openRightDrawerForEngine(name) {
     state.currentEngine = name;
     // highlight selected card
-    $$('#engineCards .card').forEach((c) => c.classList.toggle('selected', c.dataset.engine === name));
+    $$('#engineCards .card, #dashEngineCards .card').forEach((c) => c.classList.toggle('selected', c.dataset.engine === name));
     const ul = $('#drawerToolList');
     ul.innerHTML = '';
     const drawer = $('#drawer');
     drawer.classList.add('open');
+    drawer.classList.remove('wide');
+    drawer.classList.remove('mode-tool');
+    drawer.classList.add('mode-list');
+    $('#drawerBack').classList.add('hidden');
     try {
       const data = await api(`/${name}/tools`);
       const tools = data.tools || [];
@@ -155,44 +159,13 @@
         li.appendChild(icon);
         li.appendChild(nameEl);
         li.appendChild(descEl);
-        li.onclick = () => openSheetForTool(nm, desc, t.schema || t['schema']);
+        li.onclick = () => openToolInDrawer(nm, desc, t.schema || t['schema']);
         ul.appendChild(li);
       });
     } catch (e) { ul.innerHTML = `<li>${e}</li>`; }
   }
 
-  async function openDashDrawerForEngine(name) {
-    state.currentEngine = name;
-    $$('#dashEngineCards .card').forEach((c) => c.classList.toggle('selected', c.dataset.engine === name));
-    const ul = $('#dashDrawerToolList');
-    ul.innerHTML = '';
-    const drawer = $('#dashDrawer');
-    drawer.classList.add('open');
-    try {
-      const data = await api(`/${name}/tools`);
-      const tools = data.tools || [];
-      tools.forEach((t) => {
-        const nm = t.name || t['name'];
-        const desc = t.description || t['description'] || '';
-        const li = document.createElement('li');
-        li.className = 'tool-item';
-        const icon = document.createElement('span');
-        icon.className = 'tool-icon';
-        icon.textContent = iconForTool(nm);
-        const nameEl = document.createElement('span');
-        nameEl.className = 'tool-name';
-        nameEl.textContent = nm;
-        const descEl = document.createElement('span');
-        descEl.className = 'tool-desc';
-        descEl.textContent = ` — ${desc}`;
-        li.appendChild(icon);
-        li.appendChild(nameEl);
-        li.appendChild(descEl);
-        li.onclick = () => openSheetForTool(nm, desc, t.schema || t['schema']);
-        ul.appendChild(li);
-      });
-    } catch (e) { ul.innerHTML = `<li>${e}</li>`; }
-  }
+  // removed left drawer flow
 
   function iconForTool(name) {
     if (!name) return '🛠️';
@@ -204,17 +177,20 @@
     return '🛠️';
   }
 
-  function openSheetForTool(name, desc, schema) {
+  function openToolInDrawer(name, desc, schema) {
     state.currentTool = name;
     state.currentSchema = schema || {};
-    const sh = $('#sheet');
-    sh.classList.add('open');
-    const d = $('#sheetToolDetail');
+    const drawer = $('#drawer');
+    drawer.classList.add('open', 'wide');
+    drawer.classList.remove('mode-list');
+    drawer.classList.add('mode-tool');
+    $('#drawerBack').classList.remove('hidden');
+    const d = $('#drawerToolDetail');
     d.innerHTML = `<div><b>${name}</b></div><div>${desc || ''}</div><details><summary>Schema</summary><pre>${JSON.stringify(schema || {}, null, 2)}</pre></details>`;
     const simple = isSimpleObjectSchema(state.currentSchema);
     setInputMode(simple ? 'form' : 'json');
     if (simple) buildForm(state.currentSchema);
-    $('#sheetToolInput').value = '{}';
+    $('#drawerToolInput').value = '{}';
   }
 
   async function runTool() {
@@ -222,7 +198,7 @@
     const mode = currentMode();
     let payload = {};
     if (mode === 'json') {
-      try { payload = JSON.parse($('#sheetToolInput').value || '{}'); } catch { payload = {}; }
+      try { payload = JSON.parse($('#drawerToolInput').value || '{}'); } catch { payload = {}; }
     } else {
       payload = collectForm();
     }
@@ -231,9 +207,9 @@
     try {
       const res = await api(`/${state.currentEngine}/tools/${state.currentTool}/call`, { method: 'POST', headers: { 'content-type': 'application/json' }, body });
       const ms = Math.round(performance.now() - t0);
-      $('#sheetToolResult').textContent = JSON.stringify({ elapsed_ms: ms, result: res }, null, 2);
+      $('#drawerToolResult').textContent = JSON.stringify({ elapsed_ms: ms, result: res }, null, 2);
     } catch (e) {
-      $('#sheetToolResult').textContent = String(e);
+      $('#drawerToolResult').textContent = String(e);
     }
   }
 
@@ -242,28 +218,28 @@
     const mode = currentMode();
     let payload = {};
     if (mode === 'json') {
-      try { payload = JSON.parse($('#sheetToolInput').value || '{}'); } catch { payload = {}; }
+      try { payload = JSON.parse($('#drawerToolInput').value || '{}'); } catch { payload = {}; }
     } else {
       payload = collectForm();
     }
     const qp = encodeURIComponent(JSON.stringify(payload));
     const url = `${state.baseUrl}/${state.currentEngine}/tools/${state.currentTool}/stream?params=${qp}&user=${encodeURIComponent(state.userId)}`;
     try { state.sse && state.sse.close(); } catch {}
-    $('#sheetToolResult').textContent = '';
+    $('#drawerToolResult').textContent = '';
     state.sse = new EventSource(url);
     state.sse.onmessage = (ev) => {
       try {
         const data = JSON.parse(ev.data);
-        $('#sheetToolResult').textContent += `${ev.type || 'event'}: ${JSON.stringify(data)}\n`;
+        $('#drawerToolResult').textContent += `${ev.type || 'event'}: ${JSON.stringify(data)}\n`;
       } catch {
-        $('#sheetToolResult').textContent += `${ev.type || 'event'}: ${ev.data}\n`;
+        $('#drawerToolResult').textContent += `${ev.type || 'event'}: ${ev.data}\n`;
       }
     };
     state.sse.addEventListener('result', (ev) => {
-      try { const d = JSON.parse(ev.data); $('#sheetToolResult').textContent += `result: ${JSON.stringify(d, null, 2)}\n`; } catch {}
+      try { const d = JSON.parse(ev.data); $('#drawerToolResult').textContent += `result: ${JSON.stringify(d, null, 2)}\n`; } catch {}
     });
-    state.sse.addEventListener('error', (ev) => { $('#sheetToolResult').textContent += `error: ${ev.data}\n`; try { state.sse.close(); } catch {} });
-    state.sse.addEventListener('done', () => { $('#sheetToolResult').textContent += `done\n`; try { state.sse.close(); } catch {} });
+    state.sse.addEventListener('error', (ev) => { $('#drawerToolResult').textContent += `error: ${ev.data}\n`; try { state.sse.close(); } catch {} });
+    state.sse.addEventListener('done', () => { $('#drawerToolResult').textContent += `done\n`; try { state.sse.close(); } catch {} });
   }
 
   function currentMode() {
@@ -419,12 +395,11 @@
     // Views
     $$('#settingsSave').forEach((b) => b.onclick = saveSettingsView);
     $('#routesExpand').onchange = loadRoutes;
-    $('#sheetRunTool').onclick = runTool;
-    $('#sheetStreamTool').onclick = streamTool;
-    $('#drawerClose').onclick = () => $('#drawer').classList.remove('open');
-    $('#dashDrawerClose').onclick = () => $('#dashDrawer').classList.remove('open');
-    $('#sheetClose').onclick = () => $('#sheet').classList.remove('open');
-    $$('input[name="sheet-mode"]').forEach((el) => el.addEventListener('change', (ev) => {
+    $('#drawerRunTool').onclick = runTool;
+    $('#drawerStreamTool').onclick = streamTool;
+    $('#drawerClose').onclick = () => { const d = $('#drawer'); d.classList.remove('open', 'wide', 'mode-tool', 'mode-list'); };
+    $('#drawerBack').onclick = () => { const d = $('#drawer'); d.classList.remove('wide', 'mode-tool'); d.classList.add('mode-list'); $('#drawerBack').classList.add('hidden'); };
+    $$('input[name="drawer-mode"]').forEach((el) => el.addEventListener('change', (ev) => {
       const mode = ev.target.value;
       setInputMode(mode);
       if (mode === 'form' && isSimpleObjectSchema(state.currentSchema)) {

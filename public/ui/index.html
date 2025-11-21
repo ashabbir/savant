@@ -30,14 +30,6 @@
         <div id="dashboardSummary" class="summary"></div>
         <h3>Mounted Engines</h3>
         <div id="dashEngineCards" class="cards"></div>
-        <!-- Left drawer for tools (Dashboard) -->
-        <aside id="dashDrawer" class="drawer left">
-          <div class="drawer-header">
-            <div class="drawer-title">Tools</div>
-            <button id="dashDrawerClose" title="Close">✕</button>
-          </div>
-          <ul id="dashDrawerToolList" class="tools"></ul>
-        </aside>
       </section>
 
       <section id="view-engines" class="view hidden">
@@ -48,36 +40,37 @@
             <div id="engineCards" class="cards"></div>
           </div>
         </div>
-        <!-- Right drawer for tools -->
+        <!-- Global right drawer for tools and tool call (two-step) -->
         <aside id="drawer" class="drawer">
           <div class="drawer-header">
             <div class="drawer-title">Tools</div>
-            <button id="drawerClose" title="Close">✕</button>
+            <div class="drawer-actions">
+              <button id="drawerBack" title="Back" class="hidden">◀</button>
+              <button id="drawerClose" title="Close">✕</button>
+            </div>
           </div>
-          <ul id="drawerToolList" class="tools"></ul>
+          <div class="drawer-body">
+            <ul id="drawerToolList" class="tools"></ul>
+            <div id="drawerToolPanel" class="tool-panel hidden">
+              <div id="drawerToolDetail"></div>
+              <div id="drawerInputMode" class="mode">
+                <label><input type="radio" name="drawer-mode" value="form" checked /> Form</label>
+                <label><input type="radio" name="drawer-mode" value="json" /> JSON</label>
+              </div>
+              <form id="drawerToolForm" class="tool-form"></form>
+              <textarea id="drawerToolInput" class="hidden" rows="8" placeholder='{"param":"value"}'></textarea>
+              <div class="actions">
+                <button id="drawerRunTool">Run</button>
+                <button id="drawerStreamTool" type="button">Stream</button>
+              </div>
+              <h4>Result</h4>
+              <pre id="drawerToolResult"></pre>
+            </div>
+          </div>
         </aside>
       </section>
 
-      <!-- Bottom sheet for tool call (global) -->
-      <div id="sheet" class="sheet">
-        <div class="sheet-header">
-          <div class="sheet-title">Call Tool</div>
-          <button id="sheetClose" title="Close">▼</button>
-        </div>
-        <div id="sheetToolDetail"></div>
-        <div id="sheetInputMode" class="mode">
-          <label><input type="radio" name="sheet-mode" value="form" checked /> Form</label>
-          <label><input type="radio" name="sheet-mode" value="json" /> JSON</label>
-        </div>
-        <form id="sheetToolForm" class="tool-form"></form>
-        <textarea id="sheetToolInput" class="hidden" rows="8" placeholder='{"param":"value"}'></textarea>
-        <div class="actions">
-          <button id="sheetRunTool">Run</button>
-          <button id="sheetStreamTool" type="button">Stream</button>
-        </div>
-        <h4>Result</h4>
-        <pre id="sheetToolResult"></pre>
-      </div>
+      <!-- removed bottom sheet -->
       </section>
 
       <section id="view-routes" class="view hidden">
