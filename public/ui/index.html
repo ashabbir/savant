@@ -29,26 +29,7 @@
         <div id="dashboardSummary" class="summary"></div>
         <h3>Mounted Engines</h3>
         <div id="dashEngineCards" class="cards"></div>
-        <div class="col" style="margin-top:16px;">
-          <h3>Logs Preview</h3>
-          <div class="row" style="gap:8px; align-items: flex-end;">
-            <div style="flex:1;">
-              <label>Engine
-                <select id="dashLogsEngine"></select>
-              </label>
-            </div>
-            <div style="width:140px;">
-              <label>Lines <input id="dashLogsN" type="number" value="100" /></label>
-            </div>
-            <div style="display:flex; gap:8px;">
-              <button id="dashLogsTail" type="button">Tail</button>
-              <button id="dashLogsFollow" type="button">Follow</button>
-              <button id="dashLogsStop" type="button" disabled>Stop</button>
-              <button id="dashLogsClear" type="button">Clear</button>
-            </div>
-          </div>
-          <pre id="dashLogsOut" style="margin-top:8px;"></pre>
-        </div>
+        
       </section>
 
       <section id="view-engines" class="view hidden">
@@ -65,13 +46,23 @@
       <section id="view-routes" class="view hidden">
         <h2>Routes</h2>
         <div class="routes-controls">
-          <label><input type="checkbox" id="routesExpand" /> Expand tool calls</label>
+          <label>Module
+            <select id="routesModule"></select>
+          </label>
+          <label>Method
+            <select id="routesMethod"></select>
+          </label>
           <input id="routesSearch" type="text" placeholder="Search routes (method, path, description)" />
         </div>
         <div class="table-wrap">
           <table id="routesTable" class="table routes-table">
             <thead>
-              <tr><th style="width:10rem;">Module</th><th style="width:8rem;">Method</th><th>Path</th><th>Description</th></tr>
+              <tr>
+                <th data-key="module" style="width:10rem; cursor:pointer;">Module</th>
+                <th data-key="method" style="width:8rem; cursor:pointer;">Method</th>
+                <th data-key="path" style="cursor:pointer;">Path</th>
+                <th data-key="description" style="cursor:pointer;">Description</th>
+              </tr>
             </thead>
             <tbody></tbody>
           </table>
@@ -80,10 +71,12 @@
 
       <section id="view-logs" class="view hidden">
         <h2>Logs</h2>
-        <label>Engine
-          <select id="logsEngine"></select>
-        </label>
-        <label>Lines <input id="logsN" type="number" value="100" /></label>
+        <div class="logs-controls">
+          <label>Engine
+            <select id="logsEngine"></select>
+          </label>
+          <label>Lines <input id="logsN" type="number" value="100" /></label>
+        </div>
         <div>
           <button id="logsTail">Tail JSON</button>
           <button id="logsFollow">Follow SSE</button>
