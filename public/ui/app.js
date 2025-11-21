@@ -8,6 +8,7 @@
     engines: [],
     currentEngine: null,
     currentTool: null,
+    currentSchema: null,
     sse: null,
   };
 
@@ -89,15 +90,25 @@
 
   function selectTool(name, desc, schema) {
     state.currentTool = name;
+    state.currentSchema = schema || {};
     const d = $('#toolDetail');
     d.innerHTML = `<div><b>${name}</b></div><div>${desc || ''}</div><details><summary>Schema</summary><pre>${JSON.stringify(schema || {}, null, 2)}</pre></details>`;
+    // Default to form mode if schema is simple object, otherwise JSON
+    const simple = isSimpleObjectSchema(state.currentSchema);
+    setInputMode(simple ? 'form' : 'json');
+    if (simple) buildForm(state.currentSchema);
     $('#toolInput').value = '{}';
   }
 
   async function runTool() {
     if (!state.currentEngine || !state.currentTool) return;
+    const mode = currentMode();
     let payload = {};
-    try { payload = JSON.parse($('#toolInput').value || '{}'); } catch { payload = {}; }
+    if (mode === 'json') {
+      try { payload = JSON.parse($('#toolInput').value || '{}'); } catch { payload = {}; }
+    } else {
+      payload = collectForm();
+    }
     const body = JSON.stringify({ params: payload });
     const t0 = performance.now();
     try {
@@ -107,6 +118,101 @@
     } catch (e) {
       $('#toolResult').textContent = String(e);
     }
+  }
+
+  function currentMode() {
+    const selected = document.querySelector('input[name="mode"]:checked');
+    return selected ? selected.value : 'json';
+  }
+
+  function setInputMode(mode) {
+    const formEl = $('#toolForm');
+    const jsonEl = $('#toolInput');
+    if (mode === 'form') {
+      formEl.classList.remove('hidden');
+      jsonEl.classList.add('hidden');
+    } else {
+      formEl.classList.add('hidden');
+      jsonEl.classList.remove('hidden');
+    }
+  }
+
+  function isSimpleObjectSchema(schema) {
+    if (!schema || typeof schema !== 'object') return false;
+    if ((schema.type || schema['type']) !== 'object') return false;
+    const props = schema.properties || schema['properties'] || {};
+    return Object.values(props).every((p) => {
+      const t = (p.type || p['type']);
+      if (t === 'string' || t === 'integer' || t === 'number' || t === 'boolean') return true;
+      if (t === 'array') {
+        const it = p.items || p['items'] || {};
+        const itType = it.type || it['type'];
+        return itType === 'string';
+      }
+      return false;
+    });
+  }
+
+  function buildForm(schema) {
+    const form = $('#toolForm');
+    form.innerHTML = '';
+    const props = schema.properties || schema['properties'] || {};
+    const required = new Set(schema.required || schema['required'] || []);
+    Object.entries(props).forEach(([key, prop]) => {
+      const t = prop.type || prop['type'];
+      const label = document.createElement('label');
+      label.textContent = `${key}${required.has(key) ? ' *' : ''}`;
+      label.title = prop.description || prop['description'] || '';
+      const fieldWrap = document.createElement('div');
+      fieldWrap.className = 'field';
+      fieldWrap.appendChild(label);
+      let input;
+      if (t === 'boolean') {
+        input = document.createElement('input');
+        input.type = 'checkbox';
+        input.dataset.key = key;
+      } else if (t === 'integer' || t === 'number') {
+        input = document.createElement('input');
+        input.type = 'number';
+        input.step = t === 'integer' ? '1' : 'any';
+        input.dataset.key = key;
+      } else if (t === 'array') {
+        input = document.createElement('textarea');
+        input.rows = 3;
+        input.placeholder = 'one per line';
+        input.dataset.key = key;
+        input.dataset.kind = 'array-string';
+      } else {
+        input = document.createElement('input');
+        input.type = 'text';
+        input.placeholder = key;
+        input.dataset.key = key;
+      }
+      fieldWrap.appendChild(input);
+      form.appendChild(fieldWrap);
+    });
+  }
+
+  function collectForm() {
+    const out = {};
+    $$('#toolForm [data-key]').forEach((el) => {
+      const key = el.dataset.key;
+      if (el.type === 'checkbox') {
+        out[key] = !!el.checked;
+      } else if (el.dataset.kind === 'array-string') {
+        const lines = (el.value || '').split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
+        out[key] = lines;
+      } else if (el.type === 'number') {
+        const v = el.value;
+        if (v === '' || v == null) { out[key] = null; }
+        else {
+          out[key] = el.step === '1' ? parseInt(v, 10) : parseFloat(v);
+        }
+      } else {
+        out[key] = el.value;
+      }
+    });
+    return out;
   }
 
   async function loadRoutes() {
@@ -168,6 +274,13 @@
     $$('#settingsSave').forEach((b) => b.onclick = saveSettingsView);
     $('#routesExpand').onchange = loadRoutes;
     $('#runTool').onclick = runTool;
+    $$('input[name="mode"]').forEach((el) => el.addEventListener('change', (ev) => {
+      const mode = ev.target.value;
+      setInputMode(mode);
+      if (mode === 'form' && isSimpleObjectSchema(state.currentSchema)) {
+        buildForm(state.currentSchema);
+      }
+    }));
     $('#logsTail').onclick = logsTail;
     $('#logsFollow').onclick = logsFollow;
     $('#logsStop').onclick = logsStop;
@@ -184,4 +297,3 @@
 
   document.addEventListener('DOMContentLoaded', init);
 })();
-
