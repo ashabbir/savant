@@ -96,8 +96,8 @@
     });
     $$('.openEngine').forEach((btn) => btn.onclick = (ev) => {
       const name = ev.currentTarget.dataset.engine;
-      switchView('engines');
-      openDrawerForEngine(name);
+      // Stay on dashboard; open left drawer with tools
+      openDashDrawerForEngine(name);
     });
   }
 
@@ -134,6 +134,39 @@
     const ul = $('#drawerToolList');
     ul.innerHTML = '';
     const drawer = $('#drawer');
+    drawer.classList.add('open');
+    try {
+      const data = await api(`/${name}/tools`);
+      const tools = data.tools || [];
+      tools.forEach((t) => {
+        const nm = t.name || t['name'];
+        const desc = t.description || t['description'] || '';
+        const li = document.createElement('li');
+        li.className = 'tool-item';
+        const icon = document.createElement('span');
+        icon.className = 'tool-icon';
+        icon.textContent = iconForTool(nm);
+        const nameEl = document.createElement('span');
+        nameEl.className = 'tool-name';
+        nameEl.textContent = nm;
+        const descEl = document.createElement('span');
+        descEl.className = 'tool-desc';
+        descEl.textContent = ` — ${desc}`;
+        li.appendChild(icon);
+        li.appendChild(nameEl);
+        li.appendChild(descEl);
+        li.onclick = () => openSheetForTool(nm, desc, t.schema || t['schema']);
+        ul.appendChild(li);
+      });
+    } catch (e) { ul.innerHTML = `<li>${e}</li>`; }
+  }
+
+  async function openDashDrawerForEngine(name) {
+    state.currentEngine = name;
+    $$('#dashEngineCards .card').forEach((c) => c.classList.toggle('selected', c.dataset.engine === name));
+    const ul = $('#dashDrawerToolList');
+    ul.innerHTML = '';
+    const drawer = $('#dashDrawer');
     drawer.classList.add('open');
     try {
       const data = await api(`/${name}/tools`);
@@ -389,6 +422,7 @@
     $('#sheetRunTool').onclick = runTool;
     $('#sheetStreamTool').onclick = streamTool;
     $('#drawerClose').onclick = () => $('#drawer').classList.remove('open');
+    $('#dashDrawerClose').onclick = () => $('#dashDrawer').classList.remove('open');
     $('#sheetClose').onclick = () => $('#sheet').classList.remove('open');
     $$('input[name="sheet-mode"]').forEach((el) => el.addEventListener('change', (ev) => {
       const mode = ev.target.value;
