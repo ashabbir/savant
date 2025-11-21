@@ -99,6 +99,12 @@ module Savant
         when ['tools']
           tools = safe_specs(manager)
           respond(200, { engine: engine_name, tools: tools })
+        when *rest
+          # Stream tool call via SSE: /:engine/tools/:name/stream
+          if rest.length >= 3 && rest[0] == 'tools' && rest[-1] == 'stream'
+            tool = rest[1..-2].join('/')
+            return sse_tool_call(req, engine_name, manager, tool)
+          end
         when ['status']
           info = manager.service_info
           uptime = manager.respond_to?(:uptime) ? manager.uptime : 0
@@ -264,6 +270,30 @@ module Savant
           # Client disconnect or file issues; end stream
         end
 
+        [200, sse_headers, body]
+      end
+
+      def sse_tool_call(req, engine_name, manager, tool)
+        # Params passed as JSON string via ?params=... to fit GET semantics
+        raw = (req.params['params'] || '').to_s
+        params = {}
+        begin
+          params = raw.empty? ? {} : JSON.parse(raw)
+        rescue StandardError
+          params = {}
+        end
+        user_id = req.env['savant.user_id']
+
+        body = Enumerator.new do |y|
+          y << format_sse_event('start', { tool: tool })
+          begin
+            result = call_with_user_context(manager, engine_name, tool, params, user_id)
+            y << format_sse_event('result', result)
+            y << format_sse_event('done', {})
+          rescue StandardError => e
+            y << format_sse_event('error', { message: e.message })
+          end
+        end
         [200, sse_headers, body]
       end
 

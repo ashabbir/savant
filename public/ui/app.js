@@ -120,6 +120,35 @@
     }
   }
 
+  function streamTool() {
+    if (!state.currentEngine || !state.currentTool) return;
+    const mode = currentMode();
+    let payload = {};
+    if (mode === 'json') {
+      try { payload = JSON.parse($('#toolInput').value || '{}'); } catch { payload = {}; }
+    } else {
+      payload = collectForm();
+    }
+    const qp = encodeURIComponent(JSON.stringify(payload));
+    const url = `${state.baseUrl}/${state.currentEngine}/tools/${state.currentTool}/stream?params=${qp}&user=${encodeURIComponent(state.userId)}`;
+    try { state.sse && state.sse.close(); } catch {}
+    $('#toolResult').textContent = '';
+    state.sse = new EventSource(url);
+    state.sse.onmessage = (ev) => {
+      try {
+        const data = JSON.parse(ev.data);
+        $('#toolResult').textContent += `${ev.type || 'event'}: ${JSON.stringify(data)}\n`;
+      } catch {
+        $('#toolResult').textContent += `${ev.type || 'event'}: ${ev.data}\n`;
+      }
+    };
+    state.sse.addEventListener('result', (ev) => {
+      try { const d = JSON.parse(ev.data); $('#toolResult').textContent += `result: ${JSON.stringify(d, null, 2)}\n`; } catch {}
+    });
+    state.sse.addEventListener('error', (ev) => { $('#toolResult').textContent += `error: ${ev.data}\n`; try { state.sse.close(); } catch {} });
+    state.sse.addEventListener('done', () => { $('#toolResult').textContent += `done\n`; try { state.sse.close(); } catch {} });
+  }
+
   function currentMode() {
     const selected = document.querySelector('input[name="mode"]:checked');
     return selected ? selected.value : 'json';
@@ -274,6 +303,7 @@
     $$('#settingsSave').forEach((b) => b.onclick = saveSettingsView);
     $('#routesExpand').onchange = loadRoutes;
     $('#runTool').onclick = runTool;
+    $('#streamTool').onclick = streamTool;
     $$('input[name="mode"]').forEach((el) => el.addEventListener('change', (ev) => {
       const mode = ev.target.value;
       setInputMode(mode);
