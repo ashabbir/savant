@@ -44,7 +44,12 @@
           <div class="col">
             <h3>Call Tool</h3>
             <div id="toolDetail"></div>
-            <textarea id="toolInput" rows="8" placeholder='{"param":"value"}'></textarea>
+            <div id="inputMode">
+              <label><input type="radio" name="mode" value="form" checked /> Form</label>
+              <label><input type="radio" name="mode" value="json" /> JSON</label>
+            </div>
+            <form id="toolForm" class="tool-form"></form>
+            <textarea id="toolInput" class="hidden" rows="8" placeholder='{"param":"value"}'></textarea>
             <button id="runTool">Run</button>
             <h4>Result</h4>
             <pre id="toolResult"></pre>
@@ -87,4 +92,3 @@
     <script src="/ui/app.js"></script>
   </body>
   </html>
-

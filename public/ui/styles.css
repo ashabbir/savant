@@ -1,26 +1,28 @@
 :root {
-  --bg: #0b0c10;
-  --fg: #eaeef2;
-  --muted: #9aa4af;
-  --accent: #4f9cf0;
-  --panel: #111318;
-  --border: #1b1f27;
+  --bg: #ffffff;
+  --fg: #0b0c10;
+  --muted: #5b6570;
+  --accent: #2d6cdf;
+  --panel: #f7f8fa;
+  --border: #e1e5ea;
 }
 * { box-sizing: border-box; }
 body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background: var(--bg); color: var(--fg); }
 header { display:flex; align-items:center; justify-content:space-between; padding: 12px 16px; background: var(--panel); border-bottom: 1px solid var(--border); }
-nav { display:flex; gap:8px; padding:8px 12px; border-bottom:1px solid var(--border); background: #0e1016; }
-nav button { background:#192030; color:var(--fg); border:1px solid var(--border); padding:6px 10px; border-radius:6px; cursor:pointer; }
-nav button:hover { background:#1e283d; }
+nav { display:flex; gap:8px; padding:8px 12px; border-bottom:1px solid var(--border); background: #fbfcfe; }
+nav button { background:#eef2f7; color:var(--fg); border:1px solid var(--border); padding:6px 10px; border-radius:6px; cursor:pointer; }
+nav button:hover { background:#e3e9f3; }
 main { padding: 16px; }
 .row { display:flex; gap:16px; }
 .col { flex:1; border:1px solid var(--border); background: var(--panel); padding:12px; border-radius:8px; min-height: 200px; }
-textarea, input { width:100%; background:#0f1320; color:var(--fg); border:1px solid var(--border); border-radius:6px; padding:8px; margin:6px 0; }
-pre { background:#0f1320; color:#cde3ff; border:1px solid var(--border); padding:10px; border-radius:6px; overflow:auto; max-height: 420px; }
+textarea, input { width:100%; background:#fff; color:var(--fg); border:1px solid var(--border); border-radius:6px; padding:8px; margin:6px 0; }
+pre { background:#fbfcfe; color:#1d2733; border:1px solid var(--border); padding:10px; border-radius:6px; overflow:auto; max-height: 420px; }
 ul { list-style:none; padding-left:0; }
-li { padding:6px 8px; border:1px solid var(--border); border-radius:6px; margin-bottom:6px; cursor:pointer; background:#0f1320; }
-li:hover { background:#13203a; }
+li { padding:6px 8px; border:1px solid var(--border); border-radius:6px; margin-bottom:6px; cursor:pointer; background:#fff; }
+li:hover { background:#f2f6fb; }
 .hidden { display:none; }
 #settings-panel label { margin-right: 8px; }
 #status { color: var(--muted); margin-right:auto; margin-left: 16px; }
-
+.tool-form .field { margin-bottom: 8px; }
+.tool-form label { display:block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+.tool-form input[type="checkbox"] { width:auto; }
