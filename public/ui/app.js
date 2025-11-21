@@ -480,6 +480,11 @@
     $('#logsFollow').onclick = logsFollow;
     $('#logsStop').onclick = logsStop;
     $('#logsClear').onclick = logsClear;
+    // Dashboard logs controls
+    const dlt = document.getElementById('dashLogsTail'); if (dlt) dlt.onclick = dashLogsTail;
+    const dlf = document.getElementById('dashLogsFollow'); if (dlf) dlf.onclick = dashLogsFollow;
+    const dls = document.getElementById('dashLogsStop'); if (dls) dls.onclick = dashLogsStop;
+    const dlc = document.getElementById('dashLogsClear'); if (dlc) dlc.onclick = dashLogsClear;
     $$('#view-settings #settingsBaseUrl').forEach((i) => i.value = state.baseUrl);
     $$('#view-settings #settingsUserId').forEach((i) => i.value = state.userId);
 
@@ -513,6 +518,66 @@
     // Restore selection or default to first
     if (current && Array.from(sel.options).some((o) => o.value === current)) sel.value = current;
   }
+
+  // Dashboard logs preview handlers
+  async function dashPopulateLogsEngines() {
+    try {
+      if (!state.engines || state.engines.length === 0) {
+        const data = await api('/');
+        state.engines = data.engines || [];
+      }
+    } catch (e) { /* ignore */ }
+    const sel = document.getElementById('dashLogsEngine');
+    if (!sel) return;
+    const current = sel.value;
+    sel.innerHTML = '';
+    (state.engines || []).forEach((e) => {
+      const opt = document.createElement('option');
+      opt.value = e.name; opt.textContent = e.name;
+      sel.appendChild(opt);
+    });
+    if (current && Array.from(sel.options).some((o) => o.value === current)) sel.value = current;
+  }
+
+  async function dashLogsTail() {
+    await dashPopulateLogsEngines();
+    const engine = document.getElementById('dashLogsEngine').value || 'context';
+    const n = parseInt(document.getElementById('dashLogsN').value || '100', 10);
+    try {
+      const data = await api(`/${engine}/logs?n=${n}`);
+      const lines = data.lines || [];
+      document.getElementById('dashLogsOut').textContent = (lines.length ? lines.join('\n') : (data.note || 'No logs'));
+    } catch (e) {
+      document.getElementById('dashLogsOut').textContent = String(e);
+    }
+  }
+
+  async function dashLogsFollow() {
+    await dashPopulateLogsEngines();
+    const engine = document.getElementById('dashLogsEngine').value || 'context';
+    const n = parseInt(document.getElementById('dashLogsN').value || '100', 10);
+    const url = `${state.baseUrl}/${engine}/logs?stream=1&n=${n}&user=${encodeURIComponent(state.userId)}`;
+    try { state.sse && state.sse.close(); } catch {}
+    document.getElementById('dashLogsOut').textContent = '';
+    state.sse = new EventSource(url);
+    document.getElementById('dashLogsStop').disabled = false;
+    state.sse.onmessage = (ev) => {
+      try {
+        const data = JSON.parse(ev.data);
+        document.getElementById('dashLogsOut').textContent += (data.line || '') + '\n';
+      } catch {
+        document.getElementById('dashLogsOut').textContent += (ev.data || '') + '\n';
+      }
+    };
+    state.sse.onerror = () => { try { state.sse.close(); } catch {}; document.getElementById('dashLogsStop').disabled = true; };
+  }
+
+  function dashLogsStop() {
+    try { state.sse && state.sse.close(); } catch {}
+    document.getElementById('dashLogsStop').disabled = true;
+  }
+
+  function dashLogsClear() { document.getElementById('dashLogsOut').textContent = ''; }
 
   document.addEventListener('DOMContentLoaded', init);
 })();
