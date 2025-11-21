@@ -51,9 +51,62 @@
     try {
       const data = await api('/');
       state.engines = data.engines || [];
-      $('#dashboard').textContent = JSON.stringify(data, null, 2);
-      renderEnginesList();
+      renderDashboardSummary(data);
+      renderDashboardEngines();
     } catch (e) { $('#dashboard').textContent = String(e); }
+  }
+
+  function renderDashboardSummary(data) {
+    const el = $('#dashboardSummary');
+    if (!el) return;
+    const hub = data.hub || {};
+    const trans = data.transport || 'sse';
+    const version = data.version || '';
+    const service = data.service || 'Savant MCP Hub';
+    const pid = hub.pid || '';
+    const up = formatUptime(hub.uptime_seconds || 0);
+    el.innerHTML = `
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom: 8px;">
+        <div><strong>${service}</strong> <span class="chip">${version}</span> <span class="chip">${trans.toUpperCase()}</span></div>
+        <div class="chip">PID ${pid}</div>
+      </div>
+      <div class="grid">
+        <div class="kv"><span class="k">Uptime</span><span class="v">${up}</span></div>
+        <div class="kv"><span class="k">Mounted Engines</span><span class="v">${(data.engines||[]).length}</span></div>
+      </div>
+    `;
+  }
+
+  function renderDashboardEngines() {
+    const container = $('#dashEngineCards');
+    if (!container) return;
+    container.innerHTML = '';
+    state.engines.forEach((e) => {
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.dataset.engine = e.name;
+      const up = formatUptime(e.uptime_seconds || 0);
+      card.innerHTML = `
+        <div class="title">${e.name}</div>
+        <div class="meta">path: ${e.path}</div>
+        <div class="meta">tools: ${e.tools} · status: ${e.status || 'running'} · up: ${up}</div>
+        <div class="actions"><button data-engine="${e.name}" class="openEngine">Open</button></div>
+      `;
+      container.appendChild(card);
+    });
+    $$('.openEngine').forEach((btn) => btn.onclick = (ev) => {
+      const name = ev.currentTarget.dataset.engine;
+      switchView('engines');
+      selectEngine(name);
+    });
+  }
+
+  function formatUptime(sec) {
+    const s = Math.max(0, parseInt(sec, 10) || 0);
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const ss = s % 60;
+    return `${h}h ${m}m ${ss}s`;
   }
 
   function renderEnginesList() {
