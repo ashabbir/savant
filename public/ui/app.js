@@ -93,6 +93,11 @@
         <div class="meta">tools: ${e.tools} · status: ${e.status || 'running'} · up: ${up}</div>
         <div class="actions"><button data-engine="${e.name}" class="openEngine">Open</button></div>
       `;
+      // Make the whole card clickable besides the button
+      card.addEventListener('click', (ev) => {
+        if (ev.target && ev.target.classList && ev.target.classList.contains('openEngine')) return;
+        openRightDrawerForEngine(e.name);
+      });
       container.appendChild(card);
     });
     $$('.openEngine').forEach((btn) => btn.onclick = (ev) => {

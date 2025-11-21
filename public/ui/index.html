@@ -35,38 +35,8 @@
             <div id="engineCards" class="cards"></div>
           </div>
         </div>
-        <!-- Global right drawer for tools and tool call (two-step) -->
-        <aside id="drawer" class="drawer">
-          <div class="drawer-header">
-            <div class="drawer-title">Tools</div>
-            <div class="drawer-actions">
-              <button id="drawerBack" title="Back" class="hidden">◀</button>
-              <button id="drawerClose" title="Close">✕</button>
-            </div>
-          </div>
-          <div class="drawer-body">
-            <ul id="drawerToolList" class="tools"></ul>
-            <div id="drawerToolPanel" class="tool-panel hidden">
-              <div id="drawerToolDetail"></div>
-              <div id="drawerInputMode" class="mode">
-                <label><input type="radio" name="drawer-mode" value="form" checked /> Form</label>
-                <label><input type="radio" name="drawer-mode" value="json" /> JSON</label>
-              </div>
-              <form id="drawerToolForm" class="tool-form"></form>
-              <textarea id="drawerToolInput" class="hidden" rows="8" placeholder='{"param":"value"}'></textarea>
-              <div class="actions">
-                <button id="drawerRunTool" type="button">Run</button>
-                <button id="drawerStreamTool" type="button">Stream</button>
-              </div>
-              <h4>Result</h4>
-              <pre id="drawerToolResult"></pre>
-            </div>
-          </div>
-        </aside>
       </section>
 
-      <!-- removed bottom sheet -->
-      </section>
 
       <section id="view-routes" class="view hidden">
         <h2>Routes</h2>
@@ -108,6 +78,35 @@
         </div>
         <button id="settingsSave">Save</button>
       </section>
+
+      <!-- Global right drawer for tools and tool call (two-step) -->
+      <aside id="drawer" class="drawer">
+        <div class="drawer-header">
+          <div class="drawer-title">Tools</div>
+          <div class="drawer-actions">
+            <button id="drawerBack" title="Back" class="hidden">◀</button>
+            <button id="drawerClose" title="Close">✕</button>
+          </div>
+        </div>
+        <div class="drawer-body">
+          <ul id="drawerToolList" class="tools"></ul>
+          <div id="drawerToolPanel" class="tool-panel hidden">
+            <div id="drawerToolDetail"></div>
+            <div id="drawerInputMode" class="mode">
+              <label><input type="radio" name="drawer-mode" value="form" checked /> Form</label>
+              <label><input type="radio" name="drawer-mode" value="json" /> JSON</label>
+            </div>
+            <form id="drawerToolForm" class="tool-form"></form>
+            <textarea id="drawerToolInput" class="hidden" rows="8" placeholder='{"param":"value"}'></textarea>
+            <div class="actions">
+              <button id="drawerRunTool" type="button">Run</button>
+              <button id="drawerStreamTool" type="button">Stream</button>
+            </div>
+            <h4>Result</h4>
+            <pre id="drawerToolResult"></pre>
+          </div>
+        </div>
+      </aside>
     </main>
 
     <script src="/ui/app.js"></script>
