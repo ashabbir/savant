@@ -99,6 +99,9 @@ when 'hub'
       engines = app.engine_overview
       summary = engines.map { |e| "#{e[:name]}(#{e[:tools]})" }.join(', ')
       puts "Mounted engines: #{summary}"
+      # Hint UI mount
+      ui_root = app.respond_to?(:ui_root) ? app.ui_root : File.join(ENV['SAVANT_PATH'].to_s.empty? ? File.expand_path('../..', __dir__) : ENV['SAVANT_PATH'], 'public', 'ui')
+      puts "UI mounted at /ui (root=#{ui_root})" if ui_root && File.directory?(ui_root)
     rescue StandardError
       # ignore any startup summary errors
     end

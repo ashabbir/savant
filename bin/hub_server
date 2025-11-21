@@ -79,6 +79,8 @@ if app.respond_to?(:engine_overview)
     engines = app.engine_overview
     summary = engines.map { |e| "#{e[:name]}(#{e[:tools]})" }.join(', ')
     puts "Mounted engines: #{summary}"
+    ui_root = app.respond_to?(:ui_root) ? app.ui_root : File.join(base_path, 'public', 'ui')
+    puts "UI mounted at /ui (root=#{ui_root})" if ui_root && File.directory?(ui_root)
   rescue StandardError
     # ignore summary errors on startup
   end
