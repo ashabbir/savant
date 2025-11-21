@@ -341,8 +341,31 @@
     try {
       const expanded = $('#routesExpand').checked;
       const data = await api(`/routes${expanded ? '?expand=1' : ''}`);
-      $('#routes').textContent = JSON.stringify(data, null, 2);
+      renderRoutesTable(data.routes || data || []);
     } catch (e) { $('#routes').textContent = String(e); }
+  }
+
+  function renderRoutesTable(routes) {
+    const tbody = document.querySelector('#routesTable tbody');
+    if (!tbody) return;
+    tbody.innerHTML = '';
+    if (!Array.isArray(routes) || routes.length === 0) {
+      const tr = document.createElement('tr');
+      const td = document.createElement('td');
+      td.colSpan = 3;
+      td.textContent = 'No routes';
+      tr.appendChild(td);
+      tbody.appendChild(tr);
+      return;
+    }
+    routes.forEach((r) => {
+      const tr = document.createElement('tr');
+      const tdM = document.createElement('td'); tdM.textContent = r.method || r.METHOD || '';
+      const tdP = document.createElement('td'); tdP.textContent = r.path || r.PATH || '';
+      const tdD = document.createElement('td'); tdD.textContent = r.description || '';
+      tr.appendChild(tdM); tr.appendChild(tdP); tr.appendChild(tdD);
+      tbody.appendChild(tr);
+    });
   }
 
   async function logsTail() {
