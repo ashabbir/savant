@@ -97,7 +97,7 @@
     $$('.openEngine').forEach((btn) => btn.onclick = (ev) => {
       const name = ev.currentTarget.dataset.engine;
       switchView('engines');
-      selectEngine(name);
+      openDrawerForEngine(name);
     });
   }
 
@@ -239,8 +239,8 @@
   }
 
   function setInputMode(mode) {
-    const formEl = $('#toolForm');
-    const jsonEl = $('#toolInput');
+    const formEl = $('#sheetToolForm');
+    const jsonEl = $('#sheetToolInput');
     if (mode === 'form') {
       formEl.classList.remove('hidden');
       jsonEl.classList.add('hidden');
@@ -267,7 +267,7 @@
   }
 
   function buildForm(schema) {
-    const form = $('#toolForm');
+    const form = $('#sheetToolForm');
     form.innerHTML = '';
     const props = schema.properties || schema['properties'] || {};
     const required = new Set(schema.required || schema['required'] || []);
@@ -308,7 +308,7 @@
 
   function collectForm() {
     const out = {};
-    $$('#toolForm [data-key]').forEach((el) => {
+    $$('#sheetToolForm [data-key]').forEach((el) => {
       const key = el.dataset.key;
       if (el.type === 'checkbox') {
         out[key] = !!el.checked;
