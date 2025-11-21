@@ -41,11 +41,13 @@ li:hover { background:#f2f6fb; box-shadow: 0 2px 6px rgba(0,0,0,0.06); }
 .tool-form input[type="checkbox"] { width:auto; }
 
 /* Engine cards */
-.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
-.card { border:1px solid var(--border); background:#fff; border-radius:16px; padding:14px; cursor:pointer; box-shadow: 0 1.5px 3px rgba(0,0,0,0.05); transition: box-shadow .18s ease, transform .06s ease; }
-.card:hover { box-shadow: 0 4px 10px rgba(0,0,0,0.08); transform: translateY(-1px); }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
+/* Outlined card (Material Rally style) */
+.card { border:1px solid var(--border); background:#fff; border-radius:16px; padding:14px; cursor:pointer; transition: border-color .15s ease, background .15s ease; box-shadow: none; }
+.card:hover { background: var(--md-surface-variant); border-color: #cfe2df; }
 .card.selected { outline: 2px solid var(--accent); }
 .card .title { font-weight:600; margin-bottom:4px; }
+.card .subtitle { color: var(--muted); font-size: 12px; margin-bottom: 6px; }
 .card .meta { color: var(--muted); font-size: 12px; }
 .card .meta-list { list-style: disc; margin: 6px 0 8px 18px; padding: 0; color: var(--muted); font-size: 12px; }
 .card .meta-list li { margin: 2px 0; }

@@ -89,9 +89,11 @@
       const up = formatUptime(e.uptime_seconds || 0);
       card.innerHTML = `
         <div class="title">${e.name}</div>
+        <div class="subtitle">${e.path}</div>
         <ul class="meta-list">
-          <li>path: ${e.path}</li>
-          <li>tools: ${e.tools} · status: ${e.status || 'running'} · up: ${up}</li>
+          <li>tools: ${e.tools}</li>
+          <li>status: ${e.status || 'running'}</li>
+          <li>uptime: ${up}</li>
         </ul>
         <div class="actions"><button data-engine="${e.name}" class="openEngine">Open</button></div>
       `;
@@ -128,6 +130,7 @@
       const status = e.status || 'running';
       card.innerHTML = `
         <div class="title">${e.name}</div>
+        <div class="subtitle">${e.path || ''}</div>
         <ul class="meta-list">
           <li>tools: ${e.tools}</li>
           <li>status: ${status}</li>
