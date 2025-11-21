@@ -95,19 +95,10 @@
           <li>status: ${e.status || 'running'}</li>
           <li>uptime: ${up}</li>
         </ul>
-        <div class="actions"><button data-engine="${e.name}" class="openEngine">Open</button></div>
       `;
-      // Make the whole card clickable besides the button
-      card.addEventListener('click', (ev) => {
-        if (ev.target && ev.target.classList && ev.target.classList.contains('openEngine')) return;
-        openRightDrawerForEngine(e.name);
-      });
+      // Make the whole card clickable
+      card.addEventListener('click', () => openRightDrawerForEngine(e.name));
       container.appendChild(card);
-    });
-    $$('.openEngine').forEach((btn) => btn.onclick = (ev) => {
-      const name = ev.currentTarget.dataset.engine;
-      // Stay on dashboard; open right drawer (narrow) with tools
-      openRightDrawerForEngine(name);
     });
   }
 
@@ -135,13 +126,9 @@
           <li>tools: ${e.tools}</li>
           <li>status: ${status}</li>
         </ul>
-        <div class="actions"><button data-engine="${e.name}" class="openEngine">Open</button></div>
       `;
       // Click anywhere on card
-      card.onclick = (ev) => {
-        if (ev.target && ev.target.classList && ev.target.classList.contains('openEngine')) return;
-        openRightDrawerForEngine(e.name);
-      };
+      card.onclick = () => openRightDrawerForEngine(e.name);
       container.appendChild(card);
     });
   }
