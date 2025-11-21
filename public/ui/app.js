@@ -382,7 +382,7 @@
     if (!Array.isArray(routes) || routes.length === 0) {
       const tr = document.createElement('tr');
       const td = document.createElement('td');
-      td.colSpan = 3;
+      td.colSpan = 4;
       td.textContent = 'No routes';
       tr.appendChild(td);
       tbody.appendChild(tr);
@@ -390,10 +390,11 @@
     }
     routes.forEach((r) => {
       const tr = document.createElement('tr');
-      const tdM = document.createElement('td'); tdM.textContent = r.method || r.METHOD || '';
+      const tdMod = document.createElement('td'); tdMod.textContent = r.module || r.mod || 'hub';
+      const tdM = document.createElement('td'); tdM.textContent = (r.method || r.METHOD || '').toUpperCase();
       const tdP = document.createElement('td'); tdP.textContent = r.path || r.PATH || '';
       const tdD = document.createElement('td'); tdD.textContent = r.description || '';
-      tr.appendChild(tdM); tr.appendChild(tdP); tr.appendChild(tdD);
+      tr.appendChild(tdMod); tr.appendChild(tdM); tr.appendChild(tdP); tr.appendChild(tdD);
       tbody.appendChild(tr);
     });
   }
@@ -402,10 +403,11 @@
     const query = (q || '').toLowerCase().trim();
     if (!query) return routes;
     return routes.filter((r) => {
+      const mod = (r.module || '').toString().toLowerCase();
       const m = (r.method || '').toString().toLowerCase();
       const p = (r.path || '').toString().toLowerCase();
       const d = (r.description || '').toString().toLowerCase();
-      return m.includes(query) || p.includes(query) || d.includes(query);
+      return mod.includes(query) || m.includes(query) || p.includes(query) || d.includes(query);
     });
   }
 

@@ -37,19 +37,19 @@ module Savant
       end
 
       # Public: Build a list of route entries similar to `rake routes`.
-      # Each entry: { method:, path:, description: }
+      # Each entry: { module:, method:, path:, description: }
       def routes(expand_tools: false)
         list = []
-        list << { method: 'GET', path: '/', description: 'Hub dashboard' }
-        list << { method: 'GET', path: '/routes', description: 'Routes list (add ?expand=1 to include tool calls)' }
+        list << { module: 'hub', method: 'GET', path: '/', description: 'Hub dashboard' }
+        list << { module: 'hub', method: 'GET', path: '/routes', description: 'Routes list (add ?expand=1 to include tool calls)' }
 
         mounts.keys.sort.each do |engine_name|
           base = "/#{engine_name}"
-          list << { method: 'GET', path: "#{base}/status", description: 'Engine uptime and info' }
-          list << { method: 'GET', path: "#{base}/tools", description: 'List tool specs' }
-          list << { method: 'GET', path: "#{base}/logs", description: 'Tail last N lines as JSON (?n=100)' }
-          list << { method: 'GET', path: "#{base}/logs?stream=1", description: 'Stream logs via SSE (?n=100, &once=1)' }
-          list << { method: 'GET', path: "#{base}/stream", description: 'SSE heartbeat' }
+          list << { module: engine_name, method: 'GET', path: "#{base}/status", description: 'Engine uptime and info' }
+          list << { module: engine_name, method: 'GET', path: "#{base}/tools", description: 'List tool specs' }
+          list << { module: engine_name, method: 'GET', path: "#{base}/logs", description: 'Tail last N lines as JSON (?n=100)' }
+          list << { module: engine_name, method: 'GET', path: "#{base}/logs?stream=1", description: 'Stream logs via SSE (?n=100, &once=1)' }
+          list << { module: engine_name, method: 'GET', path: "#{base}/stream", description: 'SSE heartbeat' }
 
           next unless expand_tools
 
@@ -57,7 +57,7 @@ module Savant
           specs.each do |spec|
             name = spec[:name] || spec['name']
             desc = spec[:description] || spec['description'] || 'Tool call'
-            list << { method: 'POST', path: "#{base}/tools/#{name}/call", description: desc }
+            list << { module: engine_name, method: 'POST', path: "#{base}/tools/#{name}/call", description: desc }
           end
         end
         list
