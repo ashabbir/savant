@@ -115,7 +115,10 @@ module Savant
           else
             n = (req.params['n'] || '100').to_i
             path = log_path(engine_name)
-            return respond(404, { error: 'log not found' }) unless File.file?(path)
+            unless File.file?(path)
+              # Return empty set with note rather than 404 for better UX
+              return respond(200, { engine: engine_name, count: 0, path: path, lines: [], note: 'log file not found' })
+            end
             lines = read_last_lines(path, n)
             respond(200, { engine: engine_name, count: lines.length, path: path, lines: lines })
           end
@@ -240,7 +243,13 @@ module Savant
         n = (req.params['n'] || '100').to_i
         once = req.params.key?('once') && req.params['once'] != '0'
         path = log_path(engine_name)
-        return respond(404, { error: 'log not found' }) unless File.file?(path)
+        unless File.file?(path)
+          body = Enumerator.new do |y|
+            y << format_sse_event('log', { line: 'log file not found' })
+            y << format_sse_event('done', {})
+          end
+          return [200, sse_headers, body]
+        end
 
         body = Enumerator.new do |y|
           # Emit last N lines immediately
