@@ -57,19 +57,27 @@
   }
 
   function renderEnginesList() {
-    const ul = $('#engineList');
-    if (!ul) return;
-    ul.innerHTML = '';
+    const container = $('#engineCards');
+    if (!container) return;
+    container.innerHTML = '';
     state.engines.forEach((e) => {
-      const li = document.createElement('li');
-      li.textContent = `${e.name} (${e.tools})`;
-      li.onclick = () => selectEngine(e.name);
-      ul.appendChild(li);
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.dataset.engine = e.name;
+      const status = e.status || 'running';
+      card.innerHTML = `
+        <div class="title">${e.name}</div>
+        <div class="meta">tools: ${e.tools} · status: ${status}</div>
+      `;
+      card.onclick = () => selectEngine(e.name);
+      container.appendChild(card);
     });
   }
 
   async function selectEngine(name) {
     state.currentEngine = name;
+    // highlight selected card
+    $$('#engineCards .card').forEach((c) => c.classList.toggle('selected', c.dataset.engine === name));
     $('#toolList').innerHTML = '';
     $('#toolDetail').textContent = '';
     $('#toolResult').textContent = '';
@@ -81,11 +89,33 @@
         const nm = t.name || t['name'];
         const desc = t.description || t['description'] || '';
         const li = document.createElement('li');
-        li.textContent = `${nm} — ${desc}`;
+        li.className = 'tool-item';
+        const icon = document.createElement('span');
+        icon.className = 'tool-icon';
+        icon.textContent = iconForTool(nm);
+        const nameEl = document.createElement('span');
+        nameEl.className = 'tool-name';
+        nameEl.textContent = nm;
+        const descEl = document.createElement('span');
+        descEl.className = 'tool-desc';
+        descEl.textContent = ` — ${desc}`;
+        li.appendChild(icon);
+        li.appendChild(nameEl);
+        li.appendChild(descEl);
         li.onclick = () => selectTool(nm, desc, t.schema || t['schema']);
         ul.appendChild(li);
       });
     } catch (e) { $('#toolList').innerHTML = `<li>${e}</li>`; }
+  }
+
+  function iconForTool(name) {
+    if (!name) return '🛠️';
+    if (name.startsWith('fts/')) return '🔎';
+    if (name.startsWith('memory/')) return '🧠';
+    if (name.startsWith('fs/')) return '📁';
+    if (name.startsWith('repos/')) return '📚';
+    if (name.startsWith('jira')) return '🧩';
+    return '🛠️';
   }
 
   function selectTool(name, desc, schema) {
