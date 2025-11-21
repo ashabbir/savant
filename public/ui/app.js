@@ -138,6 +138,8 @@
     drawer.classList.remove('wide');
     drawer.classList.remove('mode-tool');
     drawer.classList.add('mode-list');
+    // ensure panel is hidden when showing list
+    $('#drawerToolPanel').classList.add('hidden');
     $('#drawerBack').classList.add('hidden');
     try {
       const data = await api(`/${name}/tools`);
@@ -184,6 +186,8 @@
     drawer.classList.add('open', 'wide');
     drawer.classList.remove('mode-list');
     drawer.classList.add('mode-tool');
+    // show the tool panel
+    $('#drawerToolPanel').classList.remove('hidden');
     $('#drawerBack').classList.remove('hidden');
     const d = $('#drawerToolDetail');
     d.innerHTML = `<div><b>${name}</b></div><div>${desc || ''}</div><details><summary>Schema</summary><pre>${JSON.stringify(schema || {}, null, 2)}</pre></details>`;
@@ -420,8 +424,8 @@
     $('#routesExpand').onchange = loadRoutes;
     $('#drawerRunTool').onclick = runTool;
     $('#drawerStreamTool').onclick = streamTool;
-    $('#drawerClose').onclick = () => { const d = $('#drawer'); d.classList.remove('open', 'wide', 'mode-tool', 'mode-list'); };
-    $('#drawerBack').onclick = () => { const d = $('#drawer'); d.classList.remove('wide', 'mode-tool'); d.classList.add('mode-list'); $('#drawerBack').classList.add('hidden'); };
+    $('#drawerClose').onclick = () => { const d = $('#drawer'); d.classList.remove('open', 'wide', 'mode-tool'); d.classList.add('mode-list'); $('#drawerToolPanel').classList.add('hidden'); };
+    $('#drawerBack').onclick = () => { const d = $('#drawer'); d.classList.remove('wide', 'mode-tool'); d.classList.add('mode-list'); $('#drawerBack').classList.add('hidden'); $('#drawerToolPanel').classList.add('hidden'); };
     $$('input[name="drawer-mode"]').forEach((el) => el.addEventListener('change', (ev) => {
       const mode = ev.target.value;
       setInputMode(mode);
