@@ -247,6 +247,8 @@
     } else {
       payload = collectForm();
     }
+    // Apply defaults from schema (e.g., limit) if not provided
+    payload = applyDefaults(payload, state.currentSchema);
     const body = JSON.stringify({ params: payload });
     const t0 = performance.now();
     try {
@@ -267,6 +269,7 @@
     } else {
       payload = collectForm();
     }
+    payload = applyDefaults(payload, state.currentSchema);
     const qp = encodeURIComponent(JSON.stringify(payload));
     const url = `${state.baseUrl}/${state.currentEngine}/tools/${state.currentTool}/stream?params=${qp}&user=${encodeURIComponent(state.userId)}`;
     try { state.sse && state.sse.close(); } catch {}
@@ -357,17 +360,20 @@
         input = document.createElement('input');
         input.type = 'checkbox';
         input.dataset.key = key;
+        if (prop.default !== undefined) input.checked = !!prop.default;
       } else if (kind === 'integer' || kind === 'number') {
         input = document.createElement('input');
         input.type = 'number';
         input.step = kind === 'integer' ? '1' : 'any';
         input.dataset.key = key;
+        if (prop.default !== undefined) input.value = String(prop.default);
       } else if (kind === 'array-string' || kind === 'array-number') {
         input = document.createElement('textarea');
         input.rows = 3;
         input.placeholder = 'one per line';
         input.dataset.key = key;
         input.dataset.kind = kind;
+        if (Array.isArray(prop.default)) input.value = prop.default.map((v) => String(v)).join('\n');
       } else if (kind === 'select') {
         input = document.createElement('select');
         input.dataset.key = key;
@@ -377,11 +383,13 @@
           opt.textContent = String(optVal);
           input.appendChild(opt);
         });
+        if (prop.default !== undefined) input.value = String(prop.default);
       } else {
         input = document.createElement('input');
         input.type = 'text';
         input.placeholder = key;
         input.dataset.key = key;
+        if (prop.default !== undefined) input.value = String(prop.default);
       }
       fieldWrap.appendChild(input);
       form.appendChild(fieldWrap);
@@ -413,6 +421,38 @@
       }
     });
     return out;
+  }
+
+  // Apply defaults from schema: use property defaults if present, otherwise fallback to domain defaults (e.g., limit: 20)
+  function applyDefaults(payload, schema) {
+    const out = Object.assign({}, payload || {});
+    const props = (schema && (schema.properties || schema['properties'])) || {};
+    Object.entries(props).forEach(([k, prop]) => {
+      const has = out[k] !== undefined && out[k] !== null && out[k] !== '';
+      if (!has) {
+        if (prop && prop.default !== undefined) out[k] = prop.default;
+        else if (k === 'limit') out[k] = 20;
+      }
+      // Coerce empty strings to null for optional fields
+      if ((out[k] === '' || out[k] === undefined) && allowsNull(prop)) {
+        out[k] = null;
+      }
+    });
+    // Ensure numeric defaults become numbers
+    if (typeof out.limit === 'string') {
+      const n = Number(out.limit);
+      if (!Number.isNaN(n)) out.limit = n;
+    }
+    return out;
+  }
+
+  function allowsNull(prop) {
+    if (!prop || typeof prop !== 'object') return false;
+    if (prop.type === 'null') return true;
+    if (Array.isArray(prop.type)) return prop.type.includes('null');
+    if (Array.isArray(prop.anyOf)) return prop.anyOf.some((p) => allowsNull(p));
+    if (Array.isArray(prop.oneOf)) return prop.oneOf.some((p) => allowsNull(p));
+    return false;
   }
 
   async function loadRoutes() {

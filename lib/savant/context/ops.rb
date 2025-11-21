@@ -71,21 +71,22 @@ module Savant
       def resources_list(repo: nil)
         conn = @db.instance_variable_get(:@conn)
         params = []
-        where = "WHERE rel_path LIKE '%/memory_bank/%' AND rel_path ILIKE '%.md'"
+        clauses = ["rel_path LIKE '%/memory_bank/%'", "rel_path ILIKE '%.md'"]
         if repo
-          if repo.is_a?(Array)
-            ph = repo.each_index.map { |i| "$#{i + 1}" }.join(',')
-            where << " AND repo_name IN (#{ph})"
+          if repo.is_a?(Array) && !repo.empty?
+            ph = (1..repo.length).map { |i| "$#{i}" }.join(',')
+            clauses << "repo_name IN (#{ph})"
             params.concat(repo)
           else
-            where << ' AND repo_name = $1'
+            clauses << 'repo_name = $1'
             params << repo
           end
         end
+        where_sql = clauses.empty? ? '' : "WHERE #{clauses.join(' AND ')}"
         sql = <<~SQL
           SELECT repo_name, rel_path, size_bytes, mtime_ns
           FROM files
-          #{where}
+          #{where_sql}
           ORDER BY repo_name, rel_path
         SQL
         rows = conn.exec_params(sql, params)
