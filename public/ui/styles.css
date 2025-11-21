@@ -41,3 +41,14 @@ li:hover { background:#f2f6fb; }
 .tool-icon { width: 18px; height: 18px; display:inline-flex; align-items:center; justify-content:center; border-radius:4px; background:#eef2f7; color:#2d6cdf; font-size:12px; }
 .tool-name { font-weight: 500; }
 .tool-desc { color: var(--muted); font-size: 12px; }
+
+/* Dashboard summary */
+.summary { border: 1px solid var(--border); background:#fff; border-radius:10px; padding:12px; margin-bottom: 14px; }
+.summary .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
+.chip { display:inline-block; padding:4px 8px; background:#eef2f7; border:1px solid var(--border); border-radius: 999px; font-size: 12px; color:#2d3a4a; }
+.kv { display:flex; flex-direction:column; gap:4px; }
+.kv .k { color: var(--muted); font-size: 12px; }
+.kv .v { font-weight: 600; }
+.card .actions { margin-top: 8px; }
+.card .actions button { background:#eef2f7; border:1px solid var(--border); color:#2d3a4a; border-radius:6px; padding:4px 8px; cursor:pointer; }
+.card .actions button:hover { background:#e3e9f3; }
