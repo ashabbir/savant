@@ -61,7 +61,16 @@ module Savant
           @repo_name = repo_name
           @repo_root = repo_root
           @cfg = config || {}
-          @patterns = Array(@cfg.dig('memory_bank', 'patterns') || ['**/memory_bank/**/*.md'])
+          @patterns = Array(
+            @cfg.dig('memory_bank', 'patterns') || [
+              '**/memory/**/*.md',
+              '**/memory_bank/**/*.md',
+              '**/memory-bank/**/*.md',
+              '**/memorybank/**/*.md',
+              '**/memoryBank/**/*.md',
+              '**/bank/**/*.md'
+            ]
+          )
           @follow_symlinks = !@cfg.dig('memory_bank', 'follow_symlinks').nil?
           @enabled = @cfg.dig('memory_bank', 'enabled') != false
         end

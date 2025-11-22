@@ -71,14 +71,23 @@ module Savant
       def resources_list(repo: nil)
         conn = @db.instance_variable_get(:@conn)
         params = []
-        clauses = ["rel_path LIKE '%/memory_bank/%'", "rel_path ILIKE '%.md'"]
+        # Memory dir variants
+        mem_patterns = [
+          '%/memory/%', '%/memory_bank/%', '%/memory-bank/%', '%/memorybank/%', '%/memoryBank/%', '%/bank/%'
+        ]
+        # Build memory path clause with positional params
+        mem_clause = '(' + mem_patterns.each_index.map { |i| "rel_path ILIKE $#{i + 1}" }.join(' OR ') + ')'
+        params.concat(mem_patterns)
+        # Always limit to markdown files
+        clauses = [mem_clause, "rel_path ILIKE '%.md'"]
         if repo
           if repo.is_a?(Array) && !repo.empty?
-            ph = (1..repo.length).map { |i| "$#{i}" }.join(',')
+            offset = params.length
+            ph = (1..repo.length).map { |i| "$#{offset + i}" }.join(',')
             clauses << "repo_name IN (#{ph})"
             params.concat(repo)
           else
-            clauses << 'repo_name = $1'
+            clauses << "repo_name = $#{params.length + 1}"
             params << repo
           end
         end
@@ -119,7 +128,12 @@ module Savant
         # Tail could be either full rel_path or just the path under memory_bank; try both
         rel_candidates = []
         rel_candidates << tail
-        rel_candidates << File.join('memory_bank', tail) unless tail.include?('/memory_bank/')
+        # Try common memory directory variants if the tail isn't already qualified
+        unless tail.include?('/memory/') || tail.include?('/memory_bank/') || tail.include?('/memory-bank/') || tail.include?('/memoryBank/') || tail.include?('/memorybank/') || tail.include?('/bank/')
+          %w[memory_bank memory memory-bank memoryBank memorybank bank].each do |dir|
+            rel_candidates << File.join(dir, tail)
+          end
+        end
 
         conn = @db.instance_variable_get(:@conn)
         # Resolve repo root
@@ -136,13 +150,13 @@ module Savant
             break
           end
         end
-        # Fallback: try suffix match under memory_bank
+        # Fallback: try suffix match under memory directory variants (case-insensitive)
         if rel.nil?
-          rr = conn.exec_params(
-            "SELECT rel_path FROM files WHERE repo_name=$1 AND rel_path LIKE '%/memory_bank/%' AND rel_path LIKE $2 LIMIT 1", [
-              repo_name, "%#{tail}"
-            ]
-          )
+          patterns = ["%/memory/%", "%/memory_bank/%", "%/memory-bank/%", "%/memorybank/%", "%/memoryBank/%", "%/bank/%"]
+          # Build OR clause with positional parameters starting at $3
+          mem_clause = patterns.each_index.map { |i| "rel_path ILIKE $#{i + 3}" }.join(' OR ')
+          sql = "SELECT rel_path FROM files WHERE repo_name=$1 AND (#{mem_clause}) AND rel_path ILIKE $2 LIMIT 1"
+          rr = conn.exec_params(sql, [repo_name, "%#{tail}"] + patterns)
           rel = rr[0]['rel_path'] if rr.ntuples.positive?
         end
         raise 'resource not found' unless rel
