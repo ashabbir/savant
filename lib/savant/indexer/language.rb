@@ -15,10 +15,14 @@ module Savant
     class Language
       def self.from_rel_path(rel)
         down = rel.downcase
-        # Treat markdown under memory_bank or memory directories as memory_bank
-        if (down.include?('/memory_bank/') || down.include?('/memory/')) &&
-           %w[.md .mdx .markdown].include?(File.extname(down))
-          return 'memory_bank'
+        # Treat markdown under memory directories as memory_bank (supports multiple variants)
+        # Variants: memory, memoryBank, memory_bank, memory-bank, bank
+        segments = down.split('/')
+        norm_segments = segments.map { |s| s.gsub(/[-_]/, '') }
+        if norm_segments.any? { |s| s == 'memory' || s == 'memorybank' || s == 'bank' }
+          if %w[.md .mdx .markdown].include?(File.extname(down))
+            return 'memory_bank'
+          end
         end
 
         ext = File.extname(down).sub('.', '')
