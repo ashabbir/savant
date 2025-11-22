@@ -151,7 +151,7 @@ module Savant
           end
         end
         # Always prune canonical heavy dirs
-        names.push('node_modules', 'vendor', 'dist', 'build', 'out', 'target', 'bin', 'obj',
+        names.push('node_modules', 'vendor', 'dist', 'build', 'out', 'target', 'obj',
                    '__pycache__', '.next', '.nuxt', '.parcel-cache', '.gradle', '.mvn', '.git')
         names.uniq
       end
