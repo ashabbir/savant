@@ -87,16 +87,53 @@ Savant is a lightweight Ruby framework for building and running local MCP servic
 
 ### Web Frontend (React SPA)
 
-A minimal React + Vite UI (per PRD) lives under `frontend/` and talks to the existing Hub HTTP endpoints. Run it alongside Postgres and the Hub via Docker Compose:
+A minimal React + Vite UI (per PRD) lives under `frontend/` and talks to the existing Hub HTTP endpoints.
 
-- Start services: `make up` (or `make dev`)
-- Open the UI at `http://localhost:5173`
-- Configure Hub base URL and user header (`x-savant-user-id`) via the Settings dialog (defaults to `http://localhost:9999` and `dev`).
-- The UI maps to Context tools exposed by the Hub:
+- What it includes
+  - Search: query indexed chunks with per-page pagination and language filtering (client-side), highlights query terms in results.
+  - Repos: list repo counts and last indexed time; actions for Index/Delete; a “Reset + Index All” control.
+  - Settings: base URL + `x-savant-user-id` header persisted in `localStorage.savantHub`.
+
+- Backend endpoints used (via Hub Context engine):
   - `POST /context/tools/fts/search/call`
   - `POST /context/tools/fs/repo/status/call`
   - `POST /context/tools/fs/repo/index/call`
   - `POST /context/tools/fs/repo/delete/call`
+
+Run with Docker Compose (recommended):
+
+1) Start services (Postgres, Hub, Frontend):
+   - `make up` (alias for `docker compose up -d`)
+   - Follow logs: `make logs-all` (hub + frontend + postgres)
+2) Open the UI at `http://localhost:5173`
+3) Click the gear icon and verify:
+   - Base URL: `http://localhost:9999` (or change if Hub differs)
+   - User ID: your user (sent as `x-savant-user-id`)
+4) Index data (if needed):
+   - From UI: Repos tab → “Reset + Index All”
+   - Or CLI: `make reindex-all`
+
+Local development (host, optional):
+
+1) Install Node 18+ and npm.
+2) `cd frontend && npm install`
+3) Start dev server: `npm run dev` → http://localhost:5173
+4) Configure Settings in the UI, or export base at launch: `VITE_HUB_BASE=http://localhost:9999 npm run dev`
+
+Make targets (frontend/backend):
+
+- `make up` / `make dev`: start all services (db, hub, frontend)
+- `make logs-all`: tail hub + frontend + postgres logs
+- `make hub-logs`: tail hub only
+- `make reindex-all`: delete all and reindex
+- `make index-repo repo=<name>`: index a single repo
+- `make delete-repo repo=<name>`: delete a single repo
+
+Troubleshooting:
+
+- 400/401 responses: ensure the Settings dialog has a `User ID` value; Hub requires `x-savant-user-id` header.
+- No results: verify DB is migrated/FTS ready (`make migrate && make fts`) and data is indexed (`make repo-index-all` or UI “Reset + Index All”).
+- CORS: prefer running the UI with Docker Compose or serve UI under `/ui` via the Hub to avoid cross-origin issues.
 
 - Run the Hub without Docker (CLI runner):
   ```bash
