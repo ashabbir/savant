@@ -91,3 +91,23 @@ export function getErrorMessage(err: any): string {
   if (axiosLike.request && axiosLike.message) return axiosLike.message;
   return err.message || String(err);
 }
+
+export type Diagnostics = {
+  base_path: string;
+  settings_path: string;
+  config_error?: string;
+  repos: { name: string; path: string; exists: boolean; directory: boolean; readable: boolean; has_files?: boolean; sampled_count?: number; sample_files?: string[]; error?: string }[];
+  db: { connected: boolean; counts?: { repos: number; files: number; chunks: number }; error?: string; counts_error?: string };
+  mounts: { [k: string]: boolean };
+};
+
+export function useDiagnostics() {
+  return useQuery<Diagnostics>({
+    queryKey: ['hub', 'diagnostics'],
+    queryFn: async () => {
+      const res = await client().get('/diagnostics');
+      return res.data as Diagnostics;
+    },
+    retry: 0
+  });
+}
