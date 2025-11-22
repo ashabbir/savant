@@ -19,6 +19,9 @@ module Savant
         @transport = transport
         @sse = SSE.new(heartbeat_interval: heartbeat_interval)
         @logs_dir = logs_dir || ENV['SAVANT_LOG_PATH'] || '/tmp/savant'
+        @hub_logger = init_hub_logger
+        @stats = { total: 0, by_engine: Hash.new(0), by_status: Hash.new(0), by_method: Hash.new(0), recent: [] }
+        @stats_mutex = Mutex.new
       end
 
       def call(env)
@@ -70,10 +73,68 @@ module Savant
 
       private
 
-      attr_reader :mounts, :transport, :sse, :logs_dir
+      attr_reader :mounts, :transport, :sse, :logs_dir, :hub_logger
+
+      def init_hub_logger
+        require 'fileutils'
+        FileUtils.mkdir_p(@logs_dir)
+        path = File.join(@logs_dir, 'hub.log')
+        io = File.open(path, 'a')
+        io.sync = true
+        require_relative '../logger'
+        Savant::Logger.new(io: io, json: true, service: 'hub')
+      rescue StandardError
+        nil
+      end
+
+      def log_request(req, status, duration_ms)
+        # Track stats
+        engine = req.path_info.split('/').reject(&:empty?).first || 'hub'
+        @stats_mutex.synchronize do
+          @stats[:total] += 1
+          @stats[:by_engine][engine] += 1
+          @stats[:by_status][status.to_s] += 1
+          @stats[:by_method][req.request_method] += 1
+          @stats[:recent].unshift({
+            time: Time.now.utc.iso8601,
+            method: req.request_method,
+            path: req.path_info,
+            status: status,
+            duration_ms: duration_ms,
+            engine: engine
+          })
+          @stats[:recent] = @stats[:recent].first(50) # Keep last 50 requests
+        end
+
+        return unless hub_logger
+        hub_logger.info(
+          event: 'http_request',
+          method: req.request_method,
+          path: req.path_info,
+          status: status,
+          duration_ms: duration_ms,
+          user: req.env['savant.user_id'],
+          query: req.query_string.to_s.empty? ? nil : req.query_string
+        )
+      rescue StandardError
+        # ignore logging errors
+      end
 
       def dispatch(env)
         req = Rack::Request.new(env)
+        start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+
+        response = dispatch_request(req)
+        duration_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - start) * 1000).round
+        log_request(req, response[0], duration_ms)
+        response
+      rescue JSON::ParserError
+        respond(400, { error: 'invalid JSON' })
+      rescue StandardError => e
+        respond(500, { error: 'internal error', message: e.message })
+      end
+
+      def dispatch_request(req)
         return hub_root(req) if req.get? && req.path_info == '/'
         return hub_routes(req) if req.get? && req.path_info == '/routes'
         return diagnostics(req) if req.get? && req.path_info == '/diagnostics'
@@ -83,6 +144,13 @@ module Savant
         return not_found unless segments.size >= 1
 
         engine_name = segments[0]
+
+        # Special handling for /hub/logs
+        if engine_name == 'hub'
+          return handle_hub_get(req, segments[1..]) if req.request_method == 'GET'
+          return not_found
+        end
+
         manager = mounts[engine_name]
         return not_found unless manager
 
@@ -94,10 +162,44 @@ module Savant
         else
           not_found
         end
-      rescue JSON::ParserError
-        respond(400, { error: 'invalid JSON' })
-      rescue StandardError => e
-        respond(500, { error: 'internal error', message: e.message })
+      end
+
+      def handle_hub_get(req, rest)
+        case rest
+        when ['status']
+          respond(200, {
+            engine: 'hub',
+            status: 'running',
+            uptime_seconds: uptime_seconds,
+            info: { name: 'hub', version: '3.0.0', description: 'Savant MCP Hub HTTP router and logging' }
+          })
+        when ['stats']
+          stats_snapshot = @stats_mutex.synchronize { deep_copy_stats(@stats) }
+          respond(200, {
+            uptime_seconds: uptime_seconds,
+            requests: {
+              total: stats_snapshot[:total],
+              by_engine: stats_snapshot[:by_engine],
+              by_status: stats_snapshot[:by_status],
+              by_method: stats_snapshot[:by_method]
+            },
+            recent: stats_snapshot[:recent]
+          })
+        when ['logs']
+          if req.params['stream']
+            sse_logs(req, 'hub')
+          else
+            n = (req.params['n'] || '100').to_i
+            path = log_path('hub')
+            unless File.file?(path)
+              return respond(200, { engine: 'hub', count: 0, path: path, lines: [], note: 'log file not found' })
+            end
+            lines = read_last_lines(path, n)
+            respond(200, { engine: 'hub', count: lines.length, path: path, lines: lines })
+          end
+        else
+          not_found
+        end
       end
 
       def handle_get(req, engine_name, manager, rest)
@@ -291,6 +393,16 @@ module Savant
         lines = []
         File.foreach(path) { |l| lines << l.chomp }
         lines.last(n)
+      end
+
+      def deep_copy_stats(stats)
+        {
+          total: stats[:total],
+          by_engine: stats[:by_engine].dup,
+          by_status: stats[:by_status].dup,
+          by_method: stats[:by_method].dup,
+          recent: stats[:recent].map(&:dup)
+        }
       end
 
       def safe_specs(manager)

@@ -48,8 +48,13 @@ export function useHubHealth() {
   });
 }
 
-export async function search(q: string, repo?: string | null, limit: number = 10): Promise<SearchResult[]> {
+export async function search(q: string, repo?: string | null, limit: number = 20): Promise<SearchResult[]> {
   const res = await client().post(`/context/tools/fts/search/call`, { params: { q, repo: repo ?? null, limit } });
+  return res.data as SearchResult[];
+}
+
+export async function searchMemory(q: string, repo?: string | null, limit: number = 20): Promise<SearchResult[]> {
+  const res = await client().post(`/context/tools/memory/search/call`, { params: { q, repo: repo ?? null, limit } });
   return res.data as SearchResult[];
 }
 
@@ -252,5 +257,105 @@ export function useThinkLimits() {
       const res = await client().post('/think/tools/think.limits.read/call', { params: {} });
       return res.data;
     }
+  });
+}
+
+// Database query test
+export type DbQueryTest = {
+  query: string;
+  results: number;
+  duration_ms: number;
+  success: boolean;
+  error?: string;
+};
+
+export async function testDbQuery(query: string = 'test'): Promise<DbQueryTest> {
+  const start = performance.now();
+  try {
+    const res = await client().post('/context/tools/fts/search/call', { params: { q: query, limit: 5 } });
+    const duration = Math.round(performance.now() - start);
+    const results = Array.isArray(res.data) ? res.data.length : 0;
+    return { query, results, duration_ms: duration, success: true };
+  } catch (err: any) {
+    const duration = Math.round(performance.now() - start);
+    return { query, results: 0, duration_ms: duration, success: false, error: err?.message || 'Query failed' };
+  }
+}
+
+// Hub & Engine info
+export type EngineInfo = {
+  name: string;
+  version: string;
+  description: string;
+};
+
+export type EngineStatus = {
+  engine: string;
+  status: string;
+  uptime_seconds: number;
+  info: EngineInfo;
+};
+
+export type HubInfo = {
+  service: string;
+  version: string;
+  transport: string;
+  hub: { pid: number; uptime_seconds: number };
+  engines: { name: string; mount: string; tools: number }[];
+};
+
+export function useHubInfo() {
+  return useQuery<HubInfo>({
+    queryKey: ['hub', 'info'],
+    queryFn: async () => {
+      const res = await client().get('/');
+      return res.data as HubInfo;
+    }
+  });
+}
+
+export function useEngineStatus(engine: string) {
+  return useQuery<EngineStatus>({
+    queryKey: ['engine', engine, 'status'],
+    queryFn: async () => {
+      const res = await client().get(`/${engine}/status`);
+      return res.data as EngineStatus;
+    },
+    enabled: !!engine,
+    refetchInterval: 10000 // Refresh every 10 seconds
+  });
+}
+
+export function useEngineTools(engine: string) {
+  return useQuery<{ engine: string; tools: ContextToolSpec[] }>({
+    queryKey: ['engine', engine, 'tools'],
+    queryFn: async () => {
+      const res = await client().get(`/${engine}/tools`);
+      return res.data as { engine: string; tools: ContextToolSpec[] };
+    },
+    enabled: !!engine
+  });
+}
+
+// Hub stats for diagnostics
+export type HubStats = {
+  uptime_seconds: number;
+  requests: {
+    total: number;
+    by_engine: Record<string, number>;
+    by_status: Record<string, number>;
+    by_method: Record<string, number>;
+  };
+  recent: { time: string; method: string; path: string; status: number; duration_ms: number; engine: string }[];
+};
+
+export function useHubStats() {
+  return useQuery<HubStats>({
+    queryKey: ['hub', 'stats'],
+    queryFn: async () => {
+      const res = await client().get('/hub/stats');
+      return res.data as HubStats;
+    },
+    refetchInterval: 5000 // Auto-refresh every 5 seconds
   });
 }

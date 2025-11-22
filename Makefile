@@ -1,15 +1,22 @@
 .PHONY: dev up logs logs-all down ps migrate fts smoke mcp-test jira-test jira-self \
   repo-index-all repo-index-repo repo-delete-all repo-delete-repo repo-status \
-  demo-engine demo-run demo-call hub hub-logs hub-down hub-local hub-local-logs ls
+  demo-engine demo-run demo-call hub hub-logs hub-down hub-local hub-local-logs ls \
+  ui-build ui-install ui-dev dev-ui ui-open frontend-stop
 
 # Ensure rbenv shims take precedence in Make subshells
 # (Reverted) Do not globally override PATH; use explicit rbenv shim per target.
 
 dev:
 	@docker compose up -d --remove-orphans
-	@$(MAKE) ui-build || true
+	@$(MAKE) ui-build
 	@docker compose stop frontend || true
 	@docker compose rm -f -s -v frontend || true
+	@echo ""
+	@echo "========================================="
+	@echo "  Savant is ready!"
+	@echo "  UI:  http://localhost:9999/ui"
+	@echo "  Hub: http://localhost:9999"
+	@echo "========================================="
 
 up: dev
 
@@ -68,6 +75,21 @@ delete-repo:
 # Build static UI and serve under Hub at /ui
 ui-build:
 	@docker compose run --rm -T frontend /bin/sh -lc 'cd /app/frontend && (npm ci || npm install --include=dev) && npm run build -- --base=/ui/ && rm -rf /app/public/ui && mkdir -p /app/public/ui && cp -r dist/* /app/public/ui/'
+
+# Install frontend dependencies only (no build)
+ui-install:
+	@docker compose run --rm -T frontend /bin/sh -lc 'cd /app/frontend && npm install --include=dev'
+
+# Run frontend dev server (hot reload) - requires hub running
+ui-dev:
+	@docker compose run --rm -p 5173:5173 frontend /bin/sh -lc 'cd /app/frontend && npm install --include=dev && npm run dev -- --host 0.0.0.0'
+
+# Start hub + frontend dev server together (hot reload)
+dev-ui:
+	@docker compose up -d postgres hub
+	@echo "Hub starting at http://localhost:9999"
+	@echo "Starting frontend dev server with hot reload..."
+	@docker compose run --rm -p 5173:5173 frontend /bin/sh -lc 'cd /app/frontend && npm install --include=dev && npm run dev -- --host 0.0.0.0'
 
 ui-open:
 	@echo "Open: http://localhost:9999/ui"
