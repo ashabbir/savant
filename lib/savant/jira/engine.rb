@@ -27,12 +27,16 @@ module Savant
 
       # @param env [#[]] environment-like hash for credentials and flags.
       def initialize(env: ENV)
-        base_url = fetch(env, 'JIRA_BASE_URL')
-        email = env['JIRA_EMAIL']
-        api_token = env['JIRA_API_TOKEN']
-        username = env['JIRA_USERNAME']
-        password = env['JIRA_PASSWORD']
-        @allow_writes = (env['JIRA_ALLOW_WRITES'].to_s.downcase == 'true')
+        # Try loading default credentials from SecretStore first, then fall back to ENV
+        creds = load_default_credentials
+        base_url = creds[:base_url] || env['JIRA_BASE_URL']
+        raise 'JIRA_BASE_URL is required (set via secrets.yml default user or env var)' if base_url.to_s.strip.empty?
+
+        email = creds[:email] || env['JIRA_EMAIL']
+        api_token = creds[:api_token] || env['JIRA_API_TOKEN']
+        username = creds[:username] || env['JIRA_USERNAME']
+        password = creds[:password] || env['JIRA_PASSWORD']
+        @allow_writes = creds[:allow_writes] || (env['JIRA_ALLOW_WRITES'].to_s.downcase == 'true')
         @client = Client.new(
           base_url: base_url,
           email: email,
@@ -141,6 +145,30 @@ module Savant
       end
 
       private
+
+      # Load default credentials from SecretStore using 'default' or '_system_' user.
+      # @return [Hash] credential hash with symbolized keys (base_url, email, api_token, etc.)
+      def load_default_credentials
+        require_relative '../secret_store'
+        # Try 'default' user first, then '_system_', to get default Jira credentials
+        %w[default _system_].each do |user_id|
+          creds = Savant::SecretStore.for(user_id, :jira)
+          next unless creds && !creds.empty?
+
+          # Normalize keys (support both base_url and jira_base_url patterns)
+          return {
+            base_url: creds[:base_url] || creds['base_url'] || creds[:jira_base_url] || creds['jira_base_url'],
+            email: creds[:email] || creds['email'] || creds[:jira_email] || creds['jira_email'],
+            api_token: creds[:api_token] || creds['api_token'] || creds[:jira_token] || creds['jira_token'],
+            username: creds[:username] || creds['username'],
+            password: creds[:password] || creds['password'],
+            allow_writes: %w[true 1 yes].include?((creds[:allow_writes] || creds['allow_writes']).to_s.downcase)
+          }
+        end
+        {}
+      rescue StandardError
+        {}
+      end
 
       # Fetch and require a non-empty env var value.
       # @param env [#[]]
