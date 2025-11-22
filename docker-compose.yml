@@ -71,6 +71,7 @@ services:
       - "9999:9999"
 
   frontend:
+    profiles: ["preview"]
     image: node:20-alpine
     working_dir: /app/frontend
     depends_on:
@@ -79,12 +80,14 @@ services:
     environment:
       # Browser must reach the Hub via host port mapping
       VITE_HUB_BASE: http://localhost:9999
+      NODE_ENV: development
     volumes:
       - ./:/app:rw
     command: >-
       /bin/sh -lc '
         npm --version && node --version; \
-        cd /app/frontend && npm install && npm run build && npm run preview -- --host 0.0.0.0 --port 5173
+        cd /app/frontend && (npm ci || npm install --include=dev) && \
+        npm run build && npm run preview -- --host 0.0.0.0 --port 5173
       '
     ports:
       - "5173:5173"
