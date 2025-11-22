@@ -137,6 +137,16 @@ Make targets (frontend/backend):
 - `make index-repo repo=<name>`: index a single repo
 - `make delete-repo repo=<name>`: delete a single repo
 
+Diagnostics:
+
+- The UI includes a Diagnostics tab that calls a dedicated tool to verify visibility of repo paths and DB connectivity from the Hub’s perspective.
+- Endpoint used: `POST /context/tools/fs/repo/diagnostics/call`
+- It reports:
+  - Base path and settings path used by the Hub
+  - For each configured repo: exists/dir/readable flags, ~200-file sample count, a few sample file paths, and any path errors
+  - Common mount points visibility: `/app`, `/host`, `/host-crawler`
+  - DB connectivity and quick table counts (repos/files/chunks)
+
 Troubleshooting:
 
 - 400/401 responses: ensure the Settings dialog has a `User ID` value; Hub requires `x-savant-user-id` header.

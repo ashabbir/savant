@@ -105,7 +105,7 @@ export function useDiagnostics() {
   return useQuery<Diagnostics>({
     queryKey: ['hub', 'diagnostics'],
     queryFn: async () => {
-      const res = await client().get('/diagnostics');
+      const res = await client().post('/context/tools/fs/repo/diagnostics/call', { params: {} });
       return res.data as Diagnostics;
     },
     retry: 0
