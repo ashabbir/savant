@@ -89,6 +89,7 @@ Choose a style that matches your setup—swap between them as needed.
 Detailed architecture notes, engine internals, and integration walkthroughs now live exclusively in the `memory_bank/` directory:
 - [memory_bank/architecture.md](memory_bank/architecture.md) – system overview, data model, and flows.
 - [memory_bank/framework.md](memory_bank/framework.md) – MCP core, transport, logging, and configuration internals.
+- [memory_bank/framework.md#engine-scaffolding](memory_bank/framework.md#engine-scaffolding) – generator + scaffolding flow for building new engines.
 - [memory_bank/engine_context.md](memory_bank/engine_context.md) – indexer, chunking, languages, and search behavior.
 - [memory_bank/engine_jira.md](memory_bank/engine_jira.md) – Jira client, tools, authentication, and CLI helpers.
 

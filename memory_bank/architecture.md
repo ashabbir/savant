@@ -6,6 +6,23 @@
 - **Runtime Modes:** Scripts run directly with env vars (`DATABASE_URL`, Jira creds) or via Docker/Makefile targets (e.g., `make dev`, `make repo-index-all`, `make mcp-context-run`). MCP service selection depends on `MCP_SERVICE` env.
 - **Logging & Timing:** `Savant::Logger` handles stdout logs for CLI tools and `logs/<service>.log` for MCP server, flagging slow operations via `SLOW_THRESHOLD_MS`.
 
+## Sequence Overview
+```mermaid
+sequenceDiagram
+    participant Dev as Developer CLI
+    participant Indexer
+    participant DB as Postgres
+    participant MCP as MCP Server
+    participant Client as Editor/Agent
+
+    Dev->>Indexer: bin/context_repo_indexer index
+    Indexer->>DB: upsert repos/files/blobs/chunks
+    Dev->>MCP: MCP_SERVICE=context ruby bin/mcp_server
+    MCP-->>DB: query chunks via FTS
+    Client->>MCP: tools/call search
+    MCP-->>Client: ranked snippets + metadata
+```
+
 ### Key Components
 
 - **Indexer (`lib/savant/indexer/*`):** Runner orchestrates repo scans, merges ignore files, skips hidden/binary/unchanged files (tracked in `.cache/indexer.json`), dedupes blobs via SHA256, chunks code vs. markdown differently, and maintains file↔blob associations plus cleanup for deleted files.
