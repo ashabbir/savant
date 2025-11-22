@@ -56,8 +56,6 @@ module Savant
             "skipped=#{totals[:skipped]} errors=#{totals[:errors]}"
           )
           @log.info("memory_bank: #{totals[:memory_bank] || 0}")
-          @log.info("doc_files: #{totals[:doc_files] || 0}")
-          @log.info("code_files: #{totals[:code_files] || 0}")
         end
         totals
       end
@@ -148,17 +146,13 @@ module Savant
           mb = kind_counts['memory_bank'] || 0
           # Doc-only (exclude memory_bank which is tracked separately)
           doc_only_langs = (DOC_TEXT_EXTS + %w[md mdx markdown]).uniq
-          doc_files = kind_counts.sum { |k, v| doc_only_langs.include?(k) ? v : 0 }
           # Code files exclude doc-only and memory_bank
           non_code = (doc_only_langs + %w[memory_bank]).uniq
-          code_files = kind_counts.sum { |k, v| non_code.include?(k) ? 0 : v }
           @log.info("memory_bank: #{mb}")
-          @log.info("doc_files: #{doc_files}")
           doc_breakdown = kind_counts.select { |k, _| doc_only_langs.include?(k) }
           code_breakdown = kind_counts.reject { |k, _| non_code.include?(k) }
           @log.info("doc_files_breakdown: #{doc_breakdown.map { |k, v| "#{k}=#{v}" }.join(' ')}") unless doc_breakdown.empty?
           @log.info("code_files_breakdown: #{code_breakdown.map { |k, v| "#{k}=#{v}" }.join(' ')}") unless code_breakdown.empty?
-          @log.info("code_files: #{code_files}")
         end
         progress&.finish
         @log.repo_footer(indexed: repo_indexed, skipped: repo_skipped, errors: repo_errors)
