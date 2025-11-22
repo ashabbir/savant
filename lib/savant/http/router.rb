@@ -45,6 +45,7 @@ module Savant
       def routes(expand_tools: false)
         list = []
         list << { module: 'hub', method: 'GET', path: '/', description: 'Hub dashboard' }
+        list << { module: 'hub', method: 'GET', path: '/diagnostics', description: 'Env, mounts, repos visibility, DB checks' }
         list << { module: 'hub', method: 'GET', path: '/routes', description: 'Routes list (add ?expand=1 to include tool calls)' }
 
         mounts.keys.sort.each do |engine_name|
@@ -75,6 +76,7 @@ module Savant
         req = Rack::Request.new(env)
         return hub_root(req) if req.get? && req.path_info == '/'
         return hub_routes(req) if req.get? && req.path_info == '/routes'
+        return diagnostics(req) if req.get? && req.path_info == '/diagnostics'
 
         # Engine scoped routes: /:engine/...
         segments = req.path_info.split('/').reject(&:empty?)
@@ -161,6 +163,92 @@ module Savant
       def hub_routes(req)
         expand = req.params['expand'] == '1' || req.params['expand'] == 'true'
         respond(200, { routes: routes(expand_tools: expand) })
+      end
+
+      def base_path
+        env_path = ENV['SAVANT_PATH']
+        return env_path unless env_path.nil? || env_path.empty?
+        File.expand_path('../../..', __dir__)
+      end
+
+      def diagnostics(_req)
+        info = {}
+        bp = base_path
+        info[:base_path] = bp
+        settings_path = File.join(bp, 'config', 'settings.json')
+        info[:settings_path] = settings_path
+        repos = []
+        cfg_err = nil
+        begin
+          require_relative '../config'
+          if File.file?(settings_path)
+            cfg = Savant::Config.load(settings_path)
+            (cfg.dig('indexer', 'repos') || []).each do |r|
+              name = r['name']
+              path = r['path']
+              repo_entry = { name: name, path: path }
+              begin
+                exists = File.exist?(path)
+                repo_entry[:exists] = exists
+                repo_entry[:directory] = exists && File.directory?(path)
+                repo_entry[:readable] = exists && File.readable?(path)
+                if repo_entry[:directory]
+                  sample = []
+                  count = 0
+                  Dir.glob(File.join(path, '**', '*')).each do |p|
+                    next if File.directory?(p)
+                    sample << p if sample.size < 3
+                    count += 1
+                    break if count >= 200
+                  end
+                  repo_entry[:sample_files] = sample
+                  repo_entry[:sampled_count] = count
+                  repo_entry[:has_files] = count > 0
+                end
+              rescue StandardError => e
+                repo_entry[:error] = e.message
+              end
+              repos << repo_entry
+            end
+          else
+            cfg_err = 'settings.json not found'
+          end
+        rescue Savant::ConfigError => e
+          cfg_err = e.message
+        rescue StandardError => e
+          cfg_err = "load error: #{e.message}"
+        end
+
+        info[:config_error] = cfg_err if cfg_err
+        info[:repos] = repos
+
+        # DB checks
+        db = { connected: false }
+        begin
+          require_relative '../db'
+          conn = Savant::DB.new.instance_variable_get(:@conn)
+          db[:connected] = true
+          begin
+            r1 = conn.exec('SELECT COUNT(*) AS c FROM repos')
+            r2 = conn.exec('SELECT COUNT(*) AS c FROM files')
+            r3 = conn.exec('SELECT COUNT(*) AS c FROM chunks')
+            db[:counts] = { repos: r1[0]['c'].to_i, files: r2[0]['c'].to_i, chunks: r3[0]['c'].to_i }
+          rescue StandardError => e
+            db[:counts_error] = e.message
+          end
+        rescue StandardError => e
+          db[:error] = e.message
+        end
+        info[:db] = db
+
+        # Common mount points
+        info[:mounts] = {
+          '/app' => File.directory?('/app'),
+          '/host' => File.directory?('/host'),
+          '/host-crawler' => File.directory?('/host-crawler')
+        }
+
+        respond(200, info)
       end
 
       def uptime_seconds
