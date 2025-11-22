@@ -14,6 +14,7 @@ import Alert from '@mui/material/Alert';
 import { createTheme, ThemeProvider } from '@mui/material/styles';
 import Search from './pages/Search';
 import Repos from './pages/Repos';
+import Diagnostics from './pages/Diagnostics';
 import { getErrorMessage, useHubHealth } from './api';
 import Tooltip from '@mui/material/Tooltip';
 import SettingsDialog from './components/SettingsDialog';
@@ -21,6 +22,7 @@ import SettingsDialog from './components/SettingsDialog';
 function useTabIndex() {
   const location = useLocation();
   if (location.pathname.startsWith('/repos')) return 1;
+  if (location.pathname.startsWith('/diagnostics')) return 2;
   return 0;
 }
 
@@ -51,16 +53,18 @@ export default function App() {
           </IconButton>
         </Toolbar>
       </AppBar>
-      <Tabs value={idx} onChange={(_, v) => navigate(v === 0 ? '/search' : '/repos')} centered>
+      <Tabs value={idx} onChange={(_, v) => navigate(v === 0 ? '/search' : v === 1 ? '/repos' : '/diagnostics')} centered>
         <Tab label="Search" component={Link} to="/search" />
         <Tab label="Repos" component={Link} to="/repos" />
+        <Tab label="Diagnostics" component={Link} to="/diagnostics" />
       </Tabs>
       <Container maxWidth="lg" sx={{ mt: 3, mb: 4 }}>
         <Routes>
           <Route path="/" element={<Search />} />
           <Route path="/search" element={<Search />} />
           <Route path="/repos" element={<Repos />} />
-        </Routes>
+          <Route path="/diagnostics" element={<Diagnostics />} />
+      </Routes>
         <Box sx={{ mt: 4 }}>
           <Button variant="outlined" component={Link} to="/repos">Reset + Index All</Button>
         </Box>
