@@ -91,21 +91,12 @@ module Savant
 
               lang = Language.from_rel_path(rel)
               allowed = @config.languages
-              # Allow memory_bank even if only markdown is allowed
-              if !allowed.empty? && !allowed.include?(lang)
-                if lang == 'memory_bank'
-                  unless allowed.include?('md') || allowed.include?('mdx') || allowed.include?('markdown')
-                    repo_skipped += 1
-                    log_skip(rel, "unsupported_lang lang=#{lang}", verbose)
-                    progress&.increment
-                    next
-                  end
-                else
-                  repo_skipped += 1
-                  log_skip(rel, "unsupported_lang lang=#{lang}", verbose)
-                  progress&.increment
-                  next
-                end
+              # Always allow memory_bank markdown regardless of language allowlist; otherwise enforce allowlist
+              if !allowed.empty? && !allowed.include?(lang) && lang != 'memory_bank'
+                repo_skipped += 1
+                log_skip(rel, "unsupported_lang lang=#{lang}", verbose)
+                progress&.increment
+                next
               end
 
               if binary_file?(abs)

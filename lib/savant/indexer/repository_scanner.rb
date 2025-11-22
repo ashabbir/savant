@@ -22,7 +22,7 @@ module Savant
 
       def initialize(root, extra_ignores: [], scan_mode: :auto)
         @root = root
-        raw_patterns = Array(extra_ignores) + load_gitignore_patterns
+        raw_patterns = DEFAULT_IGNORE_GLOBS + Array(extra_ignores) + load_gitignore_patterns
         @ignore_patterns = normalize_globs(raw_patterns)
         @prune_names = derive_prune_dir_names(raw_patterns)
         @scan_mode = scan_mode
@@ -65,6 +65,19 @@ module Savant
       end
 
       private
+
+      # Default file-level ignore globs for compiled/binary artifacts and heavy outputs
+      DEFAULT_IGNORE_GLOBS = %w[
+        *.class *.jar *.war *.ear
+        *.o *.a *.so *.dll *.dylib *.exe *.bin *.obj *.lib
+        *.pyc *.pyo *.pyd
+        *.wasm
+        *.min.js *.bundle.js *.js.map *.css.map
+        *.zip *.7z *.tar *.gz *.tgz *.bz2 *.xz
+        *.pdf *.png *.jpg *.jpeg *.gif *.bmp *.ico *.webp
+        *.psd *.ai *.sketch *.fig
+        *.sqlite *.sqlite3 *.db *.db3
+      ].freeze
 
       def dot_dir?(rel)
         rel == '.git' || rel.start_with?('.git/') || rel.split('/').any? { |part| part.start_with?('.') }
