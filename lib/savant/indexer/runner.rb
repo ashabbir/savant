@@ -91,11 +91,21 @@ module Savant
 
               lang = Language.from_rel_path(rel)
               allowed = @config.languages
+              # Allow memory_bank even if only markdown is allowed
               if !allowed.empty? && !allowed.include?(lang)
-                repo_skipped += 1
-                log_skip(rel, "unsupported_lang lang=#{lang}", verbose)
-                progress&.increment
-                next
+                if lang == 'memory_bank'
+                  unless allowed.include?('md') || allowed.include?('mdx') || allowed.include?('markdown')
+                    repo_skipped += 1
+                    log_skip(rel, "unsupported_lang lang=#{lang}", verbose)
+                    progress&.increment
+                    next
+                  end
+                else
+                  repo_skipped += 1
+                  log_skip(rel, "unsupported_lang lang=#{lang}", verbose)
+                  progress&.increment
+                  next
+                end
               end
 
               if binary_file?(abs)
@@ -179,7 +189,7 @@ module Savant
       def build_chunks(path, lang)
         c = @config.chunk
         case lang
-        when 'md', 'mdx'
+        when 'md', 'mdx', 'memory_bank'
           Chunker::MarkdownChunker.new.chunk(path, c)
         when 'txt'
           Chunker::PlaintextChunker.new.chunk(path, c)
