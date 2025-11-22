@@ -57,15 +57,6 @@ module Savant
           end
         end
 
-        private
-
-        def build_cache
-          cfg = Savant::Indexer::Config.new(Savant::Config.load(@settings_path))
-          Savant::Indexer::Cache.new(cfg.cache_path)
-        end
-
-        # Diagnostics: validate repo mounts visibility inside the running process
-        # and report basic DB counts. Returns a hash suitable for UI display.
         def diagnostics
           info = {}
           base = Dir.pwd
@@ -141,6 +132,15 @@ module Savant
           }
 
           info
+        end
+
+        public :diagnostics
+
+        private
+
+        def build_cache
+          cfg = Savant::Indexer::Config.new(Savant::Config.load(@settings_path))
+          Savant::Indexer::Cache.new(cfg.cache_path)
         end
       end
     end
