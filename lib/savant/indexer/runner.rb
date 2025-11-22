@@ -44,6 +44,7 @@ module Savant
           totals[:changed] += counts[:indexed]
           totals[:skipped] += counts[:skipped]
           totals[:errors] += counts[:errors]
+          totals[:memory_bank] = (totals[:memory_bank] || 0) + (counts[:memory_bank] || 0)
         end
 
         @cache.save!
@@ -52,6 +53,7 @@ module Savant
             "summary: scanned=#{totals[:total]} changed=#{totals[:changed]} " \
             "skipped=#{totals[:skipped]} errors=#{totals[:errors]}"
           )
+          @log.info("memory_bank: #{totals[:memory_bank] || 0}")
         end
         totals
       end
@@ -139,11 +141,13 @@ module Savant
         if kind_counts.any?
           counts_line = kind_counts.map { |k, v| "#{k}=#{v}" }.join(' ')
           @log.info("counts: #{counts_line}")
+          mb = kind_counts['memory_bank'] || 0
+          @log.info("memory_bank: #{mb}")
         end
         progress&.finish
         @log.repo_footer(indexed: repo_indexed, skipped: repo_skipped, errors: repo_errors)
 
-        { indexed: repo_indexed, skipped: repo_skipped, errors: repo_errors }
+        { indexed: repo_indexed, skipped: repo_skipped, errors: repo_errors, memory_bank: kind_counts['memory_bank'] || 0 }
       end
 
       def select_repos(name)
