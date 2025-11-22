@@ -5,9 +5,10 @@ Savant is a lightweight Ruby toolkit for running local MCP services such as fast
 ## Table of Contents
 1. [Before You Begin](#before-you-begin)
 2. [Get Started](#get-started)
-3. [Helpful Commands](#helpful-commands)
-4. [Memory Bank (Canonical Docs)](#memory-bank-canonical-docs)
-5. [Need Help?](#need-help)
+3. [Run Options](#run-options)
+4. [Helpful Commands](#helpful-commands)
+5. [Memory Bank (Canonical Docs)](#memory-bank-canonical-docs)
+6. [Need Help?](#need-help)
 
 ## Before You Begin
 - **Ruby & Bundler:** use the Ruby version declared in `Gemfile` (3.2+ recommended) and run `bundle install`.
@@ -51,6 +52,29 @@ Savant is a lightweight Ruby toolkit for running local MCP services such as fast
    - Point Claude Code, Cline, or another MCP client at `ruby ./bin/mcp_server` with `MCP_SERVICE` set as needed.
    - Use `make mcp-test q='term'` to sanity-check the Context engine before wiring it into an editor.
 
+## Run Options
+Choose a style that matches your setup—swap between them as needed.
+
+### Raw host (manual control)
+- Use your local Ruby, Postgres, and `bundle exec` commands directly.
+- Start Postgres however you prefer (brew service, systemd, psql app, etc.).
+- Run `bundle exec ruby ./bin/mcp_server` with the desired `MCP_SERVICE` value.
+- Great when you want maximum transparency into processes and logs.
+
+### Make helpers (recommended)
+- The Make targets shell out to Docker Compose for Postgres so you get containerized infra without writing `docker` commands yourself.
+- `make dev` – launches Postgres (Docker) plus convenience volumes; you still run Ruby processes on the host.
+- `make repo-index-all`, `make repo-index-repo repo=<name>` – wrap the indexer for consistent flags.
+- `make migrate`, `make fts`, `make repo-status` – manage DB schema and indexed data.
+- Ideal when you want Docker-managed Postgres but prefer to run Ruby CLIs on your machine.
+
+### Full Docker / Compose services
+- Run everything (Postgres + MCP services) inside containers when you want full isolation.
+- `docker compose build` – build images (Ruby services + Postgres).
+- `make dev` or `docker compose up -d postgres` – start Postgres and share volumes for repos/logs.
+- `docker compose run --rm -T mcp-context` – run the Context MCP entirely in a container (same for Jira via `mcp-jira`).
+- Helpful for reproducing a uniform environment or running Savant without installing Ruby locally.
+
 ## Helpful Commands
 - `bin/context_repo_indexer status` – inspect repo counts and mtimes.
 - `make repo-status` – quick status summary for all repos.
@@ -58,6 +82,8 @@ Savant is a lightweight Ruby toolkit for running local MCP services such as fast
 - `bin/savant list tools --service=<context|jira>` – inspect tool registries.
 - `bin/savant call '<tool>' --service=<...> --input='{}'` – dry-run a tool without an editor.
 - `bin/config_validate` – confirm that `config/settings.json` matches the schema.
+- `git status && git add <files>` – stage changes before sharing.
+- `git commit -m "Describe change" && git push origin <branch>` – capture and publish your work (use branch naming conventions in your org).
 
 ## Memory Bank (Canonical Docs)
 Detailed architecture notes, engine internals, and integration walkthroughs now live exclusively in the `memory_bank/` directory:
