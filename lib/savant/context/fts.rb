@@ -57,14 +57,21 @@ module Savant
           params.concat(repo_list)
         end
 
+        memory_patterns = []
         if memory_only
-          # Pattern match for memory_bank location inside repository
+          # Include common directory variants for memory bank
+          memory_patterns = [
+            '%/memory/%', '%/memory_bank/%', '%/memory-bank/%', '%/memorybank/%', '%/memoryBank/%', '%/bank/%'
+          ]
           rlen = repo_list&.length || 0
-          where_mb = " AND f.rel_path LIKE $#{2 + rlen}"
+          # Build OR chain for ILIKE patterns
+          placeholders = memory_patterns.each_index.map { |i| "$#{2 + rlen + i}" }
+          where_mb = " AND (" + placeholders.map { |ph| "f.rel_path ILIKE #{ph}" }.join(' OR ') + ")"
         end
 
+        # Append memory patterns and limit
+        params.concat(memory_patterns)
         # Limit is always last param
-        params << '%/memory_bank/%' if memory_only
         params << limit
 
         sql = <<~SQL
@@ -78,7 +85,7 @@ module Savant
           #{where_repo}
           #{where_mb}
           ORDER BY score DESC
-          LIMIT $#{1 + (repo_list&.length || 0) + (memory_only ? 1 : 0) + 1}
+          LIMIT $#{1 + (repo_list&.length || 0) + (memory_only ? memory_patterns.length : 0) + 1}
         SQL
 
         res = @db.instance_variable_get(:@conn).exec_params(sql, params)
