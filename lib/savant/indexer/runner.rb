@@ -45,6 +45,7 @@ module Savant
           totals[:skipped] += counts[:skipped]
           totals[:errors] += counts[:errors]
           totals[:memory_bank] = (totals[:memory_bank] || 0) + (counts[:memory_bank] || 0)
+          totals[:code_files] = (totals[:code_files] || 0) + (counts[:code_files] || 0)
         end
 
         @cache.save!
@@ -54,6 +55,7 @@ module Savant
             "skipped=#{totals[:skipped]} errors=#{totals[:errors]}"
           )
           @log.info("memory_bank: #{totals[:memory_bank] || 0}")
+          @log.info("code_files: #{totals[:code_files] || 0}")
         end
         totals
       end
@@ -142,12 +144,20 @@ module Savant
           counts_line = kind_counts.map { |k, v| "#{k}=#{v}" }.join(' ')
           @log.info("counts: #{counts_line}")
           mb = kind_counts['memory_bank'] || 0
+          # Code files are those not in markdown/doc-like buckets
+          doc_langs = (DOC_TEXT_EXTS + %w[md mdx memory_bank]).uniq
+          code_files = kind_counts.sum { |k, v| doc_langs.include?(k) ? 0 : v }
           @log.info("memory_bank: #{mb}")
+          @log.info("code_files: #{code_files}")
         end
         progress&.finish
         @log.repo_footer(indexed: repo_indexed, skipped: repo_skipped, errors: repo_errors)
 
-        { indexed: repo_indexed, skipped: repo_skipped, errors: repo_errors, memory_bank: kind_counts['memory_bank'] || 0 }
+        # include derived counts for aggregation in summary
+        doc_langs = (DOC_TEXT_EXTS + %w[md mdx memory_bank]).uniq
+        code_files = kind_counts.sum { |k, v| doc_langs.include?(k) ? 0 : v }
+        { indexed: repo_indexed, skipped: repo_skipped, errors: repo_errors,
+          memory_bank: kind_counts['memory_bank'] || 0, code_files: code_files }
       end
 
       def select_repos(name)
