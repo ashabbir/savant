@@ -149,6 +149,12 @@ Diagnostics:
   - Common mount points visibility: `/app`, `/host`, `/host-crawler`
   - DB connectivity and quick table counts (repos/files/chunks)
 
+Think Engine (UI):
+
+- A "Think" tab is available with:
+  - Workflows list (from `think.workflows.list`) and YAML viewer per workflow (`think.workflows.read`).
+  - Prompts list (from `think.prompts.list`) and markdown viewer per selected version (`think.prompts.read`).
+
 Serve UI under Hub (/ui):
 
 - Build static assets into `public/ui/` and serve them from the Hub:

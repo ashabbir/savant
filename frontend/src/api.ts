@@ -118,3 +118,96 @@ export function useDiagnostics() {
     retry: 0
   });
 }
+
+// THINK engine API
+export type ThinkWorkflowRow = { id: string; version: string; desc: string };
+export type ThinkWorkflows = { workflows: ThinkWorkflowRow[] };
+export function useThinkWorkflows() {
+  return useQuery<ThinkWorkflows>({
+    queryKey: ['think', 'workflows'],
+    queryFn: async () => {
+      const res = await client().post('/think/tools/think.workflows.list/call', { params: {} });
+      return res.data as ThinkWorkflows;
+    }
+  });
+}
+
+export function useThinkWorkflowRead(id: string | null) {
+  return useQuery<{ workflow_yaml: string }>({
+    queryKey: ['think', 'workflow', id],
+    queryFn: async () => {
+      const res = await client().post('/think/tools/think.workflows.read/call', { params: { workflow: id } });
+      return res.data as { workflow_yaml: string };
+    },
+    enabled: !!id
+  });
+}
+
+export type ThinkPromptRow = { version: string; path: string };
+export type ThinkPrompts = { versions: ThinkPromptRow[] };
+export function useThinkPrompts() {
+  return useQuery<ThinkPrompts>({
+    queryKey: ['think', 'prompts'],
+    queryFn: async () => {
+      const res = await client().post('/think/tools/think.prompts.list/call', { params: {} });
+      return res.data as ThinkPrompts;
+    }
+  });
+}
+
+export function useThinkPrompt(version: string | null) {
+  return useQuery<{ version: string; hash: string; prompt_md: string }>({
+    queryKey: ['think', 'prompt', version],
+    queryFn: async () => {
+      const res = await client().post('/think/tools/think.prompts.read/call', { params: { version } });
+      return res.data as { version: string; hash: string; prompt_md: string };
+    },
+    enabled: !!version
+  });
+}
+
+export function useThinkRuns() {
+  return useQuery<{ runs: { workflow: string; run_id: string; completed: number; next_step_id?: string; path: string; updated_at: string }[] }>({
+    queryKey: ['think', 'runs'],
+    queryFn: async () => {
+      const res = await client().post('/think/tools/think.runs.list/call', { params: {} });
+      return res.data;
+    }
+  });
+}
+
+export function useThinkRun(workflow: string | null, runId: string | null) {
+  return useQuery<{ state: any }>({
+    queryKey: ['think', 'run', workflow, runId],
+    queryFn: async () => {
+      const res = await client().post('/think/tools/think.runs.read/call', { params: { workflow, run_id: runId } });
+      return res.data;
+    },
+    enabled: !!workflow && !!runId
+  });
+}
+
+export async function thinkRunDelete(workflow: string, runId: string) {
+  const res = await client().post('/think/tools/think.runs.delete/call', { params: { workflow, run_id: runId } });
+  return res.data;
+}
+
+export async function thinkPlan(workflow: string, params: any, runId?: string | null, startFresh: boolean = true) {
+  const res = await client().post('/think/tools/think.plan/call', { params: { workflow, params, run_id: runId || undefined, start_fresh: startFresh } });
+  return res.data as { instruction: any; state: any; run_id: string; done: boolean };
+}
+
+export async function thinkNext(workflow: string, runId: string, stepId: string, resultSnapshot: any) {
+  const res = await client().post('/think/tools/think.next/call', { params: { workflow, run_id: runId, step_id: stepId, result_snapshot: resultSnapshot } });
+  return res.data as { instruction?: any; done: boolean; summary?: string };
+}
+
+export function useThinkLimits() {
+  return useQuery<{ max_snapshot_bytes: number; max_string_bytes: number; truncation_strategy: string; log_payload_sizes: boolean; warn_threshold_bytes: number }>({
+    queryKey: ['think', 'limits'],
+    queryFn: async () => {
+      const res = await client().post('/think/tools/think.limits.read/call', { params: {} });
+      return res.data;
+    }
+  });
+}

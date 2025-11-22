@@ -16,6 +16,10 @@ module Savant
     # - next(workflow:, step_id:, result_snapshot:)
     # - workflows_list(filter:)
     # - workflows_read(workflow:)
+    # - prompts_list
+    # - limits
+    # - runs_list / run_read / run_delete
+    # - workflows_graph
     # rubocop:disable Metrics/ClassLength
     class Engine
       def initialize(env: ENV)
@@ -39,6 +43,82 @@ module Savant
         p_path = File.join(@root, path)
         md = read_text_utf8(p_path)
         { version: ver, hash: "sha256:#{Digest::SHA256.hexdigest(md)}", prompt_md: md }
+      end
+
+      # List available prompt versions from prompts.yml
+      # @return [Hash] { versions: [ { version:, path: } ] }
+      def prompts_list
+        reg_path = File.join(@root, 'prompts.yml')
+        data = safe_yaml(read_text_utf8(reg_path))
+        versions = data['versions'] || {}
+        rows = versions.map { |ver, path| { version: ver, path: path } }
+        { versions: rows }
+      end
+
+      # Return current limits/configuration
+      def limits
+        @limits
+      end
+
+      # List saved workflow runs from .savant/state
+      # @return [Hash] { runs: [ { workflow:, run_id:, completed:, next_step_id:, path:, updated_at: } ] }
+      def runs_list
+        dir = File.join(@base, '.savant', 'state')
+        rows = []
+        if Dir.exist?(dir)
+          Dir.children(dir).select { |f| f.end_with?('.json') }.each do |fn|
+            path = File.join(dir, fn)
+            begin
+              st = JSON.parse(read_text_utf8(path))
+              wf = st['workflow'] || guess_workflow_from_filename(fn)
+              rid = st['run_id'] || guess_run_id_from_filename(fn)
+              done = Array(st['completed']).length
+              nxt = next_ready_step_id(st)
+              rows << { workflow: wf, run_id: rid, completed: done, next_step_id: nxt, path: path, updated_at: File.mtime(path).utc.iso8601 }
+            rescue StandardError
+              next
+            end
+          end
+        end
+        { runs: rows }
+      end
+
+      # Read a run state by workflow and run_id
+      def run_read(workflow:, run_id:)
+        st = read_state(workflow, run_id)
+        { state: st }
+      end
+
+      # Delete a run state
+      def run_delete(workflow:, run_id:)
+        path = state_path_for(workflow, run_id)
+        if File.exist?(path)
+          FileUtils.rm_f(path)
+          { ok: true, deleted: true }
+        else
+          { ok: true, deleted: false }
+        end
+      end
+
+      # Build graph for a workflow
+      # @return [Hash] { nodes: [ { id:, call:, deps: [] } ], order: [] }
+      def workflows_graph(workflow:)
+        wf = load_workflow(workflow)
+        g = build_graph(wf)
+        nodes = (wf['steps'] || []).map { |s| { id: s['id'], call: s['call'], deps: Array(s['deps']).map(&:to_s) } }
+        { nodes: nodes, order: topo_order(g) }
+      end
+
+      def guess_workflow_from_filename(fn)
+        base = File.basename(fn, '.json')
+        wf, _rid = base.split('__', 2)
+        wf
+      end
+
+      def guess_run_id_from_filename(fn)
+        base = File.basename(fn, '.json')
+        _wf, rid = base.split('__', 2)
+        rid
       end
 
       # Plan a workflow and return the first instruction and initial state
