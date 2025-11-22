@@ -9,7 +9,7 @@ import Chip from '@mui/material/Chip';
 import Stack from '@mui/material/Stack';
 import LinearProgress from '@mui/material/LinearProgress';
 import Alert from '@mui/material/Alert';
-import { search, SearchResult } from '../api';
+import { search, SearchResult, useRepoStatus } from '../api';
 import Pagination from '@mui/material/Pagination';
 import MenuItem from '@mui/material/MenuItem';
 
@@ -29,6 +29,7 @@ export default function Search() {
   const [q, setQ] = useState('');
   const [repo, setRepo] = useState('');
   const [results, setResults] = useState<SearchResult[]>([]);
+  const { data: statusData } = useRepoStatus();
   const [langFilter, setLangFilter] = useState('');
   const [perPage, setPerPage] = useState(10);
   const [page, setPage] = useState(1);
@@ -57,7 +58,12 @@ export default function Search() {
     <Box>
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mb: 2 }}>
         <TextField label="Query" variant="outlined" fullWidth value={q} onChange={(e) => setQ(e.target.value)} />
-        <TextField label="Repo (optional)" variant="outlined" value={repo} onChange={(e) => setRepo(e.target.value)} />
+        <TextField label="Repo" select value={repo} onChange={(e) => setRepo(e.target.value)} sx={{ minWidth: 180 }}>
+          <MenuItem value="">All</MenuItem>
+          {(statusData || []).map((r) => (
+            <MenuItem key={r.name} value={r.name}>{r.name}</MenuItem>
+          ))}
+        </TextField>
         <TextField label="Lang" select value={langFilter} onChange={(e) => setLangFilter(e.target.value)} sx={{ minWidth: 140 }}>
           <MenuItem value="">All</MenuItem>
           {langs.map(l => (
