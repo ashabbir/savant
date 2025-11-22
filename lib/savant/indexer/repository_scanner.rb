@@ -97,6 +97,13 @@ module Savant
         return nil unless status.success?
 
         rels = stdout.split("\x00").reject(&:empty?)
+        # Drop anything under dot-directories (e.g., .git, .vscode, .idea, .cline, etc.)
+        rels = rels.reject { |rel| rel.split('/').any? { |seg| seg.start_with?('.') } }
+        # Drop files in known heavy/compiled output directories
+        unless @prune_names.empty?
+          rels = rels.reject { |rel| rel.split('/').any? { |seg| @prune_names.include?(seg) } }
+        end
+        # Apply extra ignore globs if provided
         rels = rels.reject { |rel| ignored?(rel) } unless @ignore_patterns.empty?
         rels.map { |rel| [File.join(@root, rel), rel] }
       rescue Errno::ENOENT
@@ -131,7 +138,8 @@ module Savant
           end
         end
         # Always prune canonical heavy dirs
-        names.push('node_modules', 'vendor', 'dist', 'build', '.next', '.git')
+        names.push('node_modules', 'vendor', 'dist', 'build', 'out', 'target', 'bin', 'obj',
+                   '__pycache__', '.next', '.nuxt', '.parcel-cache', '.gradle', '.mvn', '.git')
         names.uniq
       end
 
