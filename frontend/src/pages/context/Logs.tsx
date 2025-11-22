@@ -59,8 +59,7 @@ export default function ContextLogs() {
         <Button onClick={()=>setLines([])}>Clear</Button>
       </Stack>
       <Box component="pre" sx={{ whiteSpace: 'pre-wrap', fontFamily: 'monospace', bgcolor: '#111', color: '#ddd', p: 2, minHeight: 240, borderRadius: 1 }}>
-        {lines.join('
-')}
+        {lines.join('\n')}
       </Box>
     </Paper>
   );
