@@ -13,3 +13,5 @@ coverage/*
 secrets.yml
 frontend/node_modules/
 frontend/dist/
+public/
+
