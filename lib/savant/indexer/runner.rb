@@ -44,6 +44,9 @@ module Savant
           totals[:changed] += counts[:indexed]
           totals[:skipped] += counts[:skipped]
           totals[:errors] += counts[:errors]
+          totals[:memory_bank] = (totals[:memory_bank] || 0) + (counts[:memory_bank] || 0)
+          totals[:code_files] = (totals[:code_files] || 0) + (counts[:code_files] || 0)
+          totals[:doc_files] = (totals[:doc_files] || 0) + (counts[:doc_files] || 0)
         end
 
         @cache.save!
@@ -52,6 +55,7 @@ module Savant
             "summary: scanned=#{totals[:total]} changed=#{totals[:changed]} " \
             "skipped=#{totals[:skipped]} errors=#{totals[:errors]}"
           )
+          @log.info("memory_bank: #{totals[:memory_bank] || 0}")
         end
         totals
       end
@@ -91,7 +95,9 @@ module Savant
 
               lang = Language.from_rel_path(rel)
               allowed = @config.languages
-              if !allowed.empty? && !allowed.include?(lang)
+              # Always allow memory_bank markdown and doc-like files regardless of language allowlist;
+              # otherwise enforce allowlist
+              if !allowed.empty? && !allowed.include?(lang) && lang != 'memory_bank' && !doc_like?(rel, lang)
                 repo_skipped += 1
                 log_skip(rel, "unsupported_lang lang=#{lang}", verbose)
                 progress&.increment
@@ -137,11 +143,27 @@ module Savant
         if kind_counts.any?
           counts_line = kind_counts.map { |k, v| "#{k}=#{v}" }.join(' ')
           @log.info("counts: #{counts_line}")
+          mb = kind_counts['memory_bank'] || 0
+          # Doc-only (exclude memory_bank which is tracked separately)
+          doc_only_langs = (DOC_TEXT_EXTS + %w[md mdx markdown]).uniq
+          # Code files exclude doc-only and memory_bank
+          non_code = (doc_only_langs + %w[memory_bank]).uniq
+          @log.info("memory_bank: #{mb}")
+          doc_breakdown = kind_counts.select { |k, _| doc_only_langs.include?(k) }
+          code_breakdown = kind_counts.reject { |k, _| non_code.include?(k) }
+          @log.info("doc_files_breakdown: #{doc_breakdown.map { |k, v| "#{k}=#{v}" }.join(' ')}") unless doc_breakdown.empty?
+          @log.info("code_files_breakdown: #{code_breakdown.map { |k, v| "#{k}=#{v}" }.join(' ')}") unless code_breakdown.empty?
         end
         progress&.finish
         @log.repo_footer(indexed: repo_indexed, skipped: repo_skipped, errors: repo_errors)
 
-        { indexed: repo_indexed, skipped: repo_skipped, errors: repo_errors }
+        # include derived counts for aggregation in summary
+        doc_only_langs = (DOC_TEXT_EXTS + %w[md mdx markdown]).uniq
+        non_code = (doc_only_langs + %w[memory_bank]).uniq
+        doc_files = kind_counts.sum { |k, v| doc_only_langs.include?(k) ? v : 0 }
+        code_files = kind_counts.sum { |k, v| non_code.include?(k) ? 0 : v }
+        { indexed: repo_indexed, skipped: repo_skipped, errors: repo_errors,
+          memory_bank: kind_counts['memory_bank'] || 0, doc_files: doc_files, code_files: code_files }
       end
 
       def select_repos(name)
@@ -179,9 +201,9 @@ module Savant
       def build_chunks(path, lang)
         c = @config.chunk
         case lang
-        when 'md', 'mdx'
+        when 'md', 'mdx', 'markdown', 'memory_bank'
           Chunker::MarkdownChunker.new.chunk(path, c)
-        when 'txt'
+        when 'txt', 'rst', 'adoc', 'asciidoc', 'org', 'rdoc'
           Chunker::PlaintextChunker.new.chunk(path, c)
         else
           Chunker::CodeChunker.new.chunk(path, c)
@@ -190,6 +212,17 @@ module Savant
 
       def log_skip(rel, reason, verbose)
         @log.debug("skip: item=#{rel} reason=#{reason}") if verbose
+      end
+
+      DOC_TEXT_EXTS = %w[txt rst adoc asciidoc org rdoc].freeze
+      DOC_BASE_NAMES = %w[readme license copying changelog contributing code_of_conduct security notice].freeze
+
+      def doc_like?(rel, lang)
+        base = File.basename(rel).downcase
+        stem = File.basename(rel, File.extname(rel)).downcase
+        return true if DOC_TEXT_EXTS.include?(lang)
+        return true if DOC_BASE_NAMES.include?(stem)
+        false
       end
     end
   end

@@ -22,7 +22,7 @@ module Savant
 
       def initialize(root, extra_ignores: [], scan_mode: :auto)
         @root = root
-        raw_patterns = Array(extra_ignores) + load_gitignore_patterns
+        raw_patterns = DEFAULT_IGNORE_GLOBS + Array(extra_ignores) + load_gitignore_patterns
         @ignore_patterns = normalize_globs(raw_patterns)
         @prune_names = derive_prune_dir_names(raw_patterns)
         @scan_mode = scan_mode
@@ -66,6 +66,19 @@ module Savant
 
       private
 
+      # Default file-level ignore globs for compiled/binary artifacts and heavy outputs
+      DEFAULT_IGNORE_GLOBS = %w[
+        *.class *.jar *.war *.ear
+        *.o *.a *.so *.dll *.dylib *.exe *.bin *.obj *.lib
+        *.pyc *.pyo *.pyd
+        *.wasm
+        *.min.js *.bundle.js *.js.map *.css.map
+        *.zip *.7z *.tar *.gz *.tgz *.bz2 *.xz
+        *.pdf *.png *.jpg *.jpeg *.gif *.bmp *.ico *.webp
+        *.psd *.ai *.sketch *.fig
+        *.sqlite *.sqlite3 *.db *.db3
+      ].freeze
+
       def dot_dir?(rel)
         rel == '.git' || rel.start_with?('.git/') || rel.split('/').any? { |part| part.start_with?('.') }
       end
@@ -97,6 +110,13 @@ module Savant
         return nil unless status.success?
 
         rels = stdout.split("\x00").reject(&:empty?)
+        # Drop anything under dot-directories (e.g., .git, .vscode, .idea, .cline, etc.)
+        rels = rels.reject { |rel| rel.split('/').any? { |seg| seg.start_with?('.') } }
+        # Drop files in known heavy/compiled output directories
+        unless @prune_names.empty?
+          rels = rels.reject { |rel| rel.split('/').any? { |seg| @prune_names.include?(seg) } }
+        end
+        # Apply extra ignore globs if provided
         rels = rels.reject { |rel| ignored?(rel) } unless @ignore_patterns.empty?
         rels.map { |rel| [File.join(@root, rel), rel] }
       rescue Errno::ENOENT
@@ -131,7 +151,8 @@ module Savant
           end
         end
         # Always prune canonical heavy dirs
-        names.push('node_modules', 'vendor', 'dist', 'build', '.next', '.git')
+        names.push('node_modules', 'vendor', 'dist', 'build', 'out', 'target', 'obj',
+                   '__pycache__', '.next', '.nuxt', '.parcel-cache', '.gradle', '.mvn', '.git')
         names.uniq
       end
 
