@@ -78,17 +78,13 @@ module Savant
       end
     end
 
-    # Ensure indexer.scanMode exists and is valid. If missing, default to 'ls'.
+    # Ensure indexer.scanMode exists and is valid. If missing or invalid, default to 'ls'.
     def self.normalize_and_validate_scan_mode!(cfg)
       idx = cfg['indexer']
       mode = idx['scanMode']
-      if mode.nil? || mode.to_s.strip.empty?
-        idx['scanMode'] = 'ls'
-        return
-      end
       allowed = %w[ls git-ls]
-      unless allowed.include?(mode.to_s)
-        raise ConfigError, "indexer.scanMode must be one of: #{allowed.join(', ')}"
+      if mode.nil? || mode.to_s.strip.empty? || !allowed.include?(mode.to_s)
+        idx['scanMode'] = 'ls'
       end
     end
 

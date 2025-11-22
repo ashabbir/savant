@@ -48,7 +48,7 @@ Validation
 - `Savant::Config.load`:
   - Accepts `scanMode` string; validates against `["ls","git-ls"]`.
   - Missing → default to `ls`.
-  - Invalid → raise `Savant::ConfigError`.
+  - Invalid → coerce to `ls` (do not raise).
 - Add to `config/settings.example.json` with comment describing the modes.
 
 Implementation Plan
