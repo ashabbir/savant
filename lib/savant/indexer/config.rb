@@ -50,31 +50,33 @@ module Savant
         indexer['cachePath'] || DEFAULT_CACHE_PATH
       end
 
-      # Global scan mode: auto | git | walk
       # Global scan mode
-      # @return [:auto, :git, :walk]
+      # Allowed values in config: "ls" (default) or "git-ls".
+      # Internally we normalize to symbols :walk and :git.
+      # @return [:git, :walk]
       def scan_mode
         mode = indexer['scanMode']&.to_s&.downcase
         to_mode_symbol(mode)
       end
 
-      # Per-repo override via repo['scanMode']
-      # Per-repo scan mode override
-      # @return [:auto, :git, :walk]
+      # Per-repo override not supported in this iteration; use global.
+      # Present for compatibility with Runner API.
+      # @return [:git, :walk]
       def scan_mode_for(repo_hash)
-        rmode = repo_hash['scanMode']&.to_s&.downcase
-        to_mode_symbol(rmode) || scan_mode
+        # ignore repo_hash and return global
+        scan_mode
       end
 
       private
 
       def to_mode_symbol(str)
         case str
-        when 'git' then :git
-        when 'walk' then :walk
-        when 'auto' then :auto
+        when 'git-ls' then :git
+        when 'ls' then :walk
+        when 'git' then :git # backward compatibility
+        when 'walk' then :walk # backward compatibility
         else
-          :auto
+          :walk
         end
       end
     end

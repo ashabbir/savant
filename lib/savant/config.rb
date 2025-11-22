@@ -55,6 +55,7 @@ module Savant
     # @raise [Savant::ConfigError] on missing keys or bad types.
     def self.validate!(cfg)
       validate_root!(cfg)
+      normalize_and_validate_scan_mode!(cfg)
       validate_repos_array!(cfg)
       validate_each_repo!(cfg)
       validate_transport!(cfg)
@@ -74,6 +75,20 @@ module Savant
         inner.each do |sub|
           raise ConfigError, "missing key: #{key}.#{sub}" unless cfg[key].is_a?(Hash) && cfg[key].key?(sub)
         end
+      end
+    end
+
+    # Ensure indexer.scanMode exists and is valid. If missing, default to 'ls'.
+    def self.normalize_and_validate_scan_mode!(cfg)
+      idx = cfg['indexer']
+      mode = idx['scanMode']
+      if mode.nil? || mode.to_s.strip.empty?
+        idx['scanMode'] = 'ls'
+        return
+      end
+      allowed = %w[ls git-ls]
+      unless allowed.include?(mode.to_s)
+        raise ConfigError, "indexer.scanMode must be one of: #{allowed.join(', ')}"
       end
     end
 
