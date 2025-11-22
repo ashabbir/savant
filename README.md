@@ -92,6 +92,8 @@ Detailed architecture notes, engine internals, and integration walkthroughs now 
 - [memory_bank/framework.md#engine-scaffolding](memory_bank/framework.md#engine-scaffolding) – generator + scaffolding flow for building new engines.
 - [memory_bank/engine_context.md](memory_bank/engine_context.md) – indexer, chunking, languages, and search behavior.
 - [memory_bank/engine_jira.md](memory_bank/engine_jira.md) – Jira client, tools, authentication, and CLI helpers.
+- [memory_bank/engine_think.md](memory_bank/engine_think.md) – workflow orchestration, driver prompts, and YAML-based DAG authoring.
+- Think workflow template: `lib/savant/think/workflows/_template.yml` – copy/rename to start new workflows with driver bootstrap baked in.
 
 If you come across older READMEs scattered throughout the repo, treat them as historical references only—the Memory Bank files above are the single source of truth for technical documentation.
 
