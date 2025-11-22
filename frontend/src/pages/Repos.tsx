@@ -12,6 +12,7 @@ import TableCell from '@mui/material/TableCell';
 import TableBody from '@mui/material/TableBody';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
+import Snackbar from '@mui/material/Snackbar';
 
 export default function Repos() {
   const { data, isLoading, isError, refetch } = useQuery<RepoStatus[]>({
@@ -22,9 +23,22 @@ export default function Repos() {
   const [filter, setFilter] = useState('');
   const rows = useMemo(() => (data || []).filter(r => r.name.includes(filter)), [data, filter]);
 
-  const resetMut = useMutation({ mutationFn: resetAndIndexAll, onSuccess: () => refetch() });
-  const indexMut = useMutation({ mutationFn: (repo: string) => indexRepo(repo), onSuccess: () => refetch() });
-  const deleteMut = useMutation({ mutationFn: (repo: string) => deleteRepo(repo), onSuccess: () => refetch() });
+  const [toast, setToast] = useState<string | null>(null);
+  const resetMut = useMutation({
+    mutationFn: resetAndIndexAll,
+    onSuccess: () => { setToast('Reset + Index All triggered'); refetch(); },
+    onError: (e: any) => setToast(`Error: ${e?.message || 'failed'}`)
+  });
+  const indexMut = useMutation({
+    mutationFn: (r: string) => indexRepo(r),
+    onSuccess: () => { setToast('Index started'); refetch(); },
+    onError: (e: any) => setToast(`Error: ${e?.message || 'failed'}`)
+  });
+  const deleteMut = useMutation({
+    mutationFn: (r: string) => deleteRepo(r),
+    onSuccess: () => { setToast('Delete requested'); refetch(); },
+    onError: (e: any) => setToast(`Error: ${e?.message || 'failed'}`)
+  });
 
   return (
     <Box>
@@ -64,6 +78,6 @@ export default function Repos() {
         </TableBody>
       </Table>
     </Box>
+    <Snackbar open={!!toast} autoHideDuration={3000} onClose={() => setToast(null)} message={toast || ''} />
   );
 }
-
