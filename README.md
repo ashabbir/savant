@@ -105,7 +105,9 @@ Run with Docker Compose (recommended):
 1) Start services (Postgres, Hub, Frontend):
    - `make up` (alias for `docker compose up -d`)
    - Follow logs: `make logs-all` (hub + frontend + postgres)
-2) Open the UI at `http://localhost:5173`
+2) Open the UI:
+   - Hub-hosted: `http://localhost:9999/ui` (built automatically by `make up`)
+   - Standalone preview: `http://localhost:5173`
 3) Click the gear icon and verify:
    - Base URL: `http://localhost:9999` (or change if Hub differs)
    - User ID: your user (sent as `x-savant-user-id`)
@@ -146,6 +148,17 @@ Diagnostics:
   - For each configured repo: exists/dir/readable flags, ~200-file sample count, a few sample file paths, and any path errors
   - Common mount points visibility: `/app`, `/host`, `/host-crawler`
   - DB connectivity and quick table counts (repos/files/chunks)
+
+Serve UI under Hub (/ui):
+
+- Build static assets into `public/ui/` and serve them from the Hub:
+  - `make ui-build`
+  - Open http://localhost:9999/ui
+- Optional: stop the separate preview server if running:
+  - `make frontend-stop`
+- Notes:
+  - Static build uses base `/ui/` so assets load correctly.
+  - BrowserRouter uses basename from the build base, so routing works under `/ui` and standalone.
 
 Troubleshooting:
 

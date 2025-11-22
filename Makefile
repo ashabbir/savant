@@ -7,6 +7,7 @@
 
 dev:
 	@docker compose up -d --remove-orphans
+	@$(MAKE) ui-build || true
 
 up: dev
 
