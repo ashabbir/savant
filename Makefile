@@ -8,6 +8,8 @@
 dev:
 	@docker compose up -d --remove-orphans
 	@$(MAKE) ui-build || true
+	@docker compose stop frontend || true
+	@docker compose rm -f -s -v frontend || true
 
 up: dev
 
@@ -65,7 +67,7 @@ delete-repo:
 
 # Build static UI and serve under Hub at /ui
 ui-build:
-	@docker compose run --rm -T frontend /bin/sh -lc 'cd /app/frontend && (npm ci || npm install) && npm run build -- --base=/ui/ && rm -rf /app/public/ui && mkdir -p /app/public/ui && cp -r dist/* /app/public/ui/'
+	@docker compose run --rm -T frontend /bin/sh -lc 'cd /app/frontend && (npm ci || npm install --include=dev) && npm run build -- --base=/ui/ && rm -rf /app/public/ui && mkdir -p /app/public/ui && cp -r dist/* /app/public/ui/'
 
 ui-open:
 	@echo "Open: http://localhost:9999/ui"
