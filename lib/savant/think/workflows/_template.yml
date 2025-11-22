@@ -1,0 +1,33 @@
+# Copy this file to start a new Think workflow.
+# Rename the file (e.g., my_workflow.yml) and update the fields below.
+
+workflow: example_workflow
+version: 0.1.0
+summary: >-
+  One-line description so think.workflows.list can display helpful text.
+params:
+  ticket_key:
+    desc: Jira or GitLab identifier consumed in the workflow.
+    required: true
+
+steps:
+  - id: bootstrap_driver
+    call: think.driver_prompt
+    input_template:
+      version: stable
+    capture_as: __driver
+
+  - id: example_task
+    deps: [bootstrap_driver]
+    call: prompt.say
+    input_template:
+      text: |
+        Example workflow running for {{params.ticket_key}}
+
+# Optional finishing step if you want a custom summary.
+  - id: conclude
+    deps: [example_task]
+    call: prompt.say
+    input_template:
+      text: |
+        ✅ Finished {{workflow}} for {{params.ticket_key}}
