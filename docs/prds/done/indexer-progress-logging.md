@@ -6,7 +6,7 @@
 - Lack of per-repo summaries makes it difficult to distinguish indexed vs skipped files during large indexing runs.
 
 ## Goals
-- Emit a concise, repeatable log block for each repo that clearly shows repo metadata, walk strategy, and completion stats.
+- Emit a concise, repeatable log block for each repo that clearly shows repo metadata, scan mode, and completion stats.
 - Display a terminal progress bar per repo using the `ruby-progressbar` gem so operators can visualize progress across files.
 - Summarize indexed vs skipped counts when each repo completes.
 
@@ -24,7 +24,7 @@
   - Header delimiter (e.g., `======`).
   - `name: <repo>`
   - `total_files: <count>`
-  - `walk_strategy: gitls|ls`
+  - `scan_mode: git-ls|ls`
   - Inline progress bar updated per processed file.
   - Footer lines `indexed: <n>` and `skipped: <n>` before trailing delimiter.
 - Use `ruby-progressbar` (already in the bundle) for rendering; hide bar when `verbose` is false.
@@ -35,7 +35,7 @@
 - Non-interactive environments (e.g., CI logs) should still show textual progress updates from the bar.
 
 ## Telemetry & Logging
-- Start log: `name`, `total_files`, `walk_strategy`.
+- Start log: `name`, `total_files`, `scan_mode`.
 - Progress bar label `indexing` with dynamic counts.
 - Completion log: `indexed`, `skipped`, elapsed duration (if available).
 
@@ -54,5 +54,5 @@
 ## Agent Implementation Plan
 1. Update `lib/savant/indexer/instrumentation.rb` with helpers to emit repo headers/footers and to create a `ProgressBar` instance with safe fallbacks.
 2. Enhance `lib/savant/indexer/runner.rb` to use the new instrumentation helpers, track per-repo indexed/skipped counts, and drive the progress bar instead of raw `progress:` logs.
-3. Expand `spec/savant/indexer/runner_spec.rb` (or new specs) to assert repo-level logging fields and ensure the `gitls` walk strategy log remains informative.
+3. Expand `spec/savant/indexer/runner_spec.rb` (or new specs) to assert repo-level logging fields and ensure the `git-ls` scan mode log remains informative.
 4. Run `bundle exec rubocop -A` and `bundle exec rspec` to verify lint and tests before finalizing the branch.

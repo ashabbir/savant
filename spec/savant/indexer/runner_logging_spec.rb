@@ -53,7 +53,7 @@ RSpec.describe Savant::Indexer::Runner do
     end
   end
 
-  it 'logs walk_strategy gitls when git-based enumeration is used' do
+  it 'logs scan_mode git-ls when git-based enumeration is configured' do
     scanner = instance_double(Savant::Indexer::RepositoryScanner)
     allow(Savant::Indexer::RepositoryScanner).to receive(:new).and_return(scanner)
     allow(scanner).to receive(:files).and_return([
@@ -61,7 +61,7 @@ RSpec.describe Savant::Indexer::Runner do
                                                  ])
     allow(scanner).to receive(:last_used).and_return(:git)
 
-    expect(logger).to receive(:info).with(/walk_strategy: gitls/).at_least(:once)
+    expect(logger).to receive(:info).with(/scan_mode: git-ls/).at_least(:once)
 
     map = { 'a.rb' => { size: 10, mtime: Time.at(100), data: "puts 1\n" } }
     stub_file_ops(map)

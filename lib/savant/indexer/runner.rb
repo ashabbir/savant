@@ -39,7 +39,7 @@ module Savant
           files = scanner.files
           repo_id = @store.ensure_repo(repo.fetch('name'), root)
 
-          counts = process_repo(repo: repo, repo_id: repo_id, scanner: scanner, files: files, verbose: verbose)
+          counts = process_repo(repo: repo, repo_id: repo_id, scanner: scanner, files: files, verbose: verbose, configured_mode: mode)
           totals[:total] += files.length
           totals[:changed] += counts[:indexed]
           totals[:skipped] += counts[:skipped]
@@ -62,9 +62,12 @@ module Savant
 
       private
 
-      def process_repo(repo:, repo_id:, scanner:, files:, verbose:)
-        using = scanner.last_used == :git ? 'gitls' : 'ls'
-        @log.repo_header(name: repo['name'], total: files.length, strategy: using)
+      def process_repo(repo:, repo_id:, scanner:, files:, verbose:, configured_mode:)
+        cfg_str = configured_mode == :git ? 'git-ls' : 'ls'
+        @log.repo_header(name: repo['name'], total: files.length, strategy: cfg_str)
+        if configured_mode == :git && scanner.last_used != :git
+          @log.info('scan_fallback: git-ls->ls')
+        end
         progress = verbose ? @log.progress_bar(title: 'indexing', total: files.length) : nil
         kept = []
         kind_counts = Hash.new(0)
