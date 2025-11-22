@@ -7,6 +7,7 @@ import Tabs from '@mui/material/Tabs';
 import Tab from '@mui/material/Tab';
 import IconButton from '@mui/material/IconButton';
 import SettingsIcon from '@mui/icons-material/Settings';
+import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import Container from '@mui/material/Container';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -48,7 +49,10 @@ export default function App() {
           ) : (
             <Alert severity="success" sx={{ mr: 2, p: 0, px: 1 }}>Hub OK</Alert>
           )}
-          <IconButton color="inherit" onClick={() => setOpen(true)} aria-label="settings">
+          <IconButton color="inherit" component="a" href="/console" target="_blank" rel="noreferrer" aria-label="legacy-console" title="Open legacy console (/console)">
+            <OpenInNewIcon />
+          </IconButton>
+          <IconButton color="inherit" onClick={() => setOpen(true)} aria-label="settings" title="Settings">
             <SettingsIcon />
           </IconButton>
         </Toolbar>
