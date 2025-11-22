@@ -46,6 +46,7 @@ module Savant
           totals[:errors] += counts[:errors]
           totals[:memory_bank] = (totals[:memory_bank] || 0) + (counts[:memory_bank] || 0)
           totals[:code_files] = (totals[:code_files] || 0) + (counts[:code_files] || 0)
+          totals[:doc_files] = (totals[:doc_files] || 0) + (counts[:doc_files] || 0)
         end
 
         @cache.save!
@@ -55,6 +56,7 @@ module Savant
             "skipped=#{totals[:skipped]} errors=#{totals[:errors]}"
           )
           @log.info("memory_bank: #{totals[:memory_bank] || 0}")
+          @log.info("doc_files: #{totals[:doc_files] || 0}")
           @log.info("code_files: #{totals[:code_files] || 0}")
         end
         totals
@@ -144,20 +146,26 @@ module Savant
           counts_line = kind_counts.map { |k, v| "#{k}=#{v}" }.join(' ')
           @log.info("counts: #{counts_line}")
           mb = kind_counts['memory_bank'] || 0
-          # Code files are those not in markdown/doc-like buckets
-          doc_langs = (DOC_TEXT_EXTS + %w[md mdx memory_bank]).uniq
-          code_files = kind_counts.sum { |k, v| doc_langs.include?(k) ? 0 : v }
+          # Doc-only (exclude memory_bank which is tracked separately)
+          doc_only_langs = (DOC_TEXT_EXTS + %w[md mdx markdown]).uniq
+          doc_files = kind_counts.sum { |k, v| doc_only_langs.include?(k) ? v : 0 }
+          # Code files exclude doc-only and memory_bank
+          non_code = (doc_only_langs + %w[memory_bank]).uniq
+          code_files = kind_counts.sum { |k, v| non_code.include?(k) ? 0 : v }
           @log.info("memory_bank: #{mb}")
+          @log.info("doc_files: #{doc_files}")
           @log.info("code_files: #{code_files}")
         end
         progress&.finish
         @log.repo_footer(indexed: repo_indexed, skipped: repo_skipped, errors: repo_errors)
 
         # include derived counts for aggregation in summary
-        doc_langs = (DOC_TEXT_EXTS + %w[md mdx memory_bank]).uniq
-        code_files = kind_counts.sum { |k, v| doc_langs.include?(k) ? 0 : v }
+        doc_only_langs = (DOC_TEXT_EXTS + %w[md mdx markdown]).uniq
+        non_code = (doc_only_langs + %w[memory_bank]).uniq
+        doc_files = kind_counts.sum { |k, v| doc_only_langs.include?(k) ? v : 0 }
+        code_files = kind_counts.sum { |k, v| non_code.include?(k) ? 0 : v }
         { indexed: repo_indexed, skipped: repo_skipped, errors: repo_errors,
-          memory_bank: kind_counts['memory_bank'] || 0, code_files: code_files }
+          memory_bank: kind_counts['memory_bank'] || 0, doc_files: doc_files, code_files: code_files }
       end
 
       def select_repos(name)
@@ -195,7 +203,7 @@ module Savant
       def build_chunks(path, lang)
         c = @config.chunk
         case lang
-        when 'md', 'mdx', 'memory_bank'
+        when 'md', 'mdx', 'markdown', 'memory_bank'
           Chunker::MarkdownChunker.new.chunk(path, c)
         when 'txt', 'rst', 'adoc', 'asciidoc', 'org', 'rdoc'
           Chunker::PlaintextChunker.new.chunk(path, c)
