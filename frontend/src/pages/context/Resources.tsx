@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { MemoryResource, useMemoryResource, useMemoryResources, useRepoStatus } from '../../api';
 import Grid from '@mui/material/Grid2';
 import Paper from '@mui/material/Paper';
@@ -13,15 +13,34 @@ import Box from '@mui/material/Box';
 import TextField from '@mui/material/TextField';
 import MenuItem from '@mui/material/MenuItem';
 
+import { marked } from 'marked';
+import DOMPurify from 'dompurify';
+
 export default function ContextResources() {
   const { data: status } = useRepoStatus();
-  const [repo, setRepo] = useState<string>('');
+  const [repo, setRepo] = useState<string>(() => localStorage.getItem('ctx.resources.repo') || '');
   const { data, isLoading, isError, error } = useMemoryResources(repo || null);
   const [sel, setSel] = useState<MemoryResource | null>(null);
   const content = useMemoryResource(sel?.uri || null);
 
   const rows = data || [];
   const repos = useMemo(()=> (status || []).map(r=>r.name), [status]);
+
+  useEffect(() => {
+    if (!sel && rows.length) {
+      const last = localStorage.getItem('ctx.resources.selected');
+      const found = rows.find(r => r.uri === last) || rows[0];
+      if (found) setSel(found);
+    }
+  }, [rows]);
+
+  useEffect(() => {
+    localStorage.setItem('ctx.resources.repo', repo);
+  }, [repo]);
+
+  useEffect(() => {
+    if (sel?.uri) localStorage.setItem('ctx.resources.selected', sel.uri);
+  }, [sel?.uri]);
 
   return (
     <Grid container spacing={2}>
@@ -50,9 +69,11 @@ export default function ContextResources() {
           <Typography variant="subtitle1">{sel ? sel.metadata.title : 'Select a resource'}</Typography>
           {content.isFetching && <LinearProgress />}
           {content.isError && <Alert severity="error">{(content.error as any)?.message || 'Failed to load resource'}</Alert>}
-          <Box component="pre" sx={{ mt: 1, whiteSpace: 'pre-wrap', fontFamily: 'monospace', fontSize: 13 }}>
-            {content.data || ''}
-          </Box>
+          {content.data && (
+            <Box sx={{ mt: 1 }}>
+              <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(marked.parse(content.data)) }} />
+            </Box>
+          )}
         </Paper>
       </Grid>
     </Grid>

@@ -31,6 +31,7 @@ function useTabIndex() {
   if (location.pathname.startsWith('/repos')) return 1;
   if (location.pathname.startsWith('/think')) return 2;
   if (location.pathname.startsWith('/ctx')) return 3;
+  if (location.pathname.startsWith('/ctx')) return 3;
   if (location.pathname.startsWith('/diagnostics')) return 4;
   return 0;
 }
@@ -70,6 +71,8 @@ export default function App() {
         <Tab label="Repos" component={Link} to="/repos" />
         <Tab label="Think" component={Link} to="/think" />
         <Tab label="Ctx Tools" component={Link} to="/ctx/tools" />
+        <Tab label="Ctx Resources" component={Link} to="/ctx/resources" />
+        <Tab label="Ctx Logs" component={Link} to="/ctx/logs" />
         <Tab label="Diagnostics" component={Link} to="/diagnostics" />
       </Tabs>
       <Container maxWidth="lg" sx={{ mt: 3, mb: 4 }}>
