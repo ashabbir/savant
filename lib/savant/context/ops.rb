@@ -78,8 +78,8 @@ module Savant
         # Build memory path clause with positional params
         mem_clause = '(' + mem_patterns.each_index.map { |i| "rel_path ILIKE $#{i + 1}" }.join(' OR ') + ')'
         params.concat(mem_patterns)
-        # Always limit to markdown files
-        clauses = [mem_clause, "rel_path ILIKE '%.md'"]
+        # Always limit to markdown-like files (md, mdx, markdown)
+        clauses = [mem_clause, "(rel_path ILIKE '%.md' OR rel_path ILIKE '%.mdx' OR rel_path ILIKE '%.markdown')"]
         if repo
           if repo.is_a?(Array) && !repo.empty?
             offset = params.length
