@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Link, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import AppBar from '@mui/material/AppBar';
 import Toolbar from '@mui/material/Toolbar';
 import Typography from '@mui/material/Typography';
@@ -26,20 +26,30 @@ import { getErrorMessage, useHubHealth } from './api';
 import Tooltip from '@mui/material/Tooltip';
 import SettingsDialog from './components/SettingsDialog';
 
-function useTabIndex() {
-  const location = useLocation();
-  if (location.pathname.startsWith('/repos')) return 1;
-  if (location.pathname.startsWith('/think')) return 2;
-  if (location.pathname.startsWith('/ctx')) return 3;
-  if (location.pathname.startsWith('/ctx')) return 3;
-  if (location.pathname.startsWith('/diagnostics')) return 4;
+function useMainTabIndex() {
+  const { pathname } = useLocation();
+  if (pathname.startsWith('/think')) return 1;
+  if (pathname.startsWith('/diagnostics')) return 2;
+  if (pathname.startsWith('/console')) return 3;
+  // Context (default): /ctx/*, /search, /repos
+  return 0;
+}
+
+function useContextSubIndex() {
+  const { pathname } = useLocation();
+  if (pathname.startsWith('/ctx/repos') || pathname === '/repos') return 1;
+  if (pathname.startsWith('/ctx/tools')) return 2;
+  if (pathname.startsWith('/ctx/resources')) return 3;
+  if (pathname.startsWith('/ctx/logs')) return 4;
+  // default to search
   return 0;
 }
 
 export default function App() {
   const [open, setOpen] = useState(false);
   const theme = useMemo(() => createTheme({}), []);
-  const idx = useTabIndex();
+  const mainIdx = useMainTabIndex();
+  const ctxIdx = useContextSubIndex();
   const navigate = useNavigate();
   const { data, isLoading, isError, error } = useHubHealth();
   const errMsg = getErrorMessage(error as any);
@@ -66,20 +76,39 @@ export default function App() {
           </IconButton>
         </Toolbar>
       </AppBar>
-      <Tabs value={idx} onChange={(_, v) => navigate(v === 0 ? '/search' : v === 1 ? '/repos' : v === 2 ? '/think' : v === 3 ? '/ctx/tools' : '/diagnostics')} centered>
-        <Tab label="Search" component={Link} to="/search" />
-        <Tab label="Repos" component={Link} to="/repos" />
+      <Tabs value={mainIdx} onChange={(_, v) => {
+        if (v === 0) navigate('/ctx/search');
+        else if (v === 1) navigate('/think');
+        else if (v === 2) navigate('/diagnostics');
+        // v===3 is Legacy; handled via link on the Tab
+      }} centered>
+        <Tab label="Context" component={Link} to="/ctx/search" />
         <Tab label="Think" component={Link} to="/think" />
-        <Tab label="Ctx Tools" component={Link} to="/ctx/tools" />
-        <Tab label="Ctx Resources" component={Link} to="/ctx/resources" />
-        <Tab label="Ctx Logs" component={Link} to="/ctx/logs" />
         <Tab label="Diagnostics" component={Link} to="/diagnostics" />
+        <Tab label="Legacy" component="a" href="/console" target="_blank" rel="noreferrer" />
       </Tabs>
+      {mainIdx === 0 && (
+        <Tabs value={ctxIdx} onChange={(_, v) => {
+          if (v === 0) navigate('/ctx/search');
+          else if (v === 1) navigate('/ctx/repos');
+          else if (v === 2) navigate('/ctx/tools');
+          else if (v === 3) navigate('/ctx/resources');
+          else if (v === 4) navigate('/ctx/logs');
+        }} centered>
+          <Tab label="Search" component={Link} to="/ctx/search" />
+          <Tab label="Repos" component={Link} to="/ctx/repos" />
+          <Tab label="Tools" component={Link} to="/ctx/tools" />
+          <Tab label="Resources" component={Link} to="/ctx/resources" />
+          <Tab label="Logs" component={Link} to="/ctx/logs" />
+        </Tabs>
+      )}
       <Container maxWidth="lg" sx={{ mt: 3, mb: 4 }}>
         <Routes>
-          <Route path="/" element={<Search />} />
-          <Route path="/search" element={<Search />} />
-          <Route path="/repos" element={<Repos />} />
+          <Route path="/" element={<Navigate to="/ctx/search" replace />} />
+          <Route path="/search" element={<Navigate to="/ctx/search" replace />} />
+          <Route path="/repos" element={<Navigate to="/ctx/repos" replace />} />
+          <Route path="/ctx/search" element={<Search />} />
+          <Route path="/ctx/repos" element={<Repos />} />
           <Route path="/think" element={<ThinkWorkflows />} />
           <Route path="/think/workflows" element={<ThinkWorkflows />} />
           <Route path="/think/prompts" element={<ThinkPrompts />} />
@@ -90,7 +119,7 @@ export default function App() {
           <Route path="/diagnostics" element={<Diagnostics />} />
       </Routes>
         <Box sx={{ mt: 4 }}>
-          <Button variant="outlined" component={Link} to="/repos">Reset + Index All</Button>
+          <Button variant="outlined" component={Link} to="/ctx/repos">Reset + Index All</Button>
         </Box>
       </Container>
       <SettingsDialog open={open} onClose={() => setOpen(false)} />
