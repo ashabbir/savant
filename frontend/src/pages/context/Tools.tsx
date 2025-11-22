@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { callContextTool, ContextToolSpec, useContextTools } from '../../api';
 import Grid from '@mui/material/Grid2';
 import Paper from '@mui/material/Paper';
@@ -14,6 +14,34 @@ import Stack from '@mui/material/Stack';
 import Button from '@mui/material/Button';
 import TextField from '@mui/material/TextField';
 
+function isSimpleSchema(schema: any): boolean {
+  try {
+    if (!schema || typeof schema !== 'object') return false;
+    const props = schema.properties || {};
+    const keys = Object.keys(props);
+    if (keys.length === 0) return false;
+    return keys.every((k) => {
+      const t = props[k]?.type;
+      if (t === 'string' || t === 'integer' || t === 'number' || t === 'boolean') return true;
+      if (t === 'array' && props[k]?.items?.type === 'string') return true;
+      return false;
+    });
+  } catch { return false; }
+}
+
+function buildDefaultParams(schema: any): any {
+  const props = (schema && schema.properties) || {};
+  const out: any = {};
+  Object.keys(props).forEach((k) => {
+    const t = props[k]?.type;
+    if (t === 'string') out[k] = '';
+    else if (t === 'integer' || t === 'number') out[k] = 0;
+    else if (t === 'boolean') out[k] = false;
+    else if (t === 'array' && props[k]?.items?.type === 'string') out[k] = [];
+  });
+  return out;
+}
+
 export default function ContextTools() {
   const { data, isLoading, isError, error } = useContextTools();
   const tools = data?.tools || [];
@@ -22,10 +50,35 @@ export default function ContextTools() {
   const [out, setOut] = useState<string>('');
   const schema = useMemo(() => sel?.inputSchema || sel?.schema, [sel]);
   const name = sel?.name || '';
+  const [useForm, setUseForm] = useState<boolean>(false);
+  const [formValues, setFormValues] = useState<any>({});
+  const [filter, setFilter] = useState<string>('');
+
+  // Load last selected tool
+  useEffect(() => {
+    if (!sel && tools.length) {
+      const last = localStorage.getItem('ctx.tools.selected');
+      const found = tools.find((t) => t.name === last) || tools[0];
+      if (found) { setSel(found); }
+    }
+  }, [tools]);
+
+  useEffect(() => {
+    if (name) localStorage.setItem('ctx.tools.selected', name);
+  }, [name]);
+
+  useEffect(() => {
+    const simple = isSimpleSchema(schema);
+    setUseForm(simple);
+    if (simple) {
+      setFormValues(buildDefaultParams(schema));
+      setInput(JSON.stringify(buildDefaultParams(schema)));
+    }
+  }, [schema]);
 
   async function run() {
     try {
-      const params = input ? JSON.parse(input) : {};
+      const params = useForm ? formValues : (input ? JSON.parse(input) : {});
       const res = await callContextTool(name, params);
       setOut(JSON.stringify(res, null, 2));
     } catch (e: any) {
@@ -38,10 +91,11 @@ export default function ContextTools() {
       <Grid size={{ xs: 12, md: 4 }}>
         <Paper sx={{ p: 1 }}>
           <Typography variant="subtitle1" sx={{ px: 1, py: 1 }}>Context Tools</Typography>
+          <TextField size="small" label="Filter" value={filter} onChange={(e)=>setFilter(e.target.value)} sx={{ m: 1 }} />
           {isLoading && <LinearProgress />}
           {isError && <Alert severity="error">{(error as any)?.message || 'Failed to load tools'}</Alert>}
           <List dense>
-            {tools.map(t => (
+            {tools.filter(t => !filter || t.name.includes(filter) || (t.description||'').includes(filter)).map(t => (
               <ListItem key={t.name} disablePadding>
                 <ListItemButton selected={sel?.name === t.name} onClick={() => { setSel(t); setInput('{}'); setOut(''); }}>
                   <ListItemText primary={t.name} secondary={t.description} />
@@ -60,7 +114,24 @@ export default function ContextTools() {
             </Box>
           )}
           <Stack spacing={1} sx={{ mt: 1 }}>
-            <TextField label="Params (JSON)" value={input} onChange={(e)=>setInput(e.target.value)} multiline minRows={4} />
+            <Stack direction="row" spacing={1}>
+              <Button size="small" variant={useForm ? 'contained' : 'outlined'} onClick={()=>setUseForm(true)} disabled={!isSimpleSchema(schema)}>Form</Button>
+              <Button size="small" variant={!useForm ? 'contained' : 'outlined'} onClick={()=>setUseForm(false)}>JSON</Button>
+            </Stack>
+            {!useForm ? (
+              <TextField label="Params (JSON)" value={input} onChange={(e)=>setInput(e.target.value)} multiline minRows={4} />
+            ) : (
+              <Stack spacing={1}>
+                {Object.entries(((schema as any)?.properties)||{}).map(([k, v]: any) => {
+                  const t = v?.type;
+                  if (t === 'string') return <TextField key={k} label={k} value={formValues[k]||''} onChange={(e)=>setFormValues({...formValues,[k]:e.target.value})} />;
+                  if (t === 'integer' || t === 'number') return <TextField key={k} type="number" label={k} value={formValues[k]??0} onChange={(e)=>setFormValues({...formValues,[k]:Number(e.target.value)})} />;
+                  if (t === 'boolean') return <Stack key={k} direction="row" spacing={1} alignItems="center"><Typography>{k}</Typography><Button size="small" variant={formValues[k]? 'contained':'outlined'} onClick={()=>setFormValues({...formValues,[k]:!formValues[k]})}>{String(formValues[k]||false)}</Button></Stack>;
+                  if (t === 'array' && v?.items?.type === 'string') return <TextField key={k} label={`${k} (comma-separated)`} value={(formValues[k]||[]).join(',')} onChange={(e)=>setFormValues({...formValues,[k]:e.target.value.split(',').map(s=>s.trim()).filter(Boolean)})} />;
+                  return null;
+                })}
+              </Stack>
+            )}
             <Stack direction="row" spacing={1}>
               <Button variant="contained" onClick={run} disabled={!sel}>Call</Button>
               <Button onClick={() => setOut('')}>Clear</Button>
@@ -74,4 +145,3 @@ export default function ContextTools() {
     </Grid>
   );
 }
-

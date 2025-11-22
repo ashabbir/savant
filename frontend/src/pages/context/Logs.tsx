@@ -9,7 +9,7 @@ import { getUserId, loadConfig } from '../../api';
 
 export default function ContextLogs() {
   const [lines, setLines] = useState<string[]>([]);
-  const [n, setN] = useState<number>(100);
+  const [n, setN] = useState<number>(() => Number(localStorage.getItem('ctx.logs.n')||'100')||100);
   const [following, setFollowing] = useState<boolean>(false);
   const esRef = useRef<EventSource | null>(null);
 
@@ -43,6 +43,7 @@ export default function ContextLogs() {
   }
 
   useEffect(()=>{ tailOnce(); }, []);
+  useEffect(()=>{ localStorage.setItem('ctx.logs.n', String(n)); }, [n]);
 
   return (
     <Paper sx={{ p: 2 }}>
