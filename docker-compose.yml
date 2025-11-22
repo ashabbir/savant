@@ -75,7 +75,8 @@ services:
       hub:
         condition: service_started
     environment:
-      VITE_HUB_BASE: http://hub:9999
+      # Browser must reach the Hub via host port mapping
+      VITE_HUB_BASE: http://localhost:9999
     volumes:
       - ./:/app:rw
     command: >-
