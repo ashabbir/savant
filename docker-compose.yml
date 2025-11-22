@@ -68,5 +68,23 @@ services:
     ports:
       - "9999:9999"
 
+  frontend:
+    image: node:20-alpine
+    working_dir: /app/frontend
+    depends_on:
+      hub:
+        condition: service_started
+    environment:
+      VITE_HUB_BASE: http://hub:9999
+    volumes:
+      - ./:/app:rw
+    command: >-
+      /bin/sh -lc '
+        npm --version && node --version; \
+        cd /app/frontend && npm install && npm run build && npm run preview -- --host 0.0.0.0 --port 5173
+      '
+    ports:
+      - "5173:5173"
+
 volumes:
   pgdata:
