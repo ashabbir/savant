@@ -14,7 +14,14 @@ module Savant
     # Purpose: Choose chunking strategy and optional language allow‑listing.
     class Language
       def self.from_rel_path(rel)
-        ext = File.extname(rel).downcase.sub('.', '')
+        down = rel.downcase
+        # Treat markdown under memory_bank or memory directories as memory_bank
+        if (down.include?('/memory_bank/') || down.include?('/memory/')) &&
+           %w[.md .mdx .markdown].include?(File.extname(down))
+          return 'memory_bank'
+        end
+
+        ext = File.extname(down).sub('.', '')
         ext.empty? ? 'txt' : ext
       end
     end
