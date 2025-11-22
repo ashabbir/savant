@@ -113,6 +113,14 @@ Run with Docker Compose (recommended):
    - From UI: Repos tab → “Reset + Index All”
    - Or CLI: `make reindex-all`
 
+Mounts required for UI-triggered indexing:
+
+- The Hub service must be able to read any repo paths referenced in `config/settings.json`.
+- docker-compose.yml mounts the repository root at `/app` and also mounts common host paths used in settings examples:
+  - `../:/host:ro`
+  - `../../ruby/crawler:/host-crawler:ro`
+- If your `settings.json` uses different host paths, add corresponding mounts to the `hub` service to ensure the “Reset + Index All” and “Index” actions can access source files.
+
 Local development (host, optional):
 
 1) Install Node 18+ and npm.

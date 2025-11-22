@@ -63,6 +63,8 @@ services:
       DATABASE_URL: postgres://context:contextpw@postgres:5432/contextdb
     volumes:
       - ./:/app:rw
+      - ../:/host:ro
+      - ../../ruby/crawler:/host-crawler:ro
     command: >-
       /bin/sh -lc 'mkdir -p /tmp/savant && ruby ./bin/hub_server --host=0.0.0.0 --port=9999'
     ports:

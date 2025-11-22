@@ -40,8 +40,14 @@ export default function Search() {
 
   useEffect(() => setPage(1), [results.length, langFilter]);
 
+  const langs = useMemo(() => {
+    const set = new Set<string>();
+    results.forEach(r => { if (r.lang) set.add(r.lang); });
+    return Array.from(set).sort();
+  }, [results]);
+
   const filtered = useMemo(() => {
-    return results.filter(r => !langFilter || r.lang.toLowerCase().includes(langFilter.toLowerCase()));
+    return results.filter(r => !langFilter || (r.lang || '').toLowerCase() === langFilter.toLowerCase());
   }, [results, langFilter]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / perPage));
@@ -52,7 +58,12 @@ export default function Search() {
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mb: 2 }}>
         <TextField label="Query" variant="outlined" fullWidth value={q} onChange={(e) => setQ(e.target.value)} />
         <TextField label="Repo (optional)" variant="outlined" value={repo} onChange={(e) => setRepo(e.target.value)} />
-        <TextField label="Lang filter" variant="outlined" value={langFilter} onChange={(e) => setLangFilter(e.target.value)} />
+        <TextField label="Lang" select value={langFilter} onChange={(e) => setLangFilter(e.target.value)} sx={{ minWidth: 140 }}>
+          <MenuItem value="">All</MenuItem>
+          {langs.map(l => (
+            <MenuItem key={l} value={l}>{l}</MenuItem>
+          ))}
+        </TextField>
         <TextField label="Per page" select value={perPage} onChange={(e) => setPerPage(Number(e.target.value))} sx={{ minWidth: 120 }}>
           {[10, 20, 50].map(n => <MenuItem key={n} value={n}>{n}</MenuItem>)}
         </TextField>

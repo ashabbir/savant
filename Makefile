@@ -1,6 +1,6 @@
 .PHONY: dev up logs logs-all down ps migrate fts smoke mcp-test jira-test jira-self \
   repo-index-all repo-index-repo repo-delete-all repo-delete-repo repo-status \
-  demo-engine demo-run demo-call hub hub-logs hub-down hub-local hub-local-logs
+  demo-engine demo-run demo-call hub hub-logs hub-down hub-local hub-local-logs ls
 
 # Ensure rbenv shims take precedence in Make subshells
 # (Reverted) Do not globally override PATH; use explicit rbenv shim per target.
@@ -102,3 +102,6 @@ hub-local:
 
 hub-local-logs:
 	@tail -f /tmp/savant/hub.log
+
+ls:
+	@awk -F':' '/^[[:alnum:]_.-]+:([^=]|$$)/ {print $$1}' $(MAKEFILE_LIST) | grep -v '^\.' | sort -u
