@@ -19,6 +19,9 @@ import Diagnostics from './pages/Diagnostics';
 import ThinkWorkflows from './pages/think/Workflows';
 import ThinkPrompts from './pages/think/Prompts';
 import ThinkRuns from './pages/think/Runs';
+import ContextTools from './pages/context/Tools';
+import ContextResources from './pages/context/Resources';
+import ContextLogs from './pages/context/Logs';
 import { getErrorMessage, useHubHealth } from './api';
 import Tooltip from '@mui/material/Tooltip';
 import SettingsDialog from './components/SettingsDialog';
@@ -27,7 +30,8 @@ function useTabIndex() {
   const location = useLocation();
   if (location.pathname.startsWith('/repos')) return 1;
   if (location.pathname.startsWith('/think')) return 2;
-  if (location.pathname.startsWith('/diagnostics')) return 3;
+  if (location.pathname.startsWith('/ctx')) return 3;
+  if (location.pathname.startsWith('/diagnostics')) return 4;
   return 0;
 }
 
@@ -61,10 +65,11 @@ export default function App() {
           </IconButton>
         </Toolbar>
       </AppBar>
-      <Tabs value={idx} onChange={(_, v) => navigate(v === 0 ? '/search' : v === 1 ? '/repos' : v === 2 ? '/think' : '/diagnostics')} centered>
+      <Tabs value={idx} onChange={(_, v) => navigate(v === 0 ? '/search' : v === 1 ? '/repos' : v === 2 ? '/think' : v === 3 ? '/ctx/tools' : '/diagnostics')} centered>
         <Tab label="Search" component={Link} to="/search" />
         <Tab label="Repos" component={Link} to="/repos" />
         <Tab label="Think" component={Link} to="/think" />
+        <Tab label="Ctx Tools" component={Link} to="/ctx/tools" />
         <Tab label="Diagnostics" component={Link} to="/diagnostics" />
       </Tabs>
       <Container maxWidth="lg" sx={{ mt: 3, mb: 4 }}>
@@ -76,6 +81,9 @@ export default function App() {
           <Route path="/think/workflows" element={<ThinkWorkflows />} />
           <Route path="/think/prompts" element={<ThinkPrompts />} />
           <Route path="/think/runs" element={<ThinkRuns />} />
+          <Route path="/ctx/tools" element={<ContextTools />} />
+          <Route path="/ctx/resources" element={<ContextResources />} />
+          <Route path="/ctx/logs" element={<ContextLogs />} />
           <Route path="/diagnostics" element={<Diagnostics />} />
       </Routes>
         <Box sx={{ mt: 4 }}>

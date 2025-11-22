@@ -132,6 +132,49 @@ export function useThinkWorkflows() {
   });
 }
 
+// CONTEXT engine API: tools + memory resources + logs helper
+export type ContextToolSpec = { name: string; description?: string; inputSchema?: any; schema?: any };
+export function useContextTools() {
+  return useQuery<{ engine: string; tools: ContextToolSpec[] }>({
+    queryKey: ['context', 'tools'],
+    queryFn: async () => {
+      const res = await client().get('/context/tools');
+      return res.data as { engine: string; tools: ContextToolSpec[] };
+    }
+  });
+}
+
+export async function callContextTool(name: string, params: any) {
+  const res = await client().post(`/context/tools/${name}/call`, { params });
+  return res.data;
+}
+
+export type MemoryResource = { uri: string; mimeType: string; metadata: { path: string; title: string; modified_at?: string | null; source?: string } };
+export function useMemoryResources(repo: string | null) {
+  return useQuery<MemoryResource[]>({
+    queryKey: ['context', 'memory', 'list', repo || null],
+    queryFn: async () => {
+      const res = await client().post('/context/tools/memory/resources/list/call', { params: { repo: repo || null } });
+      return res.data as MemoryResource[];
+    }
+  });
+}
+
+export function useMemoryResource(uri: string | null) {
+  return useQuery<string>({
+    queryKey: ['context', 'memory', 'read', uri],
+    queryFn: async () => {
+      const res = await client().post('/context/tools/memory/resources/read/call', { params: { uri } });
+      return res.data as string;
+    },
+    enabled: !!uri
+  });
+}
+
+export function getUserId(): string {
+  return loadConfig().userId || 'dev';
+}
+
 export function useThinkWorkflowRead(id: string | null) {
   return useQuery<{ workflow_yaml: string }>({
     queryKey: ['think', 'workflow', id],
