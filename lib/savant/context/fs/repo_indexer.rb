@@ -63,6 +63,85 @@ module Savant
           cfg = Savant::Indexer::Config.new(Savant::Config.load(@settings_path))
           Savant::Indexer::Cache.new(cfg.cache_path)
         end
+
+        # Diagnostics: validate repo mounts visibility inside the running process
+        # and report basic DB counts. Returns a hash suitable for UI display.
+        def diagnostics
+          info = {}
+          base = Dir.pwd
+          info[:base_path] = base
+          info[:settings_path] = File.expand_path(@settings_path, base)
+          repos = []
+          cfg_err = nil
+          begin
+            require_relative '../../config'
+            if File.file?(info[:settings_path])
+              cfg = Savant::Config.load(info[:settings_path])
+              (cfg.dig('indexer', 'repos') || []).each do |r|
+                name = r['name']
+                path = r['path']
+                entry = { name: name, path: path }
+                begin
+                  exists = File.exist?(path)
+                  entry[:exists] = exists
+                  entry[:directory] = exists && File.directory?(path)
+                  entry[:readable] = exists && File.readable?(path)
+                  if entry[:directory]
+                    sample = []
+                    count = 0
+                    Dir.glob(File.join(path, '**', '*')).each do |p|
+                      next if File.directory?(p)
+                      sample << p if sample.size < 3
+                      count += 1
+                      break if count >= 200
+                    end
+                    entry[:sample_files] = sample
+                    entry[:sampled_count] = count
+                    entry[:has_files] = count > 0
+                  end
+                rescue StandardError => e
+                  entry[:error] = e.message
+                end
+                repos << entry
+              end
+            else
+              cfg_err = 'settings.json not found'
+            end
+          rescue Savant::ConfigError => e
+            cfg_err = e.message
+          rescue StandardError => e
+            cfg_err = "load error: #{e.message}"
+          end
+          info[:config_error] = cfg_err if cfg_err
+          info[:repos] = repos
+
+          # DB checks
+          db = { connected: false }
+          begin
+            conn = @db.instance_variable_get(:@conn)
+            db[:connected] = true
+            begin
+              r1 = conn.exec('SELECT COUNT(*) AS c FROM repos')
+              r2 = conn.exec('SELECT COUNT(*) AS c FROM files')
+              r3 = conn.exec('SELECT COUNT(*) AS c FROM chunks')
+              db[:counts] = { repos: r1[0]['c'].to_i, files: r2[0]['c'].to_i, chunks: r3[0]['c'].to_i }
+            rescue StandardError => e
+              db[:counts_error] = e.message
+            end
+          rescue StandardError => e
+            db[:error] = e.message
+          end
+          info[:db] = db
+
+          # Common mount points
+          info[:mounts] = {
+            '/app' => File.directory?('/app'),
+            '/host' => File.directory?('/host'),
+            '/host-crawler' => File.directory?('/host-crawler')
+          }
+
+          info
+        end
       end
     end
   end

@@ -110,6 +110,11 @@ module Savant
                                  schema: { type: 'object', properties: {} } do |_ctx, _a|
             engine.repo_indexer_status
           end
+
+          tool 'fs/repo/diagnostics', description: 'Diagnostics for repo mounts, settings visibility, DB counts',
+                                       schema: { type: 'object', properties: {} } do |_ctx, _a|
+            engine.repo_indexer_diagnostics
+          end
         end
       end
     end
