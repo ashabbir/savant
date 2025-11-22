@@ -41,6 +41,7 @@ export default function Repos() {
   });
 
   return (
+    <>
     <Box>
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mb: 2 }}>
         <TextField label="Filter" value={filter} onChange={(e) => setFilter(e.target.value)} />
@@ -79,5 +80,6 @@ export default function Repos() {
       </Table>
     </Box>
     <Snackbar open={!!toast} autoHideDuration={3000} onClose={() => setToast(null)} message={toast || ''} />
+    </>
   );
 }
