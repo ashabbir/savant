@@ -11,3 +11,5 @@ coverage/*
 *.DS_Store*
 .savant/*
 secrets.yml
+frontend/node_modules/
+frontend/dist/
