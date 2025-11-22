@@ -30,7 +30,6 @@ function useMainTabIndex() {
   const { pathname } = useLocation();
   if (pathname.startsWith('/think')) return 1;
   if (pathname.startsWith('/diagnostics')) return 2;
-  if (pathname.startsWith('/console')) return 3;
   // Context (default): /ctx/*, /search, /repos
   return 0;
 }
@@ -68,9 +67,11 @@ export default function App() {
           ) : (
             <Alert severity="success" sx={{ mr: 2, p: 0, px: 1 }}>Hub OK</Alert>
           )}
-          <IconButton color="inherit" component="a" href="/console" target="_blank" rel="noreferrer" aria-label="legacy-console" title="Open legacy console (/console)">
-            <OpenInNewIcon />
-          </IconButton>
+          <Tooltip title="Open legacy console (/console)">
+            <IconButton color="inherit" component="a" href="/console" target="_blank" rel="noreferrer" aria-label="legacy-console">
+              <OpenInNewIcon />
+            </IconButton>
+          </Tooltip>
           <IconButton color="inherit" onClick={() => setOpen(true)} aria-label="settings" title="Settings">
             <SettingsIcon />
           </IconButton>
@@ -80,12 +81,10 @@ export default function App() {
         if (v === 0) navigate('/ctx/search');
         else if (v === 1) navigate('/think');
         else if (v === 2) navigate('/diagnostics');
-        // v===3 is Legacy; handled via link on the Tab
       }} centered>
         <Tab label="Context" component={Link} to="/ctx/search" />
         <Tab label="Think" component={Link} to="/think" />
         <Tab label="Diagnostics" component={Link} to="/diagnostics" />
-        <Tab label="Legacy" component="a" href="/console" target="_blank" rel="noreferrer" />
       </Tabs>
       {mainIdx === 0 && (
         <Tabs value={ctxIdx} onChange={(_, v) => {
