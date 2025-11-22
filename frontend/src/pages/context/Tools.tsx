@@ -109,14 +109,42 @@ export default function ContextTools() {
         <Paper sx={{ p: 2 }}>
           <Typography variant="subtitle1">{name || 'Select a tool'}</Typography>
           {schema && (
-            <Box component="pre" sx={{ mt: 1, whiteSpace: 'pre-wrap', fontFamily: 'monospace', fontSize: 12, bgcolor: '#fafafa', p: 1 }}>
+            <Box
+              component="pre"
+              sx={{
+                mt: 2,
+                mb: 2,
+                p: 2,
+                whiteSpace: 'pre-wrap',
+                fontFamily: 'monospace',
+                fontSize: 12,
+                bgcolor: '#f5f5f5',
+                borderRadius: 1,
+                border: '1px solid #e0e0e0',
+                maxHeight: 200,
+                overflow: 'auto'
+              }}
+            >
               {JSON.stringify(schema, null, 2)}
             </Box>
           )}
           <Stack spacing={1} sx={{ mt: 1 }}>
-            <Stack direction="row" spacing={1}>
-              <Button size="small" variant={useForm ? 'contained' : 'outlined'} onClick={()=>setUseForm(true)} disabled={!isSimpleSchema(schema)}>Form</Button>
-              <Button size="small" variant={!useForm ? 'contained' : 'outlined'} onClick={()=>setUseForm(false)}>JSON</Button>
+            <Stack direction="row" spacing={1} sx={{ mb: 1 }}>
+              <Button
+                size="small"
+                variant={useForm ? 'contained' : 'outlined'}
+                onClick={() => setUseForm(true)}
+                disabled={!isSimpleSchema(schema)}
+              >
+                Form
+              </Button>
+              <Button
+                size="small"
+                variant={!useForm ? 'contained' : 'outlined'}
+                onClick={() => setUseForm(false)}
+              >
+                JSON
+              </Button>
             </Stack>
             {!useForm ? (
               <TextField label="Params (JSON)" value={input} onChange={(e)=>setInput(e.target.value)} multiline minRows={4} />
@@ -132,13 +160,41 @@ export default function ContextTools() {
                 })}
               </Stack>
             )}
-            <Stack direction="row" spacing={1}>
-              <Button variant="contained" onClick={run} disabled={!sel}>Call</Button>
-              <Button onClick={() => setOut('')}>Clear</Button>
+            <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
+              <Button
+                variant="contained"
+                onClick={run}
+                disabled={!sel}
+                sx={{ minWidth: 100 }}
+              >
+                Call
+              </Button>
+              <Button
+                variant="outlined"
+                onClick={() => setOut('')}
+              >
+                Clear
+              </Button>
             </Stack>
-            <Box component="pre" sx={{ mt: 1, whiteSpace: 'pre-wrap', fontFamily: 'monospace', fontSize: 12 }}>
-              {out}
-            </Box>
+            {out && (
+              <Box
+                component="pre"
+                sx={{
+                  mt: 2,
+                  p: 2,
+                  whiteSpace: 'pre-wrap',
+                  fontFamily: 'monospace',
+                  fontSize: 12,
+                  bgcolor: '#fafafa',
+                  borderRadius: 1,
+                  border: '1px solid #e0e0e0',
+                  maxHeight: 400,
+                  overflow: 'auto'
+                }}
+              >
+                {out}
+              </Box>
+            )}
           </Stack>
         </Paper>
       </Grid>
