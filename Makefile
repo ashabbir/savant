@@ -1,4 +1,4 @@
-.PHONY: dev logs down ps migrate fts smoke mcp-test jira-test jira-self \
+.PHONY: dev up logs logs-all down ps migrate fts smoke mcp-test jira-test jira-self \
   repo-index-all repo-index-repo repo-delete-all repo-delete-repo repo-status \
   demo-engine demo-run demo-call hub hub-logs hub-down hub-local hub-local-logs
 
@@ -8,8 +8,13 @@
 dev:
 	@docker compose up -d
 
+up: dev
+
 logs:
 	@docker compose logs -f indexer-ruby postgres
+
+logs-all:
+	@docker compose logs -f postgres hub frontend
 
 down:
 	@docker compose down -v
@@ -45,6 +50,17 @@ repo-delete-repo:
 
 repo-status:
 	@docker compose exec -T indexer-ruby ./bin/context_repo_indexer status
+
+# Convenience targets for PRD frontend/backend flow
+reindex-all:
+	@$(MAKE) repo-delete-all || true
+	@$(MAKE) repo-index-all
+
+index-repo:
+	@$(MAKE) repo-index-repo repo=$(repo)
+
+delete-repo:
+	@$(MAKE) repo-delete-repo repo=$(repo)
 
 # Hub service
 hub:

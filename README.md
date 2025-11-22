@@ -85,6 +85,19 @@ Savant is a lightweight Ruby framework for building and running local MCP servic
     ```
   - Full Hub docs: [docs/hub/README.md](docs/hub/README.md)
 
+### Web Frontend (React SPA)
+
+A minimal React + Vite UI (per PRD) lives under `frontend/` and talks to the existing Hub HTTP endpoints. Run it alongside Postgres and the Hub via Docker Compose:
+
+- Start services: `make up` (or `make dev`)
+- Open the UI at `http://localhost:5173`
+- Configure Hub base URL and user header (`x-savant-user-id`) via the Settings dialog (defaults to `http://localhost:9999` and `dev`).
+- The UI maps to Context tools exposed by the Hub:
+  - `POST /context/tools/fts/search/call`
+  - `POST /context/tools/fs/repo/status/call`
+  - `POST /context/tools/fs/repo/index/call`
+  - `POST /context/tools/fs/repo/delete/call`
+
 - Run the Hub without Docker (CLI runner):
   ```bash
   bundle install
