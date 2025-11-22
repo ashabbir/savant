@@ -43,7 +43,8 @@ export function useHubHealth() {
     queryFn: async () => {
       const res = await client().get('/');
       return res.data;
-    }
+    },
+    retry: 1
   });
 }
 
@@ -76,3 +77,17 @@ export function useResetAndIndex() {
   return useMutation({ mutationFn: resetAndIndexAll });
 }
 
+export function getErrorMessage(err: any): string {
+  if (!err) return 'Unknown error';
+  const axiosLike = err as any;
+  const resp = axiosLike.response;
+  if (resp) {
+    const status = `${resp.status || ''} ${resp.statusText || ''}`.trim();
+    let body = '';
+    if (typeof resp.data === 'string') body = resp.data;
+    else if (resp.data && typeof resp.data === 'object') body = resp.data.error || resp.data.message || JSON.stringify(resp.data);
+    return body ? `${status} — ${body}` : status || axiosLike.message || 'Request failed';
+  }
+  if (axiosLike.request && axiosLike.message) return axiosLike.message;
+  return err.message || String(err);
+}

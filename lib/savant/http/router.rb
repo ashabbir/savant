@@ -22,6 +22,10 @@ module Savant
       end
 
       def call(env)
+        # Allow CORS preflight without requiring user header
+        if env['REQUEST_METHOD'] == 'OPTIONS'
+          return [204, cors_headers, []]
+        end
         Savant::Middleware::UserHeader.new(method(:dispatch)).call(env)
       end
 
@@ -174,7 +178,7 @@ module Savant
       end
 
       def respond(status, body_hash)
-        [status, { 'Content-Type' => 'application/json' }, [JSON.generate(body_hash)]]
+        [status, { 'Content-Type' => 'application/json' }.merge(cors_headers), [JSON.generate(body_hash)]]
       end
 
       def not_found
@@ -183,6 +187,15 @@ module Savant
 
       def log_path(engine_name)
         File.join(logs_dir, "#{engine_name}.log")
+      end
+
+      def cors_headers
+        allow_origin = ENV['SAVANT_CORS_ORIGIN'] || '*'
+        {
+          'Access-Control-Allow-Origin' => allow_origin,
+          'Access-Control-Allow-Headers' => 'content-type, x-savant-user-id',
+          'Access-Control-Allow-Methods' => 'GET, POST, OPTIONS'
+        }
       end
 
       def read_last_lines(path, n)
@@ -232,7 +245,7 @@ module Savant
           'Content-Type' => 'text/event-stream',
           'Cache-Control' => 'no-cache',
           'X-Accel-Buffering' => 'no'
-        }
+        }.merge(cors_headers)
       end
 
       def format_sse_event(event, data)

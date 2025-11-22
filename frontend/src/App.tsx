@@ -14,7 +14,8 @@ import Alert from '@mui/material/Alert';
 import { createTheme, ThemeProvider } from '@mui/material/styles';
 import Search from './pages/Search';
 import Repos from './pages/Repos';
-import { useHubHealth } from './api';
+import { getErrorMessage, useHubHealth } from './api';
+import Tooltip from '@mui/material/Tooltip';
 import SettingsDialog from './components/SettingsDialog';
 
 function useTabIndex() {
@@ -28,7 +29,8 @@ export default function App() {
   const theme = useMemo(() => createTheme({}), []);
   const idx = useTabIndex();
   const navigate = useNavigate();
-  const { data, isLoading, isError } = useHubHealth();
+  const { data, isLoading, isError, error } = useHubHealth();
+  const errMsg = getErrorMessage(error as any);
 
   return (
     <ThemeProvider theme={theme}>
@@ -38,7 +40,9 @@ export default function App() {
           {isLoading ? (
             <Alert severity="info" sx={{ mr: 2, p: 0, px: 1 }}>Checking hub…</Alert>
           ) : isError ? (
-            <Alert severity="error" sx={{ mr: 2, p: 0, px: 1 }}>Hub unreachable</Alert>
+            <Tooltip title={errMsg}>
+              <Alert severity="error" sx={{ mr: 2, p: 0, px: 1, cursor: 'help' }}>Hub unreachable</Alert>
+            </Tooltip>
           ) : (
             <Alert severity="success" sx={{ mr: 2, p: 0, px: 1 }}>Hub OK</Alert>
           )}
@@ -65,4 +69,3 @@ export default function App() {
     </ThemeProvider>
   );
 }
-
