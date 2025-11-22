@@ -58,6 +58,13 @@ export async function repoStatus(): Promise<RepoStatus[]> {
   return res.data as RepoStatus[];
 }
 
+export function useRepoStatus() {
+  return useQuery<RepoStatus[]>({
+    queryKey: ['repos', 'status'],
+    queryFn: repoStatus
+  });
+}
+
 export async function indexRepo(repo?: string | null): Promise<any> {
   const res = await client().post(`/context/tools/fs/repo/index/call`, { params: { repo: repo ?? null } });
   return res.data;
