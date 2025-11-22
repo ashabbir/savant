@@ -72,12 +72,18 @@ module Savant
         end
 
         def coerce_integer(val)
+          # Treat nil/empty as missing so callers can apply defaults.
+          return nil if val.nil? || (val.is_a?(String) && val.strip.empty?)
+
           Integer(val)
-        rescue ArgumentError
+        rescue ArgumentError, TypeError
           raise ValidationError, 'invalid integer'
         end
 
         def coerce_boolean(val)
+          # Treat nil as missing so callers can apply defaults.
+          return nil if val.nil?
+
           return true if val == true || (val.is_a?(String) && val.downcase == 'true')
           return false if val == false || (val.is_a?(String) && val.downcase == 'false')
 
