@@ -61,7 +61,16 @@ module Savant
           @repo_name = repo_name
           @repo_root = repo_root
           @cfg = config || {}
-          @patterns = Array(@cfg.dig('memory_bank', 'patterns') || ['**/memory_bank/**/*.md'])
+          @patterns = Array(
+            @cfg.dig('memory_bank', 'patterns') || [
+              '**/memory/**/*.{md,mdx,markdown}',
+              '**/memory_bank/**/*.{md,mdx,markdown}',
+              '**/memory-bank/**/*.{md,mdx,markdown}',
+              '**/memorybank/**/*.{md,mdx,markdown}',
+              '**/memoryBank/**/*.{md,mdx,markdown}',
+              '**/bank/**/*.{md,mdx,markdown}'
+            ]
+          )
           @follow_symlinks = !@cfg.dig('memory_bank', 'follow_symlinks').nil?
           @enabled = @cfg.dig('memory_bank', 'enabled') != false
         end
@@ -147,7 +156,9 @@ module Savant
             base = File.join(@repo_root, pat)
             Dir.glob(base, flags).each do |f|
               next unless File.file?(f)
-              next unless f.downcase.end_with?('.md')
+              # pattern already restricts extensions; keep a defensive check
+              ext = File.extname(f).downcase
+              next unless %w[.md .mdx .markdown].include?(ext)
               next if !@follow_symlinks && File.symlink?(f)
 
               paths << f
