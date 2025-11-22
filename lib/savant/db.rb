@@ -25,6 +25,7 @@ module Savant
     def initialize(url = ENV.fetch('DATABASE_URL', nil))
       @url = url
       @conn = PG.connect(@url)
+      configure_client_min_messages
     end
 
     # Execute a block inside a DB transaction.
@@ -258,6 +259,17 @@ module Savant
         name: 'text[]',
         elements_type: PG::TextEncoder::String.new(name: 'text')
       )
+    end
+
+    # Suppress Postgres NOTICE messages (e.g., long word warnings) unless running in debug/trace mode.
+    # Controlled by LOG_LEVEL environment variable.
+    def configure_client_min_messages
+      lvl = (ENV['LOG_LEVEL'] || 'info').to_s.downcase
+      min = %w[trace debug].include?(lvl) ? 'NOTICE' : 'WARNING'
+      @conn.exec("SET client_min_messages TO #{min}")
+    rescue StandardError
+      # best-effort; ignore if not supported or connection not ready
+      nil
     end
   end
   # rubocop:enable Metrics/ClassLength

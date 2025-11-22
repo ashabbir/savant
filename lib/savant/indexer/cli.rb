@@ -42,7 +42,7 @@ module Savant
           action = 'DELETE'
         else
           mode = repo ? "repo=#{repo}" : 'all'
-          # Surface configured scanMode (auto|git|walk); actual per-repo usage is logged by Runner
+          # Surface configured scanMode (ls|git-ls); actual per-repo usage is logged by Runner
           begin
             raw = Savant::Config.load(settings_path)
             icfg = Savant::Indexer::Config.new(raw)
@@ -52,7 +52,7 @@ module Savant
                    else
                      icfg.scan_mode
                    end
-            scan_str = scan.to_s
+            scan_str = (scan == :git ? 'git-ls' : 'ls')
           rescue StandardError
             scan_str = 'unknown'
           end

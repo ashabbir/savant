@@ -45,7 +45,14 @@ begin
     puts msg
   when 'status'
     rows = repo_indexer.status
-    puts "CTX STATUS ts=#{Time.now.utc.iso8601} repos=#{rows.length}"
+    begin
+      raw = Savant::Config.load('config/settings.json')
+      icfg = Savant::Indexer::Config.new(raw)
+      scan_str = (icfg.scan_mode == :git ? 'git-ls' : 'ls')
+    rescue StandardError
+      scan_str = 'unknown'
+    end
+    puts "CTX STATUS ts=#{Time.now.utc.iso8601} repos=#{rows.length} scanMode=#{scan_str}"
     rows.each do |r|
       line = "repo=#{r['name']} files=#{r['files']} blobs=#{r['blobs']} " \
              "chunks=#{r['chunks']} last_mtime=#{r['last_mtime'] || '-'}"

@@ -12,6 +12,7 @@
       "required": ["maxFileSizeKB", "languages", "chunk"],
       "additionalProperties": false,
       "properties": {
+        "scanMode": { "type": "string", "enum": ["ls", "git-ls"], "default": "ls" },
         "maxFileSizeKB": { "type": "integer", "minimum": 1 },
         "languages": {
           "type": "array",

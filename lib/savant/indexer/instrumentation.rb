@@ -47,7 +47,7 @@ module Savant
       def repo_header(name:, total:, strategy:)
         info("name: #{name}")
         info("total_files: #{total}")
-        info("walk_strategy: #{strategy}")
+        info("scan_mode: #{strategy}")
       end
 
       def repo_footer(indexed:, skipped:, errors: 0)
