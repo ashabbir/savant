@@ -9,3 +9,17 @@
 - **Dependencies:** Requires indexed data in Postgres (run `bin/context_repo_indexer index <repo>`). Needs `DATABASE_URL` and optional `LOG_LEVEL` env vars.
 - **Performance Considerations:** Search uses overlap-aware chunking; ensure indexer chunk params (`codeMaxLines`, `overlapLines`, `mdMaxChars`) align with query needs. Use `Savant::Logger.with_timing` around expensive ops for observability.
 - **Failure Modes:** If config missing keys, `Savant::Config.load` raises `ConfigError`. DB misconfiguration yields `pg` connection errors—validate with `bin/db_smoke` and ensure migrations via `bin/db_migrate` and `bin/db_fts`.
+
+```mermaid
+sequenceDiagram
+    participant Client as MCP Client
+    participant Server as Context Engine
+    participant FTS as Postgres FTS
+    participant Cache as Blob/Chunk Cache
+
+    Client->>Server: tools/call search { q }
+    Server->>FTS: SELECT chunks WHERE repo match
+    FTS-->>Server: ranked snippets
+    Server->>Cache: hydrate file/blob metadata
+    Server-->>Client: [{rel_path, lang, snippet, score}]
+```

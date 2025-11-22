@@ -1,7 +1,7 @@
 {
   
   "indexer": {
-    "scanMode": "auto",
+    "scanMode": "ls",
     "maxFileSizeKB": 512,
     "languages": ["rb", "ts", "tsx", "js", "md", "mdx", "yml", "yaml", "json"],
     "chunk": {
@@ -13,7 +13,6 @@
       {
         "name": "example",
         "path": "/host/example-repo",
-        "scanMode": "auto",
         "ignore": [
           "node_modules/**",
           "tmp/**",

@@ -20,7 +20,7 @@ module Savant
     class RepositoryScanner
       attr_reader :last_used
 
-      def initialize(root, extra_ignores: [], scan_mode: :auto)
+      def initialize(root, extra_ignores: [], scan_mode: :walk)
         @root = root
         raw_patterns = DEFAULT_IGNORE_GLOBS + Array(extra_ignores) + load_gitignore_patterns
         @ignore_patterns = normalize_globs(raw_patterns)
@@ -95,7 +95,7 @@ module Savant
       end
 
       def use_git?
-        return false if @scan_mode == :walk
+        return false unless @scan_mode == :git
         return false unless Dir.exist?(File.join(@root, '.git'))
 
         true
