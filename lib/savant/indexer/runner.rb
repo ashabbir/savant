@@ -91,8 +91,9 @@ module Savant
 
               lang = Language.from_rel_path(rel)
               allowed = @config.languages
-              # Always allow memory_bank markdown regardless of language allowlist; otherwise enforce allowlist
-              if !allowed.empty? && !allowed.include?(lang) && lang != 'memory_bank'
+              # Always allow memory_bank markdown and doc-like files regardless of language allowlist;
+              # otherwise enforce allowlist
+              if !allowed.empty? && !allowed.include?(lang) && lang != 'memory_bank' && !doc_like?(rel, lang)
                 repo_skipped += 1
                 log_skip(rel, "unsupported_lang lang=#{lang}", verbose)
                 progress&.increment
@@ -182,7 +183,7 @@ module Savant
         case lang
         when 'md', 'mdx', 'memory_bank'
           Chunker::MarkdownChunker.new.chunk(path, c)
-        when 'txt'
+        when 'txt', 'rst', 'adoc', 'asciidoc', 'org', 'rdoc'
           Chunker::PlaintextChunker.new.chunk(path, c)
         else
           Chunker::CodeChunker.new.chunk(path, c)
@@ -191,6 +192,17 @@ module Savant
 
       def log_skip(rel, reason, verbose)
         @log.debug("skip: item=#{rel} reason=#{reason}") if verbose
+      end
+
+      DOC_TEXT_EXTS = %w[txt rst adoc asciidoc org rdoc].freeze
+      DOC_BASE_NAMES = %w[readme license copying changelog contributing code_of_conduct security notice].freeze
+
+      def doc_like?(rel, lang)
+        base = File.basename(rel).downcase
+        stem = File.basename(rel, File.extname(rel)).downcase
+        return true if DOC_TEXT_EXTS.include?(lang)
+        return true if DOC_BASE_NAMES.include?(stem)
+        false
       end
     end
   end
