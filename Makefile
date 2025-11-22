@@ -6,7 +6,7 @@
 # (Reverted) Do not globally override PATH; use explicit rbenv shim per target.
 
 dev:
-	@docker compose up -d
+	@docker compose up -d --remove-orphans
 
 up: dev
 
@@ -61,6 +61,16 @@ index-repo:
 
 delete-repo:
 	@$(MAKE) repo-delete-repo repo=$(repo)
+
+# Build static UI and serve under Hub at /ui
+ui-build:
+	@docker compose run --rm -T frontend /bin/sh -lc 'cd /app/frontend && (npm ci || npm install) && npm run build -- --base=/ui/ && rm -rf /app/public/ui && mkdir -p /app/public/ui && cp -r dist/* /app/public/ui/'
+
+ui-open:
+	@echo "Open: http://localhost:9999/ui"
+
+frontend-stop:
+	@docker compose stop frontend || true
 
 # Hub service
 hub:
