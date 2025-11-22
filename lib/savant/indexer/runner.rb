@@ -154,6 +154,10 @@ module Savant
           code_files = kind_counts.sum { |k, v| non_code.include?(k) ? 0 : v }
           @log.info("memory_bank: #{mb}")
           @log.info("doc_files: #{doc_files}")
+          doc_breakdown = kind_counts.select { |k, _| doc_only_langs.include?(k) }
+          code_breakdown = kind_counts.reject { |k, _| non_code.include?(k) }
+          @log.info("doc_files_breakdown: #{doc_breakdown.map { |k, v| "#{k}=#{v}" }.join(' ')}") unless doc_breakdown.empty?
+          @log.info("code_files_breakdown: #{code_breakdown.map { |k, v| "#{k}=#{v}" }.join(' ')}") unless code_breakdown.empty?
           @log.info("code_files: #{code_files}")
         end
         progress&.finish
