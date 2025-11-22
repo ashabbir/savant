@@ -1,5 +1,5 @@
 .PHONY: dev logs down ps migrate fts smoke mcp-test jira-test jira-self \
-  repo-index-all repo-index-repo repo-delete-all repo-delete-repo repo-status \
+  repo-index-all repo-index-repo repo-delete-all repo-delete-repo repo-status repo-reset \
   demo-engine demo-run demo-call hub hub-logs hub-down hub-local hub-local-logs
 
 # Ensure rbenv shims take precedence in Make subshells
@@ -45,6 +45,12 @@ repo-delete-repo:
 
 repo-status:
 	@docker compose exec -T indexer-ruby ./bin/context_repo_indexer status
+
+# Reset repositories: delete all, re-index all, then show status
+repo-reset:
+	@$(MAKE) repo-delete-all
+	@$(MAKE) repo-index-all
+	@$(MAKE) repo-status
 
 # Hub service
 hub:
