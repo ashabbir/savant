@@ -94,6 +94,11 @@ module Savant
         Savant::Context::FS::RepoIndexer.new(db: @db).status
       end
 
+      # Diagnostics for repo mounts and DB visibility
+      def repo_indexer_diagnostics
+        Savant::Context::FS::RepoIndexer.new(db: @db).diagnostics
+      end
+
       # List repos and README snippets from indexed data.
       # @param filter [String, nil]
       # @param max_length [Integer]
