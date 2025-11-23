@@ -134,10 +134,6 @@ export default function App() {
           </Stack>
         </Toolbar>
       </AppBar>
-      {/* Build/Dev banner */}
-      <Box sx={{ bgcolor: isDev ? 'success.main' : 'primary.main', color: 'white', textAlign: 'center', py: 0.5 }}>
-        <Typography variant="caption" sx={{ fontWeight: 700 }}>{isDev ? 'DEV' : 'BUILD'}</Typography>
-      </Box>
       <Tabs value={mainIdx} onChange={(_, v) => {
         if (v === 0) navigate('/dashboard');
         else if (v === 1) navigate('/ctx/resources');
@@ -196,6 +192,19 @@ export default function App() {
           <Route path="/diagnostics" element={<Diagnostics />} />
         </Routes>
       </Container>
+      {/* Footer banner (DEV green / BUILD blue) */}
+      <Box sx={{
+        bgcolor: isDev ? 'success.main' : 'primary.main',
+        color: 'rgba(255,255,255,0.8)',
+        px: 2,
+        py: 0.5,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between'
+      }}>
+        <Typography variant="caption" sx={{ opacity: 0.9 }}>amdSh@2025</Typography>
+        <Typography variant="caption" sx={{ opacity: 0.9 }}>github.com/ashabbir</Typography>
+      </Box>
       <SettingsDialog open={open} onClose={() => setOpen(false)} />
       <Snackbar
         open={snackOpen}
