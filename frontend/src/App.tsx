@@ -239,7 +239,7 @@ export default function App() {
           '& .MuiTabs-indicator': { height: 2, backgroundColor: 'primary.light' }
         }}>
           <Tab label="Resources" component={Link} to="/engines/context/resources" />
-          <Tab label="FTS Search" component={Link} to="/engines/context/search" />
+          <Tab label="FTS" component={Link} to="/engines/context/search" />
           <Tab label="Memory Search" component={Link} to="/engines/context/memory-search" />
           <Tab label="Repos" component={Link} to="/engines/context/repos" />
         </Tabs>
