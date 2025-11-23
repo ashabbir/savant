@@ -7,4 +7,5 @@ mounts:
     path: "/jira"
   - engine: "personas"
     path: "/personas"
-
+  - engine: "rules"
+    path: "/rules"

@@ -24,6 +24,7 @@ import BuildIcon from '@mui/icons-material/Build';
 import StorageIcon from '@mui/icons-material/Storage';
 import PsychologyIcon from '@mui/icons-material/Psychology';
 import IntegrationInstructionsIcon from '@mui/icons-material/IntegrationInstructions';
+import GavelIcon from '@mui/icons-material/Gavel';
 import PersonIcon from '@mui/icons-material/Person';
 import { useEngineStatus, useEngineTools, ContextToolSpec } from '../api';
 
@@ -40,6 +41,7 @@ const ENGINE_ICONS: Record<string, React.ReactNode> = {
   think: <PsychologyIcon sx={{ fontSize: 32 }} />,
   jira: <IntegrationInstructionsIcon sx={{ fontSize: 32 }} />,
   personas: <PersonIcon sx={{ fontSize: 32 }} />,
+  rules: <GavelIcon sx={{ fontSize: 32 }} />,
 };
 
 function formatEngineName(rawName: string): string {
@@ -63,6 +65,7 @@ const ENGINE_COLORS: Record<string, string> = {
   think: '#2196f3',
   jira: '#ff9800',
   personas: '#9c27b0',
+  rules: '#6d4c41',
 };
 
 interface EngineCardProps {

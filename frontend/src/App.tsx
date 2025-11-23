@@ -23,6 +23,7 @@ import ThinkWorkflows from './pages/think/Workflows';
 import ThinkPrompts from './pages/think/Prompts';
 import ThinkRuns from './pages/think/Runs';
 import Personas from './pages/personas/Personas';
+import RulesPage from './pages/rules/Rules';
 import JiraTools from './pages/jira/Tools';
 import ContextTools from './pages/context/Tools';
 import ContextResources from './pages/context/Resources';
@@ -244,11 +245,12 @@ export default function App() {
           const tgt = engines[v];
           if (tgt) {
             // Navigate to engine default route
-            if (tgt === 'context') navigate('/engines/context/resources');
-            else if (tgt === 'think') navigate('/engines/think/workflows');
-            else if (tgt === 'personas') navigate('/engines/personas');
-            else if (tgt === 'jira') navigate('/engines/jira/tools');
-            else navigate(`/engines/${tgt}`);
+          if (tgt === 'context') navigate('/engines/context/resources');
+          else if (tgt === 'think') navigate('/engines/think/workflows');
+          else if (tgt === 'personas') navigate('/engines/personas');
+          else if (tgt === 'rules') navigate('/engines/rules');
+          else if (tgt === 'jira') navigate('/engines/jira/tools');
+          else navigate(`/engines/${tgt}`);
           }
         }} centered sx={{
           '& .MuiTab-root': { fontSize: 12, minHeight: 36, py: 0.5, textTransform: 'none' },
@@ -316,6 +318,15 @@ export default function App() {
           <Tab label="Browse" component={Link} to="/engines/personas" />
         </Tabs>
       )}
+      {mainIdx === 1 && selEngine === 'rules' && (
+        <Tabs value={0} centered sx={{
+          '& .MuiTab-root': { fontSize: 12, minHeight: 36, py: 0.5, textTransform: 'none', color: 'text.secondary' },
+          '& .Mui-selected': { color: 'primary.main !important' },
+          '& .MuiTabs-indicator': { height: 2, backgroundColor: 'primary.light' }
+        }}>
+          <Tab label="Browse" component={Link} to="/engines/rules" />
+        </Tabs>
+      )}
       {mainIdx === 1 && selEngine === 'jira' && (
         <Tabs value={0} centered sx={{
           '& .MuiTab-root': { fontSize: 12, minHeight: 36, py: 0.5, textTransform: 'none', color: 'text.secondary' },
@@ -352,6 +363,7 @@ export default function App() {
           <Route path="/engines/think/runs" element={<ThinkRuns />} />
 
           <Route path="/engines/personas" element={<Personas />} />
+          <Route path="/engines/rules" element={<RulesPage />} />
           <Route path="/engines/jira/tools" element={<JiraTools />} />
           <Route path="/ctx/tools" element={<ContextTools />} />
           <Route path="/ctx/resources" element={<ContextResources />} />
