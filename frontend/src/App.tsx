@@ -114,7 +114,38 @@ function formatUptime(seconds: number): string {
 
 export default function App() {
   const [open, setOpen] = useState(false);
-  const theme = useMemo(() => createTheme({}), []);
+  const theme = useMemo(() => createTheme({
+    components: {
+      MuiTextField: {
+        defaultProps: { size: 'small' }
+      },
+      MuiFormControl: {
+        defaultProps: { size: 'small' }
+      },
+      MuiSelect: {
+        defaultProps: { size: 'small' },
+        styleOverrides: {
+          select: { fontSize: 12, paddingTop: 6, paddingBottom: 6 }
+        }
+      },
+      MuiInputLabel: {
+        styleOverrides: { root: { fontSize: 12 } }
+      },
+      MuiMenuItem: {
+        styleOverrides: { root: { fontSize: 12, minHeight: 28 } }
+      },
+      MuiInputBase: {
+        styleOverrides: {
+          input: { fontSize: 12, paddingTop: 6, paddingBottom: 6 }
+        }
+      },
+      MuiOutlinedInput: {
+        styleOverrides: {
+          input: { fontSize: 12, paddingTop: 6, paddingBottom: 6 }
+        }
+      }
+    }
+  }), []);
   const mainIdx = useMainTabIndex();
   const ctxIdx = useContextSubIndex();
   const thinkIdx = useThinkSubIndex();
