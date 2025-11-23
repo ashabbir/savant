@@ -45,7 +45,7 @@ export default function ThinkPrompts() {
       <Grid size={{ xs: 12, md: 8 }}>
         <Paper sx={{ p: 2 }}>
           <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between">
-            <Typography variant="subtitle1">Prompt Markdown {sel ? `(${sel})` : ''}</Typography>
+            <Typography variant="subtitle1" sx={{ fontSize: 12 }}>Prompt Markdown {sel ? `(${sel})` : ''}</Typography>
             <Tooltip title={pr.data?.prompt_md ? 'Copy Prompt' : 'Select a prompt to copy'}>
               <span>
                 <IconButton

@@ -46,7 +46,7 @@ export default function JiraTools() {
       </Grid>
       <Grid size={{ xs: 12, md: 8 }}>
         <Paper sx={{ p: 2 }}>
-          <Typography variant="subtitle1">{sel?.name || 'Select a tool'}</Typography>
+          <Typography variant="subtitle1" sx={{ fontSize: 12 }}>{sel?.name || 'Select a tool'}</Typography>
           {schema ? (
             <Viewer content={JSON.stringify(schema, null, 2)} contentType="application/json" height={420} />
           ) : (
@@ -57,4 +57,3 @@ export default function JiraTools() {
     </Grid>
   );
 }
-
