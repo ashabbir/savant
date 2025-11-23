@@ -24,7 +24,7 @@ export default function Diagnostics() {
   return (
     <Box>
       <Paper sx={{ mb: 2 }}>
-        <Tabs value={tab} onChange={handleTabChange}>
+        <Tabs value={tab} onChange={handleTabChange} centered sx={{ '& .MuiTab-root': { fontSize: 12 } }}>
           <Tab icon={<DashboardIcon />} iconPosition="start" label="Overview" />
           <Tab icon={<HttpIcon />} iconPosition="start" label="Requests" />
           <Tab icon={<TerminalIcon />} iconPosition="start" label="Logs" />
