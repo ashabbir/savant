@@ -62,7 +62,7 @@ module Savant
       # Per-repo override not supported in this iteration; use global.
       # Present for compatibility with Runner API.
       # @return [:git, :walk]
-      def scan_mode_for(repo_hash)
+      def scan_mode_for(_repo_hash)
         # ignore repo_hash and return global
         scan_mode
       end

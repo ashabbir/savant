@@ -84,13 +84,14 @@ module Savant
                     count = 0
                     Dir.glob(File.join(path, '**', '*')).each do |p|
                       next if File.directory?(p)
+
                       sample << p if sample.size < 3
                       count += 1
                       break if count >= 200
                     end
                     entry[:sample_files] = sample
                     entry[:sampled_count] = count
-                    entry[:has_files] = count > 0
+                    entry[:has_files] = count.positive?
                   end
                 rescue StandardError => e
                   entry[:error] = e.message

@@ -45,10 +45,11 @@ module Savant
     end
 
     def self.build_mounts(cfg, base_path: nil)
-      entries = (cfg['mounts'] || [])
+      entries = cfg['mounts'] || []
       mounts = entries.each_with_object({}) do |entry, h|
         name = entry['engine']
         next if name.to_s.empty?
+
         h[name] = Savant::Transport::ServiceManager.new(service: name)
       end
 
@@ -61,6 +62,7 @@ module Savant
           name = File.basename(File.dirname(engine_rb))
           tools_rb = File.join(File.dirname(engine_rb), 'tools.rb')
           next unless File.file?(tools_rb)
+
           mounts[name] = Savant::Transport::ServiceManager.new(service: name)
         end
       rescue StandardError
@@ -98,8 +100,6 @@ module Savant
       @router.routes(expand_tools: expand_tools)
     end
 
-    def ui_root
-      @ui_root
-    end
+    attr_reader :ui_root
   end
 end

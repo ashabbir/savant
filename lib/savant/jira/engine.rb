@@ -214,14 +214,12 @@ module Savant
         old_client = @client
         old_ops = @ops
         @mutex.synchronize do
-          begin
-            @client = Client.new(base_url: base_url, email: email, api_token: api_token, username: username, password: password)
-            @ops = Ops.new(@client)
-            return yield
-          ensure
-            @client = old_client
-            @ops = old_ops
-          end
+          @client = Client.new(base_url: base_url, email: email, api_token: api_token, username: username, password: password)
+          @ops = Ops.new(@client)
+          return yield
+        ensure
+          @client = old_client
+          @ops = old_ops
         end
       end
 

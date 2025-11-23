@@ -10,14 +10,14 @@ module Savant
     end
 
     def set(user_id, service, key, value)
-      (@store ||= {})
+      @store ||= {}
       @store[user_id.to_s] ||= {}
       @store[user_id.to_s][service.to_sym] ||= {}
       @store[user_id.to_s][service.to_sym][key.to_sym] = value
     end
 
     def get(user_id, service, key)
-      (@store ||= {})
+      @store ||= {}
       @store.dig(user_id.to_s, service.to_sym, key.to_sym)
     end
 
@@ -52,6 +52,7 @@ module Savant
 
         services.each do |svc, entries|
           next unless entries.is_a?(Hash)
+
           entries.each do |k, v|
             set(user_id, svc, k, v)
           end
@@ -70,11 +71,11 @@ module Savant
       when Hash
         obj.each_with_object({}) do |(k, v), h|
           key = k.is_a?(Symbol) ? k : k.to_s
-          if REDACT_KEYS.include?(key.to_s)
-            h[k] = '[REDACTED]'
-          else
-            h[k] = sanitize(v)
-          end
+          h[k] = if REDACT_KEYS.include?(key.to_s)
+                   '[REDACTED]'
+                 else
+                   sanitize(v)
+                 end
         end
       when Array then obj.map { |e| sanitize(e) }
       else obj
@@ -83,13 +84,14 @@ module Savant
 
     def yaml_safe_read(path)
       return {} unless path && File.file?(path)
+
       require 'yaml'
       YAML.safe_load(File.read(path)) || {}
     end
 
     def deep_dup(obj)
       case obj
-      when Hash then obj.each_with_object({}) { |(k, v), h| h[k] = deep_dup(v) }
+      when Hash then obj.transform_values { |v| deep_dup(v) }
       when Array then obj.map { |e| deep_dup(e) }
       else obj
       end
