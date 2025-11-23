@@ -24,6 +24,7 @@ import BuildIcon from '@mui/icons-material/Build';
 import StorageIcon from '@mui/icons-material/Storage';
 import PsychologyIcon from '@mui/icons-material/Psychology';
 import IntegrationInstructionsIcon from '@mui/icons-material/IntegrationInstructions';
+import PersonIcon from '@mui/icons-material/Person';
 import { useEngineStatus, useEngineTools, ContextToolSpec } from '../api';
 
 function formatUptime(seconds: number): string {
@@ -35,9 +36,10 @@ function formatUptime(seconds: number): string {
 }
 
 const ENGINE_ICONS: Record<string, React.ReactNode> = {
-  context: <StorageIcon sx={{ fontSize: 40 }} />,
-  think: <PsychologyIcon sx={{ fontSize: 40 }} />,
-  jira: <IntegrationInstructionsIcon sx={{ fontSize: 40 }} />,
+  context: <StorageIcon sx={{ fontSize: 32 }} />,
+  think: <PsychologyIcon sx={{ fontSize: 32 }} />,
+  jira: <IntegrationInstructionsIcon sx={{ fontSize: 32 }} />,
+  personas: <PersonIcon sx={{ fontSize: 32 }} />,
 };
 
 function formatEngineName(rawName: string): string {
@@ -60,6 +62,7 @@ const ENGINE_COLORS: Record<string, string> = {
   context: '#4caf50',
   think: '#2196f3',
   jira: '#ff9800',
+  personas: '#9c27b0',
 };
 
 interface EngineCardProps {
@@ -98,14 +101,14 @@ export default function EngineCard({ name, mount, toolCount }: EngineCardProps) 
         borderTop: `4px solid ${color}`,
         transition: 'box-shadow 0.2s',
         '&:hover': { boxShadow: 6 },
-      }}
+        }}
     >
       {/* Card header - always visible */}
-      <Box sx={{ px: 2, pt: 2, pb: 1 }}>
+      <Box sx={{ px: 1.5, pt: 1.5, pb: 0.5 }}>
         <Stack direction="row" spacing={2} alignItems="flex-start">
           <Box sx={{ color }}>{icon}</Box>
           <Box sx={{ flexGrow: 1 }}>
-            <Typography variant="h6" component="div" sx={{ fontWeight: 600 }}>
+            <Typography variant="subtitle1" component="div" sx={{ fontWeight: 600 }}>
               {formatEngineName(status.data?.info?.name || name)}
             </Typography>
             <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace' }}>
@@ -137,7 +140,7 @@ export default function EngineCard({ name, mount, toolCount }: EngineCardProps) 
 
       {/* Card content - collapses when tools are shown */}
       <Collapse in={!expanded} timeout="auto">
-        <CardContent sx={{ flexGrow: 1, pt: 1, minHeight: 160 }}>
+        <CardContent sx={{ flexGrow: 1, pt: 1, minHeight: 120 }}>
           {status.isLoading && <LinearProgress sx={{ mb: 2 }} />}
 
           {status.data && (
@@ -172,7 +175,7 @@ export default function EngineCard({ name, mount, toolCount }: EngineCardProps) 
       {/* Tools list - shows when expanded */}
       <Collapse in={expanded} timeout="auto" unmountOnExit>
         <Divider />
-        <Box sx={{ px: 2, py: 2, height: 160, overflow: 'auto' }}>
+        <Box sx={{ px: 1.5, py: 1.5, height: 120, overflow: 'auto' }}>
           {tools.isLoading && (
             <Box display="flex" justifyContent="center" py={2}>
               <CircularProgress size={24} />

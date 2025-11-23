@@ -118,16 +118,15 @@ module Savant
     end
   end
 end
-      def default_file_logger
-        begin
-          base = (ENV['SAVANT_LOG_PATH'] && !ENV['SAVANT_LOG_PATH'].empty?) ? ENV['SAVANT_LOG_PATH'] : '/tmp/savant'
-          FileUtils.mkdir_p(base)
-          path = File.join(base, "#{service}.log")
-          io = File.open(path, 'a')
-          io.sync = true
-          Savant::Logger.new(io: io, json: true, service: service)
-        rescue StandardError
-          # Fallback to stdout logger if file path is not writable
-          Savant::Logger.new(io: $stdout, json: true, service: service)
-        end
-      end
+
+def default_file_logger
+  base = ENV['SAVANT_LOG_PATH'] && !ENV['SAVANT_LOG_PATH'].empty? ? ENV['SAVANT_LOG_PATH'] : '/tmp/savant'
+  FileUtils.mkdir_p(base)
+  path = File.join(base, "#{service}.log")
+  io = File.open(path, 'a')
+  io.sync = true
+  Savant::Logger.new(io: io, json: true, service: service)
+rescue StandardError
+  # Fallback to stdout logger if file path is not writable
+  Savant::Logger.new(io: $stdout, json: true, service: service)
+end

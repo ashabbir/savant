@@ -15,10 +15,15 @@ import { createTheme, ThemeProvider } from '@mui/material/styles';
 import Search from './pages/Search';
 import Repos from './pages/Repos';
 import Diagnostics from './pages/Diagnostics';
+import DiagnosticsOverview from './pages/diagnostics/Overview';
+import DiagnosticsRequests from './pages/diagnostics/Requests';
+import DiagnosticsLogs from './pages/diagnostics/Logs';
 import Dashboard from './pages/Dashboard';
 import ThinkWorkflows from './pages/think/Workflows';
 import ThinkPrompts from './pages/think/Prompts';
 import ThinkRuns from './pages/think/Runs';
+import Personas from './pages/personas/Personas';
+import JiraTools from './pages/jira/Tools';
 import ContextTools from './pages/context/Tools';
 import ContextResources from './pages/context/Resources';
 import MemorySearch from './pages/context/MemorySearch';
@@ -27,6 +32,9 @@ import Chip from '@mui/material/Chip';
 import Box from '@mui/material/Box';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import HubIcon from '@mui/icons-material/Hub';
+import StorageIcon from '@mui/icons-material/Storage';
+import ManageSearchIcon from '@mui/icons-material/ManageSearch';
+import CodeIcon from '@mui/icons-material/Code';
 import Tooltip from '@mui/material/Tooltip';
 import Stack from '@mui/material/Stack';
 import SettingsDialog from './components/SettingsDialog';
@@ -35,9 +43,8 @@ import { onAppEvent } from './utils/bus';
 function useMainTabIndex() {
   const { pathname } = useLocation();
   if (pathname === '/dashboard' || pathname === '/') return 0;
-  if (pathname.startsWith('/ctx')) return 1;
-  if (pathname.startsWith('/think')) return 2;
-  if (pathname.startsWith('/diagnostics')) return 3;
+  if (pathname.startsWith('/engines')) return 1;
+  if (pathname.startsWith('/diagnostics')) return 2;
   return 0;
 }
 
@@ -57,6 +64,45 @@ function useThinkSubIndex() {
   return 0;
 }
 
+function useSelectedEngine(hub: ReturnType<typeof useHubInfo>['data']) {
+  const { pathname } = useLocation();
+  const seg = pathname.split('/').filter(Boolean);
+  const engines = (hub?.engines || []).map((e) => e.name);
+  const idx = seg[0] === 'engines' && seg[1] ? engines.indexOf(seg[1]) : -1;
+  return {
+    engines,
+    name: idx >= 0 ? engines[idx] : engines[0],
+    index: idx >= 0 ? idx : 0,
+  };
+}
+
+function useEngineSubIndex(engineName: string | undefined) {
+  const { pathname } = useLocation();
+  if (!engineName) return 0;
+  if (engineName === 'context') {
+    if (pathname.includes('/resources')) return 0;
+    if (pathname.includes('/search') || pathname.includes('/fts')) return 1;
+    if (pathname.includes('/memory')) return 2;
+    if (pathname.includes('/repos')) return 3;
+    return 0;
+  }
+  if (engineName === 'think') {
+    if (pathname.includes('/workflows')) return 0;
+    if (pathname.includes('/prompts')) return 1;
+    if (pathname.includes('/runs')) return 2;
+    return 0;
+  }
+  // personas/jira default single or first tab
+  return 0;
+}
+
+function useDiagnosticsSubIndex() {
+  const { pathname } = useLocation();
+  if (pathname.includes('/diagnostics/logs')) return 2;
+  if (pathname.includes('/diagnostics/requests')) return 1;
+  return 0; // overview default
+}
+
 function formatUptime(seconds: number): string {
   const days = Math.floor(seconds / 86400);
   const hours = Math.floor((seconds % 86400) / 3600);
@@ -68,13 +114,65 @@ function formatUptime(seconds: number): string {
 
 export default function App() {
   const [open, setOpen] = useState(false);
-  const theme = useMemo(() => createTheme({}), []);
+  const theme = useMemo(() => createTheme({
+    components: {
+      MuiButton: {
+        defaultProps: { size: 'small' },
+        styleOverrides: {
+          root: { fontSize: 12, textTransform: 'none', paddingTop: 6, paddingBottom: 6, paddingLeft: 12, paddingRight: 12, minHeight: 30 }
+        }
+      },
+      MuiIconButton: {
+        defaultProps: { size: 'small' },
+        styleOverrides: { root: { padding: 4 } }
+      },
+      MuiChip: {
+        defaultProps: { size: 'small' },
+        styleOverrides: {
+          root: { height: 22 },
+          label: { fontSize: 12, paddingLeft: 6, paddingRight: 6 }
+        }
+      },
+      MuiTextField: {
+        defaultProps: { size: 'small' }
+      },
+      MuiFormControl: {
+        defaultProps: { size: 'small' }
+      },
+      MuiSelect: {
+        defaultProps: { size: 'small' },
+        styleOverrides: {
+          select: { fontSize: 12, paddingTop: 6, paddingBottom: 6 }
+        }
+      },
+      MuiInputLabel: {
+        styleOverrides: { root: { fontSize: 12 } }
+      },
+      MuiMenuItem: {
+        styleOverrides: { root: { fontSize: 12, minHeight: 28 } }
+      },
+      MuiInputBase: {
+        styleOverrides: {
+          input: { fontSize: 12, paddingTop: 6, paddingBottom: 6 }
+        }
+      },
+      MuiOutlinedInput: {
+        styleOverrides: {
+          input: { fontSize: 12, paddingTop: 6, paddingBottom: 6 }
+        }
+      }
+    }
+  }), []);
   const mainIdx = useMainTabIndex();
   const ctxIdx = useContextSubIndex();
   const thinkIdx = useThinkSubIndex();
+  const isDev = import.meta.env.DEV;
   const navigate = useNavigate();
   const { data, isLoading, isError, error } = useHubHealth();
   const hub = useHubInfo();
+  const { engines, name: selEngine, index: engIdx } = useSelectedEngine(hub.data);
+  const engSubIdx = useEngineSubIndex(selEngine);
+  const diagSubIdx = useDiagnosticsSubIndex();
   const errMsg = getErrorMessage(error as any);
   const [snackOpen, setSnackOpen] = useState(false);
   const [snackMsg, setSnackMsg] = useState('');
@@ -90,6 +188,7 @@ export default function App() {
 
   return (
     <ThemeProvider theme={theme}>
+      <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       <AppBar position="static" sx={{ background: 'linear-gradient(135deg, #1a237e 0%, #283593 100%)' }}>
         <Toolbar variant="dense">
           <Stack direction="row" spacing={1.5} alignItems="center" sx={{ flexGrow: 1 }}>
@@ -133,45 +232,106 @@ export default function App() {
       </AppBar>
       <Tabs value={mainIdx} onChange={(_, v) => {
         if (v === 0) navigate('/dashboard');
-        else if (v === 1) navigate('/ctx/resources');
-        else if (v === 2) navigate('/think/workflows');
-        else if (v === 3) navigate('/diagnostics');
+        else if (v === 1) navigate('/engines');
+        else if (v === 2) navigate('/diagnostics');
       }} centered>
         <Tab icon={<DashboardIcon />} iconPosition="start" label="Dashboard" component={Link} to="/dashboard" />
-        <Tab label="Context" component={Link} to="/ctx/resources" />
-        <Tab label="Think" component={Link} to="/think" />
-        <Tab label="Diagnostics" component={Link} to="/diagnostics" />
+        <Tab icon={<StorageIcon />} iconPosition="start" label="Engines" component={Link} to="/engines" />
+        <Tab icon={<ManageSearchIcon />} iconPosition="start" label="Diagnostics" component={Link} to="/diagnostics" />
       </Tabs>
       {mainIdx === 1 && (
-        <Tabs value={ctxIdx} onChange={(_, v) => {
-          if (v === 0) navigate('/ctx/resources');
-          else if (v === 1) navigate('/ctx/search');
-          else if (v === 2) navigate('/ctx/memory-search');
-          else if (v === 3) navigate('/ctx/repos');
-        }} centered>
-          <Tab label="Resources" component={Link} to="/ctx/resources" />
-          <Tab label="FTS Search" component={Link} to="/ctx/search" />
-          <Tab label="Memory Search" component={Link} to="/ctx/memory-search" />
-          <Tab label="Repos" component={Link} to="/ctx/repos" />
+        <Tabs value={engIdx} onChange={(_, v) => {
+          const tgt = engines[v];
+          if (tgt) {
+            // Navigate to engine default route
+            if (tgt === 'context') navigate('/engines/context/resources');
+            else if (tgt === 'think') navigate('/engines/think/workflows');
+            else if (tgt === 'personas') navigate('/engines/personas');
+            else if (tgt === 'jira') navigate('/engines/jira/tools');
+            else navigate(`/engines/${tgt}`);
+          }
+        }} centered sx={{
+          '& .MuiTab-root': { fontSize: 12, minHeight: 36, py: 0.5, textTransform: 'none' },
+          '& .MuiTabs-indicator': { height: 2 }
+        }}>
+          {engines.map((e) => (
+            <Tab key={e} label={e.charAt(0).toUpperCase() + e.slice(1)} component={Link} to={`/engines/${e}${e==='context'?'/resources':e==='think'?'/workflows':e==='jira'?'/tools':''}`} />
+          ))}
         </Tabs>
       )}
       {mainIdx === 2 && (
-        <Tabs value={thinkIdx} onChange={(_, v) => {
-          if (v === 0) navigate('/think/workflows');
-          else if (v === 1) navigate('/think/prompts');
-          else if (v === 2) navigate('/think/runs');
-        }} centered>
-          <Tab label="Workflows" component={Link} to="/think/workflows" />
-          <Tab label="Prompts" component={Link} to="/think/prompts" />
-          <Tab label="Runs" component={Link} to="/think/runs" />
+        <Tabs
+          value={diagSubIdx}
+          onChange={(_, v) => {
+            if (v === 0) navigate('/diagnostics/overview');
+            else if (v === 1) navigate('/diagnostics/requests');
+            else if (v === 2) navigate('/diagnostics/logs');
+          }}
+          centered
+          sx={{ '& .MuiTab-root': { fontSize: 12, minHeight: 36, py: 0.5, textTransform: 'none' }, '& .MuiTabs-indicator': { height: 2 } }}
+        >
+          <Tab label="Overview" component={Link} to="/diagnostics/overview" />
+          <Tab label="Requests" component={Link} to="/diagnostics/requests" />
+          <Tab label="Logs" component={Link} to="/diagnostics/logs" />
         </Tabs>
       )}
-      <Container maxWidth="lg" sx={{ mt: 3, mb: 4 }}>
+      {mainIdx === 1 && selEngine === 'context' && (
+        <Tabs value={engSubIdx} onChange={(_, v) => {
+          if (v === 0) navigate('/engines/context/resources');
+          else if (v === 1) navigate('/engines/context/search');
+          else if (v === 2) navigate('/engines/context/memory-search');
+          else if (v === 3) navigate('/engines/context/repos');
+        }} centered sx={{
+          '& .MuiTab-root': { fontSize: 12, minHeight: 36, py: 0.5, textTransform: 'none', color: 'text.secondary' },
+          '& .Mui-selected': { color: 'primary.main !important' },
+          '& .MuiTabs-indicator': { height: 2, backgroundColor: 'primary.light' }
+        }}>
+          <Tab label="Resources" component={Link} to="/engines/context/resources" />
+          <Tab label="FTS" component={Link} to="/engines/context/search" />
+          <Tab label="Memory Search" component={Link} to="/engines/context/memory-search" />
+          <Tab label="Repos" component={Link} to="/engines/context/repos" />
+        </Tabs>
+      )}
+      {mainIdx === 1 && selEngine === 'think' && (
+        <Tabs value={engSubIdx} onChange={(_, v) => {
+          if (v === 0) navigate('/engines/think/workflows');
+          else if (v === 1) navigate('/engines/think/prompts');
+          else if (v === 2) navigate('/engines/think/runs');
+        }} centered sx={{
+          '& .MuiTab-root': { fontSize: 12, minHeight: 36, py: 0.5, textTransform: 'none', color: 'text.secondary' },
+          '& .Mui-selected': { color: 'primary.main !important' },
+          '& .MuiTabs-indicator': { height: 2, backgroundColor: 'primary.light' }
+        }}>
+          <Tab label="Workflows" component={Link} to="/engines/think/workflows" />
+          <Tab label="Prompts" component={Link} to="/engines/think/prompts" />
+          <Tab label="Runs" component={Link} to="/engines/think/runs" />
+        </Tabs>
+      )}
+      {mainIdx === 1 && selEngine === 'personas' && (
+        <Tabs value={0} centered sx={{
+          '& .MuiTab-root': { fontSize: 12, minHeight: 36, py: 0.5, textTransform: 'none', color: 'text.secondary' },
+          '& .Mui-selected': { color: 'primary.main !important' },
+          '& .MuiTabs-indicator': { height: 2, backgroundColor: 'primary.light' }
+        }}>
+          <Tab label="Browse" component={Link} to="/engines/personas" />
+        </Tabs>
+      )}
+      {mainIdx === 1 && selEngine === 'jira' && (
+        <Tabs value={0} centered sx={{
+          '& .MuiTab-root': { fontSize: 12, minHeight: 36, py: 0.5, textTransform: 'none', color: 'text.secondary' },
+          '& .Mui-selected': { color: 'primary.main !important' },
+          '& .MuiTabs-indicator': { height: 2, backgroundColor: 'primary.light' }
+        }}>
+          <Tab label="Tools" component={Link} to="/engines/jira/tools" />
+        </Tabs>
+      )}
+      <Container maxWidth="lg" sx={{ mt: 3, mb: 4, flex: 1 }}>
         <Routes>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/search" element={<Navigate to="/ctx/search" replace />} />
           <Route path="/repos" element={<Navigate to="/ctx/repos" replace />} />
+          {/* Legacy routes (back-compat) */}
           <Route path="/ctx/search" element={<Search />} />
           <Route path="/ctx/fts" element={<Search />} />
           <Route path="/ctx/repos" element={<Repos />} />
@@ -179,13 +339,54 @@ export default function App() {
           <Route path="/think/workflows" element={<ThinkWorkflows />} />
           <Route path="/think/prompts" element={<ThinkPrompts />} />
           <Route path="/think/runs" element={<ThinkRuns />} />
+          <Route path="/personas" element={<Personas />} />
+
+          {/* New Engines routes */}
+          <Route path="/engines/context/resources" element={<ContextResources />} />
+          <Route path="/engines/context/search" element={<Search />} />
+          <Route path="/engines/context/memory-search" element={<MemorySearch />} />
+          <Route path="/engines/context/repos" element={<Repos />} />
+
+          <Route path="/engines/think/workflows" element={<ThinkWorkflows />} />
+          <Route path="/engines/think/prompts" element={<ThinkPrompts />} />
+          <Route path="/engines/think/runs" element={<ThinkRuns />} />
+
+          <Route path="/engines/personas" element={<Personas />} />
+          <Route path="/engines/jira/tools" element={<JiraTools />} />
           <Route path="/ctx/tools" element={<ContextTools />} />
           <Route path="/ctx/resources" element={<ContextResources />} />
           <Route path="/ctx/memory-search" element={<MemorySearch />} />
           <Route path="/ctx/memory" element={<MemorySearch />} />
-          <Route path="/diagnostics" element={<Diagnostics />} />
+          {/* Diagnostics routes at second-layer */}
+          <Route path="/diagnostics" element={<DiagnosticsOverview />} />
+          <Route path="/diagnostics/overview" element={<DiagnosticsOverview />} />
+          <Route path="/diagnostics/requests" element={<DiagnosticsRequests />} />
+          <Route path="/diagnostics/logs" element={<DiagnosticsLogs />} />
         </Routes>
       </Container>
+      {/* Footer banner (always blue like header; DEV shows icon + text) */}
+      <Box sx={{
+        background: 'linear-gradient(135deg, #1a237e 0%, #283593 100%)',
+        color: 'rgba(255,255,255,0.8)',
+        px: 2,
+        py: 0.5,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        mt: 'auto'
+      }}>
+        <Typography variant="caption" sx={{ opacity: 0.9 }}>amdSh@2025</Typography>
+        {isDev ? (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <CodeIcon sx={{ fontSize: 14, opacity: 0.9 }} />
+            <Typography variant="caption" sx={{ opacity: 0.9 }}>Dev-Mode</Typography>
+          </Box>
+        ) : (
+          <Typography variant="caption" sx={{ opacity: 0.9 }}>Build-Mode</Typography>
+        )}
+        <Typography variant="caption" sx={{ opacity: 0.9 }}>github.com/ashabbir</Typography>
+      </Box>
+      </Box>
       <SettingsDialog open={open} onClose={() => setOpen(false)} />
       <Snackbar
         open={snackOpen}

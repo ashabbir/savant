@@ -112,7 +112,7 @@ module Savant
           end
 
           tool 'fs/repo/diagnostics', description: 'Diagnostics for repo mounts, settings visibility, DB counts',
-                                       schema: { type: 'object', properties: {} } do |_ctx, _a|
+                                      schema: { type: 'object', properties: {} } do |_ctx, _a|
             engine.repo_indexer_diagnostics
           end
         end

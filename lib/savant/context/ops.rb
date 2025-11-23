@@ -161,7 +161,7 @@ module Savant
         end
         # Fallback: try suffix match under memory directory variants (case-insensitive)
         if rel.nil?
-          patterns = ["%/memory/%", "%/memory_bank/%", "%/memory-bank/%", "%/memorybank/%", "%/memoryBank/%", "%/bank/%"]
+          patterns = ['%/memory/%', '%/memory_bank/%', '%/memory-bank/%', '%/memorybank/%', '%/memoryBank/%', '%/bank/%']
           # Build OR clause with positional parameters starting at $3
           mem_clause = patterns.each_index.map { |i| "rel_path ILIKE $#{i + 3}" }.join(' OR ')
           sql = "SELECT rel_path FROM files WHERE repo_name=$1 AND (#{mem_clause}) AND rel_path ILIKE $2 LIMIT 1"

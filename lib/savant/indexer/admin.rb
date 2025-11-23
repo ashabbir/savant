@@ -21,18 +21,18 @@ module Savant
       def repo_stats
         @db.with_connection do |conn|
           conn.exec(<<~SQL)
-          SELECT r.id, r.name,
-                 COUNT(DISTINCT f.id)  AS files,
-                 COUNT(DISTINCT b.id)  AS blobs,
-                 COUNT(c.id)           AS chunks,
-                 MAX(f.mtime_ns)       AS max_mtime_ns
-          FROM repos r
-          LEFT JOIN files f        ON f.repo_id = r.id
-          LEFT JOIN file_blob_map fb ON fb.file_id = f.id
-          LEFT JOIN blobs b        ON b.id = fb.blob_id
-          LEFT JOIN chunks c       ON c.blob_id = b.id
-          GROUP BY r.id, r.name
-          ORDER BY r.name;
+            SELECT r.id, r.name,
+                   COUNT(DISTINCT f.id)  AS files,
+                   COUNT(DISTINCT b.id)  AS blobs,
+                   COUNT(c.id)           AS chunks,
+                   MAX(f.mtime_ns)       AS max_mtime_ns
+            FROM repos r
+            LEFT JOIN files f        ON f.repo_id = r.id
+            LEFT JOIN file_blob_map fb ON fb.file_id = f.id
+            LEFT JOIN blobs b        ON b.id = fb.blob_id
+            LEFT JOIN chunks c       ON c.blob_id = b.id
+            GROUP BY r.id, r.name
+            ORDER BY r.name;
           SQL
         end
       end

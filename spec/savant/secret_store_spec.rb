@@ -23,4 +23,3 @@ RSpec.describe Savant::SecretStore do
     expect(scrubbed[:nested][:password]).to eq('[REDACTED]')
   end
 end
-

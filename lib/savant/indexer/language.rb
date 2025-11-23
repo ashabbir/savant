@@ -22,11 +22,7 @@ module Savant
         # Variants: memory, memoryBank, memory_bank, memory-bank, bank
         segments = down.split('/')
         norm_segments = segments.map { |s| s.gsub(/[-_]/, '') }
-        if norm_segments.any? { |s| MEMORY_DIR_NAMES.include?(s) }
-          if MARKDOWN_EXTS.include?(File.extname(down))
-            return 'memory_bank'
-          end
-        end
+        return 'memory_bank' if norm_segments.any? { |s| MEMORY_DIR_NAMES.include?(s) } && MARKDOWN_EXTS.include?(File.extname(down))
 
         ext = File.extname(down).sub('.', '')
         ext.empty? ? 'txt' : ext

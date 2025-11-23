@@ -15,6 +15,8 @@ import LinearProgress from '@mui/material/LinearProgress';
 import Alert from '@mui/material/Alert';
 import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
+import Snackbar from '@mui/material/Snackbar';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import CircularProgress from '@mui/material/CircularProgress';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import WorkflowDiagram from '../../components/WorkflowDiagram';
@@ -43,6 +45,7 @@ export default function ThinkWorkflows() {
   const wfRead = useThinkWorkflowRead(sel);
   const [subTab, setSubTab] = useState(0);
   const [diagramOpen, setDiagramOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const [mermaidError, setMermaidError] = useState<string | null>(null);
   const [preRenderedSvg, setPreRenderedSvg] = useState<string | null>(null);
@@ -111,7 +114,7 @@ export default function ThinkWorkflows() {
       <Grid size={{ xs: 12, md: 8 }}>
         <Paper sx={{ p: 2 }}>
           <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between">
-            <Typography variant="subtitle1">Workflow {sel ? `(${sel})` : ''}</Typography>
+            <Typography variant="subtitle1" sx={{ fontSize: 12 }}>Workflow {sel ? `(${sel})` : ''}</Typography>
             <Stack direction="row" alignItems="center" spacing={1}>
               {sel && mermaidCode && (
                 <Tooltip title={isRendering ? 'Rendering diagram...' : preRenderedSvg ? 'View diagram' : 'Diagram not ready'}>
@@ -127,6 +130,17 @@ export default function ThinkWorkflows() {
                   </span>
                 </Tooltip>
               )}
+              <Tooltip title={wfRead.data?.workflow_yaml ? 'Copy YAML' : 'Select a workflow to copy'}>
+                <span>
+                  <IconButton
+                    size="small"
+                    disabled={!wfRead.data?.workflow_yaml}
+                    onClick={() => { try { navigator.clipboard.writeText(wfRead.data?.workflow_yaml || ''); setCopied(true); } catch { setCopied(true); } }}
+                  >
+                    <ContentCopyIcon fontSize="small" />
+                  </IconButton>
+                </span>
+              </Tooltip>
               <Tabs value={subTab} onChange={(_, v)=>setSubTab(v)}>
                 <Tab label="YAML" />
               </Tabs>
@@ -151,6 +165,7 @@ export default function ThinkWorkflows() {
         svgContent={preRenderedSvg || ''}
         workflowName={sel || undefined}
       />
+      <Snackbar open={copied} autoHideDuration={2000} onClose={() => setCopied(false)} message="Copied YAML" anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }} />
     </Grid>
   );
 }

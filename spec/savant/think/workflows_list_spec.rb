@@ -77,4 +77,3 @@ RSpec.describe 'Savant Think workflows listing' do
     expect(plan[:instruction][:step_id]).to eq('__driver_bootstrap')
   end
 end
-

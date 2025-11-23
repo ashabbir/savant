@@ -4,7 +4,7 @@ Deterministic workflow orchestration for LLM clients. Think validates YAML-defin
 
 ## Core Ideas
 - **Instruction Loop:** Every run starts with `think.plan`, executes external/local tools, and advances via `think.next` until `done: true`.
-- **Driver Prompt:** `think.driver_prompt` surfaces the canonical orchestration rules (see `lib/savant/think/prompts/*.md`). Workflows typically inject this as the first instruction per PRD [think-code-review-fix](../docs/prds/done/think-code-review-fix.md).
+- **Driver Prompt:** `think.driver_prompt` surfaces the canonical orchestration rules (see `lib/savant/think/prompts/*.md`). Workflows typically inject this as the first instruction to ensure consistent guard rails.
 - **Workflow Sources:** YAML files in `lib/savant/think/workflows/` define step DAGs, templates, and captures. No database is required; run state persists under `.savant/state/`.
 
 ## Tool Surface
@@ -31,7 +31,7 @@ sequenceDiagram
 ```
 
 ## Creating a Workflow (Example)
-This mirrors the **code review** PRD in `docs/prds/done/savant-think.md` and its follow-up `docs/prds/done/think-code-review-fix.md`.
+Example below shows a minimal triage flow you can adapt.
 
 1. **Write YAML under `lib/savant/think/workflows/`**
    ```yaml
@@ -83,7 +83,5 @@ flowchart TD
 - **Evolution:** Update YAML to change behavior; no Ruby changes required unless you add new helper tools. The done PRDs show how workflows evolved (e.g., forcing the driver prompt bootstrap) to accommodate new guard rails.
 
 ## References
-- PRD overview: [docs/prds/done/savant-think.md](../docs/prds/done/savant-think.md)
-- Driver prompt bootstrap PRD: [docs/prds/done/think-code-review-fix.md](../docs/prds/done/think-code-review-fix.md)
-- Existing workflows: `lib/savant/think/workflows/*.yml`
+- Workflows: `lib/savant/think/workflows/*.yml`
 - Prompts: `lib/savant/think/prompts/`

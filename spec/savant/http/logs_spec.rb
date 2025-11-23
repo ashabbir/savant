@@ -13,10 +13,12 @@ module LogsSpec
 
   class FakeServiceManager
     attr_reader :service, :registrar
+
     def initialize(service:)
       @service = service
       @registrar = FakeRegistrar.new
     end
+
     def service_info = { name: service, version: '1.0.0' }
   end
 end

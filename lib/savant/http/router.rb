@@ -26,9 +26,8 @@ module Savant
 
       def call(env)
         # Allow CORS preflight without requiring user header
-        if env['REQUEST_METHOD'] == 'OPTIONS'
-          return [204, cors_headers, []]
-        end
+        return [204, cors_headers, []] if env['REQUEST_METHOD'] == 'OPTIONS'
+
         Savant::Middleware::UserHeader.new(method(:dispatch)).call(env)
       end
 
@@ -37,6 +36,7 @@ module Savant
         mounts.map do |name, manager|
           { name: name,
             path: "/#{name}",
+            mount: "/#{name}",
             tools: (safe_specs(manager) || []).size,
             status: 'running',
             uptime_seconds: (manager.respond_to?(:uptime) ? manager.uptime : 0) }
@@ -95,7 +95,7 @@ module Savant
         truncated_body = nil
         if response_body
           body_str = response_body.is_a?(Array) ? response_body.join : response_body.to_s
-          truncated_body = body_str.length > 4096 ? body_str[0, 4096] + '...[truncated]' : body_str
+          truncated_body = body_str.length > 4096 ? "#{body_str[0, 4096]}...[truncated]" : body_str
         end
 
         # Read request body if available (for POST requests)
@@ -105,7 +105,7 @@ module Savant
             req.body.rewind if req.body.respond_to?(:rewind)
             raw = req.body.read
             req.body.rewind if req.body.respond_to?(:rewind)
-            request_body = raw.length > 2048 ? raw[0, 2048] + '...[truncated]' : raw
+            request_body = raw.length > 2048 ? "#{raw[0, 2048]}...[truncated]" : raw
           rescue StandardError
             # ignore
           end
@@ -117,22 +117,23 @@ module Savant
           @stats[:by_status][status.to_s] += 1
           @stats[:by_method][req.request_method] += 1
           @stats[:recent].unshift({
-            id: @stats[:total],
-            time: Time.now.utc.iso8601,
-            method: req.request_method,
-            path: req.path_info,
-            query: req.query_string.to_s.empty? ? nil : req.query_string,
-            status: status,
-            duration_ms: duration_ms,
-            engine: engine,
-            user: req.env['savant.user_id'],
-            request_body: request_body,
-            response_body: truncated_body
-          })
+                                    id: @stats[:total],
+                                    time: Time.now.utc.iso8601,
+                                    method: req.request_method,
+                                    path: req.path_info,
+                                    query: req.query_string.to_s.empty? ? nil : req.query_string,
+                                    status: status,
+                                    duration_ms: duration_ms,
+                                    engine: engine,
+                                    user: req.env['savant.user_id'],
+                                    request_body: request_body,
+                                    response_body: truncated_body
+                                  })
           @stats[:recent] = @stats[:recent].first(100) # Keep last 100 requests
         end
 
         return unless hub_logger
+
         hub_logger.info(
           event: 'http_request',
           method: req.request_method,
@@ -180,6 +181,7 @@ module Savant
         # Special handling for /hub/logs
         if engine_name == 'hub'
           return handle_hub_get(req, segments[1..]) if req.request_method == 'GET'
+
           return not_found
         end
 
@@ -200,32 +202,31 @@ module Savant
         case rest
         when ['status']
           respond(200, {
-            engine: 'hub',
-            status: 'running',
-            uptime_seconds: uptime_seconds,
-            info: { name: 'hub', version: '3.0.0', description: 'Savant MCP Hub HTTP router and logging' }
-          })
+                    engine: 'hub',
+                    status: 'running',
+                    uptime_seconds: uptime_seconds,
+                    info: { name: 'hub', version: '3.0.0', description: 'Savant MCP Hub HTTP router and logging' }
+                  })
         when ['stats']
           stats_snapshot = @stats_mutex.synchronize { deep_copy_stats(@stats) }
           respond(200, {
-            uptime_seconds: uptime_seconds,
-            requests: {
-              total: stats_snapshot[:total],
-              by_engine: stats_snapshot[:by_engine],
-              by_status: stats_snapshot[:by_status],
-              by_method: stats_snapshot[:by_method]
-            },
-            recent: stats_snapshot[:recent]
-          })
+                    uptime_seconds: uptime_seconds,
+                    requests: {
+                      total: stats_snapshot[:total],
+                      by_engine: stats_snapshot[:by_engine],
+                      by_status: stats_snapshot[:by_status],
+                      by_method: stats_snapshot[:by_method]
+                    },
+                    recent: stats_snapshot[:recent]
+                  })
         when ['logs']
           if req.params['stream']
             sse_logs(req, 'hub')
           else
             n = (req.params['n'] || '100').to_i
             path = log_path('hub')
-            unless File.file?(path)
-              return respond(200, { engine: 'hub', count: 0, path: path, lines: [], note: 'log file not found' })
-            end
+            return respond(200, { engine: 'hub', count: 0, path: path, lines: [], note: 'log file not found' }) unless File.file?(path)
+
             lines = read_last_lines(path, n)
             respond(200, { engine: 'hub', count: lines.length, path: path, lines: lines })
           end
@@ -244,7 +245,7 @@ module Savant
           # Stream tool call via SSE: /:engine/tools/:name/stream
           if rest.length >= 3 && rest[0] == 'tools' && rest[-1] == 'stream'
             tool = rest[1..-2].join('/')
-            return sse_tool_call(req, engine_name, manager, tool)
+            sse_tool_call(req, engine_name, manager, tool)
           end
         when ['status']
           info = manager.service_info
@@ -260,6 +261,7 @@ module Savant
               # Return empty set with note rather than 404 for better UX
               return respond(200, { engine: engine_name, count: 0, path: path, lines: [], note: 'log file not found' })
             end
+
             lines = read_last_lines(path, n)
             respond(200, { engine: engine_name, count: lines.length, path: path, lines: lines })
           end
@@ -295,13 +297,14 @@ module Savant
       end
 
       def hub_routes(req)
-        expand = req.params['expand'] == '1' || req.params['expand'] == 'true'
+        expand = %w[1 true].include?(req.params['expand'])
         respond(200, { routes: routes(expand_tools: expand) })
       end
 
       def base_path
         env_path = ENV['SAVANT_PATH']
         return env_path unless env_path.nil? || env_path.empty?
+
         File.expand_path('../../..', __dir__)
       end
 
@@ -331,13 +334,14 @@ module Savant
                   count = 0
                   Dir.glob(File.join(path, '**', '*')).each do |p|
                     next if File.directory?(p)
+
                     sample << p if sample.size < 3
                     count += 1
                     break if count >= 200
                   end
                   repo_entry[:sample_files] = sample
                   repo_entry[:sampled_count] = count
-                  repo_entry[:has_files] = count > 0
+                  repo_entry[:has_files] = count.positive?
                 end
               rescue StandardError => e
                 repo_entry[:error] = e.message
@@ -425,6 +429,7 @@ module Savant
 
       def read_last_lines(path, n)
         return [] unless File.file?(path)
+
         lines = []
         File.foreach(path) { |l| lines << l.chomp }
         lines.last(n)
@@ -451,28 +456,59 @@ module Savant
           mod = Savant.const_get(camel)
           tools_mod = mod.const_get(:Tools)
           reg = tools_mod.build_registrar(nil)
-          return reg.specs
+          reg.specs
         rescue StandardError
-          return []
+          []
         end
       end
 
       def call_with_user_context(manager, engine_name, tool, params, user_id)
         # Prefer registrar to pass user_id in ctx (enables per-user creds middleware)
+        # Also log per-engine tool calls so /:engine/logs has content.
+        logger = nil
+        begin
+          path = log_path(engine_name)
+          require_relative '../logger'
+          logger = Savant::Logger.new(io: $stdout, file_path: path, json: true, service: engine_name)
+        rescue StandardError
+          logger = nil
+        end
+
+        started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+        logger&.info(event: 'tool.call start', name: tool, user: user_id)
         begin
           manager.specs # ensure service is loaded when ServiceManager
           reg = manager.send(:registrar)
-          return reg.call(tool, params, ctx: { engine: engine_name, user_id: user_id })
+          result = reg.call(tool, params, ctx: { engine: engine_name, user_id: user_id })
+          dur = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round
+          logger&.info(event: 'tool.call finish', name: tool, duration_ms: dur)
+          return result
         rescue StandardError
           # Fall through to other strategies
         end
 
         if manager.respond_to?(:registrar)
-          return manager.registrar.call(tool, params, ctx: { engine: engine_name, user_id: user_id })
+          begin
+            result = manager.registrar.call(tool, params, ctx: { engine: engine_name, user_id: user_id })
+            dur = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round
+            logger&.info(event: 'tool.call finish', name: tool, duration_ms: dur)
+            return result
+          rescue StandardError => e
+            logger&.error(event: 'tool.call error', name: tool, message: e.message)
+            raise
+          end
         end
 
         # Last resort: use public API (no user context)
-        manager.call_tool(tool, params)
+        begin
+          result = manager.call_tool(tool, params)
+          dur = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round
+          logger&.info(event: 'tool.call finish', name: tool, duration_ms: dur)
+          result
+        rescue StandardError => e
+          logger&.error(event: 'tool.call error', name: tool, message: e.message)
+          raise
+        end
       end
 
       def sse_headers
@@ -484,7 +520,7 @@ module Savant
       end
 
       def format_sse_event(event, data)
-        "event: #{event}\n" +
+        "event: #{event}\n" \
           "data: #{JSON.generate(data)}\n\n"
       end
 
@@ -518,6 +554,7 @@ module Savant
                 pos = size
                 chunk.to_s.split(/\r?\n/).each do |ln|
                   next if ln.empty?
+
                   y << format_sse_event('log', { line: ln })
                 end
               end
@@ -533,6 +570,7 @@ module Savant
 
       def normalize_tool_spec(spec)
         return spec unless spec.is_a?(Hash)
+
         h = {}
         spec.each { |k, v| h[k.to_s] = v }
         schema = h['inputSchema'] || h['schema'] || h['input_schema'] || {}
@@ -566,7 +604,6 @@ module Savant
         end
         [200, sse_headers, body]
       end
-
     end
   end
 end

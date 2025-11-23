@@ -41,7 +41,7 @@ module Savant
 
           tool 'think.plan', description: 'Initialize a workflow run and return first instruction',
                              schema: { type: 'object', properties: { workflow: { type: 'string' }, params: { type: 'object' }, run_id: { type: 'string' }, start_fresh: { type: 'boolean' } }, required: ['workflow'] } do |_ctx, a|
-            start_fresh = a.key?('start_fresh') ? !!a['start_fresh'] : true
+            start_fresh = a.key?('start_fresh') ? !a['start_fresh'].nil? : true
             eng.plan(workflow: a['workflow'].to_s, params: a['params'] || {}, run_id: a['run_id'], start_fresh: start_fresh)
           end
 
@@ -76,27 +76,27 @@ module Savant
           end
 
           tool 'think.limits.read', description: 'Read Think engine limits/config',
-                                     schema: { type: 'object', properties: {} } do |_ctx, _a|
+                                    schema: { type: 'object', properties: {} } do |_ctx, _a|
             eng.limits
           end
 
           tool 'think.runs.list', description: 'List saved Think workflow runs',
-                                   schema: { type: 'object', properties: {} } do |_ctx, _a|
+                                  schema: { type: 'object', properties: {} } do |_ctx, _a|
             eng.runs_list
           end
 
           tool 'think.runs.read', description: 'Read a Think run state',
-                                   schema: { type: 'object', properties: { workflow: { type: 'string' }, run_id: { type: 'string' } }, required: %w[workflow run_id] } do |_ctx, a|
+                                  schema: { type: 'object', properties: { workflow: { type: 'string' }, run_id: { type: 'string' } }, required: %w[workflow run_id] } do |_ctx, a|
             eng.run_read(workflow: a['workflow'], run_id: a['run_id'])
           end
 
           tool 'think.runs.delete', description: 'Delete a Think run state',
-                                     schema: { type: 'object', properties: { workflow: { type: 'string' }, run_id: { type: 'string' } }, required: %w[workflow run_id] } do |_ctx, a|
+                                    schema: { type: 'object', properties: { workflow: { type: 'string' }, run_id: { type: 'string' } }, required: %w[workflow run_id] } do |_ctx, a|
             eng.run_delete(workflow: a['workflow'], run_id: a['run_id'])
           end
 
           tool 'think.workflows.graph', description: 'Return nodes and topological order for a workflow',
-                                         schema: { type: 'object', properties: { workflow: { type: 'string' } }, required: ['workflow'] } do |_ctx, a|
+                                        schema: { type: 'object', properties: { workflow: { type: 'string' } }, required: ['workflow'] } do |_ctx, a|
             eng.workflows_graph(workflow: a['workflow'])
           end
 

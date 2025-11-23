@@ -28,4 +28,3 @@ RSpec.describe Savant::Middleware::UserHeader do
     expect(JSON.parse(res.body)['user']).to eq('alice')
   end
 end
-
