@@ -1,6 +1,7 @@
 import React from 'react';
 import Box from '@mui/material/Box';
 import Grid from '@mui/material/Grid2';
+import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import Paper from '@mui/material/Paper';
 import Stack from '@mui/material/Stack';
@@ -61,23 +62,24 @@ export default function Dashboard() {
       </Typography>
       <Divider sx={{ mb: 3 }} />
 
-      <Grid container spacing={3}>
+      {/* Fluid grid: 1..N per row depending on window size */}
+      <Box
+        sx={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+          gap: 2,
+        }}
+      >
         {hub.data?.engines?.map((engine) => (
-          <Grid key={engine.name} size={{ xs: 12, sm: 6, lg: 4 }}>
-            <EngineCard
-              name={engine.name}
-              mount={engine.mount}
-              toolCount={engine.tools}
-            />
-          </Grid>
+          <Box key={engine.name}>
+            <EngineCard name={engine.name} mount={engine.mount} toolCount={engine.tools} />
+          </Box>
         ))}
+      </Box>
 
-        {!hub.isLoading && (!hub.data?.engines || hub.data.engines.length === 0) && (
-          <Grid size={{ xs: 12 }}>
-            <Alert severity="info">No engines mounted</Alert>
-          </Grid>
-        )}
-      </Grid>
+      {!hub.isLoading && (!hub.data?.engines || hub.data.engines.length === 0) && (
+        <Alert severity="info" sx={{ mt: 1 }}>No engines mounted</Alert>
+      )}
     </Box>
   );
 }
