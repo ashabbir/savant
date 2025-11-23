@@ -20,7 +20,6 @@ import Viewer from '../../components/Viewer';
 import Tabs from '@mui/material/Tabs';
 import Tab from '@mui/material/Tab';
 import Snackbar from '@mui/material/Snackbar';
-import IconButton from '@mui/material/IconButton';
 import Collapse from '@mui/material/Collapse';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
