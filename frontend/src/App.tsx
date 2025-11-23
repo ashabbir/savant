@@ -28,6 +28,7 @@ import Chip from '@mui/material/Chip';
 import Box from '@mui/material/Box';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import HubIcon from '@mui/icons-material/Hub';
+import CodeIcon from '@mui/icons-material/Code';
 import Tooltip from '@mui/material/Tooltip';
 import Stack from '@mui/material/Stack';
 import SettingsDialog from './components/SettingsDialog';
@@ -193,9 +194,9 @@ export default function App() {
           <Route path="/diagnostics" element={<Diagnostics />} />
         </Routes>
       </Container>
-      {/* Footer banner (DEV green / BUILD blue) */}
+      {/* Footer banner (always blue like header; DEV shows icon + text) */}
       <Box sx={{
-        bgcolor: isDev ? 'success.main' : 'primary.main',
+        background: 'linear-gradient(135deg, #1a237e 0%, #283593 100%)',
         color: 'rgba(255,255,255,0.8)',
         px: 2,
         py: 0.5,
@@ -205,7 +206,14 @@ export default function App() {
         mt: 'auto'
       }}>
         <Typography variant="caption" sx={{ opacity: 0.9 }}>amdSh@2025</Typography>
-        <Typography variant="caption" sx={{ opacity: 0.9 }}>{isDev ? 'DEV' : 'BUILD'}</Typography>
+        {isDev ? (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+            <CodeIcon sx={{ fontSize: 14, opacity: 0.9 }} />
+            <Typography variant="caption" sx={{ opacity: 0.9 }}>DEV</Typography>
+          </Box>
+        ) : (
+          <Typography variant="caption" sx={{ opacity: 0.9 }}>BUILD</Typography>
+        )}
         <Typography variant="caption" sx={{ opacity: 0.9 }}>github.com/ashabbir</Typography>
       </Box>
       </Box>
