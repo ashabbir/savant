@@ -24,6 +24,7 @@ import BuildIcon from '@mui/icons-material/Build';
 import StorageIcon from '@mui/icons-material/Storage';
 import PsychologyIcon from '@mui/icons-material/Psychology';
 import IntegrationInstructionsIcon from '@mui/icons-material/IntegrationInstructions';
+import PersonIcon from '@mui/icons-material/Person';
 import { useEngineStatus, useEngineTools, ContextToolSpec } from '../api';
 
 function formatUptime(seconds: number): string {
@@ -38,6 +39,7 @@ const ENGINE_ICONS: Record<string, React.ReactNode> = {
   context: <StorageIcon sx={{ fontSize: 40 }} />,
   think: <PsychologyIcon sx={{ fontSize: 40 }} />,
   jira: <IntegrationInstructionsIcon sx={{ fontSize: 40 }} />,
+  personas: <PersonIcon sx={{ fontSize: 40 }} />,
 };
 
 function formatEngineName(rawName: string): string {
@@ -60,6 +62,7 @@ const ENGINE_COLORS: Record<string, string> = {
   context: '#4caf50',
   think: '#2196f3',
   jira: '#ff9800',
+  personas: '#9c27b0',
 };
 
 interface EngineCardProps {
