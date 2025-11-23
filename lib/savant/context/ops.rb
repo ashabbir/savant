@@ -69,11 +69,15 @@ module Savant
       # @param repo [String, Array<String>, nil]
       # @return [Array<Hash>] { uri, mimeType, metadata }
       def resources_list(repo: nil)
-        conn = @db.instance_variable_get(:@conn)
         params = []
-        # Memory dir variants
+        # Memory dir variants - match both paths starting with memory dir and paths containing it
         mem_patterns = [
-          '%/memory/%', '%/memory_bank/%', '%/memory-bank/%', '%/memorybank/%', '%/memoryBank/%', '%/bank/%'
+          'memory/%', '%/memory/%',
+          'memory_bank/%', '%/memory_bank/%',
+          'memory-bank/%', '%/memory-bank/%',
+          'memorybank/%', '%/memorybank/%',
+          'memoryBank/%', '%/memoryBank/%',
+          'bank/%', '%/bank/%'
         ]
         # Build memory path clause with positional params
         mem_clause = '(' + mem_patterns.each_index.map { |i| "rel_path ILIKE $#{i + 1}" }.join(' OR ') + ')'
@@ -98,10 +102,14 @@ module Savant
           #{where_sql}
           ORDER BY repo_name, rel_path
         SQL
-        rows = conn.exec_params(sql, params)
+        rows = @db.with_connection { |conn| conn.exec_params(sql, params) }
+        return [] if rows.nil?
+
         rows.map do |r|
-          repo_name = r['repo_name']
-          rel_path = r['rel_path']
+          repo_name = r['repo_name'] || ''
+          rel_path = r['rel_path'] || ''
+          next nil if rel_path.empty?
+
           uri = "repo://#{repo_name}/memory-bank/#{rel_path}"
           title = File.basename(rel_path, File.extname(rel_path))
           modified_at = begin
@@ -111,7 +119,7 @@ module Savant
           end
           { uri: uri, mimeType: 'text/markdown; charset=utf-8',
             metadata: { path: rel_path, title: title, modified_at: modified_at, source: 'memory_bank' } }
-        end
+        end.compact
       end
 
       # Read a memory_bank resource by a repo:// URI using DB to resolve repo roots.
@@ -135,16 +143,17 @@ module Savant
           end
         end
 
-        conn = @db.instance_variable_get(:@conn)
         # Resolve repo root
-        r = conn.exec_params('SELECT root_path FROM repos WHERE name=$1', [repo_name])
+        r = @db.with_connection { |conn| conn.exec_params('SELECT root_path FROM repos WHERE name=$1', [repo_name]) }
         raise 'resource not found' if r.ntuples.zero?
 
         root = r[0]['root_path']
         # Find a matching file row to validate existence
         rel = nil
         rel_candidates.each do |cand|
-          rr = conn.exec_params('SELECT 1 FROM files WHERE repo_name=$1 AND rel_path=$2', [repo_name, cand])
+          rr = @db.with_connection do |conn|
+            conn.exec_params('SELECT 1 FROM files WHERE repo_name=$1 AND rel_path=$2', [repo_name, cand])
+          end
           if rr.ntuples.positive?
             rel = cand
             break
@@ -156,7 +165,9 @@ module Savant
           # Build OR clause with positional parameters starting at $3
           mem_clause = patterns.each_index.map { |i| "rel_path ILIKE $#{i + 3}" }.join(' OR ')
           sql = "SELECT rel_path FROM files WHERE repo_name=$1 AND (#{mem_clause}) AND rel_path ILIKE $2 LIMIT 1"
-          rr = conn.exec_params(sql, [repo_name, "%#{tail}"] + patterns)
+          rr = @db.with_connection do |conn|
+            conn.exec_params(sql, [repo_name, "%#{tail}"] + patterns)
+          end
           rel = rr[0]['rel_path'] if rr.ntuples.positive?
         end
         raise 'resource not found' unless rel
@@ -202,7 +213,7 @@ module Savant
         begin
           require_relative '../db'
           db = Savant::DB.new
-          res = db.instance_variable_get(:@conn).exec_params('SELECT root_path FROM repos WHERE name=$1', [repo.to_s])
+          res = db.with_connection { |conn| conn.exec_params('SELECT root_path FROM repos WHERE name=$1', [repo.to_s]) }
           if res.ntuples.positive?
             root = res[0]['root_path']
             return File.expand_path(root)

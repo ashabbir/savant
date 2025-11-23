@@ -19,8 +19,8 @@ module Savant
       end
 
       def repo_stats
-        conn = @db.instance_variable_get(:@conn)
-        conn.exec(<<~SQL)
+        @db.with_connection do |conn|
+          conn.exec(<<~SQL)
           SELECT r.id, r.name,
                  COUNT(DISTINCT f.id)  AS files,
                  COUNT(DISTINCT b.id)  AS blobs,
@@ -33,7 +33,8 @@ module Savant
           LEFT JOIN chunks c       ON c.blob_id = b.id
           GROUP BY r.id, r.name
           ORDER BY r.name;
-        SQL
+          SQL
+        end
       end
 
       def self.print_status

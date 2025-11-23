@@ -1,4 +1,4 @@
-.PHONY: dev up logs logs-all down ps migrate fts smoke mcp-test jira-test jira-self \
+.PHONY: dev up quickstart logs logs-all down ps migrate fts smoke mcp-test jira-test jira-self \
   repo-index-all repo-index-repo repo-delete-all repo-delete-repo repo-status \
   demo-engine demo-run demo-call hub hub-logs hub-down hub-local hub-local-logs ls \
   ui-build ui-install ui-dev dev-ui ui-open frontend-stop
@@ -8,17 +8,54 @@
 
 dev:
 	@docker compose up -d --remove-orphans
-	@$(MAKE) ui-build
+	@$(MAKE) ui-build || true
 	@docker compose stop frontend || true
 	@docker compose rm -f -s -v frontend || true
 	@echo ""
 	@echo "========================================="
 	@echo "  Savant is ready!"
-	@echo "  UI:  http://localhost:9999/ui"
-	@echo "  Hub: http://localhost:9999"
+	@echo "  UI:        http://localhost:9999/ui"
+	@echo "  Hub:       http://localhost:9999"
+	@echo "  Console:   http://localhost:9999/console"
+	@echo "  React Dev: http://localhost:5173 (make ui-dev)"
 	@echo "========================================="
 
-up: dev
+up:
+	@$(MAKE) dev
+	@$(MAKE) migrate
+	@$(MAKE) fts
+	@$(MAKE) repo-index-all
+	@echo ""
+	@echo "========================================="
+	@echo "  Stack is up, DB migrated, FTS ready."
+	@echo "  Repos indexed; UI:        http://localhost:9999/ui"
+	@echo "                 Hub:       http://localhost:9999"
+	@echo "                 Console:   http://localhost:9999/console"
+	@echo "                 React Dev: http://localhost:5173 (use: make ui-dev)"
+	@echo "========================================="
+
+quickstart:
+	@rm -f .cache/indexer.json logs/context_repo_indexer.log
+	@$(MAKE) dev
+	@$(MAKE) migrate
+	@$(MAKE) fts
+	@echo ""
+	@echo "========================================="
+	@echo "  Quickstart complete!"
+	@echo "  DB migrated and FTS ready."
+	@echo "  Hub:       http://localhost:9999"
+	@echo "  Console:   http://localhost:9999/console"
+	@echo "  React UI:  http://localhost:5173"
+	@echo "  UI build:  http://localhost:9999/ui"
+	@echo "-----------------------------------------"
+	@echo "  Next steps before using search:"
+	@echo "    make repo-index-all      # index all repos"
+	@echo "    make repo-index-repo repo=<name>"
+	@echo "-----------------------------------------"
+	@echo "  Start MCP servers manually when ready:"
+	@echo "    DATABASE_URL=postgres://context:contextpw@localhost:5433/contextdb \\"
+	@echo "      SAVANT_PATH=$(CURDIR) MCP_SERVICE=context bundle exec ruby ./bin/mcp_server"
+	@echo "========================================="
 
 logs:
 	@docker compose logs -f indexer-ruby postgres

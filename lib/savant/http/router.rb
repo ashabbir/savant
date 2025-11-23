@@ -87,23 +87,49 @@ module Savant
         nil
       end
 
-      def log_request(req, status, duration_ms)
+      def log_request(req, status, duration_ms, response_body = nil)
         # Track stats
         engine = req.path_info.split('/').reject(&:empty?).first || 'hub'
+
+        # Truncate response body for storage (keep first 4KB)
+        truncated_body = nil
+        if response_body
+          body_str = response_body.is_a?(Array) ? response_body.join : response_body.to_s
+          truncated_body = body_str.length > 4096 ? body_str[0, 4096] + '...[truncated]' : body_str
+        end
+
+        # Read request body if available (for POST requests)
+        request_body = nil
+        if req.request_method == 'POST'
+          begin
+            req.body.rewind if req.body.respond_to?(:rewind)
+            raw = req.body.read
+            req.body.rewind if req.body.respond_to?(:rewind)
+            request_body = raw.length > 2048 ? raw[0, 2048] + '...[truncated]' : raw
+          rescue StandardError
+            # ignore
+          end
+        end
+
         @stats_mutex.synchronize do
           @stats[:total] += 1
           @stats[:by_engine][engine] += 1
           @stats[:by_status][status.to_s] += 1
           @stats[:by_method][req.request_method] += 1
           @stats[:recent].unshift({
+            id: @stats[:total],
             time: Time.now.utc.iso8601,
             method: req.request_method,
             path: req.path_info,
+            query: req.query_string.to_s.empty? ? nil : req.query_string,
             status: status,
             duration_ms: duration_ms,
-            engine: engine
+            engine: engine,
+            user: req.env['savant.user_id'],
+            request_body: request_body,
+            response_body: truncated_body
           })
-          @stats[:recent] = @stats[:recent].first(50) # Keep last 50 requests
+          @stats[:recent] = @stats[:recent].first(100) # Keep last 100 requests
         end
 
         return unless hub_logger
@@ -126,12 +152,18 @@ module Savant
 
         response = dispatch_request(req)
         duration_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - start) * 1000).round
-        log_request(req, response[0], duration_ms)
+        log_request(req, response[0], duration_ms, response[2])
         response
-      rescue JSON::ParserError
-        respond(400, { error: 'invalid JSON' })
+      rescue JSON::ParserError => e
+        duration_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - start) * 1000).round
+        response = respond(400, { error: 'invalid JSON', message: e.message })
+        log_request(req, 400, duration_ms, response[2])
+        response
       rescue StandardError => e
-        respond(500, { error: 'internal error', message: e.message })
+        duration_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - start) * 1000).round
+        response = respond(500, { error: 'internal error', message: e.message })
+        log_request(req, 500, duration_ms, response[2])
+        response
       end
 
       def dispatch_request(req)
@@ -328,15 +360,18 @@ module Savant
         db = { connected: false }
         begin
           require_relative '../db'
-          conn = Savant::DB.new.instance_variable_get(:@conn)
-          db[:connected] = true
-          begin
-            r1 = conn.exec('SELECT COUNT(*) AS c FROM repos')
-            r2 = conn.exec('SELECT COUNT(*) AS c FROM files')
-            r3 = conn.exec('SELECT COUNT(*) AS c FROM chunks')
-            db[:counts] = { repos: r1[0]['c'].to_i, files: r2[0]['c'].to_i, chunks: r3[0]['c'].to_i }
-          rescue StandardError => e
-            db[:counts_error] = e.message
+          db_client = Savant::DB.new
+          db_client.with_connection do |conn|
+            conn.exec('SELECT 1')
+            db[:connected] = true
+            begin
+              r1 = conn.exec('SELECT COUNT(*) AS c FROM repos')
+              r2 = conn.exec('SELECT COUNT(*) AS c FROM files')
+              r3 = conn.exec('SELECT COUNT(*) AS c FROM chunks')
+              db[:counts] = { repos: r1[0]['c'].to_i, files: r2[0]['c'].to_i, chunks: r3[0]['c'].to_i }
+            rescue StandardError => e
+              db[:counts_error] = e.message
+            end
           end
         rescue StandardError => e
           db[:error] = e.message

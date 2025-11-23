@@ -59,9 +59,14 @@ module Savant
 
         memory_patterns = []
         if memory_only
-          # Include common directory variants for memory bank
+          # Include common directory variants for memory bank (with and without leading slash)
           memory_patterns = [
-            '%/memory/%', '%/memory_bank/%', '%/memory-bank/%', '%/memorybank/%', '%/memoryBank/%', '%/bank/%'
+            'memory/%', '%/memory/%',
+            'memory_bank/%', '%/memory_bank/%',
+            'memory-bank/%', '%/memory-bank/%',
+            'memorybank/%', '%/memorybank/%',
+            'memoryBank/%', '%/memoryBank/%',
+            'bank/%', '%/bank/%'
           ]
           rlen = repo_list&.length || 0
           # Build OR chain for ILIKE patterns
@@ -88,7 +93,7 @@ module Savant
           LIMIT $#{1 + (repo_list&.length || 0) + (memory_only ? memory_patterns.length : 0) + 1}
         SQL
 
-        res = @db.instance_variable_get(:@conn).exec_params(sql, params)
+        res = @db.with_connection { |conn| conn.exec_params(sql, params) }
         res.map do |row|
           {
             'repo' => row['repo'],

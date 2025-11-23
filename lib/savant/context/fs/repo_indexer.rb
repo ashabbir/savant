@@ -44,6 +44,8 @@ module Savant
         def status
           admin = Savant::Indexer::Admin.new(@db)
           rows = admin.repo_stats
+          return [] if rows.nil?
+
           rows.map do |r|
             max_ns = r['max_mtime_ns']
             last_ts = max_ns ? Time.at(max_ns.to_i / 1_000_000_000.0).utc.iso8601 : nil
@@ -109,16 +111,25 @@ module Savant
           # DB checks
           db = { connected: false }
           begin
-            conn = @db.instance_variable_get(:@conn)
-            db[:connected] = true
-            begin
-              r1 = conn.exec('SELECT COUNT(*) AS c FROM repos')
-              r2 = conn.exec('SELECT COUNT(*) AS c FROM files')
-              r3 = conn.exec('SELECT COUNT(*) AS c FROM chunks')
-              db[:counts] = { repos: r1[0]['c'].to_i, files: r2[0]['c'].to_i, chunks: r3[0]['c'].to_i }
-            rescue StandardError => e
-              db[:counts_error] = e.message
+            @db.with_connection do |conn|
+              db[:status] = conn.status if conn.respond_to?(:status)
+              conn.exec('SELECT 1')
+              db[:connected] = true
+              begin
+                r1 = conn.exec('SELECT COUNT(*) AS c FROM repos')
+                r2 = conn.exec('SELECT COUNT(*) AS c FROM files')
+                r3 = conn.exec('SELECT COUNT(*) AS c FROM chunks')
+                db[:counts] = { repos: r1[0]['c'].to_i, files: r2[0]['c'].to_i, chunks: r3[0]['c'].to_i }
+              rescue PG::Error => e
+                db[:counts_error] = e.message
+                db[:connected] = conn.status == PG::CONNECTION_OK if conn.respond_to?(:status)
+              rescue StandardError => e
+                db[:counts_error] = e.message
+              end
             end
+          rescue PG::Error => e
+            db[:error] = e.message
+            db[:connected] = false
           rescue StandardError => e
             db[:error] = e.message
           end

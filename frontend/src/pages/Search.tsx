@@ -9,21 +9,10 @@ import Chip from '@mui/material/Chip';
 import Stack from '@mui/material/Stack';
 import LinearProgress from '@mui/material/LinearProgress';
 import Alert from '@mui/material/Alert';
-import { search, SearchResult, useRepoStatus } from '../api';
+import { search, SearchResult, useRepoStatus, getErrorMessage } from '../api';
 import Pagination from '@mui/material/Pagination';
 import MenuItem from '@mui/material/MenuItem';
-
-function Highlight({ text, query }: { text: string; query: string }) {
-  if (!query) return <>{text}</>;
-  const parts = text.split(new RegExp(`(${query.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")})`, 'gi'));
-  return (
-    <>
-      {parts.map((part, i) => (
-        part.toLowerCase() === query.toLowerCase() ? <mark key={i}>{part}</mark> : <span key={i}>{part}</span>
-      ))}
-    </>
-  );
-}
+import Viewer from '../components/Viewer';
 
 export default function Search() {
   const [q, setQ] = useState('');
@@ -118,7 +107,7 @@ export default function Search() {
         </Stack>
       </Paper>
       {isPending && <LinearProgress />}
-      {isError && <Alert severity="error">{(error as any)?.message || 'Search failed'}</Alert>}
+      {isError && <Alert severity="error">{getErrorMessage(error as any) || 'Search failed'}</Alert>}
       <Stack spacing={2}>
         {pageData.map((r, idx) => (
           <Paper key={idx} sx={{ p: 2 }}>
@@ -129,9 +118,12 @@ export default function Search() {
                 <Chip size="small" label={r.score.toFixed(2)} />
               </Stack>
             </Stack>
-            <Box component="pre" sx={{ whiteSpace: 'pre-wrap', mt: 1, fontFamily: 'monospace' }}>
-              <Highlight text={r.chunk} query={q} />
-            </Box>
+            <Viewer
+              content={r.chunk}
+              filename={r.rel_path}
+              language={r.lang}
+              height={260}
+            />
           </Paper>
         ))}
       </Stack>

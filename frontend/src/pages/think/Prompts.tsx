@@ -10,6 +10,8 @@ import ListItemText from '@mui/material/ListItemText';
 import Typography from '@mui/material/Typography';
 import LinearProgress from '@mui/material/LinearProgress';
 import Alert from '@mui/material/Alert';
+import { getErrorMessage } from '../../api';
+import Viewer from '../../components/Viewer';
 
 export default function ThinkPrompts() {
   const { data, isLoading, isError, error } = useThinkPrompts();
@@ -22,7 +24,7 @@ export default function ThinkPrompts() {
         <Paper sx={{ p: 1 }}>
           <Typography variant="subtitle1" sx={{ px: 1, py: 1 }}>Prompts</Typography>
           {isLoading && <LinearProgress />}
-          {isError && <Alert severity="error">{(error as any)?.message || 'Failed to load prompts'}</Alert>}
+          {isError && <Alert severity="error">{getErrorMessage(error as any)}</Alert>}
           <List dense>
             {(data?.versions || []).map(v => (
               <ListItem key={v.version} disablePadding>
@@ -38,13 +40,10 @@ export default function ThinkPrompts() {
         <Paper sx={{ p: 2 }}>
           <Typography variant="subtitle1">Prompt Markdown {sel ? `(${sel})` : ''}</Typography>
           {pr.isFetching && <LinearProgress />}
-          {pr.isError && <Alert severity="error">{(pr.error as any)?.message || 'Failed to load prompt'}</Alert>}
-          <Box component="pre" sx={{ mt: 1, whiteSpace: 'pre-wrap', fontFamily: 'monospace', fontSize: 13 }}>
-            {pr.data?.prompt_md || 'Select a prompt version to view markdown'}
-          </Box>
+          {pr.isError && <Alert severity="error">{getErrorMessage(pr.error as any)}</Alert>}
+          <Viewer content={pr.data?.prompt_md || 'Select a prompt version to view markdown'} contentType="text/markdown" height={420} />
         </Paper>
       </Grid>
     </Grid>
   );
 }
-

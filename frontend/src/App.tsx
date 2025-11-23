@@ -10,6 +10,7 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import Container from '@mui/material/Container';
 import Alert from '@mui/material/Alert';
+import Snackbar from '@mui/material/Snackbar';
 import { createTheme, ThemeProvider } from '@mui/material/styles';
 import Search from './pages/Search';
 import Repos from './pages/Repos';
@@ -29,6 +30,7 @@ import HubIcon from '@mui/icons-material/Hub';
 import Tooltip from '@mui/material/Tooltip';
 import Stack from '@mui/material/Stack';
 import SettingsDialog from './components/SettingsDialog';
+import { onAppEvent } from './utils/bus';
 
 function useMainTabIndex() {
   const { pathname } = useLocation();
@@ -74,6 +76,17 @@ export default function App() {
   const { data, isLoading, isError, error } = useHubHealth();
   const hub = useHubInfo();
   const errMsg = getErrorMessage(error as any);
+  const [snackOpen, setSnackOpen] = useState(false);
+  const [snackMsg, setSnackMsg] = useState('');
+
+  React.useEffect(() => {
+    return onAppEvent((ev) => {
+      if (ev.type === 'error') {
+        setSnackMsg(ev.message);
+        setSnackOpen(true);
+      }
+    });
+  }, []);
 
   return (
     <ThemeProvider theme={theme}>
@@ -174,6 +187,16 @@ export default function App() {
         </Routes>
       </Container>
       <SettingsDialog open={open} onClose={() => setOpen(false)} />
+      <Snackbar
+        open={snackOpen}
+        autoHideDuration={6000}
+        onClose={() => setSnackOpen(false)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert onClose={() => setSnackOpen(false)} severity="error" sx={{ width: '100%' }}>
+          {snackMsg}
+        </Alert>
+      </Snackbar>
     </ThemeProvider>
   );
 }

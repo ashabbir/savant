@@ -19,6 +19,8 @@ import CircularProgress from '@mui/material/CircularProgress';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import WorkflowDiagram from '../../components/WorkflowDiagram';
 import { workflowToMermaid } from '../../utils/workflowToMermaid';
+import { getErrorMessage } from '../../api';
+import Viewer from '../../components/Viewer';
 
 // Lazy load mermaid and cache it
 let mermaidInstance: any = null;
@@ -94,7 +96,7 @@ export default function ThinkWorkflows() {
         <Paper sx={{ p: 1 }}>
           <Typography variant="subtitle1" sx={{ px: 1, py: 1 }}>Workflows</Typography>
           {isLoading && <LinearProgress />}
-          {isError && <Alert severity="error">{(error as any)?.message || 'Failed to load workflows'}</Alert>}
+          {isError && <Alert severity="error">{getErrorMessage(error as any)}</Alert>}
           <List dense>
             {(data?.workflows || []).map(w => (
               <ListItem key={w.id} disablePadding>
@@ -131,12 +133,14 @@ export default function ThinkWorkflows() {
             </Stack>
           </Stack>
           {wfRead.isFetching && <LinearProgress />}
-          {wfRead.isError && <Alert severity="error">{(wfRead.error as any)?.message || 'Failed to load workflow'}</Alert>}
+          {wfRead.isError && <Alert severity="error">{getErrorMessage(wfRead.error as any)}</Alert>}
           {mermaidError && <Alert severity="warning" sx={{ mt: 1 }}>{mermaidError}</Alert>}
           {subTab === 0 && (
-            <Box component="pre" sx={{ mt: 1, whiteSpace: 'pre-wrap', fontFamily: 'monospace', fontSize: 13 }}>
-              {wfRead.data?.workflow_yaml || 'Select a workflow to view YAML'}
-            </Box>
+            <Viewer
+              content={wfRead.data?.workflow_yaml || 'Select a workflow to view YAML'}
+              language="yaml"
+              height={460}
+            />
           )}
         </Paper>
       </Grid>

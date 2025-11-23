@@ -11,7 +11,7 @@
 ## Environment & Tooling
 
 - **Config:** Primary settings live at `config/settings.json` (see `config/settings.example.json` and `config/schema.json`) and must include `indexer`, `database`, and `mcp` blocks.
-- **Make Targets:** `make dev` boots Postgres/Docker stack; `make repo-index-all` and `make repo-status` manage indexing; `make migrate` and `make fts` handle DB setup; `make mcp-context-run`/`make mcp-jira-run` launch servers.
+- **Make Targets:** `make quickstart` boots the Docker stack and runs migrations/FTS (no indexing); `make dev` starts services only; `make repo-index-all` and `make repo-status` manage indexing; `make migrate` and `make fts` handle DB setup; `make mcp-context-run`/`make mcp-jira-run` launch servers.
 - **CLI Scripts:** Located in `bin/` (e.g., `bin/context_repo_indexer`, `bin/db_migrate`, `bin/mcp_server`, `bin/config_validate`). Set `DATABASE_URL` before DB-backed commands.
 
 ## Operational Guidance

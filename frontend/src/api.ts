@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { emitAppEvent } from './utils/bus';
 import { useMutation, useQuery } from '@tanstack/react-query';
 
 export type SearchResult = { rel_path: string; chunk: string; lang: string; score: number };
@@ -34,6 +35,37 @@ function client() {
     (config.headers as any)['x-savant-user-id'] = userId || 'dev';
     return config;
   });
+  c.interceptors.response.use(
+    (resp) => resp,
+    (error) => {
+      try {
+        const err: any = error || {};
+        const cfg: any = err.config || {};
+        const method = (cfg.method || 'GET').toString().toUpperCase();
+        const url = (cfg.url || '').toString();
+        const resp = err.response;
+        let statusStr = '';
+        if (resp) {
+          const s = resp.status;
+          const st = resp.statusText || '';
+          statusStr = `${s}${st ? ' ' + st : ''}`;
+        }
+        let serverMsg = '';
+        const data = resp?.data;
+        if (typeof data === 'string') serverMsg = data;
+        else if (data && typeof data === 'object') serverMsg = data.error || data.message || '';
+        else if (err.message) serverMsg = err.message;
+        if (serverMsg.length > 240) serverMsg = serverMsg.slice(0, 240) + '…';
+        const endpoint = [method, url].filter(Boolean).join(' ');
+        const friendly = resp
+          ? `Oops! ${endpoint} failed (${statusStr})${serverMsg ? ' — ' + serverMsg : ''}`
+          : `Oops! ${endpoint || 'Request'} failed — ${err.message || 'Network error'}`;
+        err.message = friendly;
+        emitAppEvent({ type: 'error', message: friendly, detail: error });
+      } catch { /* ignore */ }
+      return Promise.reject(error);
+    }
+  );
   return c;
 }
 
@@ -90,18 +122,32 @@ export function useResetAndIndex() {
 }
 
 export function getErrorMessage(err: any): string {
-  if (!err) return 'Unknown error';
-  const axiosLike = err as any;
-  const resp = axiosLike.response;
-  if (resp) {
-    const status = `${resp.status || ''} ${resp.statusText || ''}`.trim();
-    let body = '';
-    if (typeof resp.data === 'string') body = resp.data;
-    else if (resp.data && typeof resp.data === 'object') body = resp.data.error || resp.data.message || JSON.stringify(resp.data);
-    return body ? `${status} — ${body}` : status || axiosLike.message || 'Request failed';
+  try {
+    if (!err) return 'Unknown error';
+    const e: any = err;
+    const resp = e.response;
+    const cfg = e.config || {};
+    const method = (cfg.method || 'GET').toString().toUpperCase();
+    const url = (cfg.url || '').toString();
+    const endpoint = [method, url].filter(Boolean).join(' ');
+    if (resp) {
+      const statusStr = `${resp.status || ''}${resp.statusText ? ' ' + resp.statusText : ''}`.trim();
+      let serverMsg = '';
+      if (typeof resp.data === 'string') serverMsg = resp.data;
+      else if (resp.data && typeof resp.data === 'object') serverMsg = resp.data.error || resp.data.message || '';
+      if (!serverMsg && e.message) serverMsg = e.message;
+      if (serverMsg && serverMsg.length > 240) serverMsg = serverMsg.slice(0, 240) + '…';
+      return `Oops! ${endpoint || 'Request'} failed (${statusStr})${serverMsg ? ' — ' + serverMsg : ''}`;
+    }
+    if (e.request) {
+      const base = endpoint || 'Request';
+      const m = e.message || 'Network error';
+      return `Oops! ${base} failed — ${m}`;
+    }
+    return e.message || String(e);
+  } catch {
+    return 'Request failed';
   }
-  if (axiosLike.request && axiosLike.message) return axiosLike.message;
-  return err.message || String(err);
 }
 
 export type Diagnostics = {
@@ -338,6 +384,20 @@ export function useEngineTools(engine: string) {
 }
 
 // Hub stats for diagnostics
+export type RequestRecord = {
+  id: number;
+  time: string;
+  method: string;
+  path: string;
+  query: string | null;
+  status: number;
+  duration_ms: number;
+  engine: string;
+  user: string | null;
+  request_body: string | null;
+  response_body: string | null;
+};
+
 export type HubStats = {
   uptime_seconds: number;
   requests: {
@@ -346,7 +406,7 @@ export type HubStats = {
     by_status: Record<string, number>;
     by_method: Record<string, number>;
   };
-  recent: { time: string; method: string; path: string; status: number; duration_ms: number; engine: string }[];
+  recent: RequestRecord[];
 };
 
 export function useHubStats() {
