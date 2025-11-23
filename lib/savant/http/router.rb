@@ -9,6 +9,7 @@ require_relative 'sse'
 module Savant
   module HTTP
     # Lightweight hub router for multi-engine HTTP + SSE endpoints.
+    # rubocop:disable Metrics/ClassLength
     class Router
       def self.build(mounts:, transport: 'http', heartbeat_interval: SSE::DEFAULT_HEARTBEAT_SECS, logs_dir: nil)
         new(mounts: mounts, transport: transport, heartbeat_interval: heartbeat_interval, logs_dir: logs_dir)
@@ -227,8 +228,9 @@ module Savant
             path = log_path('hub')
             return respond(200, { engine: 'hub', count: 0, path: path, lines: [], note: 'log file not found' }) unless File.file?(path)
 
-            lines = read_last_lines(path, n)
-            respond(200, { engine: 'hub', count: lines.length, path: path, lines: lines })
+            level = req.params['level']
+            lines = filter_log_lines(read_last_lines(path, n), level)
+            respond(200, { engine: 'hub', count: lines.length, path: path, lines: lines, level: level })
           end
         else
           not_found
@@ -262,8 +264,9 @@ module Savant
               return respond(200, { engine: engine_name, count: 0, path: path, lines: [], note: 'log file not found' })
             end
 
-            lines = read_last_lines(path, n)
-            respond(200, { engine: engine_name, count: lines.length, path: path, lines: lines })
+            level = req.params['level']
+            lines = filter_log_lines(read_last_lines(path, n), level)
+            respond(200, { engine: engine_name, count: lines.length, path: path, lines: lines, level: level })
           end
         when ['stream']
           sse.call(req.env)
@@ -389,6 +392,20 @@ module Savant
           '/host-crawler' => File.directory?('/host-crawler')
         }
 
+        # Secrets info: report resolved secrets file path (values are not exposed)
+        begin
+          secrets_path = if ENV['SAVANT_SECRETS_PATH'] && !ENV['SAVANT_SECRETS_PATH'].empty?
+                           ENV['SAVANT_SECRETS_PATH']
+                         else
+                           root_candidate = File.join(bp, 'secrets.yml')
+                           cfg_candidate = File.join(bp, 'config', 'secrets.yml')
+                           File.file?(root_candidate) ? root_candidate : cfg_candidate
+                         end
+          info[:secrets] = { path: secrets_path }
+        rescue StandardError
+          # ignore
+        end
+
         respond(200, info)
       end
 
@@ -427,12 +444,12 @@ module Savant
         }
       end
 
-      def read_last_lines(path, n)
+      def read_last_lines(path, line_count)
         return [] unless File.file?(path)
 
         lines = []
-        File.foreach(path) { |l| lines << l.chomp }
-        lines.last(n)
+        File.foreach(path) { |line| lines << line.chomp }
+        lines.last(line_count)
       end
 
       def deep_copy_stats(stats)
@@ -527,6 +544,8 @@ module Savant
       def sse_logs(req, engine_name)
         n = (req.params['n'] || '100').to_i
         once = req.params.key?('once') && req.params['once'] != '0'
+        level = req.params['level']
+        level_pattern = log_level_pattern(level)
         path = log_path(engine_name)
         unless File.file?(path)
           body = Enumerator.new do |y|
@@ -539,6 +558,8 @@ module Savant
         body = Enumerator.new do |y|
           # Emit last N lines immediately
           read_last_lines(path, n).each do |line|
+            next if level_pattern && !level_pattern.match?(line)
+
             y << format_sse_event('log', { line: line })
           end
           break if once
@@ -553,7 +574,7 @@ module Savant
                 chunk = f.read(size - pos)
                 pos = size
                 chunk.to_s.split(/\r?\n/).each do |ln|
-                  next if ln.empty?
+                  next if ln.empty? || (level_pattern && !level_pattern.match?(ln))
 
                   y << format_sse_event('log', { line: ln })
                 end
@@ -581,6 +602,31 @@ module Savant
         h
       end
 
+      def filter_log_lines(lines, level)
+        pattern = log_level_pattern(level)
+        return lines unless pattern
+
+        lines.select { |line| pattern.match?(line) }
+      end
+
+      def log_level_pattern(level)
+        return nil if level.nil?
+
+        normalized = level.to_s.downcase.strip
+        return nil if normalized.empty? || normalized == 'all'
+
+        case normalized
+        when 'debug'
+          /debug/i
+        when 'info'
+          /info/i
+        when 'warn', 'warning'
+          /warn/i
+        when 'error', 'err', 'fatal'
+          /(error|fatal|exception)/i
+        end
+      end
+
       def sse_tool_call(req, engine_name, manager, tool)
         # Params passed as JSON string via ?params=... to fit GET semantics
         raw = (req.params['params'] || '').to_s
@@ -605,5 +651,6 @@ module Savant
         [200, sse_headers, body]
       end
     end
+    # rubocop:enable Metrics/ClassLength
   end
 end

@@ -97,6 +97,15 @@ function useEngineSubIndex(engineName: string | undefined) {
   return 0;
 }
 
+function defaultEngineRoute(name: string): string {
+  if (name === 'context') return '/engines/context/resources';
+  if (name === 'think') return '/engines/think/workflows';
+  if (name === 'jira') return '/engines/jira/tools';
+  if (name === 'personas') return '/engines/personas';
+  if (name === 'rules') return '/engines/rules';
+  return `/engines/${name}`;
+}
+
 function useDiagnosticsSubIndex() {
   const { pathname } = useLocation();
   if (pathname.includes('/diagnostics/logs')) return 2;
@@ -174,6 +183,14 @@ export default function App() {
   const { engines, name: selEngine, index: engIdx } = useSelectedEngine(hub.data);
   const engSubIdx = useEngineSubIndex(selEngine);
   const diagSubIdx = useDiagnosticsSubIndex();
+
+  const loc = useLocation();
+  React.useEffect(() => {
+    if (mainIdx === 1 && (loc.pathname === '/engines' || loc.pathname === '/engines/')) {
+      const tgt = engines[0];
+      if (tgt) navigate(defaultEngineRoute(tgt), { replace: true });
+    }
+  }, [mainIdx, loc.pathname, engines]);
   const errMsg = getErrorMessage(error as any);
   const [snackOpen, setSnackOpen] = useState(false);
   const [snackMsg, setSnackMsg] = useState('');
@@ -257,7 +274,7 @@ export default function App() {
           '& .MuiTabs-indicator': { height: 2 }
         }}>
           {engines.map((e) => (
-            <Tab key={e} label={e.charAt(0).toUpperCase() + e.slice(1)} component={Link} to={`/engines/${e}${e==='context'?'/resources':e==='think'?'/workflows':e==='jira'?'/tools':''}`} />
+            <Tab key={e} label={e.charAt(0).toUpperCase() + e.slice(1)} component={Link} to={defaultEngineRoute(e)} />
           ))}
         </Tabs>
       )}
@@ -363,6 +380,9 @@ export default function App() {
           <Route path="/engines/think/runs" element={<ThinkRuns />} />
 
           <Route path="/engines/personas" element={<Personas />} />
+          <Route path="/engines/rules" element={<RulesPage />} />
+          {/* Legacy shortcuts */}
+          <Route path="/rules" element={<RulesPage />} />
           <Route path="/engines/rules" element={<RulesPage />} />
           <Route path="/engines/jira/tools" element={<JiraTools />} />
           <Route path="/ctx/tools" element={<ContextTools />} />

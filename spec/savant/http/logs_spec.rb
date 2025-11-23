@@ -50,4 +50,29 @@ RSpec.describe 'Logs endpoint' do
       expect(body).to include('data: {"line":"two"}')
     end
   end
+
+  it 'filters logs by level for JSON and SSE responses' do
+    Dir.mktmpdir do |dir|
+      logs_dir = File.join(dir, 'savant')
+      Dir.mkdir(logs_dir)
+      path = File.join(logs_dir, 'context.log')
+      File.write(path, "DEBUG first\nINFO second\nERROR boom\n")
+
+      mounts = { 'context' => LogsSpec::FakeServiceManager.new(service: 'context') }
+      app = Savant::HTTP::Router.build(mounts: mounts, transport: 'sse', logs_dir: logs_dir)
+      req = Rack::MockRequest.new(app)
+
+      res = req.get('/context/logs?n=5&level=error', 'HTTP_X_SAVANT_USER_ID' => 'sam')
+      expect(res.status).to eq(200)
+      data = JSON.parse(res.body)
+      expect(data['lines']).to eq(['ERROR boom'])
+
+      res2 = req.get('/context/logs?stream=1&n=5&level=info&once=1', 'HTTP_X_SAVANT_USER_ID' => 'sam')
+      expect(res2.status).to eq(200)
+      body = res2.body.to_s
+      expect(body).not_to include('DEBUG first')
+      expect(body).to include('INFO second')
+      expect(body).not_to include('ERROR boom')
+    end
+  end
 end
