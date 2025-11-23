@@ -78,7 +78,7 @@ export default function Personas() {
         <Stack spacing={2}>
           <Paper sx={{ p: 2 }}>
             <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between">
-              <Typography variant="subtitle1">Persona {selected ? `(${selected.title})` : ''}</Typography>
+              <Typography variant="subtitle1" sx={{ fontSize: 12 }}>Persona {selected ? `(${selected.title})` : ''}</Typography>
               <Stack direction="row" alignItems="center" spacing={1}>
                 <Tooltip title={selected ? 'View Prompt (Markdown)' : 'Select a persona'}>
                   <span>

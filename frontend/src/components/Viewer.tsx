@@ -210,6 +210,7 @@ export default function Viewer({ content, contentType, filename, language, heigh
     border: '1px solid rgba(0,0,0,0.12)',
     overflow: 'auto',
     fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+    fontSize: 12,
     '& pre': { m: 0, p: 1.5 },
     '& code': { fontFamily: 'inherit' },
     '& .tok-kw': { color: '#c678dd' },

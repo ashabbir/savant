@@ -114,7 +114,7 @@ export default function ThinkWorkflows() {
       <Grid size={{ xs: 12, md: 8 }}>
         <Paper sx={{ p: 2 }}>
           <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between">
-            <Typography variant="subtitle1">Workflow {sel ? `(${sel})` : ''}</Typography>
+            <Typography variant="subtitle1" sx={{ fontSize: 12 }}>Workflow {sel ? `(${sel})` : ''}</Typography>
             <Stack direction="row" alignItems="center" spacing={1}>
               {sel && mermaidCode && (
                 <Tooltip title={isRendering ? 'Rendering diagram...' : preRenderedSvg ? 'View diagram' : 'Diagram not ready'}>
