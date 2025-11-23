@@ -20,6 +20,7 @@ import ThinkWorkflows from './pages/think/Workflows';
 import ThinkPrompts from './pages/think/Prompts';
 import ThinkRuns from './pages/think/Runs';
 import Personas from './pages/personas/Personas';
+import JiraTools from './pages/jira/Tools';
 import ContextTools from './pages/context/Tools';
 import ContextResources from './pages/context/Resources';
 import MemorySearch from './pages/context/MemorySearch';
@@ -187,11 +188,12 @@ export default function App() {
             if (tgt === 'context') navigate('/engines/context/resources');
             else if (tgt === 'think') navigate('/engines/think/workflows');
             else if (tgt === 'personas') navigate('/engines/personas');
+            else if (tgt === 'jira') navigate('/engines/jira/tools');
             else navigate(`/engines/${tgt}`);
           }
         }} centered sx={{ '& .MuiTab-root': { fontSize: 13 } }}>
           {engines.map((e) => (
-            <Tab key={e} label={e.charAt(0).toUpperCase() + e.slice(1)} component={Link} to={`/engines/${e}${e==='context'?'/resources':e==='think'?'/workflows':''}`} />
+            <Tab key={e} label={e.charAt(0).toUpperCase() + e.slice(1)} component={Link} to={`/engines/${e}${e==='context'?'/resources':e==='think'?'/workflows':e==='jira'?'/tools':''}`} />
           ))}
         </Tabs>
       )}
@@ -224,6 +226,11 @@ export default function App() {
           <Tab label="Browse" component={Link} to="/engines/personas" />
         </Tabs>
       )}
+      {mainIdx === 1 && selEngine === 'jira' && (
+        <Tabs value={0} centered sx={{ '& .MuiTab-root': { fontSize: 12 } }}>
+          <Tab label="Tools" component={Link} to="/engines/jira/tools" />
+        </Tabs>
+      )}
       <Container maxWidth="lg" sx={{ mt: 3, mb: 4, flex: 1 }}>
         <Routes>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
@@ -251,6 +258,7 @@ export default function App() {
           <Route path="/engines/think/runs" element={<ThinkRuns />} />
 
           <Route path="/engines/personas" element={<Personas />} />
+          <Route path="/engines/jira/tools" element={<JiraTools />} />
           <Route path="/ctx/tools" element={<ContextTools />} />
           <Route path="/ctx/resources" element={<ContextResources />} />
           <Route path="/ctx/memory-search" element={<MemorySearch />} />
