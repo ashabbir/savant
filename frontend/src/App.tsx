@@ -203,6 +203,7 @@ export default function App() {
         justifyContent: 'space-between'
       }}>
         <Typography variant="caption" sx={{ opacity: 0.9 }}>amdSh@2025</Typography>
+        <Typography variant="caption" sx={{ opacity: 0.9 }}>{isDev ? 'DEV' : 'BUILD'}</Typography>
         <Typography variant="caption" sx={{ opacity: 0.9 }}>github.com/ashabbir</Typography>
       </Box>
       <SettingsDialog open={open} onClose={() => setOpen(false)} />
