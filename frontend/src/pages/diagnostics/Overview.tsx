@@ -173,9 +173,9 @@ export default function DiagnosticsOverview() {
           </Stack>
         </Grid>
 
-        {/* Middle Column - Database & Config */}
+        {/* Middle Column - Database & Config (scrollable) */}
         <Grid size={{ xs: 12, md: 4 }}>
-          <Stack spacing={1.5} sx={{ height: '100%' }}>
+          <Stack spacing={1.5} sx={{ height: '100%', overflow: 'auto', pr: 0.5 }}>
             {/* Personas */}
             <Paper sx={{ p: 1.5 }}>
               <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>Personas</Typography>
