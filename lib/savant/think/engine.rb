@@ -279,7 +279,9 @@ module Savant
         yml = File.join(dir, "#{id}.yml")
         yaml = File.join(dir, "#{id}.yaml")
         return yaml if File.exist?(yaml)
+
         return yml if File.exist?(yml)
+
         nil
       end
 
@@ -443,12 +445,33 @@ module Savant
         done = state['completed'] || []
         order = state['order'] || []
         nodes = state['nodes'] || {}
-        order.find do |sid|
-          next false if done.include?(sid)
+        # proactively skip inapplicable steps (based on prior gate variables)
+        skipped_any = false
+        order.each do |sid|
+          next if done.include?(sid)
 
-          deps = Array(nodes[sid]['deps'])
-          (deps - done).empty?
+          step = nodes[sid]
+          deps = Array(step['deps'])
+          next unless (deps - done).empty?
+
+          # evaluate applicability gate if present
+          if inapplicable_step?(state, step)
+            done << sid
+            state['completed'] = done
+            state['skipped'] ||= []
+            state['skipped'] << sid
+            skipped_any = true
+            next
+          end
+
+          # first ready & applicable step
+          return sid
         end
+
+        # If we skipped something, try again to find the next now-ready step
+        return next_ready_step_id(state) if skipped_any
+
+        nil
       end
 
       def state_path_for(workflow, run_id)
@@ -470,6 +493,44 @@ module Savant
         tmp = "#{path}.tmp"
         File.open(tmp, 'w:UTF-8') { |f| f.write(JSON.pretty_generate(obj)) }
         FileUtils.mv(tmp, path)
+      end
+
+      # Determine if a step is inapplicable based on an optional 'applicable_when' gate spec.
+      # Gate schema:
+      #   applicable_when:
+      #     var: <capture_as id from prior step>
+      #     field: <key inside captured object> (optional)
+      #     equals: <expected value when applicable> (default: true)
+      #     min_conf_field: <key inside captured object for confidence> (optional)
+      #     min_conf: <float 0..1> (default: nil)
+      def inapplicable_step?(state, step)
+        gate = step['applicable_when']
+        return false unless gate.is_a?(Hash)
+
+        var_name = gate['var']
+        return false unless var_name.is_a?(String) && !var_name.empty?
+
+        cap = (state['vars'] || {})[var_name]
+        return false if cap.nil?
+
+        field = gate['field']
+        val = if field
+                cap.is_a?(Hash) ? cap[field] : nil
+              else
+                cap
+              end
+        expected = gate.key?('equals') ? gate['equals'] : true
+
+        # Confidence gating: if provided and below threshold, treat as not applicable to avoid heavy work
+        if gate['min_conf_field'] && gate['min_conf']
+          conf = cap.is_a?(Hash) ? cap[gate['min_conf_field']] : nil
+          return true if conf.is_a?(Numeric) && conf.to_f < gate['min_conf'].to_f
+        end
+
+        # If value does not match expected applicability, then step is inapplicable and should be skipped
+        val != expected
+      rescue StandardError
+        false
       end
 
       def generate_run_id(workflow)

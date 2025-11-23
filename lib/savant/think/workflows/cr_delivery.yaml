@@ -1,0 +1,191 @@
+name: cr_delivery
+version: "1.0"
+description: "Code Review — Delivery & Ops Readiness report (independent workflow)"
+driver_version: "stable-2025-11"
+
+steps:
+  - id: pr_snapshot
+    call: github.pr.snapshot
+    input_template:
+      pr_number: "{{params.pr_number}}"
+      fields: [title, body, labels, files, commits]
+    capture_as: pr
+
+  - id: gate_migrations
+    call: prompt.say
+    deps: [pr_snapshot]
+    input_template:
+      text: |
+        Gate applicability: Are there DB schema/data migrations or DDL present requiring checks?
+        Answer with { applicable: boolean, confidence: 0..1, rationale }
+    capture_as: gate_mig
+
+  - id: migration_checks
+    call: local.exec
+    deps: [gate_migrations]
+    applicable_when:
+      var: gate_mig
+      field: applicable
+      equals: true
+      min_conf_field: confidence
+      min_conf: 0.6
+    input_template:
+      cmd: "{{global.commands.migrate_cmd}}"
+    capture_as: mig
+
+  - id: gate_destructive
+    call: prompt.say
+    deps: [migration_checks]
+    applicable_when:
+      var: gate_mig
+      field: applicable
+      equals: true
+    input_template:
+      text: |
+        Gate applicability: Are any destructive or hard-to-reverse DB changes present?
+        Answer with { applicable: boolean, confidence: 0..1, rationale }
+    capture_as: gate_destructive
+
+  - id: backup_restore_plan
+    call: prompt.say
+    deps: [gate_destructive]
+    applicable_when:
+      var: gate_destructive
+      field: applicable
+      equals: true
+      min_conf_field: confidence
+      min_conf: 0.6
+    input_template:
+      text: |
+        Outline backup/restore strategy and rollback steps.
+        Output keys: { backup: [..], restore: [..], rollback: [..] }
+    capture_as: br
+
+  - id: gate_ci
+    call: prompt.say
+    deps: [pr_snapshot]
+    input_template:
+      text: |
+        Gate applicability: Are CI checks configured and relevant for this PR?
+        Answer with { applicable: boolean, confidence: 0..1, rationale }
+    capture_as: gate_ci
+
+  - id: ci_status
+    call: github.ci.status
+    deps: [gate_ci]
+    applicable_when:
+      var: gate_ci
+      field: applicable
+      equals: true
+      min_conf_field: confidence
+      min_conf: 0.6
+    input_template:
+      pr_number: "{{params.pr_number}}"
+    capture_as: ci
+
+  - id: gate_config_flags
+    call: prompt.say
+    deps: [pr_snapshot]
+    input_template:
+      text: |
+        Gate applicability: Are new/changed environment variables or feature flags introduced?
+        Answer with { applicable: boolean, confidence: 0..1, rationale }
+    capture_as: gate_cfg
+
+  - id: config_flag_review
+    call: prompt.say
+    deps: [gate_config_flags]
+    applicable_when:
+      var: gate_cfg
+      field: applicable
+      equals: true
+      min_conf_field: confidence
+      min_conf: 0.6
+    input_template:
+      text: |
+        Review config/env/flags for safe defaults and secret handling.
+        Output keys: { added: [..], changed: [..], removed: [..], risks: [..] }
+    capture_as: cfg
+
+  - id: gate_observability
+    call: prompt.say
+    deps: [pr_snapshot]
+    input_template:
+      text: |
+        Gate applicability: Do new/changed paths require observability updates (logs/metrics/traces/alerts)?
+        Answer with { applicable: boolean, confidence: 0..1, rationale }
+    capture_as: gate_obs
+
+  - id: observability_review
+    call: prompt.say
+    deps: [gate_observability]
+    applicable_when:
+      var: gate_obs
+      field: applicable
+      equals: true
+      min_conf_field: confidence
+      min_conf: 0.6
+    input_template:
+      text: |
+        Confirm instrumentation and alerting for changed paths.
+        Output keys: { logs: [..], metrics: [..], traces: [..], alerts: [..] }
+    capture_as: obs
+
+  - id: gate_docs
+    call: prompt.say
+    deps: [pr_snapshot]
+    input_template:
+      text: |
+        Gate applicability: Do changes require docs or release notes updates?
+        Answer with { applicable: boolean, confidence: 0..1, rationale }
+    capture_as: gate_docs
+
+  - id: docs_review
+    call: prompt.say
+    deps: [gate_docs]
+    applicable_when:
+      var: gate_docs
+      field: applicable
+      equals: true
+      min_conf_field: confidence
+      min_conf: 0.6
+    input_template:
+      text: |
+        Verify user/API docs and release notes.
+        Output keys: { docs: [..], release_notes: [..], owners: [..] }
+    capture_as: docs
+
+  - id: gate_release_coord
+    call: prompt.say
+    deps: [pr_snapshot]
+    input_template:
+      text: |
+        Gate applicability: Do downstream services require coordinated release (shared interfaces/contracts changed)?
+        Answer with { applicable: boolean, confidence: 0..1, rationale }
+    capture_as: gate_rel
+
+  - id: cross_repo_release_coord
+    call: fts/search
+    deps: [gate_release_coord]
+    applicable_when:
+      var: gate_rel
+      field: applicable
+      equals: true
+      min_conf_field: confidence
+      min_conf: 0.6
+    input_template:
+      q: "{{pr.title}} {{pr.files}} related interfaces"
+      limit: 20
+    capture_as: relcoord
+
+  - id: finalize_report
+    call: prompt.say
+    deps: [migration_checks, backup_restore_plan, ci_status, config_flag_review, observability_review, docs_review, cross_repo_release_coord]
+    input_template:
+      text: |
+        Assemble cr_delivery report with mandatory header, summary, visuals, findings, and actions.
+        Visuals (if available): embed Mermaid diagrams (migration flow, CI status chart, config/flag tree, rollout plan swimlane) directly in the markdown.
+        Write the markdown report to path: code-reviews/{{params.ticket_id}}/{{params.date}}/cr_delivery.md.
+        Respect skipped sections by noting "N/A (skipped by gate)".
+        Output keys: { header, summary, visuals, findings, actions, merge_readiness }
+    capture_as: report
