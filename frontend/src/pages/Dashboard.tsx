@@ -1,5 +1,5 @@
 import React from 'react';
-import Box from '@mui/material/Box';
+// Box imported below; remove duplicate
 import Grid from '@mui/material/Grid2';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
