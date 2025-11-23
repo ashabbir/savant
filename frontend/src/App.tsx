@@ -15,6 +15,9 @@ import { createTheme, ThemeProvider } from '@mui/material/styles';
 import Search from './pages/Search';
 import Repos from './pages/Repos';
 import Diagnostics from './pages/Diagnostics';
+import DiagnosticsOverview from './pages/diagnostics/Overview';
+import DiagnosticsRequests from './pages/diagnostics/Requests';
+import DiagnosticsLogs from './pages/diagnostics/Logs';
 import Dashboard from './pages/Dashboard';
 import ThinkWorkflows from './pages/think/Workflows';
 import ThinkPrompts from './pages/think/Prompts';
@@ -93,6 +96,13 @@ function useEngineSubIndex(engineName: string | undefined) {
   return 0;
 }
 
+function useDiagnosticsSubIndex() {
+  const { pathname } = useLocation();
+  if (pathname.includes('/diagnostics/logs')) return 2;
+  if (pathname.includes('/diagnostics/requests')) return 1;
+  return 0; // overview default
+}
+
 function formatUptime(seconds: number): string {
   const days = Math.floor(seconds / 86400);
   const hours = Math.floor((seconds % 86400) / 3600);
@@ -114,6 +124,7 @@ export default function App() {
   const hub = useHubInfo();
   const { engines, name: selEngine, index: engIdx } = useSelectedEngine(hub.data);
   const engSubIdx = useEngineSubIndex(selEngine);
+  const diagSubIdx = useDiagnosticsSubIndex();
   const errMsg = getErrorMessage(error as any);
   const [snackOpen, setSnackOpen] = useState(false);
   const [snackMsg, setSnackMsg] = useState('');
@@ -200,6 +211,22 @@ export default function App() {
           ))}
         </Tabs>
       )}
+      {mainIdx === 2 && (
+        <Tabs
+          value={diagSubIdx}
+          onChange={(_, v) => {
+            if (v === 0) navigate('/diagnostics/overview');
+            else if (v === 1) navigate('/diagnostics/requests');
+            else if (v === 2) navigate('/diagnostics/logs');
+          }}
+          centered
+          sx={{ '& .MuiTab-root': { fontSize: 12, minHeight: 36, py: 0.5, textTransform: 'none' }, '& .MuiTabs-indicator': { height: 2 } }}
+        >
+          <Tab label="Overview" component={Link} to="/diagnostics/overview" />
+          <Tab label="Requests" component={Link} to="/diagnostics/requests" />
+          <Tab label="Logs" component={Link} to="/diagnostics/logs" />
+        </Tabs>
+      )}
       {mainIdx === 1 && selEngine === 'context' && (
         <Tabs value={engSubIdx} onChange={(_, v) => {
           if (v === 0) navigate('/engines/context/resources');
@@ -266,7 +293,11 @@ export default function App() {
           <Route path="/ctx/resources" element={<ContextResources />} />
           <Route path="/ctx/memory-search" element={<MemorySearch />} />
           <Route path="/ctx/memory" element={<MemorySearch />} />
-          <Route path="/diagnostics" element={<Diagnostics />} />
+          {/* Diagnostics routes at second-layer */}
+          <Route path="/diagnostics" element={<DiagnosticsOverview />} />
+          <Route path="/diagnostics/overview" element={<DiagnosticsOverview />} />
+          <Route path="/diagnostics/requests" element={<DiagnosticsRequests />} />
+          <Route path="/diagnostics/logs" element={<DiagnosticsLogs />} />
         </Routes>
       </Container>
       {/* Footer banner (always blue like header; DEV shows icon + text) */}
