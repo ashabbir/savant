@@ -109,29 +109,21 @@ module Savant
           # DB checks
           db = { connected: false }
           begin
-            conn = @db.instance_variable_get(:@conn)
-            raise 'database connection not initialized' unless conn
-
-            if conn.respond_to?(:status)
-              status = conn.status
-              db[:status] = status
-              raise PG::Error, 'connection not ready' unless status == PG::CONNECTION_OK
-            end
-
-            # Verify the connection by running a lightweight query
-            conn.exec('SELECT 1')
-            db[:connected] = true
-
-            begin
-              r1 = conn.exec('SELECT COUNT(*) AS c FROM repos')
-              r2 = conn.exec('SELECT COUNT(*) AS c FROM files')
-              r3 = conn.exec('SELECT COUNT(*) AS c FROM chunks')
-              db[:counts] = { repos: r1[0]['c'].to_i, files: r2[0]['c'].to_i, chunks: r3[0]['c'].to_i }
-            rescue PG::Error => e
-              db[:counts_error] = e.message
-              db[:connected] = conn.status == PG::CONNECTION_OK
-            rescue StandardError => e
-              db[:counts_error] = e.message
+            @db.with_connection do |conn|
+              db[:status] = conn.status if conn.respond_to?(:status)
+              conn.exec('SELECT 1')
+              db[:connected] = true
+              begin
+                r1 = conn.exec('SELECT COUNT(*) AS c FROM repos')
+                r2 = conn.exec('SELECT COUNT(*) AS c FROM files')
+                r3 = conn.exec('SELECT COUNT(*) AS c FROM chunks')
+                db[:counts] = { repos: r1[0]['c'].to_i, files: r2[0]['c'].to_i, chunks: r3[0]['c'].to_i }
+              rescue PG::Error => e
+                db[:counts_error] = e.message
+                db[:connected] = conn.status == PG::CONNECTION_OK if conn.respond_to?(:status)
+              rescue StandardError => e
+                db[:counts_error] = e.message
+              end
             end
           rescue PG::Error => e
             db[:error] = e.message

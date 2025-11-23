@@ -53,8 +53,8 @@ quickstart:
 	@echo "    make repo-index-repo repo=<name>"
 	@echo "-----------------------------------------"
 	@echo "  Start MCP servers manually when ready:"
-	@echo "    DATABASE_URL=postgres://context:contextpw@localhost:5433/contextdb \\
-	      SAVANT_PATH=$(CURDIR) MCP_SERVICE=context bundle exec ruby ./bin/mcp_server"
+	@echo "    DATABASE_URL=postgres://context:contextpw@localhost:5433/contextdb \\"
+	@echo "      SAVANT_PATH=$(CURDIR) MCP_SERVICE=context bundle exec ruby ./bin/mcp_server"
 	@echo "========================================="
 
 logs:
