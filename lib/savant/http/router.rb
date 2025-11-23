@@ -37,6 +37,7 @@ module Savant
         mounts.map do |name, manager|
           { name: name,
             path: "/#{name}",
+            mount: "/#{name}",
             tools: (safe_specs(manager) || []).size,
             status: 'running',
             uptime_seconds: (manager.respond_to?(:uptime) ? manager.uptime : 0) }
