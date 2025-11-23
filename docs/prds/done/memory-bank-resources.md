@@ -151,6 +151,7 @@ search:
 - Makefile targets (invoked via Bundler; no system installs):
   - `make setup`: `bundle install`
   - `make lint`: `bundle exec rubocop` (when linter configured)
+  - `make quickstart`: boot Docker stack + migrations/FTS (no indexing)
   - `make dev`: start local dev task when available
 - All CLI invocations in docs/examples should be prefixed with `bundle exec`.
 - Do not require system-level packages beyond Ruby; gems are managed via Bundler.

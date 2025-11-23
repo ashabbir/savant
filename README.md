@@ -40,6 +40,12 @@ Savant is a lightweight Ruby framework for building and running local MCP servic
 ## Chapter 2 – Getting Started
 - Prerequisites: Ruby + Bundler, Docker (optional), Postgres (local or Docker).
 - Configure settings: copy `config/settings.example.json` to `config/settings.json` and adjust repos, DB URL, and engine settings. See `config/schema.json`.
+- One-shot Docker bootstrap (services + migrations, no indexing):
+  ```bash
+  make quickstart
+  # then run indexing when ready
+  make repo-index-all        # or repo-index-repo repo=<name>
+  ```
 - Start an engine (stdio, default):
   ```bash
   # DB + FTS (if using Context)
@@ -62,9 +68,10 @@ Savant is a lightweight Ruby framework for building and running local MCP servic
   ```bash
   MCP_SERVICE=context ruby ./bin/savant serve --transport=http --host=0.0.0.0 --port=8765
   ```
-- Start via Docker (Postgres + Indexer):
+- Start via Docker (Postgres + Hub + migrations, no indexing):
   ```bash
-  docker compose build && make dev
+  docker compose build && make quickstart
+  # when you're ready to index
   make repo-index-all
   ```
 - Start the HTTP/SSE Hub in Docker (port 9999):
@@ -72,7 +79,8 @@ Savant is a lightweight Ruby framework for building and running local MCP servic
   # Optional: copy secrets to repo root
   cp secrets.example.yml secrets.yml  # edit per-user Jira creds
   # Start Postgres (if needed) and the hub
-  make dev && make hub
+  # quickstart includes `make dev` + DB prep
+  make quickstart && make hub
   # Follow logs
   make hub-logs
   ```
@@ -132,6 +140,7 @@ Local development (host, optional):
 
 Make targets (frontend/backend):
 
+- `make quickstart`: start Docker stack, clean cache, run migrations + FTS (no indexing)
 - `make up` / `make dev`: start all services (db, hub, frontend)
 - `make logs-all`: tail hub + frontend + postgres logs
 - `make hub-logs`: tail hub only
@@ -297,6 +306,7 @@ Make commands
 
 | Command | Description | Example |
 |---|---|---|
+| `make quickstart` | Boot Docker stack + run migrations/FTS (no indexing) | `make quickstart` |
 | `make migrate` | Recreate DB schema | `make migrate` |
 | `make fts` | Ensure FTS index | `make fts` |
 | `make repo-index-all` | Index all repos | `make repo-index-all` |
@@ -314,7 +324,7 @@ Docker commands
 
 | Command | Purpose |
 |---|---|
-| `docker compose build && make dev` | Build containers and start Postgres |
+| `docker compose build && make quickstart` | Build containers and start services + DB prep |
 | `make repo-index-all` | Index repos in containers |
 
 ### 5.2 Jira ([full docs](docs/engines/jira.md))
@@ -652,7 +662,7 @@ Notes
 - Project layout: `docs/`, `config/`, `bin/`, `docker-compose.yml`; generator at `bin/savant`.
 - Database notes: run `make migrate && make fts`; index with `make repo-index-all`.
 - Ports: Context `8765`, Jira `8766` (for HTTP mode and Docker debugging; stdio does not require ports).
-- Troubleshooting: tail with `make logs`; ensure `chmod +x bin/*`; reset DB with `docker compose down -v` then `make dev && make migrate && make fts`.
+- Troubleshooting: tail with `make logs`; ensure `chmod +x bin/*`; reset DB with `docker compose down -v` then `make quickstart` (rerun indexing afterward).
 
 ## Chapter 9 – Future Work
 - Upcoming features informed by PRDs: richer resources and memory bank, improved editor UX, additional transports and auth strategies.
@@ -963,7 +973,8 @@ flowchart LR
   - CLI start line shows configured `scanMode`.
   - Per-repo start line shows actual enumeration used: `using=gitls` (Git) or `using=ls` (filesystem).
 - With Docker (Postgres + Indexer only):
-  - Start stack: `make dev`
+  - Start stack + migrations/FTS (no indexing): `make quickstart`
+  - Start stack only: `make dev`
   - Migrate: `make migrate`
   - FTS: `make fts`
   - Smoke: `make smoke`
