@@ -28,6 +28,8 @@ import Chip from '@mui/material/Chip';
 import Box from '@mui/material/Box';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import HubIcon from '@mui/icons-material/Hub';
+import StorageIcon from '@mui/icons-material/Storage';
+import ManageSearchIcon from '@mui/icons-material/ManageSearch';
 import CodeIcon from '@mui/icons-material/Code';
 import Tooltip from '@mui/material/Tooltip';
 import Stack from '@mui/material/Stack';
@@ -37,10 +39,8 @@ import { onAppEvent } from './utils/bus';
 function useMainTabIndex() {
   const { pathname } = useLocation();
   if (pathname === '/dashboard' || pathname === '/') return 0;
-  if (pathname.startsWith('/ctx')) return 1;
-  if (pathname.startsWith('/think')) return 2;
-  if (pathname.startsWith('/personas')) return 3;
-  if (pathname.startsWith('/diagnostics')) return 4;
+  if (pathname.startsWith('/engines')) return 1;
+  if (pathname.startsWith('/diagnostics')) return 2;
   return 0;
 }
 
@@ -57,6 +57,38 @@ function useThinkSubIndex() {
   const { pathname } = useLocation();
   if (pathname.startsWith('/think/prompts')) return 1;
   if (pathname.startsWith('/think/runs')) return 2;
+  return 0;
+}
+
+function useSelectedEngine(hub: ReturnType<typeof useHubInfo>['data']) {
+  const { pathname } = useLocation();
+  const seg = pathname.split('/').filter(Boolean);
+  const engines = (hub?.engines || []).map((e) => e.name);
+  const idx = seg[0] === 'engines' && seg[1] ? engines.indexOf(seg[1]) : -1;
+  return {
+    engines,
+    name: idx >= 0 ? engines[idx] : engines[0],
+    index: idx >= 0 ? idx : 0,
+  };
+}
+
+function useEngineSubIndex(engineName: string | undefined) {
+  const { pathname } = useLocation();
+  if (!engineName) return 0;
+  if (engineName === 'context') {
+    if (pathname.includes('/resources')) return 0;
+    if (pathname.includes('/search') || pathname.includes('/fts')) return 1;
+    if (pathname.includes('/memory')) return 2;
+    if (pathname.includes('/repos')) return 3;
+    return 0;
+  }
+  if (engineName === 'think') {
+    if (pathname.includes('/workflows')) return 0;
+    if (pathname.includes('/prompts')) return 1;
+    if (pathname.includes('/runs')) return 2;
+    return 0;
+  }
+  // personas/jira default single or first tab
   return 0;
 }
 
@@ -79,6 +111,8 @@ export default function App() {
   const navigate = useNavigate();
   const { data, isLoading, isError, error } = useHubHealth();
   const hub = useHubInfo();
+  const { engines, name: selEngine, index: engIdx } = useSelectedEngine(hub.data);
+  const engSubIdx = useEngineSubIndex(selEngine);
   const errMsg = getErrorMessage(error as any);
   const [snackOpen, setSnackOpen] = useState(false);
   const [snackMsg, setSnackMsg] = useState('');
@@ -138,39 +172,56 @@ export default function App() {
       </AppBar>
       <Tabs value={mainIdx} onChange={(_, v) => {
         if (v === 0) navigate('/dashboard');
-        else if (v === 1) navigate('/ctx/resources');
-        else if (v === 2) navigate('/think/workflows');
-        else if (v === 3) navigate('/personas');
-        else if (v === 4) navigate('/diagnostics');
+        else if (v === 1) navigate('/engines');
+        else if (v === 2) navigate('/diagnostics');
       }} centered>
         <Tab icon={<DashboardIcon />} iconPosition="start" label="Dashboard" component={Link} to="/dashboard" />
-        <Tab label="Context" component={Link} to="/ctx/resources" />
-        <Tab label="Think" component={Link} to="/think" />
-        <Tab label="Personas" component={Link} to="/personas" />
-        <Tab label="Diagnostics" component={Link} to="/diagnostics" />
+        <Tab icon={<StorageIcon />} iconPosition="start" label="Engines" component={Link} to="/engines" />
+        <Tab icon={<ManageSearchIcon />} iconPosition="start" label="Diagnostics" component={Link} to="/diagnostics" />
       </Tabs>
       {mainIdx === 1 && (
-        <Tabs value={ctxIdx} onChange={(_, v) => {
-          if (v === 0) navigate('/ctx/resources');
-          else if (v === 1) navigate('/ctx/search');
-          else if (v === 2) navigate('/ctx/memory-search');
-          else if (v === 3) navigate('/ctx/repos');
-        }} centered>
-          <Tab label="Resources" component={Link} to="/ctx/resources" />
-          <Tab label="FTS Search" component={Link} to="/ctx/search" />
-          <Tab label="Memory Search" component={Link} to="/ctx/memory-search" />
-          <Tab label="Repos" component={Link} to="/ctx/repos" />
+        <Tabs value={engIdx} onChange={(_, v) => {
+          const tgt = engines[v];
+          if (tgt) {
+            // Navigate to engine default route
+            if (tgt === 'context') navigate('/engines/context/resources');
+            else if (tgt === 'think') navigate('/engines/think/workflows');
+            else if (tgt === 'personas') navigate('/engines/personas');
+            else navigate(`/engines/${tgt}`);
+          }
+        }} centered sx={{ '& .MuiTab-root': { fontSize: 13 } }}>
+          {engines.map((e) => (
+            <Tab key={e} label={e.charAt(0).toUpperCase() + e.slice(1)} component={Link} to={`/engines/${e}${e==='context'?'/resources':e==='think'?'/workflows':''}`} />
+          ))}
         </Tabs>
       )}
-      {mainIdx === 2 && (
-        <Tabs value={thinkIdx} onChange={(_, v) => {
-          if (v === 0) navigate('/think/workflows');
-          else if (v === 1) navigate('/think/prompts');
-          else if (v === 2) navigate('/think/runs');
-        }} centered>
-          <Tab label="Workflows" component={Link} to="/think/workflows" />
-          <Tab label="Prompts" component={Link} to="/think/prompts" />
-          <Tab label="Runs" component={Link} to="/think/runs" />
+      {mainIdx === 1 && selEngine === 'context' && (
+        <Tabs value={engSubIdx} onChange={(_, v) => {
+          if (v === 0) navigate('/engines/context/resources');
+          else if (v === 1) navigate('/engines/context/search');
+          else if (v === 2) navigate('/engines/context/memory-search');
+          else if (v === 3) navigate('/engines/context/repos');
+        }} centered sx={{ '& .MuiTab-root': { fontSize: 12 } }}>
+          <Tab label="Resources" component={Link} to="/engines/context/resources" />
+          <Tab label="FTS Search" component={Link} to="/engines/context/search" />
+          <Tab label="Memory Search" component={Link} to="/engines/context/memory-search" />
+          <Tab label="Repos" component={Link} to="/engines/context/repos" />
+        </Tabs>
+      )}
+      {mainIdx === 1 && selEngine === 'think' && (
+        <Tabs value={engSubIdx} onChange={(_, v) => {
+          if (v === 0) navigate('/engines/think/workflows');
+          else if (v === 1) navigate('/engines/think/prompts');
+          else if (v === 2) navigate('/engines/think/runs');
+        }} centered sx={{ '& .MuiTab-root': { fontSize: 12 } }}>
+          <Tab label="Workflows" component={Link} to="/engines/think/workflows" />
+          <Tab label="Prompts" component={Link} to="/engines/think/prompts" />
+          <Tab label="Runs" component={Link} to="/engines/think/runs" />
+        </Tabs>
+      )}
+      {mainIdx === 1 && selEngine === 'personas' && (
+        <Tabs value={0} centered sx={{ '& .MuiTab-root': { fontSize: 12 } }}>
+          <Tab label="Browse" component={Link} to="/engines/personas" />
         </Tabs>
       )}
       <Container maxWidth="lg" sx={{ mt: 3, mb: 4, flex: 1 }}>
@@ -179,6 +230,7 @@ export default function App() {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/search" element={<Navigate to="/ctx/search" replace />} />
           <Route path="/repos" element={<Navigate to="/ctx/repos" replace />} />
+          {/* Legacy routes (back-compat) */}
           <Route path="/ctx/search" element={<Search />} />
           <Route path="/ctx/fts" element={<Search />} />
           <Route path="/ctx/repos" element={<Repos />} />
@@ -187,6 +239,18 @@ export default function App() {
           <Route path="/think/prompts" element={<ThinkPrompts />} />
           <Route path="/think/runs" element={<ThinkRuns />} />
           <Route path="/personas" element={<Personas />} />
+
+          {/* New Engines routes */}
+          <Route path="/engines/context/resources" element={<ContextResources />} />
+          <Route path="/engines/context/search" element={<Search />} />
+          <Route path="/engines/context/memory-search" element={<MemorySearch />} />
+          <Route path="/engines/context/repos" element={<Repos />} />
+
+          <Route path="/engines/think/workflows" element={<ThinkWorkflows />} />
+          <Route path="/engines/think/prompts" element={<ThinkPrompts />} />
+          <Route path="/engines/think/runs" element={<ThinkRuns />} />
+
+          <Route path="/engines/personas" element={<Personas />} />
           <Route path="/ctx/tools" element={<ContextTools />} />
           <Route path="/ctx/resources" element={<ContextResources />} />
           <Route path="/ctx/memory-search" element={<MemorySearch />} />
