@@ -233,7 +233,11 @@ export default function App() {
           else if (v === 1) navigate('/engines/context/search');
           else if (v === 2) navigate('/engines/context/memory-search');
           else if (v === 3) navigate('/engines/context/repos');
-        }} centered sx={{ '& .MuiTab-root': { fontSize: 12 } }}>
+        }} centered sx={{
+          '& .MuiTab-root': { fontSize: 12, minHeight: 36, py: 0.5, textTransform: 'none', color: 'text.secondary' },
+          '& .Mui-selected': { color: 'primary.main !important' },
+          '& .MuiTabs-indicator': { height: 2, backgroundColor: 'primary.light' }
+        }}>
           <Tab label="Resources" component={Link} to="/engines/context/resources" />
           <Tab label="FTS Search" component={Link} to="/engines/context/search" />
           <Tab label="Memory Search" component={Link} to="/engines/context/memory-search" />
@@ -245,19 +249,31 @@ export default function App() {
           if (v === 0) navigate('/engines/think/workflows');
           else if (v === 1) navigate('/engines/think/prompts');
           else if (v === 2) navigate('/engines/think/runs');
-        }} centered sx={{ '& .MuiTab-root': { fontSize: 12 } }}>
+        }} centered sx={{
+          '& .MuiTab-root': { fontSize: 12, minHeight: 36, py: 0.5, textTransform: 'none', color: 'text.secondary' },
+          '& .Mui-selected': { color: 'primary.main !important' },
+          '& .MuiTabs-indicator': { height: 2, backgroundColor: 'primary.light' }
+        }}>
           <Tab label="Workflows" component={Link} to="/engines/think/workflows" />
           <Tab label="Prompts" component={Link} to="/engines/think/prompts" />
           <Tab label="Runs" component={Link} to="/engines/think/runs" />
         </Tabs>
       )}
       {mainIdx === 1 && selEngine === 'personas' && (
-        <Tabs value={0} centered sx={{ '& .MuiTab-root': { fontSize: 12 } }}>
+        <Tabs value={0} centered sx={{
+          '& .MuiTab-root': { fontSize: 12, minHeight: 36, py: 0.5, textTransform: 'none', color: 'text.secondary' },
+          '& .Mui-selected': { color: 'primary.main !important' },
+          '& .MuiTabs-indicator': { height: 2, backgroundColor: 'primary.light' }
+        }}>
           <Tab label="Browse" component={Link} to="/engines/personas" />
         </Tabs>
       )}
       {mainIdx === 1 && selEngine === 'jira' && (
-        <Tabs value={0} centered sx={{ '& .MuiTab-root': { fontSize: 12 } }}>
+        <Tabs value={0} centered sx={{
+          '& .MuiTab-root': { fontSize: 12, minHeight: 36, py: 0.5, textTransform: 'none', color: 'text.secondary' },
+          '& .Mui-selected': { color: 'primary.main !important' },
+          '& .MuiTabs-indicator': { height: 2, backgroundColor: 'primary.light' }
+        }}>
           <Tab label="Tools" component={Link} to="/engines/jira/tools" />
         </Tabs>
       )}
