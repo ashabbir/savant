@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Grid from '@mui/material/Grid2';
 import Paper from '@mui/material/Paper';
 import Box from '@mui/material/Box';
@@ -44,6 +44,13 @@ export default function Personas() {
     const obj: any = { ...selected };
     return yaml.dump(obj, { lineWidth: 100 });
   }, [selected]);
+
+  // Auto-select first persona when list loads or filter changes
+  useEffect(() => {
+    if (!sel && personas.length > 0) {
+      setSel(personas[0].name);
+    }
+  }, [personas, sel]);
 
   return (
     <Grid container spacing={2}>

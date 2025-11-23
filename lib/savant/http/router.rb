@@ -389,6 +389,20 @@ module Savant
           '/host-crawler' => File.directory?('/host-crawler')
         }
 
+        # Secrets info: report resolved secrets file path (values are not exposed)
+        begin
+          secrets_path = if ENV['SAVANT_SECRETS_PATH'] && !ENV['SAVANT_SECRETS_PATH'].empty?
+                           ENV['SAVANT_SECRETS_PATH']
+                         else
+                           root_candidate = File.join(bp, 'secrets.yml')
+                           cfg_candidate = File.join(bp, 'config', 'secrets.yml')
+                           File.file?(root_candidate) ? root_candidate : cfg_candidate
+                         end
+          info[:secrets] = { path: secrets_path }
+        rescue StandardError
+          # ignore
+        end
+
         respond(200, info)
       end
 

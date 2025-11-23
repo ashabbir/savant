@@ -26,3 +26,153 @@
 - Use CLI entrypoints in `bin/` (`context_repo_indexer`, `db_migrate`, `mcp_server`, etc.) to manage lifecycle.
 - Docker Compose spins up Postgres plus optional services; Make targets wrap indexing, DB prep, MCP runs, and tests.
 - No secrets in repo; load Jira credentials via env or `secrets.yml` copy.
+
+---
+
+## Visuals (Mermaid)
+
+### System Overview
+```mermaid
+flowchart LR
+  subgraph Editor[Editor / CLI]
+    STDIO[MCP JSON-RPC (stdio)]
+  end
+  subgraph UI[React UI (/ui)]
+    HTTPREQ[HTTP JSON]
+  end
+
+  STDIO -->|tools/list| MCP[MCP Server (Single Engine)]
+  STDIO -->|tools/call| MCP
+  HTTPREQ --> HUB[HTTP Hub Router]
+
+  subgraph Hub
+    HUB --> SM[ServiceManager]
+    SM --> REG[Registrar + Middleware]
+    REG --> ENG[Engine]
+    ENG --> OPS[Ops]
+  end
+
+  OPS --> DB[(Postgres)]
+  OPS --> FS[(Filesystem)]
+
+  classDef store fill:#fef3c7,stroke:#f59e0b
+  class DB,FS store
+```
+
+### Indexer Pipeline
+```mermaid
+flowchart TD
+  CFG[[settings.json]] --> SCAN[RepositoryScanner]
+  SCAN -->|files| FILTER{Ignore / Hidden / Binary / Size / Unchanged}
+  FILTER -- skip --> SKIP[(Cache)]
+  FILTER -- keep --> HASH[SHA-256]
+  HASH --> DEDUPE{Blob exists?}
+  DEDUPE -- yes --> BLOB[(Blob id)]
+  DEDUPE -- no  --> NEWBLOB[(Create blob)]
+  BLOB --> CHUNK[Chunker (code/md)]
+  NEWBLOB --> CHUNK
+  CHUNK --> WRITE[(Write chunks)]
+  WRITE --> FILEMAP[(Upsert file + map file→blob)]
+  FILEMAP --> CLEAN[(Cleanup missing files)]
+  CLEAN --> FTS[(GIN: to_tsvector(chunk_text))]
+
+  classDef db fill:#dbeafe,stroke:#60a5fa
+  class WRITE,FILEMAP,CLEAN,FTS db
+```
+
+### Database ER Diagram
+```mermaid
+erDiagram
+  repos ||--o{ files : has
+  files ||--o{ file_blob_map : maps
+  blobs ||--o{ file_blob_map : maps
+  blobs ||--o{ chunks : has
+
+  repos {
+    INT id PK
+    TEXT name
+    TEXT root_path
+  }
+  files {
+    INT id PK
+    INT repo_id
+    TEXT rel_path
+    BIGINT size_bytes
+    BIGINT mtime_ns
+  }
+  blobs {
+    INT id PK
+    TEXT hash
+    INT byte_len
+  }
+  file_blob_map {
+    INT file_id PK
+    INT blob_id
+  }
+  chunks {
+    INT id PK
+    INT blob_id
+    INT idx
+    TEXT lang
+    TEXT chunk_text
+  }
+```
+
+### Tool Call (HTTP via Hub)
+```mermaid
+sequenceDiagram
+  participant UI as UI
+  participant Hub as HTTP Hub
+  participant SM as ServiceManager
+  participant Reg as Registrar
+  participant Eng as Engine
+  participant Ops as Ops
+  participant DB as Postgres
+
+  UI->>Hub: POST /:engine/tools/:tool/call { params }
+  Hub->>SM: ensure_service(:engine)
+  SM->>Reg: registrar
+  Reg->>Eng: handler(ctx, params)
+  Eng->>Ops: do_work(params)
+  Ops->>DB: query/write (optional)
+  DB-->>Ops: rows/ok
+  Ops-->>Eng: result
+  Eng-->>Reg: result
+  Reg-->>Hub: result
+  Hub-->>UI: JSON
+```
+
+### Personas / Rules Data Flow (YAML)
+```mermaid
+flowchart LR
+  UI -->|personas.list/get| Hub --> RegP[Personas Registrar] --> EngP[Personas Engine] --> OpsP
+  OpsP --> YAML1[(lib/savant/personas/personas.yml)]
+
+  UI -->|rules.list/get| Hub --> RegR[Rules Registrar] --> EngR[Rules Engine] --> OpsR
+  OpsR --> YAML2[(lib/savant/rules/rules.yml)]
+
+  classDef yaml fill:#ecfccb,stroke:#65a30d
+  class YAML1,YAML2 yaml
+```
+
+### Logs & Secrets
+```mermaid
+flowchart LR
+  Hub[HTTP Hub] -->|per-engine logs| LOGS[/tmp/savant/<engine>.log]
+  MCP[MCP Stdio] -->|per-engine logs| LOGF[logs/<engine>.log]
+  Hub -->|diagnostics| DIAG{Build JSON}
+  DIAG -->|includes| MOUNTS[/app,/host mounts]
+  DIAG -->|includes| SECRETS[[secrets.yml path only]]
+  classDef logs fill:#f3e8ff,stroke:#8b5cf6
+  class LOGS,LOGF logs
+```
+
+---
+
+## Notes & Gotchas
+
+- One engine per stdio MCP process; the Hub multiplexes multiple engines via HTTP.
+- Indexer cache avoids rehashing unchanged files; bump `mtime_ns` on real edits.
+- FTS tuning: adjust `mdMaxChars`, `codeMaxLines`, `overlapLines` for retrieval quality/perf.
+- Keep mounts.yml present to control engine order in the UI (context → think → personas → rules → jira).
+- Diagnostics exposes only paths and redacted secrets metadata; values are never included.

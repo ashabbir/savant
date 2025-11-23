@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import Grid from '@mui/material/Grid2';
 import Paper from '@mui/material/Paper';
 import Box from '@mui/material/Box';
@@ -20,6 +20,7 @@ import DialogActions from '@mui/material/DialogActions';
 import Tooltip from '@mui/material/Tooltip';
 import IconButton from '@mui/material/IconButton';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import DescriptionIcon from '@mui/icons-material/Description';
 import Snackbar from '@mui/material/Snackbar';
 import yaml from 'js-yaml';
 import Viewer from '../../components/Viewer';
@@ -40,6 +41,13 @@ export default function Rules() {
     const obj: any = { ...selected };
     return yaml.dump(obj, { lineWidth: 100 });
   }, [selected]);
+
+  // Auto-select first ruleset when list loads or filter changes
+  useEffect(() => {
+    if (!sel && rows.length > 0) {
+      setSel(rows[0].name);
+    }
+  }, [rows, sel]);
 
   return (
     <Grid container spacing={2}>
@@ -77,9 +85,9 @@ export default function Rules() {
               <Stack direction="row" spacing={1} alignItems="center">
                 <Tooltip title={selected ? 'View Rules Markdown' : 'Select a ruleset'}>
                   <span>
-                    <Button size="small" variant="outlined" disabled={!selected} onClick={() => setOpenDialog(true)}>
-                      View Rules
-                    </Button>
+                    <IconButton size="small" color="primary" disabled={!selected} onClick={() => setOpenDialog(true)}>
+                      <DescriptionIcon fontSize="small" />
+                    </IconButton>
                   </span>
                 </Tooltip>
                 <Tooltip title={selected ? 'Copy YAML' : 'Select a ruleset'}>
@@ -120,4 +128,3 @@ export default function Rules() {
     </Grid>
   );
 }
-
