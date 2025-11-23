@@ -191,7 +191,10 @@ export default function App() {
             else if (tgt === 'jira') navigate('/engines/jira/tools');
             else navigate(`/engines/${tgt}`);
           }
-        }} centered sx={{ '& .MuiTab-root': { fontSize: 13 } }}>
+        }} centered sx={{
+          '& .MuiTab-root': { fontSize: 12, minHeight: 36, py: 0.5, textTransform: 'none' },
+          '& .MuiTabs-indicator': { height: 2 }
+        }}>
           {engines.map((e) => (
             <Tab key={e} label={e.charAt(0).toUpperCase() + e.slice(1)} component={Link} to={`/engines/${e}${e==='context'?'/resources':e==='think'?'/workflows':e==='jira'?'/tools':''}`} />
           ))}
