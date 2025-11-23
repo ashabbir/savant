@@ -32,11 +32,11 @@ erDiagram
   blobs ||--o{ file_blob_map : maps
   blobs ||--o{ chunks : has
 
-  repos { INT id PK, TEXT name, TEXT root_path }
-  files { INT id PK, INT repo_id, TEXT rel_path, BIGINT size_bytes, BIGINT mtime_ns }
-  blobs { INT id PK, TEXT hash, INT byte_len }
-  file_blob_map { INT file_id PK, INT blob_id }
-  chunks { INT id PK, INT blob_id, INT idx, TEXT lang, TEXT chunk_text }
+  repos { INT id PK TEXT name TEXT root_path }
+  files { INT id PK INT repo_id TEXT rel_path BIGINT size_bytes BIGINT mtime_ns }
+  blobs { INT id PK TEXT hash INT byte_len }
+  file_blob_map { INT file_id PK INT blob_id }
+  chunks { INT id PK INT blob_id INT idx TEXT lang TEXT chunk_text }
 ```
 
 ## Tools (Selected)

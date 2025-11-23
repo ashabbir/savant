@@ -3,9 +3,16 @@
 Savant is a lightweight Ruby framework for building and running local MCP services. The core boots a single MCP server, loads one engine, and handles transport, logging, config, and dependency wiring. Engines are discoverable by the Hub and rendered in a compact React UI.
 
 This README is intentionally concise. Full, detailed docs (with diagrams) live in the Memory Bank:
-- Framework: memory_bank/framework.md
-- Architecture: memory_bank/architecture.md
-- Engines: memory_bank/engine_context.md, memory_bank/engine_think.md, memory_bank/engine_jira.md, memory_bank/engine_personas.md
+
+| Doc | Summary |
+| --- | --- |
+| [Framework](memory_bank/framework.md) | Core concepts, lifecycle, and configuration surface. |
+| [Architecture](memory_bank/architecture.md) | System topology, data model, and component responsibilities. |
+| [Context Engine](memory_bank/engine_context.md) | FTS search flow, cache/indexer coordination, and tool APIs. |
+| [Think Engine](memory_bank/engine_think.md) | Plan/next workflow orchestration and prompt drivers. |
+| [Jira Engine](memory_bank/engine_jira.md) | Jira integration details, auth requirements, and tool contracts. |
+| [Personas Engine](memory_bank/engine_personas.md) | Persona catalog shape, YAML schema, and exposed tools. |
+| [Engine Rules](memory_bank/engine_rules.md) | Shared guardrails, telemetry hooks, and best-practice playbooks. |
 
 ## Getting Started
 
@@ -83,8 +90,10 @@ Creates `lib/savant/<name>/{engine.rb,tools.rb}` and a baseline spec. Then run w
 
 ## Memory Bank (Detailed Docs)
 
-All detailed docs (with Mermaid diagrams) live under `memory_bank/`:
-- Framework: `memory_bank/framework.md`, `memory_bank/architecture.md`
-- Engines: `memory_bank/engine_context.md`, `memory_bank/engine_think.md`, `memory_bank/engine_jira.md`, `memory_bank/engine_personas.md`
+All detailed docs (with Mermaid diagrams) live under `memory_bank/`. Use the table above (and the direct links below) to jump into the source of truth:
+
+- Framework + architecture: [`framework.md`](memory_bank/framework.md), [`architecture.md`](memory_bank/architecture.md)
+- Engines: [`engine_context.md`](memory_bank/engine_context.md), [`engine_think.md`](memory_bank/engine_think.md), [`engine_jira.md`](memory_bank/engine_jira.md), [`engine_personas.md`](memory_bank/engine_personas.md)
+- Guardrails + patterns: [`engine_rules.md`](memory_bank/engine_rules.md)
 
 These are the canonical references; the README stays short and points you there.
