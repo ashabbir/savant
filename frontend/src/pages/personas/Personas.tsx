@@ -24,6 +24,7 @@ import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
+import Snackbar from '@mui/material/Snackbar';
 import Viewer from '../../components/Viewer';
 import { getErrorMessage, usePersona, usePersonas } from '../../api';
 
@@ -34,6 +35,7 @@ export default function Personas() {
   const details = usePersona(sel);
   const [openPrompt, setOpenPrompt] = useState(false);
   const [subTab, setSubTab] = useState(0);
+  const [copied, setCopied] = useState(false);
 
   const personas = data?.personas || [];
   const selected = details.data || null;
@@ -116,9 +118,17 @@ export default function Personas() {
               <Viewer content={selected?.prompt_md || 'Select a persona to view prompt markdown'} contentType="text/markdown" height={'60vh'} />
             </DialogContent>
             <DialogActions>
+              <Tooltip title={selected ? 'Copy Prompt' : ''}>
+                <span>
+                  <IconButton size="small" disabled={!selected} onClick={() => { try { navigator.clipboard.writeText(selected?.prompt_md || ''); setCopied(true); } catch { setCopied(true); } }}>
+                    <ContentCopyIcon fontSize="small" />
+                  </IconButton>
+                </span>
+              </Tooltip>
               <Button onClick={() => setOpenPrompt(false)}>Close</Button>
             </DialogActions>
           </Dialog>
+          <Snackbar open={copied} autoHideDuration={2000} onClose={() => setCopied(false)} message="Copied prompt" anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }} />
         </Stack>
       </Grid>
     </Grid>
