@@ -19,6 +19,7 @@ import Dashboard from './pages/Dashboard';
 import ThinkWorkflows from './pages/think/Workflows';
 import ThinkPrompts from './pages/think/Prompts';
 import ThinkRuns from './pages/think/Runs';
+import Personas from './pages/personas/Personas';
 import ContextTools from './pages/context/Tools';
 import ContextResources from './pages/context/Resources';
 import MemorySearch from './pages/context/MemorySearch';
@@ -37,7 +38,8 @@ function useMainTabIndex() {
   if (pathname === '/dashboard' || pathname === '/') return 0;
   if (pathname.startsWith('/ctx')) return 1;
   if (pathname.startsWith('/think')) return 2;
-  if (pathname.startsWith('/diagnostics')) return 3;
+  if (pathname.startsWith('/personas')) return 3;
+  if (pathname.startsWith('/diagnostics')) return 4;
   return 0;
 }
 
@@ -135,11 +137,13 @@ export default function App() {
         if (v === 0) navigate('/dashboard');
         else if (v === 1) navigate('/ctx/resources');
         else if (v === 2) navigate('/think/workflows');
-        else if (v === 3) navigate('/diagnostics');
+        else if (v === 3) navigate('/personas');
+        else if (v === 4) navigate('/diagnostics');
       }} centered>
         <Tab icon={<DashboardIcon />} iconPosition="start" label="Dashboard" component={Link} to="/dashboard" />
         <Tab label="Context" component={Link} to="/ctx/resources" />
         <Tab label="Think" component={Link} to="/think" />
+        <Tab label="Personas" component={Link} to="/personas" />
         <Tab label="Diagnostics" component={Link} to="/diagnostics" />
       </Tabs>
       {mainIdx === 1 && (
@@ -179,6 +183,7 @@ export default function App() {
           <Route path="/think/workflows" element={<ThinkWorkflows />} />
           <Route path="/think/prompts" element={<ThinkPrompts />} />
           <Route path="/think/runs" element={<ThinkRuns />} />
+          <Route path="/personas" element={<Personas />} />
           <Route path="/ctx/tools" element={<ContextTools />} />
           <Route path="/ctx/resources" element={<ContextResources />} />
           <Route path="/ctx/memory-search" element={<MemorySearch />} />
