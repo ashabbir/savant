@@ -16,6 +16,16 @@ def usage!
   exit 2
 end
 
+usage! if ARGV.empty?
+
+def resolve_ui_root(app)
+  return app.ui_root if app.respond_to?(:ui_root)
+
+  savant_path = ENV['SAVANT_PATH']
+  base = savant_path.to_s.empty? ? File.expand_path('../..', __dir__) : savant_path
+  File.join(base, 'public', 'ui')
+end
+
 cmd = ARGV.shift
 
 case cmd
@@ -100,11 +110,7 @@ when 'hub'
       summary = engines.map { |e| "#{e[:name]}(#{e[:tools]})" }.join(', ')
       puts "Mounted engines: #{summary}"
       # Hint UI mount
-      ui_root = if app.respond_to?(:ui_root)
-                  app.ui_root
-                else
-                  File.join(ENV['SAVANT_PATH'].to_s.empty? ? File.expand_path('../..', __dir__) : ENV['SAVANT_PATH'], 'public', 'ui')
-                end
+      ui_root = resolve_ui_root(app)
       puts "UI mounted at /ui (root=#{ui_root})" if ui_root && File.directory?(ui_root)
     rescue StandardError
       # ignore any startup summary errors

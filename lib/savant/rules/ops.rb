@@ -5,6 +5,7 @@ require 'yaml'
 
 module Savant
   module Rules
+    # Ops loads and exposes rule catalog entries for engines and tools.
     class Ops
       def initialize(root: nil)
         @base = root || default_base_path
@@ -25,8 +26,10 @@ module Savant
       def get(name:)
         key = name.to_s.strip
         raise 'invalid_input: name required' if key.empty?
+
         row = load_catalog.find { |r| r['name'] == key }
         raise 'not_found' unless row
+
         {
           name: row['name'], title: row['title'], version: row['version'], summary: row['summary'],
           tags: row['tags'], rules_md: row['rules_md'], notes: row['notes']
@@ -36,11 +39,15 @@ module Savant
       private
 
       def default_base_path
-        (ENV['SAVANT_PATH'] && !ENV['SAVANT_PATH'].empty?) ? ENV['SAVANT_PATH'] : File.expand_path('../../..', __dir__)
+        savant = ENV['SAVANT_PATH'].to_s
+        return savant unless savant.empty?
+
+        File.expand_path('../../..', __dir__)
       end
 
       def load_catalog
         raise 'load_error: rules.yml not found' unless File.file?(@data_path)
+
         data = YAML.safe_load(File.read(@data_path))
         rows = data.is_a?(Array) ? data : []
         rows.each do |r|
@@ -55,4 +62,3 @@ module Savant
     end
   end
 end
-

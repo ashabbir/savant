@@ -71,7 +71,8 @@ module Savant
           rlen = repo_list&.length || 0
           # Build OR chain for ILIKE patterns
           placeholders = memory_patterns.each_index.map { |i| "$#{2 + rlen + i}" }
-          where_mb = ' AND (' + placeholders.map { |ph| "f.rel_path ILIKE #{ph}" }.join(' OR ') + ')'
+          clauses = placeholders.map { |ph| "f.rel_path ILIKE #{ph}" }.join(' OR ')
+          where_mb = " AND (#{clauses})"
         end
 
         # Append memory patterns and limit

@@ -6,6 +6,7 @@ require_relative 'engine'
 
 module Savant
   module Personas
+    # Tools registers personas MCP tool specs.
     module Tools
       module_function
 

@@ -59,4 +59,3 @@ RSpec.describe Savant::Rules::Ops do
     end
   end
 end
-
