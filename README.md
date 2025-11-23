@@ -79,6 +79,7 @@ Creates `lib/savant/<name>/{engine.rb,tools.rb}` and a baseline spec. Then run w
 
 - Old: static console under `/console` (request logs + helpers).
 - New: React UI under `/ui` (or dev at 5173) with three-tier tabs — Dashboard, Engines (per-engine tabs), Diagnostics (Overview/Requests/Logs). Footer shows Dev-Mode/Build-Mode.
+- Diagnostics → Logs includes a log-level dropdown (All/Debug/Info/Warn/Error) that streams only the selected levels directly from the hub for accurate filtering and copy/export.
 
 ## Memory Bank (Detailed Docs)
 

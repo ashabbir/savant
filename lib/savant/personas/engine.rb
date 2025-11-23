@@ -5,6 +5,7 @@ require_relative 'ops'
 
 module Savant
   module Personas
+    # Engine exposes personas catalog over MCP tools.
     class Engine
       def initialize
         @log = Savant::Logger.new(io: $stdout, json: true, service: 'personas')

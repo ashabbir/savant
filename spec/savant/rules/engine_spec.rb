@@ -16,8 +16,7 @@ RSpec.describe Savant::Rules::Tools do
     expect(list[:rules] || list['rules']).to be_a(Array)
 
     get = reg.call('rules.get', { 'name' => 'code-review-rules' }, ctx: { engine: engine })
-    expect((get[:name] || get['name'])).to eq('code-review-rules')
+    expect(get[:name] || get['name']).to eq('code-review-rules')
     expect((get[:rules_md] || get['rules_md']).to_s).to include('Code Review Rules')
   end
 end
-

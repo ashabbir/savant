@@ -6,18 +6,21 @@ require_relative 'engine'
 
 module Savant
   module Rules
+    # Tools registers rule catalog MCP tool definitions.
     module Tools
       module_function
 
       def build_registrar(engine = nil)
         eng = engine || Savant::Rules::Engine.new
         Savant::MCP::Core::DSL.build do
-          tool 'rules.list', description: 'List available rule sets',
+          tool 'rules.list',
+               description: 'List available rule sets',
                schema: { type: 'object', properties: { filter: { type: 'string' } } } do |_ctx, a|
             eng.list(filter: a['filter'])
           end
 
-          tool 'rules.get', description: 'Fetch a ruleset by name',
+          tool 'rules.get',
+               description: 'Fetch a ruleset by name',
                schema: { type: 'object', properties: { name: { type: 'string' } }, required: ['name'] } do |_ctx, a|
             eng.get(name: a['name'])
           end
@@ -26,4 +29,3 @@ module Savant
     end
   end
 end
-
