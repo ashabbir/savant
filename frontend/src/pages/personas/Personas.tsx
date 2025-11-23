@@ -12,6 +12,12 @@ import ListItemButton from '@mui/material/ListItemButton';
 import ListItemText from '@mui/material/ListItemText';
 import Chip from '@mui/material/Chip';
 import Stack from '@mui/material/Stack';
+import Tabs from '@mui/material/Tabs';
+import Tab from '@mui/material/Tab';
+import IconButton from '@mui/material/IconButton';
+import Tooltip from '@mui/material/Tooltip';
+import DescriptionIcon from '@mui/icons-material/Description';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import yaml from 'js-yaml';
 import Button from '@mui/material/Button';
 import Dialog from '@mui/material/Dialog';
@@ -27,6 +33,7 @@ export default function Personas() {
   const [sel, setSel] = useState<string | null>(null);
   const details = usePersona(sel);
   const [openPrompt, setOpenPrompt] = useState(false);
+  const [subTab, setSubTab] = useState(0);
 
   const personas = data?.personas || [];
   const selected = details.data || null;
@@ -68,15 +75,37 @@ export default function Personas() {
       <Grid size={{ xs: 12, md: 8 }}>
         <Stack spacing={2}>
           <Paper sx={{ p: 2 }}>
-            <Stack direction="row" alignItems="center" justifyContent="space-between">
-              <Typography variant="subtitle1">Persona (YAML)</Typography>
-              <Button size="small" variant="outlined" disabled={!selected} onClick={() => setOpenPrompt(true)}>
-                View Prompt
-              </Button>
+            <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between">
+              <Typography variant="subtitle1">Persona {selected ? `(${selected.title})` : ''}</Typography>
+              <Stack direction="row" alignItems="center" spacing={1}>
+                <Tooltip title={selected ? 'View Prompt (Markdown)' : 'Select a persona'}>
+                  <span>
+                    <IconButton size="small" color="primary" disabled={!selected} onClick={() => setOpenPrompt(true)}>
+                      <DescriptionIcon fontSize="small" />
+                    </IconButton>
+                  </span>
+                </Tooltip>
+                <Tooltip title={selected ? 'Copy YAML' : 'Select a persona'}>
+                  <span>
+                    <IconButton
+                      size="small"
+                      disabled={!selected}
+                      onClick={() => { try { navigator.clipboard.writeText(yamlText); } catch {} }}
+                    >
+                      <ContentCopyIcon fontSize="small" />
+                    </IconButton>
+                  </span>
+                </Tooltip>
+                <Tabs value={subTab} onChange={(_, v)=>setSubTab(v)}>
+                  <Tab label="YAML" />
+                </Tabs>
+              </Stack>
             </Stack>
             {details.isFetching && <LinearProgress />}
             {details.isError && <Alert severity="error">{getErrorMessage(details.error as any)}</Alert>}
-            <Viewer content={yamlText} contentType="text/yaml" height={360} />
+            {subTab === 0 && (
+              <Viewer content={yamlText} contentType="text/yaml" height={460} />
+            )}
           </Paper>
 
           <Dialog open={openPrompt} onClose={() => setOpenPrompt(false)} fullWidth maxWidth="md">
