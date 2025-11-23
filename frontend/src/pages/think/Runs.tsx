@@ -17,6 +17,10 @@ import Viewer from '../../components/Viewer';
 import Tabs from '@mui/material/Tabs';
 import Tab from '@mui/material/Tab';
 import Snackbar from '@mui/material/Snackbar';
+import IconButton from '@mui/material/IconButton';
+import Collapse from '@mui/material/Collapse';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 
 export default function ThinkRuns() {
   const { data, isLoading, isError, error, refetch } = useThinkRuns();
@@ -37,7 +41,7 @@ export default function ThinkRuns() {
     }
   }
 
-  function VisualNode({ name, value, depth = 0 }: { name?: string; value: any; depth?: number }) {
+  function VisualNode({ name, value, depth = 0, expandAll, collapseAll }: { name?: string; value: any; depth?: number; expandAll?: number; collapseAll?: number }) {
     const pad = depth * 12;
     const isArray = Array.isArray(value);
     const isObj = value && typeof value === 'object' && !isArray;
@@ -51,27 +55,34 @@ export default function ThinkRuns() {
         </Stack>
       );
     }
-    if (isArray) {
-      return (
-        <Box sx={{ pl: pad/8, py: 0.5 }}>
-          {name && <Typography sx={{ fontWeight: 600 }}>{name} [{value.length}]</Typography>}
-          <Box sx={{ borderLeft: '2px solid #eee', ml: 1 }}>
-            {value.map((v: any, idx: number) => (
-              <VisualNode key={idx} name={`#${idx}`} value={v} depth={depth + 1} />
-            ))}
-          </Box>
-        </Box>
-      );
-    }
-    const entries = Object.entries(value || {});
-    return (
-      <Box sx={{ pl: pad/8, py: 0.5 }}>
+    const [open, setOpen] = useState(false);
+    React.useEffect(() => { if (typeof expandAll === 'number') setOpen(true); }, [expandAll]);
+    React.useEffect(() => { if (typeof collapseAll === 'number') setOpen(false); }, [collapseAll]);
+    const header = (
+      <Stack direction="row" spacing={1} alignItems="center" sx={{ pl: pad/8, py: 0.25 }}>
+        <IconButton size="small" onClick={() => setOpen(o => !o)} aria-label={open ? 'Collapse' : 'Expand'}>
+          {open ? <ExpandLessIcon fontSize="small" /> : <ExpandMoreIcon fontSize="small" />}
+        </IconButton>
         {name && <Typography sx={{ fontWeight: 600 }}>{name}</Typography>}
-        <Box sx={{ borderLeft: '2px solid #eee', ml: 1 }}>
-          {entries.map(([k, v]) => (
-            <VisualNode key={k} name={k} value={v} depth={depth + 1} />
-          ))}
-        </Box>
+        <Typography sx={{ color: 'text.secondary', fontSize: 12 }}>
+          {isArray ? `[${(value as any[]).length}]` : '{ }'}
+        </Typography>
+      </Stack>
+    );
+    return (
+      <Box sx={{ py: 0.25 }}>
+        {header}
+        <Collapse in={open} timeout="auto" unmountOnExit>
+          <Box sx={{ borderLeft: '2px solid #eee', ml: 3 }}>
+            {isArray
+              ? (value as any[]).map((v: any, idx: number) => (
+                  <VisualNode key={idx} name={`#${idx}`} value={v} depth={depth + 1} expandAll={expandAll} collapseAll={collapseAll} />
+                ))
+              : Object.entries(value || {}).map(([k, v]) => (
+                  <VisualNode key={k} name={k} value={v} depth={depth + 1} expandAll={expandAll} collapseAll={collapseAll} />
+                ))}
+          </Box>
+        </Collapse>
       </Box>
     );
   }
@@ -110,6 +121,12 @@ export default function ThinkRuns() {
                 <Tab label="Visual" />
                 <Tab label="JSON" />
               </Tabs>
+              {viewTab === 0 && (
+                <Stack direction="row" spacing={1} sx={{ ml: 1 }}>
+                  <Button size="small" variant="outlined" onClick={() => setExpandAllTick(t => t + 1)}>Expand all</Button>
+                  <Button size="small" variant="outlined" onClick={() => setCollapseAllTick(t => t + 1)}>Collapse all</Button>
+                </Stack>
+              )}
               <Button size="small" color="error" disabled={!sel} onClick={del}>Delete</Button>
             </Stack>
           </Stack>
@@ -118,7 +135,7 @@ export default function ThinkRuns() {
           {viewTab === 0 && (
             <Box sx={{ mt: 1 }}>
               {run.data ? (
-                <VisualNode value={(run.data as any).state} />
+                <VisualNode value={(run.data as any).state} expandAll={expandAllTick} collapseAll={collapseAllTick} />
               ) : (
                 <Typography>Select a run to view state</Typography>
               )}

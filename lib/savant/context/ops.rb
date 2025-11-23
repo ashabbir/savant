@@ -69,7 +69,6 @@ module Savant
       # @param repo [String, Array<String>, nil]
       # @return [Array<Hash>] { uri, mimeType, metadata }
       def resources_list(repo: nil)
-        conn = @db.instance_variable_get(:@conn)
         params = []
         # Memory dir variants
         mem_patterns = [
@@ -98,7 +97,7 @@ module Savant
           #{where_sql}
           ORDER BY repo_name, rel_path
         SQL
-        rows = conn.exec_params(sql, params)
+        rows = @db.with_connection { |conn| conn.exec_params(sql, params) }
         rows.map do |r|
           repo_name = r['repo_name']
           rel_path = r['rel_path']
@@ -135,16 +134,17 @@ module Savant
           end
         end
 
-        conn = @db.instance_variable_get(:@conn)
         # Resolve repo root
-        r = conn.exec_params('SELECT root_path FROM repos WHERE name=$1', [repo_name])
+        r = @db.with_connection { |conn| conn.exec_params('SELECT root_path FROM repos WHERE name=$1', [repo_name]) }
         raise 'resource not found' if r.ntuples.zero?
 
         root = r[0]['root_path']
         # Find a matching file row to validate existence
         rel = nil
         rel_candidates.each do |cand|
-          rr = conn.exec_params('SELECT 1 FROM files WHERE repo_name=$1 AND rel_path=$2', [repo_name, cand])
+          rr = @db.with_connection do |conn|
+            conn.exec_params('SELECT 1 FROM files WHERE repo_name=$1 AND rel_path=$2', [repo_name, cand])
+          end
           if rr.ntuples.positive?
             rel = cand
             break
@@ -156,7 +156,9 @@ module Savant
           # Build OR clause with positional parameters starting at $3
           mem_clause = patterns.each_index.map { |i| "rel_path ILIKE $#{i + 3}" }.join(' OR ')
           sql = "SELECT rel_path FROM files WHERE repo_name=$1 AND (#{mem_clause}) AND rel_path ILIKE $2 LIMIT 1"
-          rr = conn.exec_params(sql, [repo_name, "%#{tail}"] + patterns)
+          rr = @db.with_connection do |conn|
+            conn.exec_params(sql, [repo_name, "%#{tail}"] + patterns)
+          end
           rel = rr[0]['rel_path'] if rr.ntuples.positive?
         end
         raise 'resource not found' unless rel
@@ -202,7 +204,7 @@ module Savant
         begin
           require_relative '../db'
           db = Savant::DB.new
-          res = db.instance_variable_get(:@conn).exec_params('SELECT root_path FROM repos WHERE name=$1', [repo.to_s])
+          res = db.with_connection { |conn| conn.exec_params('SELECT root_path FROM repos WHERE name=$1', [repo.to_s]) }
           if res.ntuples.positive?
             root = res[0]['root_path']
             return File.expand_path(root)

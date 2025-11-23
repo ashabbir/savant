@@ -384,6 +384,20 @@ export function useEngineTools(engine: string) {
 }
 
 // Hub stats for diagnostics
+export type RequestRecord = {
+  id: number;
+  time: string;
+  method: string;
+  path: string;
+  query: string | null;
+  status: number;
+  duration_ms: number;
+  engine: string;
+  user: string | null;
+  request_body: string | null;
+  response_body: string | null;
+};
+
 export type HubStats = {
   uptime_seconds: number;
   requests: {
@@ -392,7 +406,7 @@ export type HubStats = {
     by_status: Record<string, number>;
     by_method: Record<string, number>;
   };
-  recent: { time: string; method: string; path: string; status: number; duration_ms: number; engine: string }[];
+  recent: RequestRecord[];
 };
 
 export function useHubStats() {
