@@ -12,7 +12,7 @@ Highlights
 Quick Start (Docker)
 - Build and start services:
   - `docker compose build`
-  - `make dev`
+  - `make quickstart`
   - `make hub`
   - `make hub-logs` (follow logs)
 - Optional: copy secrets template and edit (repo root):
@@ -100,4 +100,4 @@ Troubleshooting
 - No secrets for a user → falls back to ENV Jira creds if present
 - Logs empty → ensure engine writes to `/tmp/savant/<engine>.log`
 - Port in use → change Compose port mapping or update `--port` in the hub command
-- `/context/status` shows unavailable → Context engine needs `DATABASE_URL`; run `make dev` or export a valid DB URL.
+- `/context/status` shows unavailable → Context engine needs `DATABASE_URL`; run `make quickstart` (or `make dev`) or export a valid DB URL.

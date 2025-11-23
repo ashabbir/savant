@@ -28,17 +28,56 @@ module Savant
       configure_client_min_messages
     end
 
+    def connection
+      ensure_connection!
+      @conn
+    end
+
+    def with_connection
+      ensure_connection!
+      yield @conn
+    rescue PG::UnableToSend, PG::ConnectionBad
+      reconnect!
+      yield @conn
+    end
+
+    def exec(sql)
+      with_connection { |conn| conn.exec(sql) }
+    end
+
+    def exec_params(sql, params)
+      with_connection { |conn| conn.exec_params(sql, params) }
+    end
+
+    def reconnect!
+      begin
+        @conn&.close
+      rescue StandardError
+        nil
+      end
+      @conn = PG.connect(@url)
+      configure_client_min_messages
+    end
+
+    def ensure_connection!
+      if @conn.nil? || @conn.finished? || @conn.status != PG::CONNECTION_OK
+        reconnect!
+      end
+    rescue PG::Error
+      reconnect!
+    end
+
     # Execute a block inside a DB transaction.
     # @yield Runs inside BEGIN/COMMIT; ROLLBACK on errors.
     # @return [Object] yields return value.
     def with_transaction
-      @conn.exec('BEGIN')
+      exec('BEGIN')
       begin
         yield
-        @conn.exec('COMMIT')
+        exec('COMMIT')
       rescue StandardError => e
         begin
-          @conn.exec('ROLLBACK')
+          exec('ROLLBACK')
         rescue StandardError
           nil
         end
@@ -48,19 +87,20 @@ module Savant
 
     def close
       @conn&.close
+      @conn = nil
     end
 
     # Drop and recreate all schema tables and indexes.
     # @return [true]
     def migrate_tables
       # Destructive reset: drop and recreate all tables/indexes
-      @conn.exec('DROP TABLE IF EXISTS file_blob_map CASCADE')
-      @conn.exec('DROP TABLE IF EXISTS chunks CASCADE')
-      @conn.exec('DROP TABLE IF EXISTS files CASCADE')
-      @conn.exec('DROP TABLE IF EXISTS blobs CASCADE')
-      @conn.exec('DROP TABLE IF EXISTS repos CASCADE')
+      exec('DROP TABLE IF EXISTS file_blob_map CASCADE')
+      exec('DROP TABLE IF EXISTS chunks CASCADE')
+      exec('DROP TABLE IF EXISTS files CASCADE')
+      exec('DROP TABLE IF EXISTS blobs CASCADE')
+      exec('DROP TABLE IF EXISTS repos CASCADE')
 
-      @conn.exec(<<~SQL)
+      exec(<<~SQL)
         CREATE TABLE repos (
           id SERIAL PRIMARY KEY,
           name TEXT UNIQUE NOT NULL,
@@ -68,7 +108,7 @@ module Savant
         );
       SQL
 
-      @conn.exec(<<~SQL)
+      exec(<<~SQL)
         CREATE TABLE files (
           id SERIAL PRIMARY KEY,
           repo_id INTEGER NOT NULL REFERENCES repos(id) ON DELETE CASCADE,
@@ -79,10 +119,10 @@ module Savant
           UNIQUE(repo_id, rel_path)
         );
       SQL
-      @conn.exec('CREATE INDEX idx_files_repo_name ON files(repo_name)')
-      @conn.exec('CREATE INDEX idx_files_repo_id ON files(repo_id)')
+      exec('CREATE INDEX idx_files_repo_name ON files(repo_name)')
+      exec('CREATE INDEX idx_files_repo_id ON files(repo_id)')
 
-      @conn.exec(<<~SQL)
+      exec(<<~SQL)
         CREATE TABLE blobs (
           id SERIAL PRIMARY KEY,
           hash TEXT UNIQUE NOT NULL,
@@ -90,7 +130,7 @@ module Savant
         );
       SQL
 
-      @conn.exec(<<~SQL)
+      exec(<<~SQL)
         CREATE TABLE file_blob_map (
           file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
           blob_id INTEGER NOT NULL REFERENCES blobs(id) ON DELETE CASCADE,
@@ -98,7 +138,7 @@ module Savant
         );
       SQL
 
-      @conn.exec(<<~SQL)
+      exec(<<~SQL)
         CREATE TABLE chunks (
           id SERIAL PRIMARY KEY,
           blob_id INTEGER NOT NULL REFERENCES blobs(id) ON DELETE CASCADE,
@@ -107,14 +147,14 @@ module Savant
           chunk_text TEXT NOT NULL
         );
       SQL
-      @conn.exec('CREATE INDEX idx_chunks_blob ON chunks(blob_id)')
+      exec('CREATE INDEX idx_chunks_blob ON chunks(blob_id)')
       true
     end
 
     # Ensure the GIN FTS index on `chunks.chunk_text` exists.
     # @return [true]
     def ensure_fts
-      @conn.exec(<<~SQL)
+      exec(<<~SQL)
         CREATE INDEX IF NOT EXISTS idx_chunks_fts ON chunks USING GIN (to_tsvector('english', chunk_text));
       SQL
       true
@@ -125,10 +165,10 @@ module Savant
     # @param byte_len [Integer]
     # @return [Integer] blob id
     def find_or_create_blob(hash, byte_len)
-      res = @conn.exec_params('SELECT id FROM blobs WHERE hash=$1', [hash])
+      res = exec_params('SELECT id FROM blobs WHERE hash=$1', [hash])
       return res[0]['id'].to_i if res.ntuples.positive?
 
-      res = @conn.exec_params('INSERT INTO blobs(hash, byte_len) VALUES($1,$2) RETURNING id', [hash, byte_len])
+      res = exec_params('INSERT INTO blobs(hash, byte_len) VALUES($1,$2) RETURNING id', [hash, byte_len])
       res[0]['id'].to_i
     end
 
@@ -137,9 +177,9 @@ module Savant
     # @param chunks [Array<Array(Integer,String,String)>>] [idx, lang, text]
     # @return [true]
     def replace_chunks(blob_id, chunks)
-      @conn.exec_params('DELETE FROM chunks WHERE blob_id=$1', [blob_id])
+      exec_params('DELETE FROM chunks WHERE blob_id=$1', [blob_id])
       chunks.each do |idx, lang, text|
-        @conn.exec_params('INSERT INTO chunks(blob_id, idx, lang, chunk_text) VALUES($1,$2,$3,$4)',
+        exec_params('INSERT INTO chunks(blob_id, idx, lang, chunk_text) VALUES($1,$2,$3,$4)',
                           [blob_id, idx, lang, text])
       end
       true
@@ -148,17 +188,17 @@ module Savant
     # Fetch an existing repo id by name or insert it with path.
     # @return [Integer] repo id
     def find_or_create_repo(name, root)
-      res = @conn.exec_params('SELECT id FROM repos WHERE name=$1', [name])
+      res = exec_params('SELECT id FROM repos WHERE name=$1', [name])
       return res[0]['id'].to_i if res.ntuples.positive?
 
-      res = @conn.exec_params('INSERT INTO repos(name, root_path) VALUES($1,$2) RETURNING id', [name, root])
+      res = exec_params('INSERT INTO repos(name, root_path) VALUES($1,$2) RETURNING id', [name, root])
       res[0]['id'].to_i
     end
 
     # Insert or update a file row and return its id.
     # @return [Integer] file id
     def upsert_file(repo_id, repo_name, rel_path, size_bytes, mtime_ns)
-      res = @conn.exec_params(
+      res = exec_params(
         <<~SQL, [repo_id, repo_name, rel_path, size_bytes, mtime_ns]
           INSERT INTO files(repo_id, repo_name, rel_path, size_bytes, mtime_ns)
           VALUES($1,$2,$3,$4,$5)
@@ -173,7 +213,7 @@ module Savant
     # Map a file id to a blob id (upsert).
     # @return [true]
     def map_file_to_blob(file_id, blob_id)
-      @conn.exec_params(
+      exec_params(
         <<~SQL, [file_id, blob_id]
           INSERT INTO file_blob_map(file_id, blob_id)
           VALUES($1,$2)
@@ -189,11 +229,11 @@ module Savant
     # @return [true]
     def delete_missing_files(repo_id, keep_rels)
       if keep_rels.empty?
-        @conn.exec_params('DELETE FROM files WHERE repo_id=$1', [repo_id])
+        exec_params('DELETE FROM files WHERE repo_id=$1', [repo_id])
       else
         # Use a single array parameter to avoid very large parameter lists
         sql = 'DELETE FROM files WHERE repo_id=$1 AND NOT (rel_path = ANY($2::text[]))'
-        @conn.exec_params(sql, [repo_id, text_array_encoder.encode(keep_rels)])
+        exec_params(sql, [repo_id, text_array_encoder.encode(keep_rels)])
       end
       true
     end
@@ -201,22 +241,22 @@ module Savant
     # Delete a repository and all its data by name.
     # @return [Integer] number of repos deleted (0/1)
     def delete_repo_by_name(name)
-      res = @conn.exec_params('SELECT id FROM repos WHERE name=$1', [name])
+      res = exec_params('SELECT id FROM repos WHERE name=$1', [name])
       return 0 if res.ntuples.zero?
 
       rid = res[0]['id']
-      @conn.exec_params('DELETE FROM repos WHERE id=$1', [rid])
+      exec_params('DELETE FROM repos WHERE id=$1', [rid])
       1
     end
 
     # Truncate all data from all tables (destructive).
     # @return [true]
     def delete_all_data
-      @conn.exec('DELETE FROM file_blob_map')
-      @conn.exec('DELETE FROM files')
-      @conn.exec('DELETE FROM chunks')
-      @conn.exec('DELETE FROM blobs')
-      @conn.exec('DELETE FROM repos')
+      exec('DELETE FROM file_blob_map')
+      exec('DELETE FROM files')
+      exec('DELETE FROM chunks')
+      exec('DELETE FROM blobs')
+      exec('DELETE FROM repos')
       true
     end
 
@@ -248,7 +288,7 @@ module Savant
         ORDER BY r.name ASC
       SQL
 
-      res = @conn.exec_params(sql, params)
+      res = exec_params(sql, params)
       res.map { |row| { name: row['name'], readme_text: row['readme_text'] } }
     end
 
@@ -266,7 +306,7 @@ module Savant
     def configure_client_min_messages
       lvl = (ENV['LOG_LEVEL'] || 'info').to_s.downcase
       min = %w[trace debug].include?(lvl) ? 'NOTICE' : 'WARNING'
-      @conn.exec("SET client_min_messages TO #{min}")
+      exec("SET client_min_messages TO #{min}")
     rescue StandardError
       # best-effort; ignore if not supported or connection not ready
       nil

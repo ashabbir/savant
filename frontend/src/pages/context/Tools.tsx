@@ -13,6 +13,7 @@ import Box from '@mui/material/Box';
 import Stack from '@mui/material/Stack';
 import Button from '@mui/material/Button';
 import TextField from '@mui/material/TextField';
+import Viewer from '../../components/Viewer';
 
 function isSimpleSchema(schema: any): boolean {
   try {
@@ -48,6 +49,11 @@ export default function ContextTools() {
   const [sel, setSel] = useState<ContextToolSpec | null>(null);
   const [input, setInput] = useState<string>('{}');
   const [out, setOut] = useState<string>('');
+  const outContentType = useMemo(() => {
+    if (!out) return undefined as string | undefined;
+    try { JSON.parse(out); return 'application/json'; } catch { /* not JSON */ }
+    return 'text/plain';
+  }, [out]);
   const schema = useMemo(() => sel?.inputSchema || sel?.schema, [sel]);
   const name = sel?.name || '';
   const [useForm, setUseForm] = useState<boolean>(false);
@@ -109,24 +115,7 @@ export default function ContextTools() {
         <Paper sx={{ p: 2 }}>
           <Typography variant="subtitle1">{name || 'Select a tool'}</Typography>
           {schema && (
-            <Box
-              component="pre"
-              sx={{
-                mt: 2,
-                mb: 2,
-                p: 2,
-                whiteSpace: 'pre-wrap',
-                fontFamily: 'monospace',
-                fontSize: 12,
-                bgcolor: '#f5f5f5',
-                borderRadius: 1,
-                border: '1px solid #e0e0e0',
-                maxHeight: 200,
-                overflow: 'auto'
-              }}
-            >
-              {JSON.stringify(schema, null, 2)}
-            </Box>
+            <Viewer content={JSON.stringify(schema, null, 2)} contentType="application/json" height={200} />
           )}
           <Stack spacing={1} sx={{ mt: 1 }}>
             <Stack direction="row" spacing={1} sx={{ mb: 1 }}>
@@ -177,23 +166,7 @@ export default function ContextTools() {
               </Button>
             </Stack>
             {out && (
-              <Box
-                component="pre"
-                sx={{
-                  mt: 2,
-                  p: 2,
-                  whiteSpace: 'pre-wrap',
-                  fontFamily: 'monospace',
-                  fontSize: 12,
-                  bgcolor: '#fafafa',
-                  borderRadius: 1,
-                  border: '1px solid #e0e0e0',
-                  maxHeight: 400,
-                  overflow: 'auto'
-                }}
-              >
-                {out}
-              </Box>
+              <Viewer content={out} contentType={outContentType} height={400} />
             )}
           </Stack>
         </Paper>

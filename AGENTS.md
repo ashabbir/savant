@@ -57,6 +57,7 @@ Runtime Modes
 - MCP editors (Cline/Claude Code): run via stdio; configure commands and env per README examples.
 
 Makefile Highlights
+- Stack bootstrap: `make quickstart` (starts Docker stack + migrations/FTS, no indexing).
 - Dev lifecycle: `make dev`, `make logs`, `make down`, `make ps`.
 - DB: `make migrate` (destructive reset), `make fts`, `make smoke`.
 - Indexing: `make repo-index-all`, `make repo-index-repo repo=<name>`, `make repo-delete-all`, `make repo-delete-repo repo=<name>`, `make repo-status`.
@@ -77,7 +78,7 @@ Security & Secrets
 - No secrets stored in repo. Jira credentials via env or optional config file. Avoid committing `.env`; `.env.example` is provided.
 
 Getting Started
-- Configure `config/settings.json` (copy from example), start Postgres (`make dev`), migrate and FTS (`make migrate && make fts`), index repos (`make repo-index-all`), then query via MCP (`make mcp-test q='term'`).
+- Configure `config/settings.json` (copy from example), run `make quickstart` to boot Postgres/hub + migrations/FTS (no indexing), then run `make repo-index-all` when ready. After indexing, query via MCP (`make mcp-test q='term'`).
 - Scaffold a new MCP service via generator: `bundle exec ruby ./bin/savant generate engine <name> [--with-db]`, then run with `MCP_SERVICE=<name> ruby ./bin/mcp_server`.
 
 Not In Scope

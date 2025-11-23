@@ -9,12 +9,12 @@ import ListItemText from '@mui/material/ListItemText';
 import Typography from '@mui/material/Typography';
 import LinearProgress from '@mui/material/LinearProgress';
 import Alert from '@mui/material/Alert';
+import { getErrorMessage } from '../../api';
 import Box from '@mui/material/Box';
 import TextField from '@mui/material/TextField';
 import MenuItem from '@mui/material/MenuItem';
 
-import { marked } from 'marked';
-import DOMPurify from 'dompurify';
+import Viewer from '../../components/Viewer';
 
 export default function ContextResources() {
   const { data: status } = useRepoStatus();
@@ -52,7 +52,7 @@ export default function ContextResources() {
             {repos.map(r => <MenuItem key={r} value={r}>{r}</MenuItem>)}
           </TextField>
           {isLoading && <LinearProgress />}
-          {isError && <Alert severity="error">{(error as any)?.message || 'Failed to load resources'}</Alert>}
+          {isError && <Alert severity="error">{getErrorMessage(error as any)}</Alert>}
           <List dense>
             {rows.map(r => (
               <ListItem key={r.uri} disablePadding>
@@ -68,10 +68,10 @@ export default function ContextResources() {
         <Paper sx={{ p: 2 }}>
           <Typography variant="subtitle1">{sel ? sel.metadata.title : 'Select a resource'}</Typography>
           {content.isFetching && <LinearProgress />}
-          {content.isError && <Alert severity="error">{(content.error as any)?.message || 'Failed to load resource'}</Alert>}
+          {content.isError && <Alert severity="error">{getErrorMessage(content.error as any)}</Alert>}
           {content.data && (
             <Box sx={{ mt: 1 }}>
-              <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(marked.parse(content.data)) }} />
+              <Viewer content={content.data} contentType={sel?.mimeType} filename={sel?.metadata.path} height={480} />
             </Box>
           )}
         </Paper>
