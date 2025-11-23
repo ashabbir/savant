@@ -14,13 +14,13 @@ module Savant
         Savant::MCP::Core::DSL.build do
           # personas.list
           tool 'personas.list', description: 'List available personas',
-               schema: { type: 'object', properties: { filter: { type: 'string' } } } do |_ctx, a|
+                                schema: { type: 'object', properties: { filter: { type: 'string' } } } do |_ctx, a|
             eng.list(filter: a['filter'])
           end
 
           # personas.get
           tool 'personas.get', description: 'Fetch a persona by name',
-               schema: { type: 'object', properties: { name: { type: 'string' } }, required: ['name'] } do |_ctx, a|
+                               schema: { type: 'object', properties: { name: { type: 'string' } }, required: ['name'] } do |_ctx, a|
             eng.get(name: a['name'])
           end
         end

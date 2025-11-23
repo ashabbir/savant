@@ -113,9 +113,7 @@ module Savant
         # Drop anything under dot-directories (e.g., .git, .vscode, .idea, .cline, etc.)
         rels = rels.reject { |rel| rel.split('/').any? { |seg| seg.start_with?('.') } }
         # Drop files in known heavy/compiled output directories
-        unless @prune_names.empty?
-          rels = rels.reject { |rel| rel.split('/').any? { |seg| @prune_names.include?(seg) } }
-        end
+        rels = rels.reject { |rel| rel.split('/').any? { |seg| @prune_names.include?(seg) } } unless @prune_names.empty?
         # Apply extra ignore globs if provided
         rels = rels.reject { |rel| ignored?(rel) } unless @ignore_patterns.empty?
         rels.map { |rel| [File.join(@root, rel), rel] }

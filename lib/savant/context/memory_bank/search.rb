@@ -156,6 +156,7 @@ module Savant
             base = File.join(@repo_root, pat)
             Dir.glob(base, flags).each do |f|
               next unless File.file?(f)
+
               # pattern already restricts extensions; keep a defensive check
               ext = File.extname(f).downcase
               next unless %w[.md .mdx .markdown].include?(ext)

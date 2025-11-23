@@ -62,4 +62,3 @@ RSpec.describe Savant::Personas::Ops do
     end
   end
 end
-

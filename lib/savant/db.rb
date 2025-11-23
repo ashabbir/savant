@@ -65,9 +65,7 @@ module Savant
     end
 
     def ensure_connection!
-      if @conn.nil? || @conn.finished? || @conn.status != PG::CONNECTION_OK
-        reconnect!
-      end
+      reconnect! if @conn.nil? || @conn.finished? || @conn.status != PG::CONNECTION_OK
     rescue PG::Error
       reconnect!
     end
@@ -185,7 +183,7 @@ module Savant
       exec_params('DELETE FROM chunks WHERE blob_id=$1', [blob_id])
       chunks.each do |idx, lang, text|
         exec_params('INSERT INTO chunks(blob_id, idx, lang, chunk_text) VALUES($1,$2,$3,$4)',
-                          [blob_id, idx, lang, text])
+                    [blob_id, idx, lang, text])
       end
       true
     end

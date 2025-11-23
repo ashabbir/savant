@@ -17,7 +17,7 @@ RSpec.describe Savant::Personas::Tools do
     expect(list[:personas] || list['personas']).to be_a(Array)
 
     get = reg.call('personas.get', { 'name' => 'savant-engineer' }, ctx: { engine: engine })
-    expect((get[:name] || get['name'])).to eq('savant-engineer')
+    expect(get[:name] || get['name']).to eq('savant-engineer')
     expect((get[:prompt_md] || get['prompt_md']).to_s).to include('Savant Engineer')
   end
 end
@@ -29,10 +29,11 @@ RSpec.describe 'Hub includes mount for engines' do
       def initialize
         @start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
       end
-      def service; 'personas'; end
-      def uptime; (Process.clock_gettime(Process::CLOCK_MONOTONIC) - @start).to_i; end
-      def service_info; { name: 'personas', version: '1.0.0' }; end
-      def specs; [{ name: 'personas.list' }, { name: 'personas.get' }]; end
+
+      def service = 'personas'
+      def uptime = (Process.clock_gettime(Process::CLOCK_MONOTONIC) - @start).to_i
+      def service_info = { name: 'personas', version: '1.0.0' }
+      def specs = [{ name: 'personas.list' }, { name: 'personas.get' }]
     end
     mounts = { 'personas' => fm.new }
     app = Savant::HTTP::Router.build(mounts: mounts, transport: 'http')

@@ -226,10 +226,11 @@ module Savant
       DOC_BASE_NAMES = %w[readme license copying changelog contributing code_of_conduct security notice].freeze
 
       def doc_like?(rel, lang)
-        base = File.basename(rel).downcase
+        File.basename(rel).downcase
         stem = File.basename(rel, File.extname(rel)).downcase
         return true if DOC_TEXT_EXTS.include?(lang)
         return true if DOC_BASE_NAMES.include?(stem)
+
         false
       end
     end

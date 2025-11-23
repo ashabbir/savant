@@ -16,7 +16,7 @@ module Savant
         file = resolve_file(path)
         # SPA fallback: serve index.html for unknown subpaths without extension
         unless file
-          if !File.extname(path).to_s.include?('.')
+          unless File.extname(path).to_s.include?('.')
             idx = File.join(@root, 'index.html')
             return serve_file(idx) if File.file?(idx)
           end
@@ -38,6 +38,7 @@ module Savant
           return index if File.file?(index)
         end
         return candidate if File.file?(candidate)
+
         nil
       end
 

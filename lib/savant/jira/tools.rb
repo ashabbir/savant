@@ -33,9 +33,7 @@ module Savant
         builder.middleware do |ctx, nm, a, nxt|
           begin
             user = ctx[:user_id]
-            if user
-              @engine.with_user_credentials(user) { return nxt.call(ctx, nm, a) }
-            end
+            @engine.with_user_credentials(user) { return nxt.call(ctx, nm, a) } if user
           rescue StandardError
             # Fall through to default credentials on any issue
           end

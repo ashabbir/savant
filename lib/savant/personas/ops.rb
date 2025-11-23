@@ -38,8 +38,10 @@ module Savant
       def get(name:)
         key = name.to_s.strip
         raise 'invalid_input: name required' if key.empty?
+
         row = load_catalog.find { |p| p['name'] == key }
         raise 'not_found' unless row
+
         {
           name: row['name'],
           title: row['title'],
@@ -63,6 +65,7 @@ module Savant
 
       def load_catalog
         raise 'load_error: personas.yml not found' unless File.file?(@data_path)
+
         data = YAML.safe_load(File.read(@data_path))
         rows = data.is_a?(Array) ? data : []
         rows.each do |p|
@@ -79,4 +82,3 @@ module Savant
     end
   end
 end
-

@@ -72,7 +72,7 @@ RSpec.describe 'Savant HTTP Hub Router' do
   it 'executes tool via POST /:engine/tools/:name/call' do
     payload = { 'params' => { 'q' => 'hello' } }
     res = request.post('/context/tools/fts/search/call', 'CONTENT_TYPE' => 'application/json',
-                       'HTTP_X_SAVANT_USER_ID' => 'amd', input: JSON.generate(payload))
+                                                         'HTTP_X_SAVANT_USER_ID' => 'amd', input: JSON.generate(payload))
     expect(res.status).to eq(200)
     out = JSON.parse(res.body)
     expect(out['ok']).to eq(true)
@@ -86,4 +86,3 @@ RSpec.describe 'Savant HTTP Hub Router' do
     expect(res.status).to eq(404)
   end
 end
-

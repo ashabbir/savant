@@ -28,12 +28,14 @@ require_relative '../lib/savant/hub'
 
 def base_path
   return ENV['SAVANT_PATH'] unless ENV['SAVANT_PATH'].to_s.empty?
+
   File.expand_path('..', __dir__)
 end
 
 def transport_config
   path = File.join(base_path, 'config', 'transport.yml')
   return {} unless File.file?(path)
+
   YAML.safe_load(File.read(path)) || {}
 rescue StandardError
   {}
@@ -42,6 +44,7 @@ end
 def mounts_config
   path = File.join(base_path, 'config', 'mounts.yml')
   return {} unless File.file?(path)
+
   YAML.safe_load(File.read(path)) || {}
 rescue StandardError
   {}
@@ -69,7 +72,7 @@ env_host = ENV['SAVANT_HOST'] || ENV['LISTEN_HOST']
 env_port = ENV['SAVANT_PORT'] || ENV['LISTEN_PORT']
 
 # Precedence: CLI > ENV > config > default
-host = (host || env_host || config_host || default_host)
+host = host || env_host || config_host || default_host
 port = Integer(port || env_port || config_port || default_port)
 
 app = Savant::Hub.build_from_config(base_path: base_path)
@@ -88,8 +91,8 @@ end
 
 log_dir = ENV['SAVANT_LOG_PATH'] || '/tmp/savant'
 FileUtils.mkdir_p(log_dir)
-STDOUT.sync = true
-STDERR.sync = true
+$stdout.sync = true
+$stderr.sync = true
 
 puts "Savant Hub starting on #{host}:#{port} (logs: #{log_dir})"
 if handler_name == :webrick

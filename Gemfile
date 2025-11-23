@@ -9,11 +9,11 @@ gem 'kramdown'
 gem 'oj', '~> 3.16'
 gem 'pg', '~> 1.5'
 gem 'protocol-websocket', '~> 0.7'
+gem 'puma', '~> 6.5'
+gem 'rackup'
 gem 'summarize'
 gem 'tty-logger', '~> 0.6'
 gem 'webrick'
-gem 'rackup'
-gem 'puma', '~> 6.5'
 
 group :development do
   gem 'guard', '~> 2.18', require: false
