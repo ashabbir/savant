@@ -74,6 +74,7 @@ export default function App() {
   const mainIdx = useMainTabIndex();
   const ctxIdx = useContextSubIndex();
   const thinkIdx = useThinkSubIndex();
+  const isDev = import.meta.env.DEV;
   const navigate = useNavigate();
   const { data, isLoading, isError, error } = useHubHealth();
   const hub = useHubInfo();
@@ -133,6 +134,10 @@ export default function App() {
           </Stack>
         </Toolbar>
       </AppBar>
+      {/* Build/Dev banner */}
+      <Box sx={{ bgcolor: isDev ? 'success.main' : 'primary.main', color: 'white', textAlign: 'center', py: 0.5 }}>
+        <Typography variant="caption" sx={{ fontWeight: 700 }}>{isDev ? 'DEV' : 'BUILD'}</Typography>
+      </Box>
       <Tabs value={mainIdx} onChange={(_, v) => {
         if (v === 0) navigate('/dashboard');
         else if (v === 1) navigate('/ctx/resources');
