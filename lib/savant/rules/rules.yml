@@ -16,7 +16,7 @@
 
 - name: backend-rules
   title: Backend Rules
-  version: stable-2025-01
+  version: v1.0.0
   summary: Backend patterns, boundaries, and safety constraints.
   tags: ["backend", "design", "safety"]
   rules_md: |
@@ -29,3 +29,73 @@
   notes: |
     Extend with service-specific modules as needed.
 
+- name: development-rules
+  title: Development Rules
+  version: v1.0.0
+  summary: Ground rules for day-to-day development and delivery.
+  tags: ["development", "workflow", "hygiene"]
+  rules_md: |
+    # Development Rules
+    - Choose the simplest thing that can possibly work; avoid premature abstraction.
+    - Keep changes small and focused; ship incremental value behind flags when needed.
+    - Preserve backward compatibility by default; add clear migration paths if breaking.
+    - Prefer clear names and straightforward control flow over cleverness.
+    - Document decisions where they live (code comments, ADRs, PR descriptions).
+    - Treat warnings as errors in CI; keep the build green.
+    - Handle secrets and credentials via env/secret stores; never commit secrets.
+    - Design for failure: timeouts, retries, circuit-breakers, and idempotency.
+    - Make local setup reproducible (scripts/Makefile); keep onboarding time low.
+    - Track performance and error budgets; measure before optimizing.
+  notes: |
+    Use alongside linting/testing rules to keep quality steady over time.
+
+- name: linting-rules
+  title: Linting Rules
+  version: v1.0.0
+  summary: Style and static checks as guard rails for consistency and safety.
+  tags: ["linting", "style", "quality"]
+  rules_md: |
+    # Linting Rules
+    - Run linters locally and in CI; treat violations as build failures.
+    - Avoid disabling rules; if necessary, add a comment explaining why and scope narrowly.
+    - Prefer automatic formatting; keep diffs minimal and readable.
+    - Fix root causes rather than suppressing symptoms.
+    - Keep lint configs in the repo; version and document any changes.
+    - Add project-specific rules for security (e.g., banned APIs) and migration nudges.
+  notes: |
+    Lint should be fast; developers should be able to run it on save or pre-commit.
+
+- name: testing-rules
+  title: Testing Rules
+  version: v1.0.0
+  summary: Deterministic and meaningful tests across unit/integration boundaries.
+  tags: ["testing", "quality", "ci"]
+  rules_md: |
+    # Testing Rules
+    - Favor unit tests for speed and signal; add integration tests where contracts cross boundaries.
+    - Keep tests deterministic; avoid time, randomness, and external flakiness without control.
+    - Mock/stub external services; record fixtures for repeatability.
+    - Name tests by behavior; arrange-act-assert with clear setup.
+    - Cover happy paths and key edge cases; assert outcomes, not implementation details.
+    - Keep tests fast; parallelize in CI; measure and prune slow suites.
+    - Use code coverage as a guide, not a goal; focus on critical paths.
+  notes: |
+    Make it easy to run just the impacted tests (by path/tag) during development.
+
+- name: git-operations-rules
+  title: Git Operations Rules
+  version: v1.0.0
+  summary: Branching, committing, and PR etiquette for smooth collaboration.
+  tags: ["git", "workflow", "reviews"]
+  rules_md: |
+    # Git Operations Rules
+    - Branch naming: `feature/<slug>`, `fix/<slug>`, or `chore/<slug>`; keep slugs short and descriptive.
+    - Write atomic commits with imperative subject lines; include context in body when helpful.
+    - Keep PRs small and reviewable; prefer multiple focused PRs over one massive change.
+    - Rebase locally to keep history clean; avoid force-push on shared branches.
+    - Resolve conversations or explain deferrals; be respectful and specific in reviews.
+    - Use squash merges for feature branches unless history needs to be preserved.
+    - Tag releases and update CHANGELOGs; automate release notes when possible.
+    - Link commits/PRs to tickets; keep cross-repo changes coordinated.
+  notes: |
+    Align with team defaults (merge strategy, branch protection) and automation (CI checks, required reviews).

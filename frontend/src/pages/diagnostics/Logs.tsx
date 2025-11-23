@@ -20,6 +20,14 @@ import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import Snackbar from '@mui/material/Snackbar';
 import { useHubInfo, getUserId, loadConfig } from '../../api';
 
+const LOG_LEVELS = [
+  { value: 'all', label: 'All levels' },
+  { value: 'debug', label: 'Debug' },
+  { value: 'info', label: 'Info' },
+  { value: 'warn', label: 'Warn' },
+  { value: 'error', label: 'Error' },
+];
+
 export default function DiagnosticsLogs() {
   const hub = useHubInfo();
   // Include 'hub' as first option for HTTP request logs
@@ -28,13 +36,16 @@ export default function DiagnosticsLogs() {
   const [engine, setEngine] = useState<string>(() => localStorage.getItem('diag.logs.engine') || 'context');
   const [lines, setLines] = useState<string[]>([]);
   const [n, setN] = useState<number>(() => Number(localStorage.getItem('diag.logs.n') || '100') || 100);
+  const [levelFilter, setLevelFilter] = useState<string>(
+    () => localStorage.getItem('diag.logs.level') || 'all',
+  );
   const [following, setFollowing] = useState<boolean>(false);
   const [toast, setToast] = useState<string | null>(null);
   const esRef = useRef<EventSource | null>(null);
   const logBoxRef = useRef<HTMLPreElement>(null);
 
   function copyLogs() {
-    navigator.clipboard.writeText(lines.join('\n')).then(() => {
+    navigator.clipboard.writeText(filteredLines.join('\n')).then(() => {
       setToast('Logs copied to clipboard');
     }).catch(() => {
       setToast('Failed to copy');
@@ -100,11 +111,22 @@ export default function DiagnosticsLogs() {
   useEffect(() => {
     localStorage.setItem('diag.logs.n', String(n));
   }, [n]);
+  useEffect(() => {
+    localStorage.setItem('diag.logs.level', levelFilter);
+  }, [levelFilter]);
 
   // Fetch logs when engine changes
   useEffect(() => {
     tailOnce();
   }, [engine]);
+
+  const filteredLines = React.useMemo(() => {
+    if (levelFilter === 'all') {
+      return lines;
+    }
+    const pattern = new RegExp(levelFilter, 'i');
+    return lines.filter((line) => pattern.test(line));
+  }, [levelFilter, lines]);
 
   return (
     <Box>
@@ -123,6 +145,21 @@ export default function DiagnosticsLogs() {
               {engines.map((eng) => (
                 <MenuItem key={eng.name} value={eng.name}>
                   {eng.name.charAt(0).toUpperCase() + eng.name.slice(1)}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+
+          <FormControl size="small" sx={{ minWidth: 150 }}>
+            <InputLabel>Level</InputLabel>
+            <Select
+              value={levelFilter}
+              label="Level"
+              onChange={(e) => setLevelFilter(e.target.value)}
+            >
+              {LOG_LEVELS.map((level) => (
+                <MenuItem key={level.value} value={level.value}>
+                  {level.label}
                 </MenuItem>
               ))}
             </Select>
@@ -155,9 +192,9 @@ export default function DiagnosticsLogs() {
             Clear
           </Button>
 
-          <Tooltip title={lines.length === 0 ? 'No logs to copy' : 'Copy logs'}>
+          <Tooltip title={filteredLines.length === 0 ? 'No logs to copy' : 'Copy logs'}>
             <span>
-              <IconButton color="inherit" onClick={copyLogs} disabled={lines.length === 0}>
+              <IconButton color="inherit" onClick={copyLogs} disabled={filteredLines.length === 0}>
                 <ContentCopyIcon />
               </IconButton>
             </span>
@@ -181,7 +218,7 @@ export default function DiagnosticsLogs() {
           }}
         >
           <Typography variant="caption" sx={{ color: 'grey.400', fontFamily: 'monospace' }}>
-            {engine}/logs • {lines.length} lines
+            {engine}/logs • Showing {filteredLines.length}/{lines.length} lines
           </Typography>
         </Box>
         <Box
@@ -203,10 +240,12 @@ export default function DiagnosticsLogs() {
             '&::-webkit-scrollbar-thumb': { bgcolor: '#30363d', borderRadius: 4 },
           }}
         >
-          {lines.length === 0 ? (
-            <Typography sx={{ color: 'grey.600', fontStyle: 'italic' }}>No logs available</Typography>
+          {filteredLines.length === 0 ? (
+            <Typography sx={{ color: 'grey.600', fontStyle: 'italic' }}>
+              {lines.length === 0 ? 'No logs available' : 'No logs match this filter'}
+            </Typography>
           ) : (
-            lines.map((line, i) => (
+            filteredLines.map((line, i) => (
               <Box
                 key={i}
                 component="span"
