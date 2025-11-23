@@ -11,19 +11,8 @@ import LinearProgress from '@mui/material/LinearProgress';
 import Alert from '@mui/material/Alert';
 import Pagination from '@mui/material/Pagination';
 import MenuItem from '@mui/material/MenuItem';
-import { searchMemory, useRepoStatus, SearchResult } from '../../api';
-
-function Highlight({ text, query }: { text: string; query: string }) {
-  if (!query) return <>{text}</>;
-  const parts = text.split(new RegExp(`(${query.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")})`, 'gi'));
-  return (
-    <>
-      {parts.map((part, idx) => (
-        part.toLowerCase() === query.toLowerCase() ? <mark key={idx}>{part}</mark> : <span key={idx}>{part}</span>
-      ))}
-    </>
-  );
-}
+import Viewer from '../../components/Viewer';
+import { searchMemory, useRepoStatus, SearchResult, getErrorMessage } from '../../api';
 
 export default function MemorySearch() {
   const [q, setQ] = useState('');
@@ -95,7 +84,7 @@ export default function MemorySearch() {
         </Stack>
       </Paper>
       {isPending && <LinearProgress />}
-      {isError && <Alert severity="error">{(error as any)?.message || 'Memory search failed'}</Alert>}
+      {isError && <Alert severity="error">{getErrorMessage(error as any) || 'Memory search failed'}</Alert>}
       <Stack spacing={2}>
         {pageData.map((r, idx) => (
           <Paper key={idx} sx={{ p: 2 }}>
@@ -103,9 +92,7 @@ export default function MemorySearch() {
               <Typography variant="subtitle1" sx={{ fontFamily: 'monospace' }}>{r.rel_path}</Typography>
               <Chip size="small" label={r.score.toFixed(2)} />
             </Stack>
-            <Box component="pre" sx={{ whiteSpace: 'pre-wrap', mt: 1, fontFamily: 'monospace' }}>
-              <Highlight text={r.chunk} query={q} />
-            </Box>
+            <Viewer content={r.chunk} filename={r.rel_path} language={(r as any).lang} height={260} />
           </Paper>
         ))}
       </Stack>
@@ -115,4 +102,3 @@ export default function MemorySearch() {
     </Box>
   );
 }
-
