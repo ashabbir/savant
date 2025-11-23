@@ -111,6 +111,14 @@ module Savant
                 next
               end
 
+              # Skip non-markdown files in memory_bank directories
+              if Language.in_memory_dir_but_not_markdown?(rel)
+                repo_skipped += 1
+                log_skip(rel, 'memory_bank_non_markdown', verbose)
+                progress&.increment
+                next
+              end
+
               hash = Digest::SHA256.file(abs).hexdigest
               blob_id = @store.ensure_blob(hash, stat.size)
               chunks = build_chunks(abs, lang).each_with_index.map { |chunk, idx| [idx, lang, chunk] }

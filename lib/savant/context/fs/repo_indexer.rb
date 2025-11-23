@@ -44,6 +44,8 @@ module Savant
         def status
           admin = Savant::Indexer::Admin.new(@db)
           rows = admin.repo_stats
+          return [] if rows.nil?
+
           rows.map do |r|
             max_ns = r['max_mtime_ns']
             last_ts = max_ns ? Time.at(max_ns.to_i / 1_000_000_000.0).utc.iso8601 : nil
