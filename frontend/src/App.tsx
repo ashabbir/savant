@@ -209,10 +209,10 @@ export default function App() {
         {isDev ? (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
             <CodeIcon sx={{ fontSize: 14, opacity: 0.9 }} />
-            <Typography variant="caption" sx={{ opacity: 0.9 }}>DEV</Typography>
+            <Typography variant="caption" sx={{ opacity: 0.9 }}>Dev-Mode</Typography>
           </Box>
         ) : (
-          <Typography variant="caption" sx={{ opacity: 0.9 }}>BUILD</Typography>
+          <Typography variant="caption" sx={{ opacity: 0.9 }}>Build-Mode</Typography>
         )}
         <Typography variant="caption" sx={{ opacity: 0.9 }}>github.com/ashabbir</Typography>
       </Box>
