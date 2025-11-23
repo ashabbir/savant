@@ -1,17 +1,27 @@
 #!/usr/bin/env ruby
-# Engine for Savant::Personas MCP service
+# frozen_string_literal: true
+
+require_relative 'ops'
 
 module Savant
   module Personas
     class Engine
       def initialize
-        @log = Savant::Logger.new(io: $stdout, json: true, service: 'personas.engine')
-
-                @ops = Object.new # replace with real ops
+        @log = Savant::Logger.new(io: $stdout, json: true, service: 'personas')
+        @ops = Savant::Personas::Ops.new
       end
 
       def server_info
-        { name: 'savant-personas', version: '1.1.0', description: 'Personas MCP service' }
+        { name: 'personas', version: '1.1.0', description: 'Savant Personas MCP engine' }
+      end
+
+      # API used by Tools
+      def list(filter: nil)
+        @ops.list(filter: filter)
+      end
+
+      def get(name:)
+        @ops.get(name: name)
       end
     end
   end

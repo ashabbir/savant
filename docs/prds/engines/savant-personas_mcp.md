@@ -7,6 +7,7 @@
 - Outcome: A dedicated MCP engine that stores canonical personas and exposes simple tools to list and fetch persona prompts by name. Personas are easy to mount, query, and reuse across editors and flows.
 
 ## In Scope (MVP)
+ - Use generate command to generate engine
 - Engine: `personas` (a.k.a. “savant personas”) with stdio/HTTP MCP support like other engines.
 - Tools:
   - `personas.list` — returns all personas (names, titles, versions, brief summaries/tags).
@@ -76,7 +77,8 @@ Example snippet:
 ## React UI Integration (MVP)
 - Dashboard: must appear as a mounted engine card with name “Personas” (or “Savant Personas”), mount `/personas`, and tool count `2`.
 - Card icon/color: align with existing pattern in `EngineCard` (e.g., add a `personas` icon/color mapping if needed in a follow‑up PR).
-- No dedicated route/view is required for MVP (optional future: simple browser calling `personas.list` and rendering summaries).
+- Diagnostics tab: include a Personas section showing engine status (mounted + reachable), persona catalog stats (count + last update hash/timestamp), recent tool call history, schema validation state, configured mount path, and a tail of `logs/personas.log` for quick inspection.
+- No dedicated browsing route/view is required for MVP (optional future: simple browser calling `personas.list` and rendering summaries).
 
 ## Hub Mounting & Auto‑Discovery
 - Default path: `/personas`.

@@ -48,7 +48,7 @@ Validation
 - `Savant::Config.load`:
   - Accepts `scanMode` string; validates against `["ls","git-ls"]`.
   - Missing → default to `ls`.
-  - Invalid → coerce to `ls` (do not raise).
+  - Invalid → raise `Savant::ConfigError`.
 - Add to `config/settings.example.json` with comment describing the modes.
 
 Implementation Plan
@@ -87,11 +87,3 @@ Documentation
 - README and comments in `settings.example.json`:
   - “scanMode: ls | git-ls. Default ls scans filesystem; git-ls indexes only tracked files via git.”
 
-Agent Implementation Plan
-- Update config validator to default/validate `indexer.scanMode` (ls|git-ls).
-- Map scan modes in `Indexer::Config` to internal symbols (:walk|:git); drop per-repo override.
-- Adjust `RepositoryScanner` to honor `:git` only when requested; default to `:walk`.
-- Log `scan_mode: <ls|git-ls>` in repo header and emit `scan_fallback: git-ls->ls` when Git listing fails.
-- Update CLI to print `scanMode` in start/status lines; show mode in `bin/context_repo_indexer status` header.
-- Refresh `config/settings.example.json` and `config/schema.json` to document/allow the new field.
-- Update specs for logging string change; keep existing scanner behavior specs.
