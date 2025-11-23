@@ -20,6 +20,14 @@ import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import Snackbar from '@mui/material/Snackbar';
 import { useHubInfo, getUserId, loadConfig } from '../../api';
 
+const LOG_LEVELS = [
+  { value: 'all', label: 'All levels' },
+  { value: 'debug', label: 'Debug' },
+  { value: 'info', label: 'Info' },
+  { value: 'warn', label: 'Warn' },
+  { value: 'error', label: 'Error' },
+];
+
 export default function DiagnosticsLogs() {
   const hub = useHubInfo();
   // Include 'hub' as first option for HTTP request logs
@@ -28,6 +36,9 @@ export default function DiagnosticsLogs() {
   const [engine, setEngine] = useState<string>(() => localStorage.getItem('diag.logs.engine') || 'context');
   const [lines, setLines] = useState<string[]>([]);
   const [n, setN] = useState<number>(() => Number(localStorage.getItem('diag.logs.n') || '100') || 100);
+  const [levelFilter, setLevelFilter] = useState<string>(
+    () => localStorage.getItem('diag.logs.level') || 'all',
+  );
   const [following, setFollowing] = useState<boolean>(false);
   const [toast, setToast] = useState<string | null>(null);
   const esRef = useRef<EventSource | null>(null);
@@ -41,14 +52,19 @@ export default function DiagnosticsLogs() {
     });
   }
 
+  function levelQuery(level: string) {
+    return level === 'all' ? '' : `&level=${encodeURIComponent(level)}`;
+  }
+
   function baseUrl() {
     return loadConfig().baseUrl || 'http://localhost:9999';
   }
 
-  function start() {
+  function start(level = levelFilter) {
     stop();
     setLines([]);
-    const url = `${baseUrl()}/${engine}/logs?stream=1&n=${n}&user=${encodeURIComponent(getUserId())}`;
+    const levelPart = levelQuery(level);
+    const url = `${baseUrl()}/${engine}/logs?stream=1&n=${n}${levelPart}&user=${encodeURIComponent(getUserId())}`;
     const es = new EventSource(url);
     es.onmessage = (ev) => {
       try {
@@ -73,9 +89,10 @@ export default function DiagnosticsLogs() {
     setFollowing(false);
   }
 
-  async function tailOnce() {
+  async function tailOnce(level = levelFilter) {
     stop();
-    const url = `${baseUrl()}/${engine}/logs?n=${n}`;
+    const levelPart = levelQuery(level);
+    const url = `${baseUrl()}/${engine}/logs?n=${n}${levelPart}`;
     try {
       const res = await fetch(url, { headers: { 'x-savant-user-id': getUserId() } });
       const js = await res.json();
@@ -100,6 +117,9 @@ export default function DiagnosticsLogs() {
   useEffect(() => {
     localStorage.setItem('diag.logs.n', String(n));
   }, [n]);
+  useEffect(() => {
+    localStorage.setItem('diag.logs.level', levelFilter);
+  }, [levelFilter]);
 
   // Fetch logs when engine changes
   useEffect(() => {
@@ -123,6 +143,29 @@ export default function DiagnosticsLogs() {
               {engines.map((eng) => (
                 <MenuItem key={eng.name} value={eng.name}>
                   {eng.name.charAt(0).toUpperCase() + eng.name.slice(1)}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+
+          <FormControl size="small" sx={{ minWidth: 150 }}>
+            <InputLabel>Level</InputLabel>
+            <Select
+              value={levelFilter}
+              label="Level"
+              onChange={(e) => {
+                const nextLevel = e.target.value;
+                setLevelFilter(nextLevel);
+                if (following) {
+                  start(nextLevel);
+                } else {
+                  tailOnce(nextLevel);
+                }
+              }}
+            >
+              {LOG_LEVELS.map((level) => (
+                <MenuItem key={level.value} value={level.value}>
+                  {level.label}
                 </MenuItem>
               ))}
             </Select>
@@ -181,7 +224,7 @@ export default function DiagnosticsLogs() {
           }}
         >
           <Typography variant="caption" sx={{ color: 'grey.400', fontFamily: 'monospace' }}>
-            {engine}/logs • {lines.length} lines
+            {engine}/logs • {lines.length} lines • Level: {LOG_LEVELS.find((lvl) => lvl.value === levelFilter)?.label || 'All'}
           </Typography>
         </Box>
         <Box
@@ -204,7 +247,9 @@ export default function DiagnosticsLogs() {
           }}
         >
           {lines.length === 0 ? (
-            <Typography sx={{ color: 'grey.600', fontStyle: 'italic' }}>No logs available</Typography>
+            <Typography sx={{ color: 'grey.600', fontStyle: 'italic' }}>
+              {levelFilter === 'all' ? 'No logs available' : 'No logs match this level'}
+            </Typography>
           ) : (
             lines.map((line, i) => (
               <Box

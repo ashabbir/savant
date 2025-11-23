@@ -107,14 +107,14 @@ module Savant
         { nodes: nodes, order: topo_order(g) }
       end
 
-      def guess_workflow_from_filename(fn)
-        base = File.basename(fn, '.json')
+      def guess_workflow_from_filename(filename)
+        base = File.basename(filename, '.json')
         wf, _rid = base.split('__', 2)
         wf
       end
 
-      def guess_run_id_from_filename(fn)
-        base = File.basename(fn, '.json')
+      def guess_run_id_from_filename(filename)
+        base = File.basename(filename, '.json')
         _wf, rid = base.split('__', 2)
         rid
       end

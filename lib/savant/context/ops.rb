@@ -80,7 +80,8 @@ module Savant
           'bank/%', '%/bank/%'
         ]
         # Build memory path clause with positional params
-        mem_clause = '(' + mem_patterns.each_index.map { |i| "rel_path ILIKE $#{i + 1}" }.join(' OR ') + ')'
+        mem_conditions = mem_patterns.each_index.map { |i| "rel_path ILIKE $#{i + 1}" }.join(' OR ')
+        mem_clause = "(#{mem_conditions})"
         params.concat(mem_patterns)
         # Always limit to markdown-like files (md, mdx, markdown)
         clauses = [mem_clause, "(rel_path ILIKE '%.md' OR rel_path ILIKE '%.mdx' OR rel_path ILIKE '%.markdown')"]

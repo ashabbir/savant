@@ -27,7 +27,7 @@ module Savant
         body = Enumerator.new do |yielder|
           # Always send an initial heartbeat so clients can confirm connection
           yielder << format_event('heartbeat', {})
-          return if once
+          break if once
 
           loop do
             sleep(@heartbeat_interval)

@@ -5,6 +5,7 @@ require_relative 'ops'
 
 module Savant
   module Rules
+    # Engine exposes rule catalog operations for MCP tools.
     class Engine
       def initialize
         @log = Savant::Logger.new(io: $stdout, json: true, service: 'rules')
@@ -25,4 +26,3 @@ module Savant
     end
   end
 end
-

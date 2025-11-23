@@ -7,8 +7,8 @@ import Stack from '@mui/material/Stack';
 import Chip from '@mui/material/Chip';
 import LinearProgress from '@mui/material/LinearProgress';
 import Alert from '@mui/material/Alert';
-import Button from '@mui/material/Button';
-import TextField from '@mui/material/TextField';
+// import Button from '@mui/material/Button';
+// import TextField from '@mui/material/TextField';
 import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
@@ -17,8 +17,8 @@ import TableRow from '@mui/material/TableRow';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
 import StorageIcon from '@mui/icons-material/Storage';
-import PlayArrowIcon from '@mui/icons-material/PlayArrow';
-import TimerIcon from '@mui/icons-material/Timer';
+// import PlayArrowIcon from '@mui/icons-material/PlayArrow';
+// import TimerIcon from '@mui/icons-material/Timer';
 import HttpIcon from '@mui/icons-material/Http';
 import { useHubInfo, useDiagnostics, useHubStats, testDbQuery, DbQueryTest, usePersonas, useRules } from '../../api';
 
@@ -39,19 +39,10 @@ export default function DiagnosticsOverview() {
   const stats = useHubStats();
   const personasList = usePersonas('');
   const rulesList = useRules('');
-  const [queryText, setQueryText] = useState('function');
-  const [queryResult, setQueryResult] = useState<DbQueryTest | null>(null);
-  const [queryLoading, setQueryLoading] = useState(false);
-
-  async function runQuery() {
-    setQueryLoading(true);
-    const result = await testDbQuery(queryText);
-    setQueryResult(result);
-    setQueryLoading(false);
-  }
+  // Removed FTS Query Test state
 
   return (
-    <Box sx={{ height: 'calc(100vh - 200px)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+    <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
       {/* Top Row - Hub Stats */}
       <Paper sx={{ p: 1.5, mb: 1.5 }}>
         <Stack direction="row" spacing={3} alignItems="center" justifyContent="space-between" flexWrap="wrap" useFlexGap>
@@ -102,27 +93,73 @@ export default function DiagnosticsOverview() {
 
       {/* Main Grid */}
       <Grid container spacing={1.5} sx={{ flex: 1, minHeight: 0 }}>
-        {/* Left Column - Engines & Recent Requests */}
+        {/* Left Column - Requests (scrollable) */}
         <Grid size={{ xs: 12, md: 4 }}>
-          <Stack spacing={1.5} sx={{ height: '100%' }}>
-            <Paper sx={{ p: 1.5 }}>
-              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>Engines</Typography>
-              <Stack spacing={0.5}>
-                {hub.data?.engines?.map((engine) => (
-                  <Stack key={engine.name} direction="row" spacing={1} alignItems="center" justifyContent="space-between" sx={{ p: 0.5, bgcolor: 'grey.50', borderRadius: 0.5 }}>
-                    <Stack direction="row" spacing={0.5} alignItems="center">
-                      <CheckCircleIcon color="success" sx={{ fontSize: 16 }} />
-                      <Typography variant="body2" sx={{ fontWeight: 500 }}>{formatEngineName(engine.name)}</Typography>
-                    </Stack>
-                    <Chip label={`${engine.tools} tools`} size="small" variant="outlined" sx={{ height: 20, '& .MuiChip-label': { px: 0.5, fontSize: 10 } }} />
-                  </Stack>
-                ))}
-              </Stack>
+          <Stack spacing={1.5} sx={{ height: '100%', overflow: 'auto' }}>
+            
+
+            {/* Recent Tool Calls */}
+            <Paper sx={{ p: 1.5, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>Recent Tool Calls</Typography>
+              <Box sx={{ flex: 1, overflow: 'auto' }}>
+                {stats.data && (
+                  <Table size="small" sx={{ '& td, & th': { py: 0.25, px: 0.5, fontSize: 10 } }}>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Engine</TableCell>
+                        <TableCell>Tool</TableCell>
+                        <TableCell align="right">Status</TableCell>
+                        <TableCell align="right">ms</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {stats.data.recent
+                        .filter((req) => (req.path || '').includes('/tools/') && (req.path || '').endsWith('/call'))
+                        .slice(0, 10)
+                        .map((req, i) => (
+                          <TableRow key={i} sx={{ '&:hover': { bgcolor: 'grey.50' } }}>
+                            <TableCell sx={{ fontFamily: 'monospace' }}>
+                              {(() => {
+                                const p = (req.path || '').split('/').filter(Boolean);
+                                return p[0] || '';
+                              })()}
+                            </TableCell>
+                            <TableCell sx={{ fontFamily: 'monospace', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {(() => {
+                                const p = req.path || '';
+                                const i1 = p.indexOf('/tools/');
+                                const i2 = p.lastIndexOf('/call');
+                                if (i1 >= 0 && i2 > i1) return p.substring(i1 + 7, i2);
+                                return '';
+                              })()}
+                            </TableCell>
+                            <TableCell align="right">
+                              <Typography
+                                variant="caption"
+                                sx={{
+                                  color: req.status < 300 ? 'success.main' : req.status < 400 ? 'warning.main' : 'error.main',
+                                  fontWeight: 600
+                                }}
+                              >
+                                {req.status}
+                              </Typography>
+                            </TableCell>
+                            <TableCell align="right">
+                              <Typography variant="caption" color={req.duration_ms < 100 ? 'success.main' : req.duration_ms < 500 ? 'warning.main' : 'error.main'}>
+                                {req.duration_ms}
+                              </Typography>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                    </TableBody>
+                  </Table>
+                )}
+              </Box>
             </Paper>
 
-            {/* Recent Requests */}
-            <Paper sx={{ p: 1.5, flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>Recent Requests</Typography>
+            {/* Hub HTTP Requests */}
+            <Paper sx={{ p: 1.5, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>Hub HTTP Requests</Typography>
               <Box sx={{ flex: 1, overflow: 'auto' }}>
                 {stats.data && (
                   <Table size="small" sx={{ '& td, & th': { py: 0.25, px: 0.5, fontSize: 10 } }}>
@@ -135,7 +172,7 @@ export default function DiagnosticsOverview() {
                       </TableRow>
                     </TableHead>
                     <TableBody>
-                      {stats.data.recent.slice(0, 15).map((req, i) => (
+                      {stats.data.recent.slice(0, 10).map((req, i) => (
                         <TableRow key={i} sx={{ '&:hover': { bgcolor: 'grey.50' } }}>
                           <TableCell>
                             <Chip
@@ -177,6 +214,33 @@ export default function DiagnosticsOverview() {
         {/* Middle Column - Database & Config (scrollable) */}
         <Grid size={{ xs: 12, md: 4 }}>
           <Stack spacing={1.5} sx={{ height: '100%', overflow: 'auto', pr: 0.5 }}>
+            {/* Engines */}
+            <Paper sx={{ p: 1.5 }}>
+              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>Engines</Typography>
+              <Stack spacing={0.5}>
+                {hub.data?.engines?.map((engine) => (
+                  <Stack
+                    key={engine.name}
+                    direction="row"
+                    spacing={1}
+                    alignItems="center"
+                    justifyContent="space-between"
+                    sx={{ p: 0.5, bgcolor: 'grey.50', borderRadius: 0.5 }}
+                  >
+                    <Stack direction="row" spacing={0.5} alignItems="center">
+                      <CheckCircleIcon color="success" sx={{ fontSize: 16 }} />
+                      <Typography variant="body2" sx={{ fontWeight: 500 }}>{formatEngineName(engine.name)}</Typography>
+                    </Stack>
+                    <Chip
+                      label={`${engine.tools} tools`}
+                      size="small"
+                      variant="outlined"
+                      sx={{ height: 20, '& .MuiChip-label': { px: 0.5, fontSize: 10 } }}
+                    />
+                  </Stack>
+                ))}
+              </Stack>
+            </Paper>
             {/* Personas */}
             <Paper sx={{ p: 1.5 }}>
               <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>Personas</Typography>
@@ -255,6 +319,55 @@ export default function DiagnosticsOverview() {
                 </Box>
               )}
             </Paper>
+
+            {/* Per-Engine Stats (generic for all except Personas/Rules) */}
+            {(hub.data?.engines || [])
+              .filter((e) => e.name !== 'personas' && e.name !== 'rules')
+              .map((e) => (
+                <Paper key={e.name} sx={{ p: 1.5 }}>
+                  <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>{formatEngineName(e.name)}</Typography>
+                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                    <Chip size="small" label={`${e.tools} tools`} variant="outlined" />
+                    <Chip size="small" label={`Requests: ${(stats.data?.requests?.by_engine?.[e.name] || 0)}`} variant="outlined" />
+                  </Stack>
+                  {stats.data && (
+                    <Box sx={{ mt: 1 }}>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                        Recent tool calls
+                      </Typography>
+                      <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+                        {(() => {
+                          try {
+                            const counts: Record<string, number> = {};
+                            for (const r of stats.data.recent) {
+                              const p = r.path || '';
+                              if (!p.startsWith(`/${e.name}/tools/`) || !p.endsWith('/call')) continue;
+                              const middle = p.substring(p.indexOf('/tools/') + 7, p.length - '/call'.length);
+                              const tool = middle; // keep full tool name (may include dots)
+                              counts[tool] = (counts[tool] || 0) + 1;
+                            }
+                            const rows = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 6);
+                            return rows.length > 0
+                              ? rows.map(([name, cnt]) => (
+                                  <Chip key={name} size="small" label={`${name}: ${cnt}`} color="primary" variant="outlined" />
+                                ))
+                              : <Typography variant="caption" color="text.secondary">No recent calls</Typography>;
+                          } catch {
+                            return <Typography variant="caption" color="text.secondary">No recent calls</Typography>;
+                          }
+                        })()}
+                      </Stack>
+                    </Box>
+                  )}
+                </Paper>
+              ))}
+            
+          </Stack>
+        </Grid>
+
+        {/* Right Column - Database, Mounts & Config (scrollable) */}
+        <Grid size={{ xs: 12, md: 4 }}>
+          <Stack spacing={1.5} sx={{ height: '100%', overflow: 'auto' }}>
             {/* Database */}
             <Paper sx={{ p: 1.5 }}>
               <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>Database</Typography>
@@ -276,54 +389,28 @@ export default function DiagnosticsOverview() {
                       </>
                     )}
                   </Stack>
-
-                  {/* Query Test */}
-                  <Box sx={{ pt: 1, borderTop: '1px solid', borderColor: 'divider' }}>
-                    <Typography variant="caption" color="text.secondary" sx={{ mb: 0.5, display: 'block' }}>
-                      FTS Query Test
-                    </Typography>
-                    <Stack direction="row" spacing={1} alignItems="center">
-                      <TextField
-                        size="small"
-                        value={queryText}
-                        onChange={(e) => setQueryText(e.target.value)}
-                        placeholder="search term"
-                        sx={{ flex: 1, '& input': { py: 0.5, fontSize: 12 } }}
-                      />
-                      <Button
-                        size="small"
-                        variant="contained"
-                        onClick={runQuery}
-                        disabled={queryLoading}
-                        startIcon={<PlayArrowIcon />}
-                        sx={{ minWidth: 70 }}
-                      >
-                        Run
-                      </Button>
-                    </Stack>
-                    {queryResult && (
-                      <Stack direction="row" spacing={1} sx={{ mt: 1 }} flexWrap="wrap" useFlexGap>
-                        <Chip
-                          size="small"
-                          icon={queryResult.success ? <CheckCircleIcon /> : <ErrorIcon />}
-                          label={queryResult.success ? 'OK' : 'Failed'}
-                          color={queryResult.success ? 'success' : 'error'}
-                        />
-                        <Chip
-                          size="small"
-                          icon={<TimerIcon />}
-                          label={`${queryResult.duration_ms}ms`}
-                          variant="outlined"
-                          color={queryResult.duration_ms < 100 ? 'success' : queryResult.duration_ms < 500 ? 'warning' : 'error'}
-                        />
-                        <Chip size="small" label={`${queryResult.results} results`} variant="outlined" />
-                      </Stack>
-                    )}
-                  </Box>
                 </Stack>
               )}
             </Paper>
 
+            {/* Secrets */}
+            <Paper sx={{ p: 1.5 }}>
+              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>Secrets</Typography>
+              {diag.data && (diag.data as any).secrets ? (
+                <Stack spacing={1}>
+                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                    <Chip size="small" label={`Path: ${(diag.data as any).secrets.path || 'unknown'}`} variant="outlined" />
+                    <Chip size="small" label={`Users: ${(diag.data as any).secrets.users || 0}`} variant="outlined" />
+                    <Chip size="small" label={`Services: ${((diag.data as any).secrets.services || []).join(', ') || 'n/a'}`} variant="outlined" />
+                  </Stack>
+                  <Typography variant="caption" color="text.secondary">
+                    Values are redacted server-side.
+                  </Typography>
+                </Stack>
+              ) : (
+                <Typography variant="caption" color="text.secondary">Not available</Typography>
+              )}
+            </Paper>
             {/* Mounts */}
             <Paper sx={{ p: 1.5 }}>
               <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>Mounts</Typography>
@@ -344,7 +431,7 @@ export default function DiagnosticsOverview() {
             </Paper>
 
             {/* Config */}
-            <Paper sx={{ p: 1.5, flex: 1 }}>
+            <Paper sx={{ p: 1.5 }}>
               <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>Configuration</Typography>
               {diag.data && (
                 <Stack spacing={0.5}>
@@ -361,35 +448,6 @@ export default function DiagnosticsOverview() {
               )}
             </Paper>
           </Stack>
-        </Grid>
-
-        {/* Right Column - Repos */}
-        <Grid size={{ xs: 12, md: 4 }}>
-          <Paper sx={{ p: 1.5, height: '100%', display: 'flex', flexDirection: 'column' }}>
-            <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>Repository Visibility</Typography>
-            <Box sx={{ flex: 1, overflow: 'auto' }}>
-              <Stack spacing={1}>
-                {(diag.data?.repos || []).map((r) => (
-                  <Box key={r.name} sx={{ p: 1, bgcolor: 'grey.50', borderRadius: 1 }}>
-                    <Stack direction="row" spacing={0.5} alignItems="center" mb={0.5}>
-                      <StorageIcon color="action" sx={{ fontSize: 16 }} />
-                      <Typography variant="body2" sx={{ fontFamily: 'monospace', fontWeight: 500 }}>{r.name}</Typography>
-                    </Stack>
-                    <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5, fontFamily: 'monospace' }}>
-                      {r.path}
-                    </Typography>
-                    <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
-                      <Chip size="small" label={r.exists ? 'exists' : 'missing'} color={r.exists ? 'success' : 'error'} sx={{ height: 20, '& .MuiChip-label': { px: 1, fontSize: 10 } }} />
-                      <Chip size="small" label={r.readable ? 'readable' : 'no read'} color={r.readable ? 'success' : 'warning'} sx={{ height: 20, '& .MuiChip-label': { px: 1, fontSize: 10 } }} />
-                      {typeof r.sampled_count === 'number' && (
-                        <Chip size="small" label={`~${r.sampled_count} files`} variant="outlined" sx={{ height: 20, '& .MuiChip-label': { px: 1, fontSize: 10 } }} />
-                      )}
-                    </Stack>
-                  </Box>
-                ))}
-              </Stack>
-            </Box>
-          </Paper>
         </Grid>
       </Grid>
 

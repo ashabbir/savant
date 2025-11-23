@@ -42,9 +42,9 @@ module Savant
         nil
       end
 
-      def serve_file(f)
-        mime = Rack::Mime.mime_type(File.extname(f), 'text/plain')
-        [200, { 'Content-Type' => mime }, [File.binread(f)]]
+      def serve_file(file_path)
+        mime = Rack::Mime.mime_type(File.extname(file_path), 'text/plain')
+        [200, { 'Content-Type' => mime }, [File.binread(file_path)]]
       end
 
       def not_found
