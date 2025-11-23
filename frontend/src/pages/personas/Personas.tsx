@@ -13,6 +13,11 @@ import ListItemText from '@mui/material/ListItemText';
 import Chip from '@mui/material/Chip';
 import Stack from '@mui/material/Stack';
 import yaml from 'js-yaml';
+import Button from '@mui/material/Button';
+import Dialog from '@mui/material/Dialog';
+import DialogTitle from '@mui/material/DialogTitle';
+import DialogContent from '@mui/material/DialogContent';
+import DialogActions from '@mui/material/DialogActions';
 import Viewer from '../../components/Viewer';
 import { getErrorMessage, usePersona, usePersonas } from '../../api';
 
@@ -21,6 +26,7 @@ export default function Personas() {
   const { data, isLoading, isError, error } = usePersonas(filter);
   const [sel, setSel] = useState<string | null>(null);
   const details = usePersona(sel);
+  const [openPrompt, setOpenPrompt] = useState(false);
 
   const personas = data?.personas || [];
   const selected = details.data || null;
@@ -62,19 +68,30 @@ export default function Personas() {
       <Grid size={{ xs: 12, md: 8 }}>
         <Stack spacing={2}>
           <Paper sx={{ p: 2 }}>
-            <Typography variant="subtitle1">Persona (YAML)</Typography>
+            <Stack direction="row" alignItems="center" justifyContent="space-between">
+              <Typography variant="subtitle1">Persona (YAML)</Typography>
+              <Button size="small" variant="outlined" disabled={!selected} onClick={() => setOpenPrompt(true)}>
+                View Prompt
+              </Button>
+            </Stack>
             {details.isFetching && <LinearProgress />}
             {details.isError && <Alert severity="error">{getErrorMessage(details.error as any)}</Alert>}
-            <Viewer content={yamlText} contentType="text/yaml" height={260} />
+            <Viewer content={yamlText} contentType="text/yaml" height={360} />
           </Paper>
-          <Paper sx={{ p: 2 }}>
-            <Typography variant="subtitle1">Prompt (Markdown)</Typography>
-            {details.isFetching && <LinearProgress />}
-            <Viewer content={selected?.prompt_md || 'Select a persona to view prompt markdown'} contentType="text/markdown" height={260} />
-          </Paper>
+
+          <Dialog open={openPrompt} onClose={() => setOpenPrompt(false)} fullWidth maxWidth="md">
+            <DialogTitle>
+              Prompt Markdown {selected ? `(${selected.title})` : ''}
+            </DialogTitle>
+            <DialogContent dividers>
+              <Viewer content={selected?.prompt_md || 'Select a persona to view prompt markdown'} contentType="text/markdown" height={'60vh'} />
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={() => setOpenPrompt(false)}>Close</Button>
+            </DialogActions>
+          </Dialog>
         </Stack>
       </Grid>
     </Grid>
   );
 }
-
