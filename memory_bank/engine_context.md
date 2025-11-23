@@ -1,11 +1,50 @@
 # Context Engine Notes
 
-- **Entry Points:** Set `MCP_SERVICE=context` then run `ruby ./bin/mcp_server` (or `make mcp-context-run`). Tools become available via stdio `tools/list` and `tools/call`.
-- **Engine Structure:** `lib/savant/context/engine.rb` orchestrates requests, delegating to `ops.rb` for implementations and `tools.rb` for registrar metadata. `fts.rb` encapsulates ranked chunk search returning `[rel_path, chunk, lang, score]` arrays.
-- **Core Tools:**
-  - `search`: queries Postgres FTS over `chunks.chunk_text`, leveraging repo context set in DB. Returns scored code/markdown snippets with file path + language.
-  - `memory_bank`: surfaces saved context snippets (if configured) for agents.
-  - `resources`: enumerates indexed repos/resources available to the agent.
-- **Dependencies:** Requires indexed data in Postgres (run `bin/context_repo_indexer index <repo>`). Needs `DATABASE_URL` and optional `LOG_LEVEL` env vars.
-- **Performance Considerations:** Search uses overlap-aware chunking; ensure indexer chunk params (`codeMaxLines`, `overlapLines`, `mdMaxChars`) align with query needs. Use `Savant::Logger.with_timing` around expensive ops for observability.
-- **Failure Modes:** If config missing keys, `Savant::Config.load` raises `ConfigError`. DB misconfiguration yields `pg` connection errors—validate with `bin/db_smoke` and ensure migrations via `bin/db_migrate` and `bin/db_fts`.
+## Overview
+- Entry point: `MCP_SERVICE=context ruby ./bin/mcp_server`
+- Files: `lib/savant/context/{engine.rb,ops.rb,tools.rb,fts.rb}`
+- Purpose: fast private code/markdown search over Postgres FTS and helpers for memory resources and repo admin.
+
+## Call Flow
+```mermaid
+sequenceDiagram
+  participant UI as UI / Client
+  participant Hub as HTTP Hub
+  participant Ctx as Context Registrar
+  participant Ops as Context Ops
+  participant DB as Postgres
+
+  UI->>Hub: POST /context/tools/fts/search/call {q, repo?, limit}
+  Hub->>Ctx: call "fts/search" (ctx={user_id})
+  Ctx->>Ops: search(q, repo, limit)
+  Ops->>DB: SELECT ts_rank_cd(...) FROM chunks WHERE ...
+  DB-->>Ops: rows [rel_path, chunk, lang, score]
+  Ops-->>Ctx: results
+  Ctx-->>Hub: results
+  Hub-->>UI: results
+```
+
+## Data Model (DB)
+```mermaid
+erDiagram
+  repos ||--o{ files : has
+  files ||--o{ file_blob_map : maps
+  blobs ||--o{ file_blob_map : maps
+  blobs ||--o{ chunks : has
+
+  repos { INT id PK, TEXT name, TEXT root_path }
+  files { INT id PK, INT repo_id, TEXT rel_path, BIGINT size_bytes, BIGINT mtime_ns }
+  blobs { INT id PK, TEXT hash, INT byte_len }
+  file_blob_map { INT file_id PK, INT blob_id }
+  chunks { INT id PK, INT blob_id, INT idx, TEXT lang, TEXT chunk_text }
+```
+
+## Tools (Selected)
+- `fts/search` – ranked snippet search (code + markdown)
+- `memory/resources/*` – list/read memory_bank markdown stored in DB
+- `fs/repo/*` – index/delete/status helpers
+
+## Notes
+- Ensure DB is migrated and FTS created (`make migrate && make fts`).
+- Index before searching (`make repo-index-all`).
+- Logs: `/tmp/savant/context.log` (Hub) or `logs/context.log` (stdio).

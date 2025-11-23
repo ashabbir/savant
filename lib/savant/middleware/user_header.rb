@@ -24,9 +24,7 @@ module Savant
           end
         end
 
-        if user.strip.empty?
-          return [400, { 'Content-Type' => 'application/json' }, [JSON.generate({ error: 'missing required header x-savant-user-id' })]]
-        end
+        return [400, { 'Content-Type' => 'application/json' }, [JSON.generate({ error: 'missing required header x-savant-user-id' })]] if user.strip.empty?
 
         env['savant.user_id'] = user
         @app.call(env)

@@ -13,11 +13,13 @@ import { getErrorMessage } from '../../api';
 import Box from '@mui/material/Box';
 import Stack from '@mui/material/Stack';
 import Button from '@mui/material/Button';
+import Tooltip from '@mui/material/Tooltip';
+import IconButton from '@mui/material/IconButton';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import Viewer from '../../components/Viewer';
 import Tabs from '@mui/material/Tabs';
 import Tab from '@mui/material/Tab';
 import Snackbar from '@mui/material/Snackbar';
-import IconButton from '@mui/material/IconButton';
 import Collapse from '@mui/material/Collapse';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
@@ -31,8 +33,7 @@ export default function ThinkRuns() {
   const title = useMemo(() => sel ? `${sel.workflow} / ${sel.run_id}` : 'Select a run', [sel]);
   const [viewTab, setViewTab] = useState(0); // 0 = Visual, 1 = JSON
   const [copiedOpen, setCopiedOpen] = useState(false);
-  const [expandAllTick, setExpandAllTick] = useState(0);
-  const [collapseAllTick, setCollapseAllTick] = useState(0);
+  // Removed non-functional expand/collapse all controls to simplify UI
 
   function copyJson(txt: string) {
     try {
@@ -43,7 +44,7 @@ export default function ThinkRuns() {
     }
   }
 
-  function VisualNode({ name, value, depth = 0, expandAll, collapseAll }: { name?: string; value: any; depth?: number; expandAll?: number; collapseAll?: number }) {
+  function VisualNode({ name, value, depth = 0 }: { name?: string; value: any; depth?: number }) {
     const pad = depth * 12;
     const isArray = Array.isArray(value);
     const isObj = value && typeof value === 'object' && !isArray;
@@ -58,8 +59,6 @@ export default function ThinkRuns() {
       );
     }
     const [open, setOpen] = useState(false);
-    React.useEffect(() => { if (typeof expandAll === 'number') setOpen(true); }, [expandAll]);
-    React.useEffect(() => { if (typeof collapseAll === 'number') setOpen(false); }, [collapseAll]);
     const header = (
       <Stack direction="row" spacing={1} alignItems="center" sx={{ pl: pad/8, py: 0.25 }}>
         <IconButton size="small" onClick={() => setOpen(o => !o)} aria-label={open ? 'Collapse' : 'Expand'}>
@@ -78,10 +77,10 @@ export default function ThinkRuns() {
           <Box sx={{ borderLeft: '2px solid #eee', ml: 3 }}>
             {isArray
               ? (value as any[]).map((v: any, idx: number) => (
-                  <VisualNode key={idx} name={`#${idx}`} value={v} depth={depth + 1} expandAll={expandAll} collapseAll={collapseAll} />
+                  <VisualNode key={idx} name={`#${idx}`} value={v} depth={depth + 1} />
                 ))
               : Object.entries(value || {}).map(([k, v]) => (
-                  <VisualNode key={k} name={k} value={v} depth={depth + 1} expandAll={expandAll} collapseAll={collapseAll} />
+                  <VisualNode key={k} name={k} value={v} depth={depth + 1} />
                 ))}
           </Box>
         </Collapse>
@@ -123,12 +122,7 @@ export default function ThinkRuns() {
                 <Tab label="Visual" />
                 <Tab label="JSON" />
               </Tabs>
-              {viewTab === 0 && (
-                <Stack direction="row" spacing={1} sx={{ ml: 1 }}>
-                  <Button size="small" variant="outlined" onClick={() => setExpandAllTick(t => t + 1)}>Expand all</Button>
-                  <Button size="small" variant="outlined" onClick={() => setCollapseAllTick(t => t + 1)}>Collapse all</Button>
-                </Stack>
-              )}
+              {/* Removed Expand/Collapse All controls */}
               <Button size="small" color="error" disabled={!sel} onClick={del}>Delete</Button>
             </Stack>
           </Stack>
@@ -137,7 +131,7 @@ export default function ThinkRuns() {
           {viewTab === 0 && (
             <Box sx={{ mt: 1 }}>
               {run.data ? (
-                <VisualNode value={(run.data as any).state} expandAll={expandAllTick} collapseAll={collapseAllTick} />
+                <VisualNode value={(run.data as any).state} />
               ) : (
                 <Typography>Select a run to view state</Typography>
               )}
@@ -147,9 +141,13 @@ export default function ThinkRuns() {
             <Box sx={{ mt: 1 }}>
               <Stack direction="row" justifyContent="flex-end" sx={{ mb: 1 }}>
                 {run.data && (
-                  <Button size="small" onClick={() => copyJson(typeof (run.data as any).state === 'string' ? (run.data as any).state : JSON.stringify((run.data as any).state, null, 2))}>
-                    Copy JSON
-                  </Button>
+                  <Tooltip title="Copy JSON">
+                    <span>
+                      <IconButton size="small" onClick={() => copyJson(typeof (run.data as any).state === 'string' ? (run.data as any).state : JSON.stringify((run.data as any).state, null, 2))}>
+                        <ContentCopyIcon fontSize="small" />
+                      </IconButton>
+                    </span>
+                  </Tooltip>
                 )}
               </Stack>
               <Viewer

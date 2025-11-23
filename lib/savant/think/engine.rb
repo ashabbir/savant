@@ -56,9 +56,7 @@ module Savant
       end
 
       # Return current limits/configuration
-      def limits
-        @limits
-      end
+      attr_reader :limits
 
       # List saved workflow runs from .savant/state
       # @return [Hash] { runs: [ { workflow:, run_id:, completed:, next_step_id:, path:, updated_at: } ] }
@@ -280,6 +278,7 @@ module Savant
         yaml = File.join(dir, "#{id}.yaml")
         return yaml if File.exist?(yaml)
         return yml if File.exist?(yml)
+
         nil
       end
 

@@ -24,8 +24,7 @@ up:
 	@$(MAKE) dev
 	@$(MAKE) migrate
 	@$(MAKE) fts
-	@$(MAKE) repo-index-all
-	@echo ""
+	@$(MAKE) reindex-all
 	@echo "========================================="
 	@echo "  Stack is up, DB migrated, FTS ready."
 	@echo "  Repos indexed; UI:        http://localhost:9999/ui"

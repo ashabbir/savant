@@ -60,10 +60,10 @@ RSpec.describe 'Savant Think payload handling' do
                      'result_snapshot' => { 'version' => 'stable-2025-11', 'prompt_md' => '...' }
                    }, ctx: {})
     nxt2 = registrar.call('think.next', {
-                           'workflow' => 'review_v1', 'run_id' => 'test-run',
-                           'step_id' => '__driver_announce',
-                           'result_snapshot' => { 'ok' => true }
-                         }, ctx: {})
+                            'workflow' => 'review_v1', 'run_id' => 'test-run',
+                            'step_id' => '__driver_announce',
+                            'result_snapshot' => { 'ok' => true }
+                          }, ctx: {})
     expect(nxt2[:instruction][:step_id]).to eq('lint')
 
     # Build a non-UTF8 snapshot (binary string with invalid bytes)

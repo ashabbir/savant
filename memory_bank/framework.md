@@ -16,6 +16,32 @@
 
 ## Operational Guidance
 
+### Visual Overview
+```mermaid
+sequenceDiagram
+  participant UI as UI/Editor
+  participant Hub as HTTP Hub
+  participant SM as ServiceManager
+  participant Reg as Registrar+Middleware
+  participant Eng as Engine
+  participant DB as Postgres
+
+  UI->>Hub: GET /{engine}/tools
+  Hub->>SM: ensure_service
+  SM->>Reg: specs
+  Reg-->>Hub: tool list
+  Hub-->>UI: { tools: [...] }
+
+  UI->>Hub: POST /{engine}/tools/{name}/call { params }
+  Hub->>Reg: call(name, params, ctx)
+  Reg->>Eng: handler(ctx, args)
+  Eng->>DB: query/write (optional)
+  DB-->>Eng: rows/ok
+  Eng-->>Reg: result
+  Reg-->>Hub: result
+  Hub-->>UI: result
+```
+
 - Keep `memory_bank` entries concise and factual so downstream agents can quickly ingest architecture, engine behaviors, and workflows.
 - Reference `Savant::Logger.with_timing` when instrumenting long-running tasks to keep logs consistent.
 - Ensure Postgres migrations and FTS setup have run before indexing or serving context queries to avoid runtime errors.

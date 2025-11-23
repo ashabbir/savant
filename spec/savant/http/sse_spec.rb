@@ -17,8 +17,7 @@ RSpec.describe Savant::HTTP::SSE do
     body.each { |c| chunks << c }
     body.close if body.respond_to?(:close)
 
-    expect(chunks.join).to include("event: heartbeat")
-    expect(chunks.join).to include("data: {}")
+    expect(chunks.join).to include('event: heartbeat')
+    expect(chunks.join).to include('data: {}')
   end
 end
-
