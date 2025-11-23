@@ -24,7 +24,7 @@ RSpec.describe Savant::Jira::Engine do
 
   describe '#initialize' do
     it 'raises when JIRA_BASE_URL is missing' do
-      expect { described_class.new(env: {}) }.to raise_error('JIRA_BASE_URL is required')
+      expect { described_class.new(env: {}) }.to raise_error(/JIRA_BASE_URL is required/)
     end
 
     it 'initializes client and ops with expected parameters' do

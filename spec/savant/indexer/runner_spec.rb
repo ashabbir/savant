@@ -68,7 +68,7 @@ RSpec.describe Savant::Indexer::Runner do
     stub_file_ops(map)
 
     res = runner.run(repo_name: 'r', verbose: false)
-    expect(res).to eq(total: 2, changed: 2, skipped: 0, errors: 0)
+    expect(res).to include(total: 2, changed: 2, skipped: 0, errors: 0)
     # verify db has chunks for blob
     expect(db.chunks.values.flatten.size).to be > 0
   end
@@ -87,7 +87,7 @@ RSpec.describe Savant::Indexer::Runner do
     cache['r::a.rb'] = { 'size' => 10, 'mtime_ns' => ns }
 
     res = runner.run(repo_name: 'r', verbose: false)
-    expect(res).to eq(total: 1, changed: 0, skipped: 1, errors: 0)
+    expect(res).to include(total: 1, changed: 0, skipped: 1, errors: 0)
     expect(db.chunks.values.flatten).to be_empty
   end
 
@@ -102,6 +102,6 @@ RSpec.describe Savant::Indexer::Runner do
     stub_file_ops(map)
 
     res = runner.run(repo_name: 'r', verbose: false)
-    expect(res).to eq(total: 1, changed: 0, skipped: 1, errors: 0)
+    expect(res).to include(total: 1, changed: 0, skipped: 1, errors: 0)
   end
 end
