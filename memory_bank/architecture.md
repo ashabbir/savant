@@ -35,13 +35,13 @@
 ```mermaid
 flowchart LR
   subgraph Editor[Editor / CLI]
-    STDIO[MCP JSON-RPC (stdio)]
+    STDIO[MCP JSON-RPC stdio]
   end
-  subgraph UI[React UI (/ui)]
+  subgraph UI[React UI at /ui]
     HTTPREQ[HTTP JSON]
   end
 
-  STDIO -->|tools/list| MCP[MCP Server (Single Engine)]
+  STDIO -->|tools/list| MCP[MCP Server - Single Engine]
   STDIO -->|tools/call| MCP
   HTTPREQ --> HUB[HTTP Hub Router]
 
@@ -64,17 +64,17 @@ flowchart LR
 flowchart TD
   CFG[[settings.json]] --> SCAN[RepositoryScanner]
   SCAN -->|files| FILTER{Ignore / Hidden / Binary / Size / Unchanged}
-  FILTER -- skip --> SKIP[(Cache)]
+  FILTER -- skip --> SKIP[Cache]
   FILTER -- keep --> HASH[SHA-256]
   HASH --> DEDUPE{Blob exists?}
-  DEDUPE -- yes --> BLOB[(Blob id)]
-  DEDUPE -- no  --> NEWBLOB[(Create blob)]
-  BLOB --> CHUNK[Chunker (code/md)]
+  DEDUPE -- yes --> BLOB[Blob id]
+  DEDUPE -- no  --> NEWBLOB[Create blob]
+  BLOB --> CHUNK[Chunker code/md]
   NEWBLOB --> CHUNK
   CHUNK --> WRITE[(Write chunks)]
-  WRITE --> FILEMAP[(Upsert file + map file→blob)]
+  WRITE --> FILEMAP[Upsert file + map file→blob]
   FILEMAP --> CLEAN[(Cleanup missing files)]
-  CLEAN --> FTS[(GIN: to_tsvector(chunk_text))]
+  CLEAN --> FTS[GIN: to_tsvector chunk_text]
 
   classDef db fill:#dbeafe,stroke:#60a5fa
   class WRITE,FILEMAP,CLEAN,FTS db
@@ -158,10 +158,10 @@ flowchart LR
 ### Logs & Secrets
 ```mermaid
 flowchart LR
-  Hub[HTTP Hub] -->|per-engine logs| LOGS[/tmp/savant/<engine>.log]
-  MCP[MCP Stdio] -->|per-engine logs| LOGF[logs/<engine>.log]
+  Hub[HTTP Hub] -->|per-engine logs| LOGS["/tmp/savant/<engine>.log"]
+  MCP[MCP Stdio] -->|per-engine logs| LOGF["logs/<engine>.log"]
   Hub -->|diagnostics| DIAG{Build JSON}
-  DIAG -->|includes| MOUNTS[/app,/host mounts]
+  DIAG -->|includes| MOUNTS["/app,/host mounts"]
   DIAG -->|includes| SECRETS[[secrets.yml path only]]
   classDef logs fill:#f3e8ff,stroke:#8b5cf6
   class LOGS,LOGF logs
