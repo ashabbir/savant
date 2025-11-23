@@ -50,6 +50,7 @@ quickstart:
 	@echo "  Next steps before using search:"
 	@echo "    make repo-index-all      # index all repos"
 	@echo "    make repo-index-repo repo=<name>"
+	@echo "    make ui-build"	# to build the UI
 	@echo "-----------------------------------------"
 	@echo "  Start MCP servers manually when ready:"
 	@echo "    DATABASE_URL=postgres://context:contextpw@localhost:5433/contextdb \\"
