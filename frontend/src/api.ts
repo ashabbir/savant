@@ -383,6 +383,31 @@ export function useEngineTools(engine: string) {
   });
 }
 
+// PERSONAS engine API
+export type PersonaSummary = { name: string; title: string; version: string; summary: string; tags?: string[] };
+export type PersonasList = { personas: PersonaSummary[] };
+export function usePersonas(filter: string = '') {
+  return useQuery<PersonasList>({
+    queryKey: ['personas', 'list', filter],
+    queryFn: async () => {
+      const res = await client().post('/personas/tools/personas.list/call', { params: { filter: filter || undefined } });
+      return res.data as PersonasList;
+    }
+  });
+}
+
+export type Persona = { name: string; title: string; version: string; summary: string; tags?: string[]; prompt_md: string; notes?: string };
+export function usePersona(name: string | null) {
+  return useQuery<Persona>({
+    queryKey: ['personas', 'get', name],
+    queryFn: async () => {
+      const res = await client().post('/personas/tools/personas.get/call', { params: { name } });
+      return res.data as Persona;
+    },
+    enabled: !!name
+  });
+}
+
 // Hub stats for diagnostics
 export type RequestRecord = {
   id: number;
