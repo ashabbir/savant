@@ -116,6 +116,23 @@ export default function App() {
   const [open, setOpen] = useState(false);
   const theme = useMemo(() => createTheme({
     components: {
+      MuiButton: {
+        defaultProps: { size: 'small' },
+        styleOverrides: {
+          root: { fontSize: 12, textTransform: 'none', paddingTop: 6, paddingBottom: 6, paddingLeft: 12, paddingRight: 12, minHeight: 30 }
+        }
+      },
+      MuiIconButton: {
+        defaultProps: { size: 'small' },
+        styleOverrides: { root: { padding: 4 } }
+      },
+      MuiChip: {
+        defaultProps: { size: 'small' },
+        styleOverrides: {
+          root: { height: 22 },
+          label: { fontSize: 12, paddingLeft: 6, paddingRight: 6 }
+        }
+      },
       MuiTextField: {
         defaultProps: { size: 'small' }
       },
