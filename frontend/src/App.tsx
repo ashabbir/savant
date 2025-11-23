@@ -93,6 +93,7 @@ export default function App() {
 
   return (
     <ThemeProvider theme={theme}>
+      <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       <AppBar position="static" sx={{ background: 'linear-gradient(135deg, #1a237e 0%, #283593 100%)' }}>
         <Toolbar variant="dense">
           <Stack direction="row" spacing={1.5} alignItems="center" sx={{ flexGrow: 1 }}>
@@ -171,7 +172,7 @@ export default function App() {
           <Tab label="Runs" component={Link} to="/think/runs" />
         </Tabs>
       )}
-      <Container maxWidth="lg" sx={{ mt: 3, mb: 4 }}>
+      <Container maxWidth="lg" sx={{ mt: 3, mb: 4, flex: 1 }}>
         <Routes>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<Dashboard />} />
@@ -200,11 +201,13 @@ export default function App() {
         py: 0.5,
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'space-between'
+        justifyContent: 'space-between',
+        mt: 'auto'
       }}>
         <Typography variant="caption" sx={{ opacity: 0.9 }}>amdSh@2025</Typography>
         <Typography variant="caption" sx={{ opacity: 0.9 }}>{isDev ? 'DEV' : 'BUILD'}</Typography>
         <Typography variant="caption" sx={{ opacity: 0.9 }}>github.com/ashabbir</Typography>
+      </Box>
       </Box>
       <SettingsDialog open={open} onClose={() => setOpen(false)} />
       <Snackbar
