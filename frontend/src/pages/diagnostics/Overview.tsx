@@ -20,7 +20,7 @@ import StorageIcon from '@mui/icons-material/Storage';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import TimerIcon from '@mui/icons-material/Timer';
 import HttpIcon from '@mui/icons-material/Http';
-import { useHubInfo, useDiagnostics, useHubStats, testDbQuery, DbQueryTest, usePersonas } from '../../api';
+import { useHubInfo, useDiagnostics, useHubStats, testDbQuery, DbQueryTest, usePersonas, useRules } from '../../api';
 
 function formatEngineName(rawName: string): string {
   let clean = rawName
@@ -38,6 +38,7 @@ export default function DiagnosticsOverview() {
   const diag = useDiagnostics();
   const stats = useHubStats();
   const personasList = usePersonas('');
+  const rulesList = useRules('');
   const [queryText, setQueryText] = useState('function');
   const [queryResult, setQueryResult] = useState<DbQueryTest | null>(null);
   const [queryLoading, setQueryLoading] = useState(false);
@@ -209,6 +210,45 @@ export default function DiagnosticsOverview() {
                           : <Typography variant="caption" color="text.secondary">No recent persona loads</Typography>;
                       } catch {
                         return <Typography variant="caption" color="text.secondary">No recent persona loads</Typography>;
+                      }
+                    })()}
+                  </Stack>
+                </Box>
+              )}
+            </Paper>
+            {/* Rules */}
+            <Paper sx={{ p: 1.5 }}>
+              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>Rules</Typography>
+              <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                <Chip size="small" label={`Catalog: ${(rulesList.data?.rules?.length || 0)} entries`} variant="outlined" />
+                <Chip size="small" label={`Requests: ${(stats.data?.requests?.by_engine?.['rules'] || 0)}`} variant="outlined" />
+              </Stack>
+              {stats.data && (
+                <Box sx={{ mt: 1 }}>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                    Recent rules loads (last {stats.data.recent.length} reqs)
+                  </Typography>
+                  <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+                    {(() => {
+                      try {
+                        const counts: Record<string, number> = {};
+                        for (const r of stats.data.recent) {
+                          if (!r.path?.includes('/rules/tools/rules.get/call')) continue;
+                          const body = r.request_body || '';
+                          try {
+                            const json = JSON.parse(body);
+                            const nm = json?.params?.name || null;
+                            if (nm) counts[nm] = (counts[nm] || 0) + 1;
+                          } catch { /* ignore parse errors */ }
+                        }
+                        const rows = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 6);
+                        return rows.length > 0
+                          ? rows.map(([name, cnt]) => (
+                              <Chip key={name} size="small" label={`${name}: ${cnt}`} color="primary" variant="outlined" />
+                            ))
+                          : <Typography variant="caption" color="text.secondary">No recent rules loads</Typography>;
+                      } catch {
+                        return <Typography variant="caption" color="text.secondary">No recent rules loads</Typography>;
                       }
                     })()}
                   </Stack>

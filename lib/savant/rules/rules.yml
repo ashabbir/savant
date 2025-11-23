@@ -1,0 +1,31 @@
+---
+- name: code-review-rules
+  title: Code Review Rules
+  version: v1.0.0
+  summary: Practical guidelines for consistent, high-quality code review.
+  tags: ["review", "quality", "consistency"]
+  rules_md: |
+    # Code Review Rules
+    - Prefer small, focused diffs with clear commit messages.
+    - Identify root causes; avoid band-aid fixes.
+    - Keep style consistent with the codebase; avoid unrelated refactors.
+    - Ask clarifying questions; propose alternatives with concrete examples.
+    - Verify tests and linters; highlight missing cases.
+  notes: |
+    Use alongside Personas to drive behavior in agent flows.
+
+- name: backend-rules
+  title: Backend Rules
+  version: stable-2025-01
+  summary: Backend patterns, boundaries, and safety constraints.
+  tags: ["backend", "design", "safety"]
+  rules_md: |
+    # Backend Rules
+    - Separate transport, orchestration, domain, and IO layers.
+    - Prefer explicit contracts and typed boundaries.
+    - Log key events with stable fields; avoid PII.
+    - Fail fast; propagate context; provide actionable error messages.
+    - Guard writes with flags and validation; prefer idempotency.
+  notes: |
+    Extend with service-specific modules as needed.
+

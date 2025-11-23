@@ -408,6 +408,31 @@ export function usePersona(name: string | null) {
   });
 }
 
+// RULES engine API
+export type RuleSummary = { name: string; title: string; version: string; summary: string; tags?: string[] };
+export type RulesList = { rules: RuleSummary[] };
+export function useRules(filter: string = '') {
+  return useQuery<RulesList>({
+    queryKey: ['rules', 'list', filter],
+    queryFn: async () => {
+      const res = await client().post('/rules/tools/rules.list/call', { params: { filter: filter || undefined } });
+      return res.data as RulesList;
+    }
+  });
+}
+
+export type Rule = { name: string; title: string; version: string; summary: string; tags?: string[]; rules_md: string; notes?: string };
+export function useRule(name: string | null) {
+  return useQuery<Rule>({
+    queryKey: ['rules', 'get', name],
+    queryFn: async () => {
+      const res = await client().post('/rules/tools/rules.get/call', { params: { name } });
+      return res.data as Rule;
+    },
+    enabled: !!name
+  });
+}
+
 // Hub stats for diagnostics
 export type RequestRecord = {
   id: number;
