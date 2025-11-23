@@ -5,6 +5,8 @@ import Typography from '@mui/material/Typography';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
 import Button from '@mui/material/Button';
+import IconButton from '@mui/material/IconButton';
+import Tooltip from '@mui/material/Tooltip';
 import FormControl from '@mui/material/FormControl';
 import InputLabel from '@mui/material/InputLabel';
 import Select from '@mui/material/Select';
@@ -153,9 +155,13 @@ export default function DiagnosticsLogs() {
             Clear
           </Button>
 
-          <Button variant="outlined" color="inherit" startIcon={<ContentCopyIcon />} onClick={copyLogs} disabled={lines.length === 0}>
-            Copy
-          </Button>
+          <Tooltip title={lines.length === 0 ? 'No logs to copy' : 'Copy logs'}>
+            <span>
+              <IconButton color="inherit" onClick={copyLogs} disabled={lines.length === 0}>
+                <ContentCopyIcon />
+              </IconButton>
+            </span>
+          </Tooltip>
 
           {following && (
             <Chip label="LIVE" color="success" size="small" sx={{ animation: 'pulse 1s infinite' }} />

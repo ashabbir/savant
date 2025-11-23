@@ -13,6 +13,9 @@ import { getErrorMessage } from '../../api';
 import Box from '@mui/material/Box';
 import Stack from '@mui/material/Stack';
 import Button from '@mui/material/Button';
+import Tooltip from '@mui/material/Tooltip';
+import IconButton from '@mui/material/IconButton';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import Viewer from '../../components/Viewer';
 import Tabs from '@mui/material/Tabs';
 import Tab from '@mui/material/Tab';
@@ -139,9 +142,13 @@ export default function ThinkRuns() {
             <Box sx={{ mt: 1 }}>
               <Stack direction="row" justifyContent="flex-end" sx={{ mb: 1 }}>
                 {run.data && (
-                  <Button size="small" onClick={() => copyJson(typeof (run.data as any).state === 'string' ? (run.data as any).state : JSON.stringify((run.data as any).state, null, 2))}>
-                    Copy JSON
-                  </Button>
+                  <Tooltip title="Copy JSON">
+                    <span>
+                      <IconButton size="small" onClick={() => copyJson(typeof (run.data as any).state === 'string' ? (run.data as any).state : JSON.stringify((run.data as any).state, null, 2))}>
+                        <ContentCopyIcon fontSize="small" />
+                      </IconButton>
+                    </span>
+                  </Tooltip>
                 )}
               </Stack>
               <Viewer
