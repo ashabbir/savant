@@ -17,6 +17,8 @@
   - Dashboard: appears as a mounted engine card.
   - Rules Page (MVP): a minimal page to browse and view a rule set.
 - Docs: Engine README with stdio usage and explicit Hub mounting instructions (next task after MVP PRD).
+- update docker and make
+
 
 ## Out of Scope (MVP)
 - Web editor for rule authoring (manual YAML edits only).
