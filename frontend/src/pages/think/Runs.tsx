@@ -31,6 +31,8 @@ export default function ThinkRuns() {
   const title = useMemo(() => sel ? `${sel.workflow} / ${sel.run_id}` : 'Select a run', [sel]);
   const [viewTab, setViewTab] = useState(0); // 0 = Visual, 1 = JSON
   const [copiedOpen, setCopiedOpen] = useState(false);
+  const [expandAllTick, setExpandAllTick] = useState(0);
+  const [collapseAllTick, setCollapseAllTick] = useState(0);
 
   function copyJson(txt: string) {
     try {

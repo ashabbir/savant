@@ -24,6 +24,7 @@ module Savant
     # @param url [String] Postgres connection URL (uses `ENV['DATABASE_URL']`).
     def initialize(url = ENV.fetch('DATABASE_URL', nil))
       @url = url
+      @mutex = Mutex.new
       @conn = PG.connect(@url)
       configure_client_min_messages
     end
@@ -34,11 +35,15 @@ module Savant
     end
 
     def with_connection
-      ensure_connection!
-      yield @conn
+      @mutex.synchronize do
+        ensure_connection!
+        yield @conn
+      end
     rescue PG::UnableToSend, PG::ConnectionBad
-      reconnect!
-      yield @conn
+      @mutex.synchronize do
+        reconnect!
+        yield @conn
+      end
     end
 
     def exec(sql)

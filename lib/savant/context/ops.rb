@@ -70,9 +70,14 @@ module Savant
       # @return [Array<Hash>] { uri, mimeType, metadata }
       def resources_list(repo: nil)
         params = []
-        # Memory dir variants
+        # Memory dir variants - match both paths starting with memory dir and paths containing it
         mem_patterns = [
-          '%/memory/%', '%/memory_bank/%', '%/memory-bank/%', '%/memorybank/%', '%/memoryBank/%', '%/bank/%'
+          'memory/%', '%/memory/%',
+          'memory_bank/%', '%/memory_bank/%',
+          'memory-bank/%', '%/memory-bank/%',
+          'memorybank/%', '%/memorybank/%',
+          'memoryBank/%', '%/memoryBank/%',
+          'bank/%', '%/bank/%'
         ]
         # Build memory path clause with positional params
         mem_clause = '(' + mem_patterns.each_index.map { |i| "rel_path ILIKE $#{i + 1}" }.join(' OR ') + ')'
@@ -98,9 +103,13 @@ module Savant
           ORDER BY repo_name, rel_path
         SQL
         rows = @db.with_connection { |conn| conn.exec_params(sql, params) }
+        return [] if rows.nil?
+
         rows.map do |r|
-          repo_name = r['repo_name']
-          rel_path = r['rel_path']
+          repo_name = r['repo_name'] || ''
+          rel_path = r['rel_path'] || ''
+          next nil if rel_path.empty?
+
           uri = "repo://#{repo_name}/memory-bank/#{rel_path}"
           title = File.basename(rel_path, File.extname(rel_path))
           modified_at = begin
@@ -110,7 +119,7 @@ module Savant
           end
           { uri: uri, mimeType: 'text/markdown; charset=utf-8',
             metadata: { path: rel_path, title: title, modified_at: modified_at, source: 'memory_bank' } }
-        end
+        end.compact
       end
 
       # Read a memory_bank resource by a repo:// URI using DB to resolve repo roots.
