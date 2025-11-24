@@ -74,3 +74,26 @@ Add a centralized JSON-RPC MCP adapter inside the hub so **one HTTP endpoint** n
 - **Protocol Drift**: MCP spec may evolve. Mitigation: encapsulate protocol constants/types in one module so updates are centralized.
 
 Delivering this adapter lets developers configure Codex once (HTTP transport) instead of juggling multiple stdio servers, making Savant’s multi-engine hub truly plug-and-play for MCP clients.
+
+---
+
+## Agent Implementation Plan
+
+1. Add `Savant::MCP::HttpAdapter` (initialize, tools/list, tools/call, ping).
+2. Wire Hub routes: `POST /mcp/:engine`, `POST /:engine/mcp`, and `POST /mcp` (engine in params).
+3. Reuse `ServiceManager` for engine-agnostic dispatch; include user_id in ctx.
+4. Basic specs with `Rack::MockRequest` for handshake and tool calls.
+5. Docker validate: start Hub, curl initialize/tools/list/tools/call.
+6. Update Codex config to point to `http://localhost:9999/mcp/context` with header.
+7. Add Make target `mcp-http-test` for quick HTTP MCP checks.
+
+Status
+- 1–3: Implemented.
+- 4: Implemented basic adapter spec.
+- 5: Validated against running Hub (Docker).
+- 6: Updated local Codex config.
+- 7: Added in Makefile.
+
+Next
+- Optional: Add SSE streaming notifications for incremental output.
+- Optional: Session cache for capabilities across requests.

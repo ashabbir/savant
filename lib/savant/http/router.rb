@@ -51,6 +51,7 @@ module Savant
         list << { module: 'hub', method: 'GET', path: '/', description: 'Hub dashboard' }
         list << { module: 'hub', method: 'GET', path: '/diagnostics', description: 'Env, mounts, repos visibility, DB checks' }
         list << { module: 'hub', method: 'GET', path: '/routes', description: 'Routes list (add ?expand=1 to include tool calls)' }
+        list << { module: 'hub', method: 'POST', path: '/mcp', description: 'MCP JSON-RPC endpoint (engine in params)' }
         list << { module: 'hub', method: 'POST', path: '/mcp/:engine', description: 'MCP JSON-RPC endpoint (initialize, tools/list, tools/call)' }
 
         mounts.keys.sort.each do |engine_name|
@@ -173,6 +174,11 @@ module Savant
         return hub_root(req) if req.get? && req.path_info == '/'
         return hub_routes(req) if req.get? && req.path_info == '/routes'
         return diagnostics(req) if req.get? && req.path_info == '/diagnostics'
+
+        # Global MCP root: /mcp with engine specified in JSON payload (params.engine)
+        if req.request_method == 'POST' && req.path_info == '/mcp'
+          return handle_mcp_root_post(req)
+        end
 
         # Engine scoped routes: /:engine/...
         segments = req.path_info.split('/').reject(&:empty?)
@@ -578,6 +584,32 @@ module Savant
           end
         end
         respond(status, payload)
+      end
+
+      def handle_mcp_root_post(req)
+        raw = begin
+          req.body.rewind if req.body.respond_to?(:rewind)
+          r = req.body.read.to_s
+          req.body.rewind if req.body.respond_to?(:rewind)
+          r
+        rescue StandardError
+          ''
+        end
+        begin
+          data = JSON.parse(raw)
+        rescue StandardError
+          return respond(400, { jsonrpc: '2.0', id: nil, result: nil, error: { code: -32_700, message: 'Parse error' } })
+        end
+        engine = nil
+        engine = data['engine'] if data.is_a?(Hash)
+        engine ||= (data['params']['engine'] if data.is_a?(Hash) && data['params'].is_a?(Hash))
+        return respond(400, { jsonrpc: '2.0', id: data.is_a?(Hash) ? data['id'] : nil, result: nil, error: { code: -32_600, message: 'Invalid Request: missing engine' } }) if engine.to_s.empty?
+
+        manager = mounts[engine]
+        return not_found unless manager
+
+        # Reuse the existing MCP handler for known engine
+        handle_mcp_post(req, engine, manager)
       end
 
       def sse_headers

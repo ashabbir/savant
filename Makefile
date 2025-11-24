@@ -168,6 +168,23 @@ demo-run:
 demo-call:
 	@ruby ./bin/savant call 'demo/hello' --service=demo --input='{"name":"dev"}'
 
+.PHONY: mcp-http-test
+# Usage: make mcp-http-test engine=context
+mcp-http-test:
+	@engine=$${engine:-context}; \
+	echo "[HTTP MCP] initialize -> /mcp/$$engine"; \
+	curl -s -X POST -H 'content-type: application/json' -H 'x-savant-user-id: amd' \
+	  http://localhost:9999/mcp/$$engine \
+	  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' | sed -n '1,4p'; \
+	echo "[HTTP MCP] tools/list -> /mcp/$$engine"; \
+	curl -s -X POST -H 'content-type: application/json' -H 'x-savant-user-id: amd' \
+	  http://localhost:9999/mcp/$$engine \
+	  -d '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' | sed -n '1,6p'; \
+	echo "[HTTP MCP] ping -> /$$engine/mcp"; \
+	curl -s -X POST -H 'content-type: application/json' -H 'x-savant-user-id: amd' \
+	  http://localhost:9999/$$engine/mcp \
+	  -d '{"jsonrpc":"2.0","id":3,"method":"ping"}' | sed -n '1,2p'
+
 # Run Hub locally (no Docker)
 hub-local:
 	@SAVANT_PATH=$(PWD) $(HOME)/.rbenv/shims/bundle exec ruby ./bin/savant hub
