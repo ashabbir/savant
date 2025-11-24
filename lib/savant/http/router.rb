@@ -53,6 +53,7 @@ module Savant
         list << { module: 'hub', method: 'GET', path: '/routes', description: 'Routes list (add ?expand=1 to include tool calls)' }
         list << { module: 'hub', method: 'POST', path: '/mcp', description: 'MCP JSON-RPC endpoint (engine in params)' }
         list << { module: 'hub', method: 'POST', path: '/mcp/:engine', description: 'MCP JSON-RPC endpoint (initialize, tools/list, tools/call)' }
+        list << { module: 'hub', method: 'GET', path: '/mcp/:engine/stream', description: 'SSE stream for MCP JSON-RPC (?request=JSON)'}
 
         mounts.keys.sort.each do |engine_name|
           base = "/#{engine_name}"
@@ -61,6 +62,7 @@ module Savant
           list << { module: engine_name, method: 'GET', path: "#{base}/logs", description: 'Tail last N lines as JSON (?n=100)' }
           list << { module: engine_name, method: 'GET', path: "#{base}/logs?stream=1", description: 'Stream logs via SSE (?n=100, &once=1)' }
           list << { module: engine_name, method: 'GET', path: "#{base}/stream", description: 'SSE heartbeat' }
+          list << { module: engine_name, method: 'GET', path: "#{base}/mcp/stream", description: 'SSE stream for MCP JSON-RPC (?request=JSON)'}
 
           next unless expand_tools
 
@@ -193,6 +195,13 @@ module Savant
           target_engine = segments[1]
           manager = mounts[target_engine]
           return not_found unless manager
+          # GET /mcp/:engine/stream?request=...
+          if req.request_method == 'GET' && segments[2] == 'stream'
+            request_param = (req.params['request'] || '').to_s
+            return respond(400, { error: 'missing request' }) if request_param.empty?
+
+            return sse_mcp(req, target_engine, manager, request_param)
+          end
           return handle_mcp_post(req, target_engine, manager) if req.request_method == 'POST'
 
           return not_found
@@ -262,6 +271,10 @@ module Savant
           tools = safe_specs(manager)
           normalized = tools.map { |t| normalize_tool_spec(t) }
           respond(200, { engine: engine_name, tools: normalized })
+        when ['mcp', 'stream']
+          req_str = (req.params['request'] || '').to_s
+          return respond(400, { error: 'missing request' }) if req_str.empty?
+          sse_mcp(req, engine_name, manager, req_str)
         when *rest
           # Stream tool call via SSE: /:engine/tools/:name/stream
           if rest.length >= 3 && rest[0] == 'tools' && rest[-1] == 'stream'
@@ -610,6 +623,61 @@ module Savant
 
         # Reuse the existing MCP handler for known engine
         handle_mcp_post(req, engine, manager)
+      end
+
+      def sse_mcp(req, engine_name, manager, request_json)
+        user_id = req.env['savant.user_id']
+        require_relative '../mcp/http_adapter'
+        adapter = Savant::MCP::HttpAdapter.new(manager: manager, engine_name: engine_name, user_id: user_id)
+
+        body = Enumerator.new do |y|
+          begin
+            # Emit start
+            y << format_sse_event('start', { engine: engine_name })
+            parsed = JSON.parse(request_json) rescue {}
+            req_method = parsed.is_a?(Hash) ? parsed['method'] : nil
+            req_params = parsed.is_a?(Hash) ? (parsed['params'] || {}) : {}
+            if req_method == 'tools/call'
+              y << format_sse_event('agent_message', { type: 'text', text: "calling #{req_params['name']}..." })
+            end
+            # Invoke adapter synchronously
+            payload = adapter.handle(request_json)
+            # If this is a tools/call with content, stream messages first
+            begin
+              method = req_method
+              if method == 'tools/call' && payload.is_a?(Hash) && payload['result'].is_a?(Hash)
+                content = payload['result']['content'] || []
+                streamed_any = false
+                content.each do |c|
+                  if c.is_a?(Hash) && c['type'] == 'text' && c['text']
+                    # Split into reasonable chunks to simulate streaming
+                    c['text'].to_s.split(/\n/).each do |line|
+                      next if line.to_s.empty?
+                      y << format_sse_event('agent_message', { type: 'text', text: line })
+                      streamed_any = true
+                    end
+                  end
+                end
+                # Fallback synthesized message if nothing streamed
+                unless streamed_any
+                  preview = payload['result']['content']&.first&.fetch('text', nil)
+                  preview &&= preview.to_s[0, 240]
+                  y << format_sse_event('agent_message', { type: 'text', text: (preview || 'done') })
+                end
+              end
+            rescue StandardError
+              # If anything goes wrong in streaming content, fall back to final result only
+            end
+
+            # Emit final result and done
+            y << format_sse_event('result', payload)
+            y << format_sse_event('done', {})
+          rescue StandardError => e
+            y << format_sse_event('error', { message: e.message })
+          end
+        end
+
+        [200, sse_headers, body]
       end
 
       def sse_headers

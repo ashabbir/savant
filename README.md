@@ -49,6 +49,69 @@ MCP_SERVICE=think   SAVANT_PATH=$(pwd) bundle exec ruby ./bin/mcp_server
 MCP_SERVICE=personas SAVANT_PATH=$(pwd) bundle exec ruby ./bin/mcp_server
 ```
 
+### HTTP MCP via Hub
+
+Run the Hub (Docker):
+
+```
+docker compose up -d hub
+```
+
+Configure Codex (or any MCP HTTP client) to point at a single MCP endpoint per engine. Example `~/.codex/config.toml`:
+
+```
+[mcp_servers.savant_context]
+transport = "http"
+url = "http://localhost:9999/mcp/context"
+
+[mcp_servers.savant_context.headers]
+x-savant-user-id = "amd"
+```
+
+You can also target the engine-agnostic root endpoint by specifying `engine` in the payload:
+
+```
+POST http://localhost:9999/mcp
+{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{"engine":"context"}}
+```
+
+Quick cURL checks:
+
+```
+# Initialize
+curl -s -X POST -H 'content-type: application/json' -H 'x-savant-user-id: amd' \
+  http://localhost:9999/mcp/context \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize"}'
+
+# List tools
+curl -s -X POST -H 'content-type: application/json' -H 'x-savant-user-id: amd' \
+  http://localhost:9999/mcp/context \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/list"}'
+
+# Call a tool
+curl -s -X POST -H 'content-type: application/json' -H 'x-savant-user-id: amd' \
+  http://localhost:9999/mcp/context \
+  -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"fts/search","arguments":{"q":"User"}}}'
+```
+
+### Streaming (SSE)
+
+For incremental messages, use Server-Sent Events variants. Provide a JSON-RPC request via `?request=` (URL-encoded JSON):
+
+```
+# Stream over /mcp/:engine/stream
+curl -N "http://localhost:9999/mcp/context/stream?request=$(python3 -c 'import json,urllib.parse;print(urllib.parse.quote(json.dumps({"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"fts/search","arguments":{"q":"User"}}})))')" \
+  -H 'x-savant-user-id: amd'
+
+# Alternate path (per-engine)
+curl -N "http://localhost:9999/context/mcp/stream?request=$(python3 -c 'import json,urllib.parse;print(urllib.parse.quote(json.dumps({"jsonrpc":"2.0","id":10,"method":"tools/call","params":{"name":"fts/search","arguments":{"q":"User"}}})))')" \
+  -H 'x-savant-user-id: amd'
+```
+
+Notes:
+- Engines are synchronous today; the Hub synthesizes minimal `agent_message` events by chunking text content, followed by a final `result` and `done`.
+- Always include `x-savant-user-id` to enable per-user context.
+
 ## Framework (Overview)
 
 ```mermaid
