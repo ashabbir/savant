@@ -51,6 +51,7 @@ module Savant
         list << { module: 'hub', method: 'GET', path: '/', description: 'Hub dashboard' }
         list << { module: 'hub', method: 'GET', path: '/diagnostics', description: 'Env, mounts, repos visibility, DB checks' }
         list << { module: 'hub', method: 'GET', path: '/routes', description: 'Routes list (add ?expand=1 to include tool calls)' }
+        list << { module: 'hub', method: 'POST', path: '/mcp/:engine', description: 'MCP JSON-RPC endpoint (initialize, tools/list, tools/call)' }
 
         mounts.keys.sort.each do |engine_name|
           base = "/#{engine_name}"
@@ -179,6 +180,18 @@ module Savant
 
         engine_name = segments[0]
 
+        # Global MCP adapter: /mcp/:engine
+        if engine_name == 'mcp'
+          return not_found unless segments.size >= 2
+
+          target_engine = segments[1]
+          manager = mounts[target_engine]
+          return not_found unless manager
+          return handle_mcp_post(req, target_engine, manager) if req.request_method == 'POST'
+
+          return not_found
+        end
+
         # Special handling for /hub/logs
         if engine_name == 'hub'
           return handle_hub_get(req, segments[1..]) if req.request_method == 'GET'
@@ -282,6 +295,9 @@ module Savant
           params = payload.is_a?(Hash) ? (payload['params'] || {}) : {}
           result = call_with_user_context(manager, engine_name, tool, params, req.env['savant.user_id'])
           respond(200, result)
+        elsif rest.length == 1 && rest[0] == 'mcp'
+          # Alternate MCP path: /:engine/mcp
+          handle_mcp_post(req, engine_name, manager)
         else
           not_found
         end
@@ -526,6 +542,42 @@ module Savant
           logger&.error(event: 'tool.call error', name: tool, message: e.message)
           raise
         end
+      end
+
+      def handle_mcp_post(req, engine_name, manager)
+        # Build logger targeting engine log file
+        logger = nil
+        begin
+          path = log_path(engine_name)
+          require_relative '../logger'
+          logger = Savant::Logger.new(io: $stdout, file_path: path, json: true, service: engine_name)
+        rescue StandardError
+          logger = nil
+        end
+
+        raw = begin
+          req.body.rewind if req.body.respond_to?(:rewind)
+          r = req.body.read.to_s
+          req.body.rewind if req.body.respond_to?(:rewind)
+          r
+        rescue StandardError
+          ''
+        end
+
+        require_relative '../mcp/http_adapter'
+        adapter = Savant::MCP::HttpAdapter.new(manager: manager, engine_name: engine_name, user_id: req.env['savant.user_id'], logger: logger)
+        payload = adapter.handle(raw)
+        status = payload && payload['error'] && payload['error']['code'] == -32_700 ? 400 : 200
+        # Map known error codes to HTTP statuses
+        if payload && payload['error']
+          case payload['error']['code']
+          when -32_700 then status = 400 # parse error
+          when -32_600 then status = 400 # invalid request
+          when -32_601 then status = 404 # method not found / unknown
+          when -32_000 then status = 500 # internal error
+          end
+        end
+        respond(status, payload)
       end
 
       def sse_headers
