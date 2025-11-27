@@ -15,6 +15,8 @@ import ThinkWorkflows from './pages/think/Workflows';
 import ThinkPrompts from './pages/think/Prompts';
 import ThinkRuns from './pages/think/Runs';
 import Personas from './pages/personas/Personas';
+import WorkflowsList from './pages/workflows/List';
+import WorkflowEditor from './pages/workflows/Editor';
 import RulesPage from './pages/rules/Rules';
 import JiraTools from './pages/jira/Tools';
 import ContextTools from './pages/context/Tools';
@@ -88,6 +90,7 @@ function useEngineSubIndex(engineName: string | undefined) {
 function defaultEngineRoute(name: string): string {
   if (name === 'context') return '/engines/context/resources';
   if (name === 'think') return '/engines/think/workflows';
+  if (name === 'workflows') return '/engines/workflows';
   if (name === 'jira') return '/engines/jira/tools';
   if (name === 'personas') return '/engines/personas';
   if (name === 'rules') return '/engines/rules';
@@ -369,6 +372,10 @@ export default function App() {
 
           <Route path="/engines/personas" element={<Personas />} />
           <Route path="/engines/rules" element={<RulesPage />} />
+          {/* Workflows engine */}
+          <Route path="/engines/workflows" element={<WorkflowsList />} />
+          <Route path="/engines/workflows/new" element={<WorkflowEditor />} />
+          <Route path="/engines/workflows/edit/:id" element={<WorkflowEditor />} />
           {/* Legacy shortcuts */}
           <Route path="/rules" element={<RulesPage />} />
           <Route path="/engines/rules" element={<RulesPage />} />

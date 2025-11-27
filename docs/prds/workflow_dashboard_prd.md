@@ -265,3 +265,35 @@ Every PUT/POST triggers a reload signal to the Workflow MCP engine.
 This PRD enables a production‑grade workflow editor inside Savant Dashboard, giving full power to manage all workflows visually while keeping the underlying workflow engine untouched.
 
 This is a clean, robust, maintainable extension that fits perfectly into Savant's architecture.
+
+---
+
+## Agent Implementation Plan
+
+1. Backend engine (Ruby)
+   - Add `lib/savant/workflows/engine.rb` for CRUD and YAML↔Graph conversion per PRD.
+   - Add `lib/savant/workflows/tools.rb` registrar exposing:
+     - `workflows.list`, `workflows.read` (YAML + derived graph), `workflows.create`, `workflows.update`, `workflows.delete`, `workflows.validate`.
+   - Persist to `$SAVANT_PATH/workflows/<id>.yaml` with timestamped backups on save.
+   - Enforce validation rules (unique ids, required fields, connectivity, no cycles).
+   - Wire mount in `config/mounts.yml` at `/workflows`.
+
+2. Frontend (React)
+   - Install `reactflow` and build Workflow List and Editor pages:
+     - List: table with ID, Title, Updated, actions (Create, Edit, Delete).
+     - Editor: React Flow canvas, node palette (Tool, LLM, Return), properties panel, and top bar (Save, Preview YAML, Validate).
+   - Add API bindings in `frontend/src/api.ts` to call `/workflows/tools/*/call` methods.
+   - Route entries in `App.tsx` and nav link under Think/Engines.
+
+3. YAML↔Graph
+   - Graph schema: `{ nodes: [{ id, type, data }], edges: [{ source, target }] }`.
+   - YAML generation preserves PRD format and step ordering by edges; fails on invalid graphs.
+   - YAML parse builds nodes and edges in display order.
+
+4. Tests
+   - RSpec: engine validation and graph round‑trip (graph→yaml→graph) and CRUD to temp dir.
+
+5. Quality & Run
+   - Run RuboCop auto‑correct; fix remaining offenses.
+   - Run RSpec.
+   - Build frontend to `public/ui` and verify basic workflows page loads.
