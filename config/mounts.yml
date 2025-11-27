@@ -9,3 +9,5 @@ mounts:
     path: "/rules"
   - engine: "jira"
     path: "/jira"
+  - engine: "workflows"
+    path: "/workflows"
