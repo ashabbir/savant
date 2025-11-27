@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useThinkWorkflows, useThinkWorkflowRead } from '../../api';
+import { useNavigate } from 'react-router-dom';
 import Box from '@mui/material/Box';
 import Grid from '@mui/material/Grid2';
 import Tabs from '@mui/material/Tabs';
@@ -40,6 +41,7 @@ async function getMermaid() {
 }
 
 export default function ThinkWorkflows() {
+  const navigate = useNavigate();
   const { data, isLoading, isError, error } = useThinkWorkflows();
   const [sel, setSel] = useState<string | null>(null);
   const wfRead = useThinkWorkflowRead(sel);
@@ -97,13 +99,16 @@ export default function ThinkWorkflows() {
     <Grid container spacing={2}>
       <Grid size={{ xs: 12, md: 4 }}>
         <Paper sx={{ p: 1 }}>
-          <Typography variant="subtitle1" sx={{ px: 1, py: 1 }}>Workflows</Typography>
+          <Stack direction="row" alignItems="center" justifyContent="space-between">
+            <Typography variant="subtitle1" sx={{ px: 1, py: 1 }}>Workflows</Typography>
+            <Button size="small" variant="contained" onClick={() => navigate('/engines/think/workflows/new')}>Create</Button>
+          </Stack>
           {isLoading && <LinearProgress />}
           {isError && <Alert severity="error">{getErrorMessage(error as any)}</Alert>}
           <List dense>
             {(data?.workflows || []).map(w => (
               <ListItem key={w.id} disablePadding>
-                <ListItemButton selected={sel === w.id} onClick={() => setSel(w.id)}>
+                <ListItemButton selected={sel === w.id} onClick={() => setSel(w.id)} onDoubleClick={()=>navigate(`/engines/think/workflows/edit/${w.id}`)}>
                   <ListItemText primary={w.id} secondary={`${w.version} — ${w.desc || ''}`} />
                 </ListItemButton>
               </ListItem>

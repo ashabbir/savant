@@ -107,6 +107,64 @@ module Savant
         { nodes: nodes, order: topo_order(g) }
       end
 
+      # Validate a workflow graph for Think format
+      # @param graph [Hash] { nodes: [ { id:, call:, deps?:[], input_template?:{}, capture_as?:string } ], edges?: [ { source:, target: } ] }
+      # Returns { ok:, errors: [] }
+      def workflows_validate_graph(graph:)
+        errs = validate_think_graph(graph)
+        { ok: errs.empty?, errors: errs }
+      end
+
+      # Create a workflow from a Think graph
+      def workflows_create_from_graph(workflow:, graph:)
+        id = normalize_workflow_id(workflow)
+        raise 'INVALID_ID' if id.nil? || id.empty?
+
+        path = workflow_path_for(id)
+        raise 'ALREADY_EXISTS' if File.exist?(path)
+
+        yaml = think_graph_to_yaml(id: id, graph: graph)
+        write_yaml_with_backup(path, yaml)
+        { ok: true, id: id }
+      end
+
+      # Update existing workflow from graph
+      def workflows_update_from_graph(workflow:, graph:)
+        id = normalize_workflow_id(workflow)
+        raise 'INVALID_ID' if id.nil? || id.empty?
+
+        path = workflow_path_for(id)
+        raise 'WORKFLOW_NOT_FOUND' unless File.exist?(path)
+
+        yaml = think_graph_to_yaml(id: id, graph: graph)
+        write_yaml_with_backup(path, yaml)
+        { ok: true, id: id }
+      end
+
+      # Write raw YAML for a workflow (full replacement)
+      def workflows_write_yaml(workflow:, yaml:)
+        id = normalize_workflow_id(workflow)
+        raise 'INVALID_ID' if id.nil? || id.empty?
+
+        path = workflow_path_for(id)
+        raise 'WORKFLOW_NOT_FOUND' unless File.exist?(path)
+
+        # Basic sanity check parse
+        _h = safe_yaml(yaml.to_s)
+        write_yaml_with_backup(path, yaml.to_s)
+        { ok: true, id: id }
+      end
+
+      # Delete a workflow YAML
+      def workflows_delete(workflow:)
+        id = normalize_workflow_id(workflow)
+        path = resolve_workflow_path(id)
+        raise 'WORKFLOW_NOT_FOUND' unless path
+
+        FileUtils.rm_f(path)
+        { ok: true, deleted: true }
+      end
+
       def guess_workflow_from_filename(filename)
         base = File.basename(filename, '.json')
         wf, _rid = base.split('__', 2)
@@ -282,6 +340,23 @@ module Savant
         nil
       end
 
+      def workflows_dir
+        File.join(@root, 'workflows')
+      end
+
+      def workflow_path_for(id)
+        File.join(workflows_dir, "#{id}.yaml")
+      end
+
+      def normalize_workflow_id(id)
+        return nil if id.nil?
+
+        s = id.to_s.strip
+        return '' if s.empty?
+
+        s.gsub(/[^A-Za-z0-9_.-]/, '_')
+      end
+
       def inject_driver_step(workflow_hash, version)
         driver_step = {
           'id' => '__driver_bootstrap',
@@ -324,6 +399,118 @@ module Savant
           g[s['id']] = deps.select { |d| ids.include?(d) }
         end
         g
+      end
+
+      # Convert Think graph to YAML
+      def think_graph_to_yaml(id:, graph:)
+        errs = validate_think_graph(graph)
+        raise "VALIDATION_FAILED: #{errs.join('; ')}" unless errs.empty?
+
+        # Build deps from edges if provided; otherwise rely on nodes.deps
+        nodes = Array(graph['nodes']).map { |n| { 'id' => n['id'].to_s, 'call' => n['call'].to_s, 'deps' => Array(n['deps']).map(&:to_s), 'input_template' => n['input_template'], 'capture_as' => n['capture_as'] } }
+        edges = Array(graph['edges']).map { |e| [e['source'].to_s, e['target'].to_s] }
+        if edges.any?
+          indeg = Hash.new(0)
+          deps = Hash.new { |h, k| h[k] = [] }
+          nodes.each { |n| indeg[n['id']] = 0 }
+          edges.each do |(u, v)|
+            next unless indeg.key?(u) && indeg.key?(v)
+
+            deps[v] << u unless deps[v].include?(u)
+            indeg[v] += 1
+          end
+          nodes.each { |n| n['deps'] = deps[n['id']] }
+        end
+
+        steps = nodes.map do |n|
+          h = { 'id' => n['id'], 'call' => n['call'] }
+          d = Array(n['deps']).map(&:to_s)
+          h['deps'] = d unless d.empty?
+          it = n['input_template']
+          h['input_template'] = it if it.is_a?(Hash) && !it.empty?
+          cap = n['capture_as']
+          h['capture_as'] = cap if cap.is_a?(String) && !cap.empty?
+          h
+        end
+        YAML.dump({ 'id' => id, 'title' => id, 'description' => '', 'steps' => steps })
+      end
+
+      # Validate Think graph semantics
+      def validate_think_graph(graph)
+        errs = []
+        nodes = Array(graph['nodes'])
+        errs << 'no nodes' if nodes.empty?
+        ids = nodes.map { |n| (n['id'] || '').to_s }
+        errs << 'node id missing' if ids.any?(&:empty?)
+        dups = ids.group_by { |x| x }.select { |_k, v| v.size > 1 }.keys
+        errs << "duplicate ids: #{dups.join(', ')}" unless dups.empty?
+        nodes.each do |n|
+          call = (n['call'] || '').to_s
+          errs << "call missing for #{n['id'] || ''}" if call.empty?
+        end
+        # Graph connectivity/cycle checks use edges if present, else deps
+        edges = Array(graph['edges']).map { |e| [e['source'].to_s, e['target'].to_s] }
+        adj = Hash.new { |h, k| h[k] = [] }
+        indeg = Hash.new(0)
+        ids.each { |i| indeg[i] = 0 }
+        if edges.any?
+          edges.each do |(u, v)|
+            next unless indeg.key?(u) && indeg.key?(v)
+
+            adj[u] << v
+            indeg[v] += 1
+          end
+        else
+          nodes.each do |n|
+            Array(n['deps']).each do |dep|
+              d = dep.to_s
+              next unless indeg.key?(d)
+
+              adj[d] << n['id']
+              indeg[n['id']] += 1
+            end
+          end
+        end
+        starts = ids.select { |i| indeg[i].zero? }
+        errs << 'graph must have at least one start node' if starts.empty?
+        # Reachability
+        reachable = {}
+        stack = starts.dup
+        until stack.empty?
+          cur = stack.pop
+          next if reachable[cur]
+
+          reachable[cur] = true
+          (adj[cur] || []).each { |n| stack << n }
+        end
+        unreachable = ids.reject { |i| reachable[i] }
+        errs << "unreachable nodes: #{unreachable.join(', ')}" unless unreachable.empty?
+        # Cycle check (Kahn)
+        indeg2 = indeg.dup
+        q = ids.select { |i| indeg2[i].zero? }
+        count = 0
+        until q.empty?
+          u = q.shift
+          count += 1
+          (adj[u] || []).each do |v|
+            indeg2[v] -= 1
+            q << v if indeg2[v].zero?
+          end
+        end
+        errs << 'cycles not allowed' unless count == ids.length
+        errs
+      end
+
+      def write_yaml_with_backup(path, yaml_text)
+        dir = File.dirname(path)
+        FileUtils.mkdir_p(dir) unless Dir.exist?(dir)
+        if File.exist?(path)
+          ts = Time.now.utc.strftime('%Y%m%d%H%M%S')
+          FileUtils.cp(path, "#{path}.bak#{ts}")
+        end
+        tmp = "#{path}.tmp"
+        File.open(tmp, 'w:UTF-8') { |f| f.write(yaml_text) }
+        FileUtils.mv(tmp, path)
       end
 
       # Topological order using Kahn's algorithm
