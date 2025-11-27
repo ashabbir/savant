@@ -555,7 +555,7 @@ module Savant
           tools_mod = mod.const_get(:Tools)
           reg = tools_mod.build_registrar(nil)
           reg.specs
-        rescue StandardError
+        rescue Exception
           []
         end
       end
