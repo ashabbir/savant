@@ -88,6 +88,15 @@ Creates `lib/savant/<name>/{engine.rb,tools.rb}` and a baseline spec. Then run w
 - New: React UI under `/ui` (or dev at 5173) with three-tier tabs — Dashboard, Engines (per-engine tabs), Diagnostics (Overview/Requests/Logs). Footer shows Dev-Mode/Build-Mode.
 - Diagnostics → Logs includes a log-level dropdown (All/Debug/Info/Warn/Error) that streams only the selected levels directly from the hub for accurate filtering and copy/export.
 
+## Diagnostics & Logs
+
+- Aggregated logs (JSON events): `GET /logs?n=100[&mcp=context][&type=http_request]`
+- Live event stream (SSE): `GET /logs/stream[?mcp=context][&type=tool_call_started]`
+- Per-engine logs (file tail): `GET /:engine/logs?n=100` or stream with `?stream=1`
+- Hub request stats: `GET /hub/stats`
+- Connections list: `GET /diagnostics/connections`
+- Per-engine diagnostics: `GET /diagnostics/mcp/:name`
+
 ## Memory Bank (Detailed Docs)
 
 All detailed docs (with Mermaid diagrams) live under `memory_bank/`. Use the table above (and the direct links below) to jump into the source of truth:
