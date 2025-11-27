@@ -89,7 +89,6 @@ function useEngineSubIndex(engineName: string | undefined) {
 function defaultEngineRoute(name: string): string {
   if (name === 'context') return '/engines/context/resources';
   if (name === 'think') return '/engines/think/workflows';
-  if (name === 'workflows') return '/engines/workflows';
   if (name === 'jira') return '/engines/jira/tools';
   if (name === 'personas') return '/engines/personas';
   if (name === 'rules') return '/engines/rules';
