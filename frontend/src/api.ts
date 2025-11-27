@@ -306,51 +306,6 @@ export function useThinkLimits() {
   });
 }
 
-// WORKFLOWS engine API (Dashboard Workflow Builder)
-export type WorkflowMeta = { id: string; title: string; mtime: string };
-export type WorkflowsList = { workflows: WorkflowMeta[] };
-export function useWorkflows() {
-  return useQuery<WorkflowsList>({
-    queryKey: ['workflows', 'list'],
-    queryFn: async () => {
-      const res = await client().post('/workflows/tools/workflows.list/call', { params: {} });
-      return res.data as WorkflowsList;
-    }
-  });
-}
-
-export type WorkflowGraph = { nodes: any[]; edges: any[] };
-export function useWorkflow(id: string | null) {
-  return useQuery<{ yaml: string; graph: WorkflowGraph }>({
-    queryKey: ['workflows', 'read', id],
-    queryFn: async () => {
-      const res = await client().post('/workflows/tools/workflows.read/call', { params: { id } });
-      return res.data as { yaml: string; graph: WorkflowGraph };
-    },
-    enabled: !!id
-  });
-}
-
-export async function workflowValidate(graph: WorkflowGraph) {
-  const res = await client().post('/workflows/tools/workflows.validate/call', { params: { graph } });
-  return res.data as { ok: boolean; errors: string[] };
-}
-
-export async function workflowCreate(id: string, graph: WorkflowGraph) {
-  const res = await client().post('/workflows/tools/workflows.create/call', { params: { id, graph } });
-  return res.data as { ok: boolean; id: string };
-}
-
-export async function workflowUpdate(id: string, graph: WorkflowGraph) {
-  const res = await client().post('/workflows/tools/workflows.update/call', { params: { id, graph } });
-  return res.data as { ok: boolean; id: string };
-}
-
-export async function workflowDelete(id: string) {
-  const res = await client().post('/workflows/tools/workflows.delete/call', { params: { id } });
-  return res.data as { ok: boolean; deleted: boolean };
-}
-
 // Database query test
 export type DbQueryTest = {
   query: string;
