@@ -5,6 +5,8 @@ require 'rack/request'
 
 require_relative '../middleware/user_header'
 require_relative 'sse'
+require_relative '../logging/event_recorder'
+require_relative '../connections'
 
 module Savant
   module HTTP
@@ -21,6 +23,8 @@ module Savant
         @sse = SSE.new(heartbeat_interval: heartbeat_interval)
         @logs_dir = logs_dir || ENV['SAVANT_LOG_PATH'] || '/tmp/savant'
         @hub_logger = init_hub_logger
+        @recorder = Savant::Logging::EventRecorder.global
+        @connections = Savant::Connections.global
         @stats = { total: 0, by_engine: Hash.new(0), by_status: Hash.new(0), by_method: Hash.new(0), recent: [] }
         @stats_mutex = Mutex.new
       end
@@ -50,7 +54,11 @@ module Savant
         list = []
         list << { module: 'hub', method: 'GET', path: '/', description: 'Hub dashboard' }
         list << { module: 'hub', method: 'GET', path: '/diagnostics', description: 'Env, mounts, repos visibility, DB checks' }
+        list << { module: 'hub', method: 'GET', path: '/diagnostics/connections', description: 'Active SSE/stdio connections' }
+        list << { module: 'hub', method: 'GET', path: '/diagnostics/mcp/:name', description: 'Per-engine diagnostics' }
         list << { module: 'hub', method: 'GET', path: '/routes', description: 'Routes list (add ?expand=1 to include tool calls)' }
+        list << { module: 'hub', method: 'GET', path: '/logs', description: 'Aggregated recent events (?n=100,&mcp=,&type=)' }
+        list << { module: 'hub', method: 'GET', path: '/logs/stream', description: 'Aggregated live event stream (SSE)' }
 
         mounts.keys.sort.each do |engine_name|
           base = "/#{engine_name}"
@@ -133,6 +141,16 @@ module Savant
           @stats[:recent] = @stats[:recent].first(100) # Keep last 100 requests
         end
 
+        # EventRecorder (global) for unified streaming/logging
+        begin
+          @recorder.record(type: 'http_request', mcp: engine, method: req.request_method, path: req.path_info,
+                           status: status, duration_ms: duration_ms, user: req.env['savant.user_id'],
+                           query: (req.query_string.to_s.empty? ? nil : req.query_string),
+                           request_body: request_body, response_body: truncated_body)
+        rescue StandardError
+          # ignore
+        end
+
         return unless hub_logger
 
         hub_logger.info(
@@ -172,6 +190,20 @@ module Savant
         return hub_root(req) if req.get? && req.path_info == '/'
         return hub_routes(req) if req.get? && req.path_info == '/routes'
         return diagnostics(req) if req.get? && req.path_info == '/diagnostics'
+        return diagnostics_connections(req) if req.get? && req.path_info == '/diagnostics/connections'
+        return diagnostics_mcp(req) if req.get? && req.path_info.start_with?('/diagnostics/mcp/')
+        return logs_index(req) if req.get? && req.path_info == '/logs'
+
+        if req.get? && req.path_info.start_with?('/logs/')
+          # Map /logs/:mcp to /logs?mcp=... but avoid /logs/stream
+          parts = req.path_info.split('/').reject(&:empty?)
+          if parts.length == 2 && parts[1] != 'stream'
+            mcp = parts[1]
+            req.update_param('mcp', mcp)
+            return logs_index(req)
+          end
+        end
+        return logs_stream(req) if req.get? && req.path_info == '/logs/stream'
 
         # Engine scoped routes: /:engine/...
         segments = req.path_info.split('/').reject(&:empty?)
@@ -237,6 +269,43 @@ module Savant
         end
       end
 
+      # GET /logs -> aggregated last N events across engines (via EventRecorder)
+      def logs_index(req)
+        n = (req.params['n'] || '100').to_i
+        mcp = req.params['mcp']
+        type = req.params['type']
+        events = @recorder.last(n, mcp: (mcp unless mcp.to_s.empty?), type: (type unless type.to_s.empty?))
+        respond(200, { count: events.length, events: events })
+      end
+
+      # GET /logs/stream -> SSE unified stream of events
+      def logs_stream(req)
+        mcp = (req.params['mcp'] || '').to_s
+        type = (req.params['type'] || '').to_s
+        once = req.params.key?('once') && req.params['once'] != '0'
+        user_id = req.env['savant.user_id']
+        conn_id = @connections.connect(type: 'sse', mcp: (mcp.empty? ? nil : mcp), path: '/logs/stream', user_id: user_id)
+
+        headers = sse_headers
+        body = Enumerator.new do |y|
+          # Send recent snapshot first
+          @recorder.last(50, mcp: (mcp.empty? ? nil : mcp), type: (type.empty? ? nil : type)).each do |ev|
+            y << format_sse_event('event', ev)
+            @connections.touch(conn_id)
+          end
+          break if once
+
+          src = @recorder.stream(mcp: (mcp.empty? ? nil : mcp), type: (type.empty? ? nil : type))
+          src.each do |line|
+            y << "event: event\ndata: #{line}\n\n"
+            @connections.touch(conn_id)
+          end
+        ensure
+          @connections.disconnect(conn_id)
+        end
+        [200, headers, body]
+      end
+
       def handle_get(req, engine_name, manager, rest)
         case rest
         when ['tools']
@@ -269,7 +338,19 @@ module Savant
             respond(200, { engine: engine_name, count: lines.length, path: path, lines: lines, level: level })
           end
         when ['stream']
-          sse.call(req.env)
+          # Track SSE connection
+          user_id = req.env['savant.user_id']
+          conn_id = @connections.connect(type: 'sse', mcp: engine_name, path: "/#{engine_name}/stream", user_id: user_id)
+          status, headers, body = sse.call(req.env)
+          wrapped = Enumerator.new do |y|
+            body.each do |chunk|
+              y << chunk
+              @connections.touch(conn_id)
+            end
+          ensure
+            @connections.disconnect(conn_id)
+          end
+          [status, headers, wrapped]
         else
           not_found
         end
@@ -555,12 +636,15 @@ module Savant
           return [200, sse_headers, body]
         end
 
+        user_id = req.env['savant.user_id']
+        conn_id = @connections.connect(type: 'sse', mcp: engine_name, path: "/#{engine_name}/logs", user_id: user_id)
         body = Enumerator.new do |y|
           # Emit last N lines immediately
           read_last_lines(path, n).each do |line|
             next if level_pattern && !level_pattern.match?(line)
 
             y << format_sse_event('log', { line: line })
+            @connections.touch(conn_id)
           end
           break if once
 
@@ -577,6 +661,7 @@ module Savant
                   next if ln.empty? || (level_pattern && !level_pattern.match?(ln))
 
                   y << format_sse_event('log', { line: ln })
+                  @connections.touch(conn_id)
                 end
               end
               sleep 0.5
@@ -584,9 +669,40 @@ module Savant
           end
         rescue StandardError
           # Client disconnect or file issues; end stream
+        ensure
+          @connections.disconnect(conn_id)
         end
 
         [200, sse_headers, body]
+      end
+
+      # GET /diagnostics/connections -> list current connections
+      def diagnostics_connections(_req)
+        list = @connections.list
+        respond(200, { connections: list, count: list.length })
+      end
+
+      # GET /diagnostics/mcp/:name -> per-engine diagnostics
+      def diagnostics_mcp(req)
+        name = req.path_info.split('/').last
+        manager = mounts[name]
+        return not_found unless manager
+
+        info = begin
+          manager.service_info
+        rescue StandardError
+          { name: name, version: 'unknown' }
+        end
+        engine_stats = @stats_mutex.synchronize do
+          {
+            requests: @stats[:by_engine][name] || 0,
+            recent_requests: @stats[:recent].select { |r| r[:engine] == name }.first(20)
+          }
+        end
+        conns = @connections.list(mcp: name)
+        calls = { total_tool_calls: (manager.respond_to?(:total_tool_calls) ? manager.total_tool_calls : nil), last_seen: (manager.respond_to?(:last_seen) ? manager.last_seen : nil) }
+        events = @recorder.last(50, mcp: name)
+        respond(200, { engine: name, info: info, connections: conns, calls: calls, stats: engine_stats, recent_events: events })
       end
 
       def normalize_tool_spec(spec)
@@ -638,6 +754,7 @@ module Savant
         end
         user_id = req.env['savant.user_id']
 
+        conn_id = @connections.connect(type: 'sse', mcp: engine_name, path: "/#{engine_name}/tools/#{tool}/stream", user_id: user_id)
         body = Enumerator.new do |y|
           y << format_sse_event('start', { tool: tool })
           begin
@@ -647,6 +764,8 @@ module Savant
           rescue StandardError => e
             y << format_sse_event('error', { message: e.message })
           end
+        ensure
+          @connections.disconnect(conn_id)
         end
         [200, sse_headers, body]
       end

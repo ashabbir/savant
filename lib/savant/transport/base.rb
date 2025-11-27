@@ -2,6 +2,7 @@
 
 require 'fileutils'
 require_relative '../logger'
+require_relative '../logging/event_recorder'
 
 module Savant
   module Transport
@@ -10,18 +11,20 @@ module Savant
 
     # Shared service loader/dispatcher for Savant transports (stdio, HTTP, etc.).
     class ServiceManager
-      attr_reader :service
+      attr_reader :service, :total_tool_calls, :last_seen
       attr_accessor :logger
 
       def initialize(service:, logger: nil)
         @service = service.to_s.empty? ? 'context' : service.to_s
         @logger = logger || default_file_logger
         @services = {}
+        @total_tool_calls = 0
+        @last_seen = nil
       end
 
       def call_tool(name, args, request_id: nil)
         tool = normalize_tool_name(name)
-        with_tool_logging(tool, request_id) do
+        with_tool_logging(tool, request_id, args) do
           ensure_service
           registrar.call(tool, args || {}, ctx: { engine: engine, request_id: request_id, logger: logger })
         end
@@ -104,15 +107,35 @@ module Savant
         end.join
       end
 
-      def with_tool_logging(tool, request_id)
+      def with_tool_logging(tool, request_id, args)
+        rec = Savant::Logging::EventRecorder.global
+        started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+        @last_seen = Time.now.utc.iso8601
+        @total_tool_calls += 1
+        safe_args = begin
+          # Avoid huge payloads: stringify and truncate
+          str = args.nil? ? '' : args.to_s
+          str.length > 500 ? "#{str[0, 500]}...[truncated]" : str
+        rescue StandardError
+          nil
+        end
+        rec.record(type: 'tool_call_started', mcp: service, tool: tool, request_id: request_id, args: safe_args)
         log_info('tool.call start', name: tool, request_id: request_id)
         yield
       rescue BadRequestError, UnknownServiceError
         raise
       rescue StandardError => e
+        dur = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round
+        rec.record(type: 'tool_call_error', mcp: service, tool: tool, request_id: request_id, duration_ms: dur, error: begin
+          e.message
+        rescue StandardError
+          e.to_s
+        end)
         log_error('tool.call error', name: tool, request_id: request_id, error: e)
         raise
       ensure
+        dur = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round
+        rec.record(type: 'tool_call_completed', mcp: service, tool: tool, request_id: request_id, duration_ms: dur, status: 'ok')
         log_info('tool.call finish', name: tool, request_id: request_id)
       end
     end
