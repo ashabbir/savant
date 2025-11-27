@@ -1,5 +1,5 @@
 import React from 'react';
-import ReactFlow, { Background, Controls, MiniMap, addEdge, Connection, Edge, Node } from 'reactflow';
+import ReactFlow, { Background, Controls, MiniMap, addEdge, Connection, Edge, Node, useNodesState, useEdgesState } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { Alert, Box, Button, Divider, Grid2 as Grid, IconButton, LinearProgress, Paper, Stack, TextField, Tooltip, Typography } from '@mui/material';
 import SaveIcon from '@mui/icons-material/Save';
@@ -54,8 +54,8 @@ export default function ThinkWorkflowEditor() {
   const [wfId, setWfId] = React.useState(isNew ? '' : (routeId || ''));
   const rd = useThinkWorkflowRead(isNew ? null : wfId);
   const init = React.useMemo(() => defaultGraph(), []);
-  const [nodes, setNodes] = React.useState<RFNode[]>(init.nodes);
-  const [edges, setEdges] = React.useState<Edge[]>(init.edges);
+  const [nodes, setNodes, onNodesChange] = useNodesState<RFNode>(init.nodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(init.edges);
   const [yamlPreview, setYamlPreview] = React.useState<string>('');
   const [validation, setValidation] = React.useState<string>('');
 
@@ -105,7 +105,7 @@ export default function ThinkWorkflowEditor() {
 
   return (
     <Grid container spacing={2} columns={12}>
-      <Grid xs={12}>
+      <Grid size={12}>
         <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between">
           <Stack direction="row" spacing={1} alignItems="center">
             <Typography variant="subtitle1">Think Workflow Builder</Typography>
@@ -128,7 +128,7 @@ export default function ThinkWorkflowEditor() {
           </Stack>
         </Stack>
       </Grid>
-      <Grid xs={2}>
+      <Grid size={2}>
         <Paper sx={{ p: 1 }}>
           <Typography variant="subtitle2" sx={{ mb: 1 }}>Palette</Typography>
           <Button fullWidth startIcon={<AddBoxIcon />} onClick={addNode}>Add Step</Button>
@@ -136,12 +136,12 @@ export default function ThinkWorkflowEditor() {
           {validation && <Alert severity={validation.includes('OK')||validation.includes('Saved')? 'success':'warning'}>{validation}</Alert>}
         </Paper>
       </Grid>
-      <Grid xs={7}>
+      <Grid size={7}>
         <Paper sx={{ height: 560 }}>
           {!isNew && rd.isFetching && <LinearProgress />}
           {rd.isError && <Alert severity="error">{(rd.error as any)?.message || 'Failed to load'}</Alert>}
-          <Box sx={{ height: '100%' }}>
-            <ReactFlow nodes={nodes} edges={edges} onNodesChange={setNodes as any} onEdgesChange={setEdges as any} onConnect={onConnect} fitView>
+          <Box sx={{ height: '100%', width: '100%' }}>
+            <ReactFlow nodes={nodes} edges={edges} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onConnect={onConnect} fitView>
               <MiniMap />
               <Controls />
               <Background />
@@ -149,7 +149,7 @@ export default function ThinkWorkflowEditor() {
           </Box>
         </Paper>
       </Grid>
-      <Grid xs={3}>
+      <Grid size={3}>
         <Paper sx={{ p: 1 }}>
           <Typography variant="subtitle2" sx={{ mb: 1 }}>Properties</Typography>
           {nodes.map(n => (
@@ -173,4 +173,3 @@ export default function ThinkWorkflowEditor() {
     </Grid>
   );
 }
-
