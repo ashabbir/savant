@@ -1,0 +1,31 @@
+name: ticket_grooming_v1
+version: "1.0"
+description: "Groom and plan implementation for a ticket"
+steps:
+  - id: fetch_ticket
+    call: jira_get_issue
+    input_template:
+      key: "{{params.issueKey}}"
+    capture_as: ticket
+
+  - id: scan_repo_context
+    call: fts/search
+    deps: ["fetch_ticket"]
+    input_template:
+      q: "{{params.issueKey}} OR {{ticket.fields.summary}}"
+    capture_as: similar_code
+
+  - id: enumerate_resources
+    call: memory/resources/list
+    deps: ["fetch_ticket"]
+    input_template:
+      repo: null
+    capture_as: resources
+
+  - id: planning_guides
+    call: fts/search
+    deps: ["enumerate_resources"]
+    input_template:
+      q: "ACCEPTANCE CRITERIA|CONTRIBUTING|DESIGN|ADR|PLAYBOOK|README"
+    capture_as: guidelines
+

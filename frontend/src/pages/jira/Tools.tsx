@@ -30,7 +30,7 @@ export default function JiraTools() {
       <Grid size={{ xs: 12, md: 4 }}>
         <Paper sx={{ p: 1 }}>
           <Typography variant="subtitle1" sx={{ px: 1, py: 1 }}>Jira Tools</Typography>
-          <TextField size="small" label="Filter" value={filter} onChange={(e)=>setFilter(e.target.value)} sx={{ m: 1 }} />
+          <TextField id="jira-filter" name="jiraFilter" size="small" label="Filter" value={filter} onChange={(e)=>setFilter(e.target.value)} sx={{ m: 1 }} />
           {isLoading && <LinearProgress />}
           {isError && <Alert severity="error">{(error as any)?.message || 'Failed to load tools'}</Alert>}
           <List dense>
