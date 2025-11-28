@@ -7,6 +7,7 @@ import ListItem from '@mui/material/ListItem';
 import ListItemButton from '@mui/material/ListItemButton';
 import ListItemText from '@mui/material/ListItemText';
 import Typography from '@mui/material/Typography';
+import Stack from '@mui/material/Stack';
 import LinearProgress from '@mui/material/LinearProgress';
 import Alert from '@mui/material/Alert';
 import { getErrorMessage } from '../../api';
@@ -27,6 +28,7 @@ export default function ContextResources() {
 
   const rows = data || [];
   const repos = useMemo(()=> (status || []).map(r=>r.name), [status]);
+  const safeRepo = useMemo(() => (repo && !repos.includes(repo) ? '' : repo), [repo, repos]);
 
   useEffect(() => {
     if (!sel && rows.length) {
@@ -40,6 +42,11 @@ export default function ContextResources() {
     localStorage.setItem('ctx.resources.repo', repo);
   }, [repo]);
 
+  // Clear repo if it's not in the available list to avoid out-of-range select warnings
+  useEffect(() => {
+    if (repo && !repos.includes(repo)) setRepo('');
+  }, [repos.join(','), repo]);
+
   useEffect(() => {
     if (sel?.uri) localStorage.setItem('ctx.resources.selected', sel.uri);
   }, [sel?.uri]);
@@ -48,19 +55,28 @@ export default function ContextResources() {
     <Grid container spacing={2}>
       <Grid size={{ xs: 12, md: 4 }}>
         <Paper sx={{ p: 1, height: PANEL_HEIGHT, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          <Typography variant="subtitle1" sx={{ px: 1, py: 1 }}>Memory Resources</Typography>
-          <TextField id="res-repo" name="repo" label="Repo" select value={repo} onChange={(e)=>setRepo(e.target.value)} sx={{ m:1, minWidth: 220 }}>
+          <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+            <Typography variant="subtitle1" sx={{ fontSize: 12 }}>Memory Resources</Typography>
+          </Stack>
+          {isLoading && <LinearProgress />}
+          {isError && <Alert severity="error">{getErrorMessage(error as any)}</Alert>}
+          <TextField id="res-repo" name="repo" label="Repo" select fullWidth size="small" value={safeRepo} onChange={(e)=>setRepo(e.target.value)} sx={{ mb: 1 }}>
             <MenuItem value="">All</MenuItem>
             {repos.map(r => <MenuItem key={r} value={r}>{r}</MenuItem>)}
           </TextField>
-          {isLoading && <LinearProgress />}
-          {isError && <Alert severity="error">{getErrorMessage(error as any)}</Alert>}
           <Box sx={{ flex: 1, overflowY: 'auto' }}>
             <List dense>
               {rows.map(r => (
                 <ListItem key={r.uri} disablePadding>
                   <ListItemButton selected={sel?.uri === r.uri} onClick={()=>setSel(r)}>
-                    <ListItemText primary={r.metadata.title} secondary={`${r.metadata.path}`} />
+                    <ListItemText
+                      primary={
+                        <Box display="flex" alignItems="center" gap={1}>
+                          <Typography component="span" sx={{ fontWeight: 600 }}>{r.metadata.title}</Typography>
+                        </Box>
+                      }
+                      secondary={`${r.metadata.path}`}
+                    />
                   </ListItemButton>
                 </ListItem>
               ))}
@@ -70,7 +86,7 @@ export default function ContextResources() {
       </Grid>
       <Grid size={{ xs: 12, md: 8 }}>
         <Paper sx={{ p: 2, height: PANEL_HEIGHT, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          <Typography variant="subtitle1">{sel ? sel.metadata.title : 'Select a resource'}</Typography>
+          <Typography variant="subtitle1" sx={{ fontSize: 12 }}>{sel ? sel.metadata.title : 'Select a resource'}</Typography>
           {content.isFetching && <LinearProgress />}
           {content.isError && <Alert severity="error">{getErrorMessage(content.error as any)}</Alert>}
           <Box sx={{ flex: 1, overflowY: 'auto', mt: 1 }}>

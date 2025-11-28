@@ -1,7 +1,10 @@
 ---
 id: ticket_grooming_v1
-title: ticket_grooming_v1
-description: ''
+name: Ticket Grooming
+description: 'Ticket grooming workflow '
+driver_version: stable
+rules: []
+version: 2
 steps:
 - id: fetch_ticket
   call: jira_get_issue
