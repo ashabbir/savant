@@ -13,6 +13,8 @@ import TextField from '@mui/material/TextField';
 import Box from '@mui/material/Box';
 import Viewer from '../../components/Viewer';
 
+const PANEL_HEIGHT = 'calc(100vh - 260px)';
+
 export default function JiraTools() {
   const { data, isLoading, isError, error } = useEngineTools('jira');
   const tools = data?.tools || [];
@@ -28,29 +30,31 @@ export default function JiraTools() {
   return (
     <Grid container spacing={2}>
       <Grid size={{ xs: 12, md: 4 }}>
-        <Paper sx={{ p: 1 }}>
+        <Paper sx={{ p: 1, height: PANEL_HEIGHT, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <Typography variant="subtitle1" sx={{ px: 1, py: 1 }}>Jira Tools</Typography>
           <TextField id="jira-filter" name="jiraFilter" size="small" label="Filter" value={filter} onChange={(e)=>setFilter(e.target.value)} sx={{ m: 1 }} />
           {isLoading && <LinearProgress />}
           {isError && <Alert severity="error">{(error as any)?.message || 'Failed to load tools'}</Alert>}
-          <List dense>
-            {tools.filter(t => !filter || t.name.includes(filter) || (t.description||'').includes(filter)).map(t => (
-              <ListItem key={t.name} disablePadding>
-                <ListItemButton selected={sel?.name === t.name} onClick={() => setSel(t)}>
-                  <ListItemText primary={t.name} secondary={t.description} />
-                </ListItemButton>
-              </ListItem>
-            ))}
-          </List>
+          <Box sx={{ flex: 1, overflowY: 'auto' }}>
+            <List dense>
+              {tools.filter(t => !filter || t.name.includes(filter) || (t.description||'').includes(filter)).map(t => (
+                <ListItem key={t.name} disablePadding>
+                  <ListItemButton selected={sel?.name === t.name} onClick={() => setSel(t)}>
+                    <ListItemText primary={t.name} secondary={t.description} />
+                  </ListItemButton>
+                </ListItem>
+              ))}
+            </List>
+          </Box>
         </Paper>
       </Grid>
       <Grid size={{ xs: 12, md: 8 }}>
-        <Paper sx={{ p: 2 }}>
+        <Paper sx={{ p: 2, height: PANEL_HEIGHT, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <Typography variant="subtitle1" sx={{ fontSize: 12 }}>{sel?.name || 'Select a tool'}</Typography>
           {schema ? (
-            <Viewer content={JSON.stringify(schema, null, 2)} contentType="application/json" height={420} />
+            <Viewer content={JSON.stringify(schema, null, 2)} contentType="application/json" height={undefined} style={{ flex: 1 }} />
           ) : (
-            <Box sx={{ p: 2, color: 'text.secondary' }}>No input schema available</Box>
+            <Box sx={{ p: 2, color: 'text.secondary', flex: 1, overflowY: 'auto' }}>No input schema available</Box>
           )}
         </Paper>
       </Grid>
