@@ -22,14 +22,14 @@ import { workflowToMermaid } from '../../utils/workflowToMermaid';
 
 const PANEL_HEIGHT = 'calc(100vh - 260px)';
 
-type RFNode = Node<{ call: string; input_template?: any; capture_as?: string; label?: string }>;
+type RFNode = Node<{ id: number; name: string; call: string; input_template?: any; capture_as?: string; label?: string }>;
 
 function defaultGraph(): { nodes: RFNode[]; edges: Edge[] } {
   const nodes: RFNode[] = [
-    { id: 'step_1', position: { x: 120, y: 120 }, data: { call: 'prompt.say', input_template: { text: 'Start' }, label: 'step_1' }, type: 'default' },
-    { id: 'step_2', position: { x: 120, y: 240 }, data: { call: 'prompt.say', input_template: { text: 'Done' }, label: 'step_2' }, type: 'default' }
+    { id: '1', position: { x: 120, y: 120 }, data: { id: 1, name: 'start', call: 'prompt.say', input_template: { text: 'Start' }, label: '1 start' }, type: 'default' },
+    { id: '2', position: { x: 120, y: 240 }, data: { id: 2, name: 'done', call: 'prompt.say', input_template: { text: 'Done' }, label: '2 done' }, type: 'default' }
   ];
-  const edges: Edge[] = [{ id: 'e1-2', source: 'step_1', target: 'step_2' }];
+  const edges: Edge[] = [{ id: 'e1-2', source: '1', target: '2' }];
   return { nodes, edges };
 }
 
@@ -53,7 +53,7 @@ function toGraphPayload(nodes: RFNode[], edges: Edge[], description?: string, dr
     name: name || '',
     rules: cleanRules(rules),
     version: version || 1,
-    nodes: nodes.map(n => ({ id: n.id, call: n.data.call, input_template: n.data.input_template, capture_as: n.data.capture_as })),
+    nodes: nodes.map(n => ({ id: n.data.id, name: n.data.name, call: n.data.call, input_template: n.data.input_template, capture_as: n.data.capture_as })),
     edges: edges.map(e => ({ source: e.source, target: e.target }))
   };
 }
@@ -77,9 +77,10 @@ function toYamlPreview(nodes: RFNode[], edges: Edge[], id: string, description?:
   const map: Record<string, RFNode> = Object.fromEntries(nodes.map(n => [n.id, n]));
   const steps = order.map(sid => {
     const n = map[sid];
-    const h: any = { id: sid, call: n.data.call };
+    const h: any = { id: n.data.id, name: n.data.name, call: n.data.call };
     const it = n.data.input_template; if (it && Object.keys(it).length) h.input_template = it;
-    const deps = (depsMap[sid] || []).filter(Boolean);
+    // Convert deps from node.id (string) to data.id (number)
+    const deps = (depsMap[sid] || []).filter(Boolean).map(depNodeId => map[depNodeId]?.data.id).filter(Boolean);
     if (deps.length) h.deps = deps;
     return h;
   });
@@ -117,7 +118,9 @@ export default function ThinkWorkflowEditor() {
   const [diagramErr, setDiagramErr] = React.useState<string | null>(null);
   const selectedNode = React.useMemo(() => nodes.find(n => n.id === selId) || null, [nodes, selId]);
   const [callDraft, setCallDraft] = React.useState('');
+  const [nameDraft, setNameDraft] = React.useState('');
   const [description, setDescription] = React.useState('');
+  const [nextId, setNextId] = React.useState(1);
   const [driverVersion, setDriverVersion] = React.useState('stable');
   const [name, setName] = React.useState('');
   const [version, setVersion] = React.useState(1);
@@ -142,13 +145,14 @@ export default function ThinkWorkflowEditor() {
 
   // Initialize drafts when selection changes
   React.useEffect(() => {
-    if (!selectedNode) { setItDraft(''); setItErr(null); return; }
+    if (!selectedNode) { setItDraft(''); setItErr(null); setNameDraft(''); return; }
     try {
       const txt = selectedNode.data.input_template ? JSON.stringify(selectedNode.data.input_template, null, 2) : '';
       setItDraft(txt);
       setItErr(null);
     } catch { setItDraft(''); setItErr(null); }
     setCallDraft(selectedNode?.data.call || '');
+    setNameDraft(selectedNode?.data.name || '');
   }, [selectedNode?.id]);
 
   // --- Auto layout helpers (top-to-bottom with same-level alignment) ---
@@ -245,29 +249,15 @@ export default function ThinkWorkflowEditor() {
     applyEdgeSelectionStyling(edgeId);
   };
 
-  // Helper to normalize/validate node IDs
-  const normalizeId = (s: string) => (s || '').trim().replace(/[^A-Za-z0-9_.-]/g, '_');
-
-  const renameNode = (oldId: string, newIdRaw: string) => {
-    const newId = normalizeId(newIdRaw);
-    if (!newId || newId === oldId) return;
-    // Prevent duplicates
-    if (nodes.some(n => n.id === newId)) {
-      setValidation(`Duplicate id: ${newId}`);
+  // Update nextId whenever nodes change
+  React.useEffect(() => {
+    if (nodes.length === 0) {
+      setNextId(1);
       return;
     }
-    // Rename in nodes
-    const renamedNodes = nodes.map(n => n.id === oldId ? { ...n, id: newId, data: { ...n.data, label: newId } } as RFNode : n);
-    // Update edges
-    const renamedEdges = edges.map(e => ({
-      ...e,
-      source: e.source === oldId ? newId : e.source,
-      target: e.target === oldId ? newId : e.target
-    }));
-    setNodes(renamedNodes);
-    setEdges(renamedEdges);
-    if (selId === oldId) setSelection(newId);
-  };
+    const maxId = Math.max(...nodes.map(n => n.data.id || 0));
+    setNextId(maxId + 1);
+  }, [nodes]);
 
   React.useEffect(() => {
     if (!rd.data?.workflow_yaml) return;
@@ -281,8 +271,44 @@ export default function ThinkWorkflowEditor() {
       const yRules = Array.isArray(y?.rules) ? y.rules.map((r: any)=> String(r || '')) : [];
       setRules(yRules);
       const steps: any[] = Array.isArray(y?.steps) ? y.steps : [];
-        const npos: RFNode[] = steps.map((s, i) => ({ id: String(s.id), data: { call: String(s.call || ''), input_template: s.input_template || undefined, capture_as: s.capture_as || undefined, label: String(s.id) }, position: { x: 120, y: 120 + i * 120 }, type: 'default' }));
-        const depEdges: Edge[] = steps.flatMap((s, _i) => (Array.isArray(s.deps) ? s.deps : []).map((d: any, j: number) => ({ id: `e${String(d)}-${String(s.id)}-${j}` , source: String(d), target: String(s.id) })));
+        const npos: RFNode[] = steps.map((s, i) => {
+          // Parse ID - could be number or string from YAML
+          const parsedId = typeof s.id === 'number' ? s.id : (isNaN(Number(s.id)) ? (i + 1) : Number(s.id));
+          // Use name field if it exists, otherwise fall back to old ID format
+          const stepName = s.name || (typeof s.id === 'string' && isNaN(Number(s.id)) ? s.id : `step_${parsedId}`);
+
+          return {
+            id: String(parsedId),
+            data: {
+              id: parsedId,
+              name: stepName,
+              call: String(s.call || ''),
+              input_template: s.input_template || undefined,
+              capture_as: s.capture_as || undefined,
+              label: `${parsedId} ${stepName}`
+            },
+            position: { x: 120, y: 120 + i * 120 },
+            type: 'default'
+          };
+        });
+        // Create mapping of original step IDs to parsed integer IDs
+        const stepIdMap = new Map<any, number>();
+        steps.forEach((s, i) => {
+          const parsedId = typeof s.id === 'number' ? s.id : (isNaN(Number(s.id)) ? (i + 1) : Number(s.id));
+          stepIdMap.set(s.id, parsedId);
+        });
+
+        const depEdges: Edge[] = steps.flatMap((s, _i) => {
+          const targetId = stepIdMap.get(s.id) || s.id;
+          return (Array.isArray(s.deps) ? s.deps : []).map((d: any, j: number) => {
+            const sourceId = stepIdMap.get(d) || d;
+            return {
+              id: `e${String(sourceId)}-${String(targetId)}-${j}`,
+              source: String(sourceId),
+              target: String(targetId)
+            };
+          });
+        });
         // Auto-align positions based on deps for initial load
         const ids = npos.map(n => n.id);
         const lvl = computeLevels(ids, depEdges);
@@ -325,10 +351,22 @@ export default function ThinkWorkflowEditor() {
   const onConnect = React.useCallback((c: Connection) => setEdges((eds) => addEdge(c as any, eds)), []);
 
   const addNode = () => {
-    const num = nodes.length + 1;
-    const id = `step_${num}`;
-    setNodes([...nodes, { id, data: { call: 'prompt.say', input_template: { text: '...' }, label: id }, position: { x: 120, y: 120 + (nodes.length) * 120 }, type: 'default' } as RFNode]);
-    setTimeout(() => setSelection(id), 0);
+    const newId = nextId;
+    const nodeId = String(newId);
+    const newName = `step_${newId}`;
+    setNodes([...nodes, {
+      id: nodeId,
+      data: {
+        id: newId,
+        name: newName,
+        call: 'prompt.say',
+        input_template: { text: '...' },
+        label: `${newId} ${newName}`
+      },
+      position: { x: 120, y: 120 + (nodes.length) * 120 },
+      type: 'default'
+    } as RFNode]);
+    setTimeout(() => setSelection(nodeId), 0);
   };
 
   const removeSelected = () => {
@@ -349,16 +387,58 @@ export default function ThinkWorkflowEditor() {
     setSelKind(null);
   };
 
+  const computeResequencedGraph = (currentNodes: RFNode[], currentEdges: Edge[]) => {
+    // Sort nodes by current ID
+    const sorted = [...currentNodes].sort((a, b) => a.data.id - b.data.id);
+
+    // Create mapping of old node.id (string) -> new data.id (number)
+    const idMap = new Map<string, number>();
+    sorted.forEach((node, index) => {
+      idMap.set(node.id, index + 1);
+    });
+
+    // Renumber nodes
+    const resequencedNodes = sorted.map((node, index) => {
+      const newId = index + 1;
+      return {
+        ...node,
+        id: String(newId),
+        data: {
+          ...node.data,
+          id: newId,
+          label: `${newId} ${node.data.name}`
+        }
+      } as RFNode;
+    });
+
+    // Update edges with new IDs
+    const resequencedEdges = currentEdges.map(edge => ({
+      ...edge,
+      source: String(idMap.get(edge.source as string) || edge.source),
+      target: String(idMap.get(edge.target as string) || edge.target)
+    }));
+
+    return { nodes: resequencedNodes, edges: resequencedEdges, idMap };
+  };
+
   const save = async () => {
     const slug = slugifyName(name);
     if (!slug) { setValidation('Name is required to generate workflow id'); return; }
     if (isNew && slug !== wfId) setWfId(slug);
     const currId = isNew ? slug : wfId;
+
+    // Auto-resequence IDs before saving
+    const { nodes: resequencedNodes, edges: resequencedEdges, idMap } = computeResequencedGraph(nodes, edges);
+
     // Apply pending draft for input_template if selection exists
     if (selectedNode) {
       try {
         const parsed = itDraft ? JSON.parse(itDraft) : undefined;
-        updateNodeData(selectedNode.id, 'input_template', parsed);
+        const targetNodeId = String(idMap.get(selectedNode.id) || selectedNode.id);
+        const nodeToUpdate = resequencedNodes.find(n => n.id === targetNodeId);
+        if (nodeToUpdate) {
+          nodeToUpdate.data.input_template = parsed;
+        }
         setItErr(null);
       } catch (e: any) {
         setItErr(e?.message || 'Invalid JSON');
@@ -368,7 +448,7 @@ export default function ThinkWorkflowEditor() {
     }
     try {
       const nextVersion = isNew ? 1 : (version || 0) + 1;
-      const graph = toGraphPayload(nodes, edges, description, driverVersion, name || currId, rules, nextVersion);
+      const graph = toGraphPayload(resequencedNodes, resequencedEdges, description, driverVersion, name || currId, rules, nextVersion);
       const v = await thinkWorkflowValidateGraph(graph);
       if (!v.ok) { setValidation(v.errors.join('\n')); return; }
 
@@ -397,6 +477,15 @@ export default function ThinkWorkflowEditor() {
           }
         }
       }
+
+      // Update state with resequenced nodes and edges after successful save
+      setNodes(resequencedNodes);
+      setEdges(resequencedEdges);
+      // Update selection if it existed
+      if (selId && idMap.has(selId)) {
+        setSelection(String(idMap.get(selId)));
+      }
+
       try { await rd.refetch?.(); } catch {}
     } catch (e: any) {
       const msg = (e?.response?.data?.error || e?.message || '').toString();
@@ -451,7 +540,15 @@ export default function ThinkWorkflowEditor() {
   };
 
   const updateNodeData = (id: string, key: string, value: any) => {
-    setNodes(ns => ns.map(n => n.id === id ? { ...n, data: { ...n.data, [key]: value } } : n));
+    setNodes(ns => ns.map(n => {
+      if (n.id !== id) return n;
+      const updatedData = { ...n.data, [key]: value };
+      // If name is being updated, also update the label
+      if (key === 'name') {
+        updatedData.label = `${n.data.id} ${value}`;
+      }
+      return { ...n, data: updatedData };
+    }));
   };
 
   return (
@@ -591,18 +688,21 @@ export default function ThinkWorkflowEditor() {
                   mb: 1
                 }}
               >
-                <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
-                  <Typography variant="caption" sx={{ fontWeight: 600 }}>Step</Typography>
-                  <TextField
-                    id={`step-id-${selectedNode.id}`}
-                    name="stepId"
-                    label="id"
-                    value={selectedNode.id}
-                    size="small"
-                    onChange={(e)=> renameNode(selectedNode.id, e.target.value)}
-                    sx={{ width: 180 }}
-                  />
+                <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+                  <Typography variant="caption" sx={{ fontWeight: 600 }}>Step ID</Typography>
+                  <Chip label={selectedNode.data.id} size="small" color="primary" />
                 </Stack>
+                <TextField
+                  id="step-name-field"
+                  name="stepName"
+                  label="name"
+                  value={nameDraft}
+                  size="small"
+                  fullWidth
+                  onChange={(e)=> setNameDraft(e.target.value)}
+                  onBlur={()=> updateNodeData(selectedNode.id, 'name', nameDraft)}
+                  sx={{ mb: 1 }}
+                />
                 <TextField id={`step-call-${selectedNode.id}`} name="call" label="call" fullWidth sx={{ mt: 1 }} value={callDraft} onChange={(e)=>setCallDraft(e.target.value)} onBlur={()=>updateNodeData(selectedNode.id, 'call', callDraft)} />
                 <TextField id={`step-deps-${selectedNode.id}`} name="deps" label="deps" fullWidth sx={{ mt: 1 }} value={selectedDeps.join(', ')} InputProps={{ readOnly: true }} />
                 <TextField id={`step-input-template-${selectedNode.id}`} name="input_template" label="input_template (JSON)" fullWidth multiline minRows={3} sx={{ mt: 1 }}
