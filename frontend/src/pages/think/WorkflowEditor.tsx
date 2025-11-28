@@ -117,10 +117,9 @@ export default function ThinkWorkflowEditor() {
     return level;
   }, []);
 
-  const layoutGraph = React.useCallback(() => {
+  function layoutGraph() {
     const ids = nodes.map(n => n.id);
     const lvl = computeLevels(ids, edges);
-    // Group by level and sort within a level for stable layout
     const groups: Record<number, string[]> = {};
     ids.forEach(id => {
       const l = lvl[id] ?? 0;
@@ -128,7 +127,6 @@ export default function ThinkWorkflowEditor() {
       groups[l].push(id);
     });
     Object.keys(groups).forEach(k => groups[Number(k)].sort());
-
     const newNodes = nodes.map(n => {
       const l = lvl[n.id] ?? 0;
       const idx = groups[l].indexOf(n.id);
@@ -137,7 +135,7 @@ export default function ThinkWorkflowEditor() {
       return { ...n, position: { x, y } } as RFNode;
     });
     setNodes(newNodes);
-  }, [nodes, edges, computeLevels, setNodes]);
+  }
 
   // Auto-select first node when nodes are ready and nothing selected yet
   React.useEffect(() => {
@@ -193,14 +191,22 @@ export default function ThinkWorkflowEditor() {
         const steps: any[] = Array.isArray(y?.steps) ? y.steps : [];
         const npos: RFNode[] = steps.map((s, i) => ({ id: String(s.id), data: { call: String(s.call || ''), input_template: s.input_template || undefined, capture_as: s.capture_as || undefined, label: String(s.id) }, position: { x: 120, y: 120 + i * 120 }, type: 'default' }));
         const depEdges: Edge[] = steps.flatMap((s, _i) => (Array.isArray(s.deps) ? s.deps : []).map((d: any, j: number) => ({ id: `e${String(d)}-${String(s.id)}-${j}` , source: String(d), target: String(s.id) })));
-        setNodes(npos);
+        // Auto-align positions based on deps for initial load
+        const ids = npos.map(n => n.id);
+        const lvl = computeLevels(ids, depEdges);
+        const groups: Record<number, string[]> = {};
+        ids.forEach(id => { const l = (lvl as any)[id] ?? 0; (groups[l] ||= []).push(id); });
+        Object.keys(groups).forEach(k => groups[Number(k)].sort());
+        const positioned = npos.map(n => {
+          const l = (lvl as any)[n.id] ?? 0;
+          const idx = groups[l].indexOf(n.id);
+          return { ...n, position: { x: ORIGIN_X + idx * GRID_X, y: ORIGIN_Y + l * GRID_Y } } as RFNode;
+        });
+        setNodes(positioned);
         setEdges(depEdges);
-        if (npos.length > 0) setTimeout(() => setSelection(npos[0].id), 0);
-        // Auto-align on load
-        setTimeout(() => layoutGraph(), 0);
       } catch { /* ignore */ }
     }
-  }, [rd.data?.workflow_yaml, isNew, layoutGraph]);
+  }, [rd.data?.workflow_yaml, isNew, computeLevels]);
 
   const onConnect = React.useCallback((c: Connection) => setEdges((eds) => addEdge(c as any, eds)), []);
 
