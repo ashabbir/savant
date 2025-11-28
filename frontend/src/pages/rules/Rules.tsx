@@ -54,7 +54,7 @@ export default function Rules() {
       <Grid size={{ xs: 12, md: 4 }}>
         <Paper sx={{ p: 2 }}>
           <Typography variant="subtitle1" sx={{ mb: 1, fontSize: 12 }}>Rules</Typography>
-          <TextField
+          <TextField id="rules-filter" name="rulesFilter"
             fullWidth
             placeholder="Filter by name, title, tags..."
             value={filter}

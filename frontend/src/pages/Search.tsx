@@ -48,14 +48,14 @@ export default function Search() {
       <Paper sx={{ p: 2, mb: 2 }}>
         <Typography variant="subtitle2" sx={{ mb: 2, fontWeight: 600 }}>Full-Text Search</Typography>
         <Stack spacing={2}>
-          <TextField
+          <TextField id="fts-q" name="q"
             label="Search Query"
             variant="outlined"
             fullWidth
             value={q}
             onChange={(e) => setQ(e.target.value)}
           />
-          <TextField
+          <TextField id="fts-repo" name="repo"
             label="Repository"
             select
             fullWidth
@@ -67,7 +67,7 @@ export default function Search() {
               <MenuItem key={r.name} value={r.name}>{r.name}</MenuItem>
             ))}
           </TextField>
-          <TextField
+          <TextField id="fts-lang" name="lang"
             label="Language"
             select
             fullWidth
@@ -79,7 +79,7 @@ export default function Search() {
               <MenuItem key={l} value={l}>{l}</MenuItem>
             ))}
           </TextField>
-          <TextField
+          <TextField id="fts-per-page" name="perPage"
             label="Results per page"
             select
             fullWidth
