@@ -6,11 +6,14 @@ import SaveIcon from '@mui/icons-material/Save';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import TaskAltIcon from '@mui/icons-material/TaskAlt';
 import AddBoxIcon from '@mui/icons-material/AddBox';
+import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useThinkWorkflowRead } from '../../api';
 import { thinkWorkflowCreateGraph, thinkWorkflowUpdateGraph, thinkWorkflowValidateGraph } from '../../thinkApi';
 import YAML from 'js-yaml';
 import Viewer from '../../components/Viewer';
+import WorkflowDiagram from '../../components/WorkflowDiagram';
+import { workflowToMermaid } from '../../utils/workflowToMermaid';
 
 type RFNode = Node<{ call: string; input_template?: any; capture_as?: string; label?: string }>;
 
@@ -61,6 +64,10 @@ export default function ThinkWorkflowEditor() {
   const [validation, setValidation] = React.useState<string>('');
   const [previewOpen, setPreviewOpen] = React.useState(false);
   const [selId, setSelId] = React.useState<string | null>(null);
+  const [diagramOpen, setDiagramOpen] = React.useState(false);
+  const [diagramSvg, setDiagramSvg] = React.useState<string>('');
+  const [diagramBusy, setDiagramBusy] = React.useState(false);
+  const [diagramErr, setDiagramErr] = React.useState<string | null>(null);
 
   const applySelectionStyling = (id: string | null) => {
     setNodes(ns => ns.map(n => {
@@ -145,6 +152,36 @@ export default function ThinkWorkflowEditor() {
     setPreviewOpen(true);
   };
 
+  // Lazy mermaid loader (shared pattern from Workflows page)
+  let mermaidInstance: any = (window as any).__savantMermaid || null;
+  async function getMermaid() {
+    if (mermaidInstance) return mermaidInstance;
+    const m = await import('mermaid');
+    mermaidInstance = m.default;
+    mermaidInstance.initialize({ startOnLoad: false, theme: 'default', flowchart: { useMaxWidth: true, htmlLabels: true, curve: 'basis' }, securityLevel: 'loose' });
+    (window as any).__savantMermaid = mermaidInstance;
+    return mermaidInstance;
+  }
+
+  const previewDiagram = async () => {
+    try {
+      setDiagramErr(null);
+      setDiagramBusy(true);
+      const yaml = toYamlPreview(nodes, edges, wfId || 'workflow');
+      const code = workflowToMermaid(yaml);
+      const mm = await getMermaid();
+      const { svg } = await mm.render(`wf-${Date.now()}`, code);
+      setDiagramSvg(svg);
+      setDiagramOpen(true);
+    } catch (e: any) {
+      setDiagramErr(e?.message || String(e));
+      setDiagramSvg('');
+      setDiagramOpen(true);
+    } finally {
+      setDiagramBusy(false);
+    }
+  };
+
   const updateNodeData = (id: string, key: string, value: any) => {
     setNodes(ns => ns.map(n => n.id === id ? { ...n, data: { ...n.data, [key]: value } } : n));
   };
@@ -168,6 +205,13 @@ export default function ThinkWorkflowEditor() {
             <Tooltip title="Preview YAML">
               <span>
                 <IconButton onClick={preview}><VisibilityIcon /></IconButton>
+              </span>
+            </Tooltip>
+            <Tooltip title={diagramBusy ? 'Rendering…' : 'View Diagram'}>
+              <span>
+                <IconButton onClick={previewDiagram} disabled={diagramBusy} color="primary">
+                  <AccountTreeIcon />
+                </IconButton>
               </span>
             </Tooltip>
             <Button variant="contained" startIcon={<SaveIcon />} onClick={save} disabled={!wfId}>Save</Button>
@@ -250,6 +294,12 @@ export default function ThinkWorkflowEditor() {
           <Button onClick={() => setPreviewOpen(false)}>Close</Button>
         </DialogActions>
       </Dialog>
+      <WorkflowDiagram
+        open={diagramOpen}
+        onClose={() => setDiagramOpen(false)}
+        svgContent={diagramSvg}
+        workflowName={wfId || undefined}
+      />
     </Grid>
   );
 }
