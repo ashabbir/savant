@@ -84,6 +84,7 @@ export default function ThinkWorkflowEditor() {
   const [diagramBusy, setDiagramBusy] = React.useState(false);
   const [diagramErr, setDiagramErr] = React.useState<string | null>(null);
   const selectedNode = React.useMemo(() => nodes.find(n => n.id === selId) || null, [nodes, selId]);
+  const [callDraft, setCallDraft] = React.useState('');
   const selectedDeps = React.useMemo(() => {
     if (!selId) return [] as string[];
     const d = edges.filter(e => e.target === selId && e.source).map(e => String(e.source));
@@ -98,6 +99,7 @@ export default function ThinkWorkflowEditor() {
       setItDraft(txt);
       setItErr(null);
     } catch { setItDraft(''); setItErr(null); }
+    setCallDraft(selectedNode?.data.call || '');
   }, [selectedNode?.id]);
 
   // --- Auto layout helpers (top-to-bottom with same-level alignment) ---
@@ -164,7 +166,7 @@ export default function ThinkWorkflowEditor() {
       const style = selected
         ? { ...base, border: '2px solid #2e7d32', boxShadow: '0 0 0 2px rgba(46,125,50,0.2)' }
         : { ...base, border: '1px solid #bbb' };
-      return { ...n, selected, style } as RFNode;
+      return { ...n, style } as RFNode;
     }));
   };
 
@@ -377,7 +379,7 @@ export default function ThinkWorkflowEditor() {
                   sx={{ width: 180 }}
                 />
               </Stack>
-              <TextField label="call" fullWidth sx={{ mt: 1 }} value={selectedNode.data.call || ''} onChange={(e)=>updateNodeData(selectedNode.id, 'call', e.target.value)} />
+              <TextField label="call" fullWidth sx={{ mt: 1 }} value={callDraft} onChange={(e)=>setCallDraft(e.target.value)} onBlur={()=>updateNodeData(selectedNode.id, 'call', callDraft)} />
               <TextField label="deps" fullWidth sx={{ mt: 1 }} value={selectedDeps.join(', ')} InputProps={{ readOnly: true }} />
               <TextField label="input_template (JSON)" fullWidth multiline minRows={3} sx={{ mt: 1 }}
                         value={itDraft}
@@ -403,10 +405,11 @@ export default function ThinkWorkflowEditor() {
               onEdgesChange={onEdgesChange}
               onConnect={onConnect}
               onSelectionChange={(s: any) => {
-                const id = s?.nodes && s.nodes[0] ? s.nodes[0].id : null;
-                setSelection(id);
+                if (s?.nodes && s.nodes.length > 0) {
+                  const id = s.nodes[0].id;
+                  if (id !== selId) setSelection(id);
+                }
               }}
-              fitView
             >
               <MiniMap />
               <Controls />
