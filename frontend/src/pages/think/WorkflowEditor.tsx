@@ -139,6 +139,13 @@ export default function ThinkWorkflowEditor() {
     setNodes(newNodes);
   }, [nodes, edges, computeLevels, setNodes]);
 
+  // Auto-select first node when nodes are ready and nothing selected yet
+  React.useEffect(() => {
+    if (!selId && nodes.length > 0) {
+      setSelection(nodes[0].id);
+    }
+  }, [nodes, selId]);
+
   const applySelectionStyling = (id: string | null) => {
     setNodes(ns => ns.map(n => {
       const selected = n.id === id;
