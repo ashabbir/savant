@@ -156,12 +156,14 @@ export default function ThinkWorkflowEditor() {
     setNodes(newNodes);
   }
 
-  // Auto-select first node when nodes are ready and nothing selected yet
+  // Auto-select first node once after initial load
+  const didAutoSelectRef = React.useRef(false);
   React.useEffect(() => {
-    if (!selId && nodes.length > 0) {
+    if (!didAutoSelectRef.current && nodes.length > 0 && !selId) {
       setSelection(nodes[0].id);
+      didAutoSelectRef.current = true;
     }
-  }, [nodes, selId]);
+  }, [nodes]);
 
   const applySelectionStyling = (id: string | null) => {
     setNodes(ns => ns.map(n => {
@@ -242,6 +244,8 @@ export default function ThinkWorkflowEditor() {
         });
         setNodes(positioned);
         setEdges(depEdges);
+        // Allow auto-select to run again for this loaded workflow
+        didAutoSelectRef.current = false;
       } catch { /* ignore */ }
     }
   }, [rd.data?.workflow_yaml, isNew, computeLevels]);
