@@ -98,11 +98,14 @@ export default function ThinkWorkflows() {
 
   return (
     <Grid container spacing={2}>
-      <Grid size={{ xs: 12, md: 4 }}>
+      <Grid size={12} md={4}>
         <Paper sx={{ p: 1 }}>
           <Stack direction="row" alignItems="center" justifyContent="space-between">
             <Typography variant="subtitle1" sx={{ px: 1, py: 1 }}>Workflows</Typography>
-            <Button size="small" variant="contained" onClick={() => navigate('/engines/think/workflows/new')}>Create</Button>
+            <Stack direction="row" spacing={1} alignItems="center">
+              <Button size="small" variant="outlined" disabled={!sel} onClick={() => sel && navigate(`/engines/think/workflows/edit/${sel}`)}>Edit</Button>
+              <Button size="small" variant="contained" onClick={() => navigate('/engines/think/workflows/new')}>Create</Button>
+            </Stack>
           </Stack>
           {isLoading && <LinearProgress />}
           {isError && <Alert severity="error">{getErrorMessage(error as any)}</Alert>}
@@ -117,7 +120,7 @@ export default function ThinkWorkflows() {
           </List>
         </Paper>
       </Grid>
-      <Grid size={{ xs: 12, md: 8 }}>
+      <Grid size={12} md={8}>
         <Paper sx={{ p: 2 }}>
           <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between">
             <Typography variant="subtitle1" sx={{ fontSize: 12 }}>Workflow {sel ? `(${sel})` : ''}</Typography>
