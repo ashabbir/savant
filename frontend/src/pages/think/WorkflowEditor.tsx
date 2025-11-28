@@ -60,6 +60,23 @@ export default function ThinkWorkflowEditor() {
   const [yamlPreview, setYamlPreview] = React.useState<string>('');
   const [validation, setValidation] = React.useState<string>('');
   const [previewOpen, setPreviewOpen] = React.useState(false);
+  const [selId, setSelId] = React.useState<string | null>(null);
+
+  const applySelectionStyling = (id: string | null) => {
+    setNodes(ns => ns.map(n => {
+      const selected = n.id === id;
+      const base = { borderRadius: 6 } as React.CSSProperties;
+      const style = selected
+        ? { ...base, border: '2px solid #2e7d32', boxShadow: '0 0 0 2px rgba(46,125,50,0.2)' }
+        : { ...base, border: '1px solid #bbb' };
+      return { ...n, selected, style } as RFNode;
+    }));
+  };
+
+  const setSelection = (id: string | null) => {
+    setSelId(id);
+    applySelectionStyling(id);
+  };
 
   // Helper to normalize/validate node IDs
   const normalizeId = (s: string) => (s || '').trim().replace(/[^A-Za-z0-9_.-]/g, '_');
@@ -82,6 +99,7 @@ export default function ThinkWorkflowEditor() {
     }));
     setNodes(renamedNodes);
     setEdges(renamedEdges);
+    if (selId === oldId) setSelection(newId);
   };
 
   React.useEffect(() => {
@@ -93,6 +111,7 @@ export default function ThinkWorkflowEditor() {
         const depEdges: Edge[] = steps.flatMap((s, _i) => (Array.isArray(s.deps) ? s.deps : []).map((d: any, j: number) => ({ id: `e${String(d)}-${String(s.id)}-${j}` , source: String(d), target: String(s.id) })));
         setNodes(npos);
         setEdges(depEdges);
+        if (npos.length > 0) setTimeout(() => setSelection(npos[0].id), 0);
       } catch { /* ignore */ }
     }
   }, [rd.data?.workflow_yaml, isNew]);
@@ -102,7 +121,8 @@ export default function ThinkWorkflowEditor() {
   const addNode = () => {
     const num = nodes.length + 1;
     const id = `step_${num}`;
-    setNodes([...nodes, { id, data: { call: 'prompt.say', input_template: { text: '...' } }, position: { x: 120 + num * 40, y: 120 + num * 10 }, type: 'default' }]);
+    setNodes([...nodes, { id, data: { call: 'prompt.say', input_template: { text: '...' } }, position: { x: 120 + num * 40, y: 120 + num * 10 }, type: 'default' } as RFNode]);
+    setTimeout(() => setSelection(id), 0);
   };
 
   const save = async () => {
@@ -167,7 +187,18 @@ export default function ThinkWorkflowEditor() {
           {!isNew && rd.isFetching && <LinearProgress />}
           {rd.isError && <Alert severity="error">{(rd.error as any)?.message || 'Failed to load'}</Alert>}
           <Box sx={{ height: '100%', width: '100%' }}>
-            <ReactFlow nodes={nodes} edges={edges} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onConnect={onConnect} fitView>
+            <ReactFlow
+              nodes={nodes}
+              edges={edges}
+              onNodesChange={onNodesChange}
+              onEdgesChange={onEdgesChange}
+              onConnect={onConnect}
+              onSelectionChange={(s: any) => {
+                const id = s?.nodes && s.nodes[0] ? s.nodes[0].id : null;
+                setSelection(id);
+              }}
+              fitView
+            >
               <MiniMap />
               <Controls />
               <Background />
@@ -179,7 +210,17 @@ export default function ThinkWorkflowEditor() {
         <Paper sx={{ p: 1 }}>
           <Typography variant="subtitle2" sx={{ mb: 1 }}>Properties</Typography>
           {nodes.map(n => (
-            <Box key={n.id} sx={{ border: '1px solid #eee', borderRadius: 1, p: 1, mb: 1 }}>
+            <Box
+              key={n.id}
+              onClick={() => setSelection(n.id)}
+              sx={{
+                border: n.id === selId ? '2px solid' : '1px solid',
+                borderColor: n.id === selId ? 'success.main' : '#eee',
+                borderRadius: 1,
+                p: 1,
+                mb: 1
+              }}
+            >
               <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
                 <Typography variant="caption" sx={{ fontWeight: 600 }}>Step</Typography>
                 <TextField
