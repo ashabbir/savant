@@ -14,6 +14,7 @@ import Stack from '@mui/material/Stack';
 import Button from '@mui/material/Button';
 import TextField from '@mui/material/TextField';
 import Viewer from '../../components/Viewer';
+import DataObjectIcon from '@mui/icons-material/DataObject';
 
 const PANEL_HEIGHT = 'calc(100vh - 260px)';
 
@@ -138,6 +139,7 @@ export default function ContextTools() {
                 size="small"
                 variant={!useForm ? 'contained' : 'outlined'}
                 onClick={() => setUseForm(false)}
+                startIcon={<DataObjectIcon fontSize="small" />}
               >
                 JSON
               </Button>

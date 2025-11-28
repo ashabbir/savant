@@ -1,3 +1,3 @@
 versions:
-  stable: prompts/stable-2025-11.md
-  code_review: prompts/code-review-2025-11.md
+  stable: prompts/savant-stable.md
+  code_review: prompts/savant-code-review.md

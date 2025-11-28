@@ -14,17 +14,21 @@ import ListItemText from '@mui/material/ListItemText';
 import Typography from '@mui/material/Typography';
 import LinearProgress from '@mui/material/LinearProgress';
 import Alert from '@mui/material/Alert';
+import Chip from '@mui/material/Chip';
 import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
 import Snackbar from '@mui/material/Snackbar';
 import Button from '@mui/material/Button';
+import TextField from '@mui/material/TextField';
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
 import CircularProgress from '@mui/material/CircularProgress';
+import CloseIcon from '@mui/icons-material/Close';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
+import ArticleIcon from '@mui/icons-material/Article';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import AddCircleIcon from '@mui/icons-material/AddCircle';
@@ -32,6 +36,7 @@ import WorkflowDiagram from '../../components/WorkflowDiagram';
 import { workflowToMermaid } from '../../utils/workflowToMermaid';
 import { getErrorMessage } from '../../api';
 import Viewer from '../../components/Viewer';
+import YAML from 'js-yaml';
 import { thinkWorkflowDelete } from '../../thinkApi';
 
 // Lazy load mermaid and cache it
@@ -52,6 +57,7 @@ async function getMermaid() {
 export default function ThinkWorkflows() {
   const navigate = useNavigate();
   const { data, isLoading, isError, error, refetch } = useThinkWorkflows();
+  const workflows = useMemo(() => (data?.workflows || []).filter(w => w.id !== '_template'), [data?.workflows]);
   const [sel, setSel] = useState<string | null>(null);
   const wfRead = useThinkWorkflowRead(sel);
   const [subTab, setSubTab] = useState(0);
@@ -60,6 +66,7 @@ export default function ThinkWorkflows() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteErr, setDeleteErr] = useState<string | null>(null);
+  const [filter, setFilter] = useState('');
 
   const [mermaidError, setMermaidError] = useState<string | null>(null);
   const [preRenderedSvg, setPreRenderedSvg] = useState<string | null>(null);
@@ -107,6 +114,22 @@ export default function ThinkWorkflows() {
     return () => { cancelled = true; };
   }, [mermaidCode]);
 
+  useEffect(() => {
+    if (sel === '_template') {
+      setSel(null);
+      return;
+    }
+    if (!sel && workflows.length) {
+      setSel(workflows[0].id);
+    }
+  }, [sel, workflows]);
+
+  const filteredWorkflows = useMemo(() => {
+    if (!filter) return workflows;
+    const q = filter.toLowerCase();
+    return workflows.filter(w => (w.id || '').toLowerCase().includes(q) || (w.name || '').toLowerCase().includes(q));
+  }, [workflows, filter]);
+
   const handleDelete = async () => {
     if (!sel) return;
     setDeleteBusy(true);
@@ -130,38 +153,54 @@ export default function ThinkWorkflows() {
   return (
     <Grid container spacing={2}>
       <Grid size={4}>
-        <Paper sx={{ p: 1 }}>
-          <Stack direction="row" alignItems="center" justifyContent="space-between">
-            <Typography variant="subtitle1" sx={{ px: 1, py: 1 }}>Workflows</Typography>
+        <Paper sx={{ p: 1, height: 'calc(100vh - 260px)', display: 'flex', flexDirection: 'column' }}>
+          <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+            <Typography variant="subtitle1" sx={{ fontSize: 12 }}>Workflows</Typography>
             <Stack direction="row" spacing={1} alignItems="center">
-              <Tooltip title="Edit workflow">
+              <Tooltip title="New Workflow">
+                <IconButton size="small" color="primary" onClick={() => navigate('/engines/think/workflows/new')}>
+                  <AddCircleIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title={sel ? 'Edit Workflow' : 'Select a workflow'}>
                 <span>
-                  <IconButton size="small" disabled={!sel} onClick={() => sel && navigate(`/engines/think/workflows/edit/${sel}`)}>
+                  <IconButton size="small" color="primary" disabled={!sel} onClick={() => sel && navigate(`/engines/think/workflows/edit/${sel}`)}>
                     <EditIcon fontSize="small" />
                   </IconButton>
                 </span>
               </Tooltip>
-              <Tooltip title="Delete workflow">
+              <Tooltip title={sel ? 'Delete Workflow' : 'Select a workflow'}>
                 <span>
                   <IconButton size="small" color="error" disabled={!sel} onClick={()=>setDeleteOpen(true)}>
                     <DeleteOutlineIcon fontSize="small" />
                   </IconButton>
                 </span>
               </Tooltip>
-              <Tooltip title="Create workflow">
-                <IconButton size="small" color="primary" onClick={() => navigate('/engines/think/workflows/new')}>
-                  <AddCircleIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
             </Stack>
           </Stack>
           {isLoading && <LinearProgress />}
           {isError && <Alert severity="error">{getErrorMessage(error as any)}</Alert>}
-          <List dense>
-            {(data?.workflows || []).map(w => (
+          <TextField
+            fullWidth
+            size="small"
+            placeholder="Search workflows..."
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            sx={{ mb: 1 }}
+          />
+          <List dense sx={{ flex: 1, overflowY: 'auto' }}>
+            {filteredWorkflows.map(w => (
               <ListItem key={w.id} disablePadding>
                 <ListItemButton selected={sel === w.id} onClick={() => setSel(w.id)} onDoubleClick={()=>navigate(`/engines/think/workflows/edit/${w.id}`)}>
-                  <ListItemText primary={w.id} secondary={`${w.version} — ${w.desc || ''}`} />
+                  <ListItemText
+                    primary={
+                      <Box display="flex" alignItems="center" gap={1}>
+                        <Typography component="span" sx={{ fontWeight: 600 }}>{w.name || w.id}</Typography>
+                        <Chip size="small" label={`v${w.version}`} />
+                      </Box>
+                    }
+                    secondary={w.desc || ''}
+                  />
                 </ListItemButton>
               </ListItem>
             ))}
@@ -169,9 +208,25 @@ export default function ThinkWorkflows() {
         </Paper>
       </Grid>
       <Grid size={8}>
-        <Paper sx={{ p: 2 }}>
+        <Paper sx={{ p: 2, height: 'calc(100vh - 260px)', display: 'flex', flexDirection: 'column' }}>
           <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between">
-            <Typography variant="subtitle1" sx={{ fontSize: 12 }}>Workflow {sel ? `(${sel})` : ''}</Typography>
+            <Stack spacing={0.5}>
+              <Typography variant="subtitle1" sx={{ fontSize: 12 }}>Workflow Details</Typography>
+              {sel && (
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <Chip size="small" label={`ID: ${sel}`} sx={{ textTransform: 'none' }} />
+                  {wfRead.data?.workflow_yaml && (() => {
+                    try {
+                      const parsed = YAML.load(wfRead.data.workflow_yaml) as any;
+                      const version = parsed?.version ?? '1';
+                      return <Chip size="small" color="primary" label={`v${version}`} />;
+                    } catch {
+                      return null;
+                    }
+                  })()}
+                </Stack>
+              )}
+            </Stack>
             <Stack direction="row" alignItems="center" spacing={1}>
               {sel && mermaidCode && (
                 <Tooltip title={isRendering ? 'Rendering diagram...' : preRenderedSvg ? 'View diagram' : 'Diagram not ready'}>
@@ -199,7 +254,7 @@ export default function ThinkWorkflows() {
                 </span>
               </Tooltip>
               <Tabs value={subTab} onChange={(_, v)=>setSubTab(v)}>
-                <Tab label="YAML" />
+                <Tab icon={<ArticleIcon fontSize="small" />} iconPosition="start" label="YAML" />
               </Tabs>
             </Stack>
           </Stack>
@@ -207,11 +262,13 @@ export default function ThinkWorkflows() {
           {wfRead.isError && <Alert severity="error">{getErrorMessage(wfRead.error as any)}</Alert>}
           {mermaidError && <Alert severity="warning" sx={{ mt: 1 }}>{mermaidError}</Alert>}
           {subTab === 0 && (
-            <Viewer
-              content={wfRead.data?.workflow_yaml || 'Select a workflow to view YAML'}
-              language="yaml"
-              height={460}
-            />
+            <Box sx={{ flex: 1, minHeight: 0 }}>
+              <Viewer
+                content={wfRead.data?.workflow_yaml || 'Select a workflow to view YAML'}
+                language="yaml"
+                height={'100%'}
+              />
+            </Box>
           )}
         </Paper>
       </Grid>
@@ -229,10 +286,20 @@ export default function ThinkWorkflows() {
           {deleteErr && <Alert severity="error" sx={{ mt: 2 }}>{deleteErr}</Alert>}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => { setDeleteOpen(false); setDeleteErr(null); }} disabled={deleteBusy}>Cancel</Button>
-          <Button onClick={handleDelete} color="error" variant="contained" disabled={!sel || deleteBusy} startIcon={deleteBusy ? <CircularProgress size={16} /> : undefined}>
-            {deleteBusy ? 'Deleting…' : 'Delete'}
-          </Button>
+          <Tooltip title="Cancel">
+            <span>
+              <IconButton onClick={() => { setDeleteOpen(false); setDeleteErr(null); }} disabled={deleteBusy}>
+                <CloseIcon />
+              </IconButton>
+            </span>
+          </Tooltip>
+          <Tooltip title="Delete">
+            <span>
+              <IconButton onClick={handleDelete} color="error" disabled={!sel || deleteBusy}>
+                {deleteBusy ? <CircularProgress size={20} /> : <DeleteOutlineIcon />}
+              </IconButton>
+            </span>
+          </Tooltip>
         </DialogActions>
       </Dialog>
       <Snackbar open={copied} autoHideDuration={2000} onClose={() => setCopied(false)} message="Copied YAML" anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }} />

@@ -24,6 +24,71 @@ module Savant
                                schema: { type: 'object', properties: { name: { type: 'string' } }, required: ['name'] } do |_ctx, a|
             eng.get(name: a['name'])
           end
+
+          # Single persona raw YAML read/write
+          tool 'personas.read',
+               description: 'Read a single persona YAML by name',
+               schema: { type: 'object', properties: { name: { type: 'string' } }, required: ['name'] } do |_ctx, a|
+            eng.read_yaml(name: a['name'])
+          end
+
+          tool 'personas.write',
+               description: 'Overwrite a single persona YAML by name',
+               schema: { type: 'object', properties: { name: { type: 'string' }, yaml: { type: 'string' } }, required: %w[name yaml] } do |_ctx, a|
+            eng.write_yaml(name: a['name'], yaml: a['yaml'] || '')
+          end
+
+          # Catalog read/write
+          tool 'personas.catalog.read',
+               description: 'Read the full personas catalog YAML',
+               schema: { type: 'object', properties: {} } do |_ctx, _a|
+            eng.catalog_read
+          end
+
+          tool 'personas.catalog.write',
+               description: 'Overwrite the full personas catalog YAML',
+               schema: { type: 'object', properties: { yaml: { type: 'string' } }, required: ['yaml'] } do |_ctx, a|
+            eng.catalog_write(yaml: a['yaml'] || '')
+          end
+
+          # CRUD for personas
+          tool 'personas.create',
+               description: 'Create a persona entry (version starts at 1)',
+               schema: {
+                 type: 'object',
+                 properties: {
+                   name: { type: 'string' },
+                   summary: { type: 'string' },
+                   prompt_md: { type: 'string' },
+                   tags: { type: 'array', items: { type: 'string' } },
+                   notes: { type: 'string' }
+                 },
+                 required: %w[name summary prompt_md]
+               } do |_ctx, a|
+            eng.create(name: a['name'], summary: a['summary'], prompt_md: a['prompt_md'], tags: a['tags'], notes: a['notes'])
+          end
+
+          tool 'personas.update',
+               description: 'Update a persona entry (bumps version by +1)',
+               schema: {
+                 type: 'object',
+                 properties: {
+                   name: { type: 'string' },
+                   summary: { type: 'string' },
+                   prompt_md: { type: 'string' },
+                   tags: { type: 'array', items: { type: 'string' } },
+                   notes: { type: 'string' }
+                 },
+                 required: %w[name]
+               } do |_ctx, a|
+            eng.update(name: a['name'], summary: a['summary'], prompt_md: a['prompt_md'], tags: a['tags'], notes: a['notes'])
+          end
+
+          tool 'personas.delete',
+               description: 'Delete a persona entry by name',
+               schema: { type: 'object', properties: { name: { type: 'string' } }, required: ['name'] } do |_ctx, a|
+            eng.delete(name: a['name'])
+          end
         end
       end
     end

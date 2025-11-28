@@ -5,7 +5,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 export type SearchResult = { rel_path: string; chunk: string; lang: string; score: number };
 export type RepoStatus = { name: string; files: number; blobs: number; chunks: number; last_mtime: string | null };
 
-type HubConfig = { baseUrl: string; userId: string };
+export type HubConfig = { baseUrl: string; userId: string; themeMode?: 'light' | 'dark' };
 
 const LS_KEY = 'savantHub';
 
@@ -16,10 +16,11 @@ export function loadConfig(): HubConfig {
     const parsed = JSON.parse(raw);
     return {
       baseUrl: parsed.baseUrl || import.meta.env.VITE_HUB_BASE || 'http://localhost:9999',
-      userId: parsed.userId || 'dev'
+      userId: parsed.userId || 'dev',
+      themeMode: parsed.themeMode === 'dark' ? 'dark' : 'light'
     };
   } catch {
-    return { baseUrl: import.meta.env.VITE_HUB_BASE || 'http://localhost:9999', userId: 'dev' };
+    return { baseUrl: import.meta.env.VITE_HUB_BASE || 'http://localhost:9999', userId: 'dev', themeMode: 'light' };
   }
 }
 
@@ -171,7 +172,7 @@ export function useDiagnostics() {
 }
 
 // THINK engine API
-export type ThinkWorkflowRow = { id: string; version: string; desc: string };
+export type ThinkWorkflowRow = { id: string; version: string; desc: string; name?: string };
 export type ThinkWorkflows = { workflows: ThinkWorkflowRow[] };
 export function useThinkWorkflows() {
   return useQuery<ThinkWorkflows>({
@@ -258,6 +259,32 @@ export function useThinkPrompt(version: string | null) {
     },
     enabled: !!version
   });
+}
+
+// THINK prompts mutations and catalog ops
+export async function thinkPromptsCreate(payload: { version: string; prompt_md: string; path?: string }) {
+  const res = await client().post('/think/tools/think.prompts.create/call', { params: payload });
+  return res.data as { ok: boolean; version: string; path: string };
+}
+
+export async function thinkPromptsUpdate(payload: { version: string; prompt_md?: string; new_version?: string }) {
+  const res = await client().post('/think/tools/think.prompts.update/call', { params: payload });
+  return res.data as { ok: boolean; version: string; path: string };
+}
+
+export async function thinkPromptsDelete(version: string) {
+  const res = await client().post('/think/tools/think.prompts.delete/call', { params: { version } });
+  return res.data as { ok: boolean; deleted: boolean };
+}
+
+export async function thinkPromptsCatalogRead() {
+  const res = await client().post('/think/tools/think.prompts.catalog.read/call', { params: {} });
+  return res.data as { catalog_yaml: string };
+}
+
+export async function thinkPromptsCatalogWrite(yaml: string) {
+  const res = await client().post('/think/tools/think.prompts.catalog.write/call', { params: { yaml } });
+  return res.data as { ok: boolean; count: number };
 }
 
 export function useThinkRuns() {
@@ -384,7 +411,7 @@ export function useEngineTools(engine: string) {
 }
 
 // PERSONAS engine API
-export type PersonaSummary = { name: string; title: string; version: string; summary: string; tags?: string[] };
+export type PersonaSummary = { name: string; version: number; summary: string; tags?: string[] };
 export type PersonasList = { personas: PersonaSummary[] };
 export function usePersonas(filter: string = '') {
   return useQuery<PersonasList>({
@@ -396,7 +423,7 @@ export function usePersonas(filter: string = '') {
   });
 }
 
-export type Persona = { name: string; title: string; version: string; summary: string; tags?: string[]; prompt_md: string; notes?: string };
+export type Persona = { name: string; version: number; summary: string; tags?: string[]; prompt_md: string; notes?: string };
 export function usePersona(name: string | null) {
   return useQuery<Persona>({
     queryKey: ['personas', 'get', name],
@@ -408,8 +435,38 @@ export function usePersona(name: string | null) {
   });
 }
 
+// PERSONAS engine mutations and catalog ops
+export async function personasCreate(payload: { name: string; summary: string; prompt_md: string; tags?: string[]; notes?: string | null }) {
+  const res = await client().post('/personas/tools/personas.create/call', { params: payload });
+  return res.data as { ok: boolean; name: string };
+}
+
+export async function personasUpdate(payload: { name: string; summary?: string; prompt_md?: string; tags?: string[]; notes?: string | null }) {
+  const res = await client().post('/personas/tools/personas.update/call', { params: payload });
+  return res.data as { ok: boolean; name: string };
+}
+
+export async function personasDelete(name: string) {
+  const res = await client().post('/personas/tools/personas.delete/call', { params: { name } });
+  return res.data as { ok: boolean; deleted: boolean };
+}
+
+export function usePersonasCreate() { return useMutation({ mutationFn: personasCreate }); }
+export function usePersonasUpdate() { return useMutation({ mutationFn: personasUpdate }); }
+export function usePersonasDelete() { return useMutation({ mutationFn: personasDelete }); }
+
+export async function personasCatalogRead() {
+  const res = await client().post('/personas/tools/personas.catalog.read/call', { params: {} });
+  return res.data as { catalog_yaml: string };
+}
+
+export async function personasCatalogWrite(yaml: string) {
+  const res = await client().post('/personas/tools/personas.catalog.write/call', { params: { yaml } });
+  return res.data as { ok: boolean; count: number };
+}
+
 // RULES engine API
-export type RuleSummary = { name: string; title: string; version: string; summary: string; tags?: string[] };
+export type RuleSummary = { id?: string; name: string; version: number; summary: string; tags?: string[] };
 export type RulesList = { rules: RuleSummary[] };
 export function useRules(filter: string = '') {
   return useQuery<RulesList>({
@@ -421,7 +478,7 @@ export function useRules(filter: string = '') {
   });
 }
 
-export type Rule = { name: string; title: string; version: string; summary: string; tags?: string[]; rules_md: string; notes?: string };
+export type Rule = { id?: string; name: string; version: number; summary: string; tags?: string[]; rules_md: string; notes?: string };
 export function useRule(name: string | null) {
   return useQuery<Rule>({
     queryKey: ['rules', 'get', name],
@@ -431,6 +488,44 @@ export function useRule(name: string | null) {
     },
     enabled: !!name
   });
+}
+
+// RULES engine mutations (create/update/delete + catalog rw)
+export async function rulesCreate(payload: { name: string; summary: string; rules_md: string; tags?: string[]; notes?: string | null }) {
+  const res = await client().post('/rules/tools/rules.create/call', { params: payload });
+  return res.data as { ok: boolean; name: string };
+}
+
+export async function rulesUpdate(payload: { name: string; summary?: string; rules_md?: string; tags?: string[]; notes?: string | null }) {
+  const res = await client().post('/rules/tools/rules.update/call', { params: payload });
+  return res.data as { ok: boolean; name: string };
+}
+
+export async function rulesDelete(name: string) {
+  const res = await client().post('/rules/tools/rules.delete/call', { params: { name } });
+  return res.data as { ok: boolean; deleted: boolean };
+}
+
+export function useRulesCreate() {
+  return useMutation({ mutationFn: rulesCreate });
+}
+
+export function useRulesUpdate() {
+  return useMutation({ mutationFn: rulesUpdate });
+}
+
+export function useRulesDelete() {
+  return useMutation({ mutationFn: rulesDelete });
+}
+
+export async function rulesCatalogRead() {
+  const res = await client().post('/rules/tools/rules.catalog.read/call', { params: {} });
+  return res.data as { catalog_yaml: string };
+}
+
+export async function rulesCatalogWrite(yaml: string) {
+  const res = await client().post('/rules/tools/rules.catalog.write/call', { params: { yaml } });
+  return res.data as { ok: boolean; count: number };
 }
 
 // Hub stats for diagnostics
