@@ -7,6 +7,7 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import TaskAltIcon from '@mui/icons-material/TaskAlt';
 import AddBoxIcon from '@mui/icons-material/AddBox';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
+import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useThinkWorkflowRead } from '../../api';
 import { thinkWorkflowCreateGraph, thinkWorkflowUpdateGraph, thinkWorkflowValidateGraph } from '../../thinkApi';
@@ -85,6 +86,58 @@ export default function ThinkWorkflowEditor() {
     return Array.from(new Set(d));
   }, [edges, selId]);
 
+  // --- Auto layout helpers (top-to-bottom with same-level alignment) ---
+  const ORIGIN_X = 120, ORIGIN_Y = 120, GRID_X = 220, GRID_Y = 120;
+  const computeLevels = React.useCallback((ids: string[], es: Edge[]) => {
+    const indeg: Record<string, number> = {};
+    const children: Record<string, string[]> = {};
+    ids.forEach(id => { indeg[id] = 0; children[id] = []; });
+    es.forEach(e => {
+      const u = String(e.source || '');
+      const v = String(e.target || '');
+      if (u && v && indeg[v] !== undefined && indeg[u] !== undefined) {
+        indeg[v] += 1;
+        children[u].push(v);
+      }
+    });
+    const level: Record<string, number> = {};
+    const q: string[] = ids.filter(id => indeg[id] === 0);
+    q.forEach(id => { level[id] = 0; });
+    const dq: string[] = [...q];
+    while (dq.length) {
+      const u = dq.shift() as string;
+      const lu = level[u] || 0;
+      (children[u] || []).forEach(v => {
+        level[v] = Math.max(level[v] || 0, lu + 1);
+        indeg[v] -= 1;
+        if (indeg[v] === 0) dq.push(v);
+      });
+    }
+    return level;
+  }, []);
+
+  const layoutGraph = React.useCallback(() => {
+    const ids = nodes.map(n => n.id);
+    const lvl = computeLevels(ids, edges);
+    // Group by level and sort within a level for stable layout
+    const groups: Record<number, string[]> = {};
+    ids.forEach(id => {
+      const l = lvl[id] ?? 0;
+      if (!groups[l]) groups[l] = [];
+      groups[l].push(id);
+    });
+    Object.keys(groups).forEach(k => groups[Number(k)].sort());
+
+    const newNodes = nodes.map(n => {
+      const l = lvl[n.id] ?? 0;
+      const idx = groups[l].indexOf(n.id);
+      const x = ORIGIN_X + idx * GRID_X;
+      const y = ORIGIN_Y + l * GRID_Y;
+      return { ...n, position: { x, y } } as RFNode;
+    });
+    setNodes(newNodes);
+  }, [nodes, edges, computeLevels, setNodes]);
+
   const applySelectionStyling = (id: string | null) => {
     setNodes(ns => ns.map(n => {
       const selected = n.id === id;
@@ -135,9 +188,11 @@ export default function ThinkWorkflowEditor() {
         setNodes(npos);
         setEdges(depEdges);
         if (npos.length > 0) setTimeout(() => setSelection(npos[0].id), 0);
+        // Auto-align on load
+        setTimeout(() => layoutGraph(), 0);
       } catch { /* ignore */ }
     }
-  }, [rd.data?.workflow_yaml, isNew]);
+  }, [rd.data?.workflow_yaml, isNew, layoutGraph]);
 
   const onConnect = React.useCallback((c: Connection) => setEdges((eds) => addEdge(c as any, eds)), []);
 
@@ -221,6 +276,13 @@ export default function ThinkWorkflowEditor() {
             <Tooltip title="Preview YAML">
               <span>
                 <IconButton onClick={preview}><VisibilityIcon /></IconButton>
+              </span>
+            </Tooltip>
+            <Tooltip title="Auto Align">
+              <span>
+                <IconButton onClick={layoutGraph}>
+                  <AutoFixHighIcon />
+                </IconButton>
               </span>
             </Tooltip>
             <Tooltip title={diagramBusy ? 'Rendering…' : 'View Diagram'}>
