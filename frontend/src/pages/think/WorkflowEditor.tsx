@@ -61,6 +61,29 @@ export default function ThinkWorkflowEditor() {
   const [validation, setValidation] = React.useState<string>('');
   const [previewOpen, setPreviewOpen] = React.useState(false);
 
+  // Helper to normalize/validate node IDs
+  const normalizeId = (s: string) => (s || '').trim().replace(/[^A-Za-z0-9_.-]/g, '_');
+
+  const renameNode = (oldId: string, newIdRaw: string) => {
+    const newId = normalizeId(newIdRaw);
+    if (!newId || newId === oldId) return;
+    // Prevent duplicates
+    if (nodes.some(n => n.id === newId)) {
+      setValidation(`Duplicate id: ${newId}`);
+      return;
+    }
+    // Rename in nodes
+    const renamedNodes = nodes.map(n => n.id === oldId ? { ...n, id: newId } as RFNode : n);
+    // Update edges
+    const renamedEdges = edges.map(e => ({
+      ...e,
+      source: e.source === oldId ? newId : e.source,
+      target: e.target === oldId ? newId : e.target
+    }));
+    setNodes(renamedNodes);
+    setEdges(renamedEdges);
+  };
+
   React.useEffect(() => {
     if (!isNew && rd.data?.workflow_yaml) {
       try {
@@ -157,7 +180,16 @@ export default function ThinkWorkflowEditor() {
           <Typography variant="subtitle2" sx={{ mb: 1 }}>Properties</Typography>
           {nodes.map(n => (
             <Box key={n.id} sx={{ border: '1px solid #eee', borderRadius: 1, p: 1, mb: 1 }}>
-              <Typography variant="caption" sx={{ fontWeight: 600 }}>{n.id}</Typography>
+              <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
+                <Typography variant="caption" sx={{ fontWeight: 600 }}>Step</Typography>
+                <TextField
+                  label="id"
+                  value={n.id}
+                  size="small"
+                  onChange={(e)=> renameNode(n.id, e.target.value)}
+                  sx={{ width: 180 }}
+                />
+              </Stack>
               <TextField label="call" fullWidth sx={{ mt: 1 }} value={n.data.call || ''} onChange={(e)=>updateNodeData(n.id, 'call', e.target.value)} />
               <TextField label="input_template (JSON)" fullWidth multiline minRows={3} sx={{ mt: 1 }} value={n.data.input_template ? JSON.stringify(n.data.input_template, null, 2) : ''}
                         onChange={(e)=>{
