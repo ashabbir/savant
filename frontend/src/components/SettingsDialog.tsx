@@ -30,8 +30,8 @@ export default function SettingsDialog({ open, onClose }: { open: boolean; onClo
       <DialogTitle>Settings</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ mt: 1 }}>
-          <TextField label="Hub Base URL" value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} helperText="e.g., http://localhost:9999" />
-          <TextField label="User ID Header" value={userId} onChange={(e) => setUserId(e.target.value)} helperText="Sent as x-savant-user-id" />
+          <TextField id="settings-base-url" name="baseUrl" label="Hub Base URL" value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} helperText="e.g., http://localhost:9999" />
+          <TextField id="settings-user-id" name="userId" label="User ID Header" value={userId} onChange={(e) => setUserId(e.target.value)} helperText="Sent as x-savant-user-id" />
         </Stack>
       </DialogContent>
       <DialogActions>
@@ -41,4 +41,3 @@ export default function SettingsDialog({ open, onClose }: { open: boolean; onClo
     </Dialog>
   );
 }
-

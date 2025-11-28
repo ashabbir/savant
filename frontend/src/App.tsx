@@ -12,6 +12,7 @@ import DiagnosticsRequests from './pages/diagnostics/Requests';
 import DiagnosticsLogs from './pages/diagnostics/Logs';
 import Dashboard from './pages/Dashboard';
 import ThinkWorkflows from './pages/think/Workflows';
+import ThinkWorkflowEditor from './pages/think/WorkflowEditor';
 import ThinkPrompts from './pages/think/Prompts';
 import ThinkRuns from './pages/think/Runs';
 import Personas from './pages/personas/Personas';
@@ -364,11 +365,14 @@ export default function App() {
           <Route path="/engines/context/repos" element={<Repos />} />
 
           <Route path="/engines/think/workflows" element={<ThinkWorkflows />} />
+          <Route path="/engines/think/workflows/new" element={<ThinkWorkflowEditor />} />
+          <Route path="/engines/think/workflows/edit/:id" element={<ThinkWorkflowEditor />} />
           <Route path="/engines/think/prompts" element={<ThinkPrompts />} />
           <Route path="/engines/think/runs" element={<ThinkRuns />} />
 
           <Route path="/engines/personas" element={<Personas />} />
           <Route path="/engines/rules" element={<RulesPage />} />
+          {/* Workflows editor moved under Think engine */}
           {/* Legacy shortcuts */}
           <Route path="/rules" element={<RulesPage />} />
           <Route path="/engines/rules" element={<RulesPage />} />

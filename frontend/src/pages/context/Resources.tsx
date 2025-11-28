@@ -47,7 +47,7 @@ export default function ContextResources() {
       <Grid size={{ xs: 12, md: 4 }}>
         <Paper sx={{ p: 1 }}>
           <Typography variant="subtitle1" sx={{ px: 1, py: 1 }}>Memory Resources</Typography>
-          <TextField label="Repo" select value={repo} onChange={(e)=>setRepo(e.target.value)} sx={{ m:1, minWidth: 220 }}>
+          <TextField id="res-repo" name="repo" label="Repo" select value={repo} onChange={(e)=>setRepo(e.target.value)} sx={{ m:1, minWidth: 220 }}>
             <MenuItem value="">All</MenuItem>
             {repos.map(r => <MenuItem key={r} value={r}>{r}</MenuItem>)}
           </TextField>

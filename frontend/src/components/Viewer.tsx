@@ -1,7 +1,17 @@
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import Box from '@mui/material/Box';
 import DOMPurify from 'dompurify';
 import { marked } from 'marked';
+import mermaid from 'mermaid';
+
+let mermaidConfigured = false;
+
+function ensureMermaidConfigured() {
+  if (!mermaidConfigured) {
+    mermaid.initialize({ startOnLoad: false, securityLevel: 'loose' });
+    mermaidConfigured = true;
+  }
+}
 
 type ViewerProps = {
   content: string;
@@ -154,6 +164,7 @@ function detectType({ contentType, filename, language }: { contentType?: string;
 
 export default function Viewer({ content, contentType, filename, language, height = 420, className }: ViewerProps) {
   const kind = useMemo(() => detectType({ contentType, filename, language }), [contentType, filename, language]);
+  const markdownRef = useRef<HTMLDivElement>(null);
 
   const markdownHtml = useMemo(() => {
     if (kind !== 'markdown') return '';
@@ -162,6 +173,9 @@ export default function Viewer({ content, contentType, filename, language, heigh
     const origCode = renderer.code?.bind(renderer);
     renderer.code = (code: string, info: string | undefined) => {
       const lang = (info || '').split(/\s+/)[0]?.toLowerCase();
+      if (lang && (lang.includes('mermaid') || lang === 'sequence' || lang === 'sequencediagram')) {
+        return `<div class="mermaid">${escapeHtml(code)}</div>`;
+      }
       if (lang === 'ruby' || lang === 'rb') {
         return `<pre class="code"><code>${simpleHighlight(code, 'ruby')}</code></pre>`;
       }
@@ -190,6 +204,19 @@ export default function Viewer({ content, contentType, filename, language, heigh
     const raw = marked.parse(content, { renderer, breaks: true }) as string;
     return DOMPurify.sanitize(raw);
   }, [content, kind]);
+
+  useEffect(() => {
+    if (kind !== 'markdown') return;
+    const root = markdownRef.current;
+    if (!root) return;
+    const nodes = root.querySelectorAll<HTMLElement>('.mermaid');
+    if (!nodes.length) return;
+    ensureMermaidConfigured();
+    mermaid
+      .run({ nodes })
+      // eslint-disable-next-line no-console
+      .catch((err) => console.warn('Mermaid render failed', err));
+  }, [kind, markdownHtml]);
 
   const codeHtml = useMemo(() => {
     if (kind === 'ruby') return simpleHighlight(content, 'ruby');
@@ -234,9 +261,10 @@ export default function Viewer({ content, contentType, filename, language, heigh
         '& p': { my: 1 },
         '& pre': { backgroundColor: '#0f1320', color: '#e6e6e6', p: 1.25, borderRadius: 1 },
         '& a': { color: '#2d6cdf' },
-        '& ul': { pl: 3 }
+        '& ul': { pl: 3 },
+        '& .mermaid': { my: 2, '& svg': { maxWidth: '100%' } }
       }}>
-        <div dangerouslySetInnerHTML={{ __html: markdownHtml }} />
+        <div ref={markdownRef} dangerouslySetInnerHTML={{ __html: markdownHtml }} />
       </Box>
     );
   }

@@ -51,7 +51,7 @@ export default function Repos() {
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems="center" justifyContent="space-between">
           <Typography variant="h6">Repositories</Typography>
           <Stack direction="row" spacing={2} alignItems="center">
-            <TextField
+            <TextField id="repo-filter" name="repoFilter"
               label="Filter"
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
