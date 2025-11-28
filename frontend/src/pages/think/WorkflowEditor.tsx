@@ -17,6 +17,8 @@ import Viewer from '../../components/Viewer';
 import WorkflowDiagram from '../../components/WorkflowDiagram';
 import { workflowToMermaid } from '../../utils/workflowToMermaid';
 
+const PANEL_HEIGHT = 'calc(100vh - 260px)';
+
 type RFNode = Node<{ call: string; input_template?: any; capture_as?: string; label?: string }>;
 
 function defaultGraph(): { nodes: RFNode[]; edges: Edge[] } {
@@ -384,67 +386,70 @@ export default function ThinkWorkflowEditor() {
       </Grid>
       {/* Two-panel layout: Action (left, small) and Result (right, large) */}
       <Grid size={4}>
-        <Paper sx={{ p: 1 }}>
-          <Typography variant="subtitle2" sx={{ mb: 1 }}>Actions</Typography>
-          <Stack direction="row" spacing={1} sx={{ mb: 1 }}>
-            <Button startIcon={<AddBoxIcon />} onClick={addNode}>Add Step</Button>
-            <Button startIcon={<DeleteOutlineIcon />} onClick={removeSelected} disabled={!selId}>Remove Step</Button>
-            <Button startIcon={<DeleteOutlineIcon />} onClick={removeSelectedEdge} disabled={!selEdgeId}>Remove Edge</Button>
-          </Stack>
-          <Divider sx={{ my: 1 }} />
-          <Typography variant="subtitle2" sx={{ mb: 1 }}>Properties</Typography>
-          {selEdgeId && selectedEdge ? (
-            <Box sx={{ border: '2px solid', borderColor: 'success.main', borderRadius: 1, p: 1, mb: 1 }}>
-              <Typography variant="caption" sx={{ fontWeight: 600 }}>Edge</Typography>
-              <TextField id={`edge-id-${selectedEdge.id}`} name="edgeId" label="id" fullWidth sx={{ mt: 1 }} value={selectedEdge.id} InputProps={{ readOnly: true }} />
-              <TextField id={`edge-src-${selectedEdge.id}`} name="source" label="source" fullWidth sx={{ mt: 1 }} value={String(selectedEdge.source || '')} InputProps={{ readOnly: true }} />
-              <TextField id={`edge-tgt-${selectedEdge.id}`} name="target" label="target" fullWidth sx={{ mt: 1 }} value={String(selectedEdge.target || '')} InputProps={{ readOnly: true }} />
-            </Box>
-          ) : !selectedNode ? (
-            <Alert severity="info">Select a step or edge to view properties</Alert>
-          ) : (
-            <Box
-              key={selectedNode.id}
-              sx={{
-                border: '2px solid',
-                borderColor: 'success.main',
-                borderRadius: 1,
-                p: 1,
-                mb: 1
-              }}
-            >
-              <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
-                <Typography variant="caption" sx={{ fontWeight: 600 }}>Step</Typography>
-                <TextField
-                  id={`step-id-${selectedNode.id}`}
-                  name="stepId"
-                  label="id"
-                  value={selectedNode.id}
-                  size="small"
-                  onChange={(e)=> renameNode(selectedNode.id, e.target.value)}
-                  sx={{ width: 180 }}
+        <Paper sx={{ p: 1, height: PANEL_HEIGHT, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <Box sx={{ flex: 1, overflowY: 'auto', pr: 1 }}>
+            <Typography variant="subtitle2" sx={{ mb: 1 }}>Actions</Typography>
+            <Stack direction="row" spacing={1} sx={{ mb: 1 }}>
+              <Button startIcon={<AddBoxIcon />} onClick={addNode}>Add Step</Button>
+              <Button startIcon={<DeleteOutlineIcon />} onClick={removeSelected} disabled={!selId}>Remove Step</Button>
+              <Button startIcon={<DeleteOutlineIcon />} onClick={removeSelectedEdge} disabled={!selEdgeId}>Remove Edge</Button>
+            </Stack>
+            <Divider sx={{ my: 1 }} />
+            <Typography variant="subtitle2" sx={{ mb: 1 }}>Properties</Typography>
+            {selEdgeId && selectedEdge ? (
+              <Box sx={{ border: '2px solid', borderColor: 'success.main', borderRadius: 1, p: 1, mb: 1 }}>
+                <Typography variant="caption" sx={{ fontWeight: 600 }}>Edge</Typography>
+                <TextField id={`edge-id-${selectedEdge.id}`} name="edgeId" label="id" fullWidth sx={{ mt: 1 }} value={selectedEdge.id} InputProps={{ readOnly: true }} />
+                <TextField id={`edge-src-${selectedEdge.id}`} name="source" label="source" fullWidth sx={{ mt: 1 }} value={String(selectedEdge.source || '')} InputProps={{ readOnly: true }} />
+                <TextField id={`edge-tgt-${selectedEdge.id}`} name="target" label="target" fullWidth sx={{ mt: 1 }} value={String(selectedEdge.target || '')} InputProps={{ readOnly: true }} />
+              </Box>
+            ) : !selectedNode ? (
+              <Alert severity="info">Select a step or edge to view properties</Alert>
+            ) : (
+              <Box
+                key={selectedNode.id}
+                sx={{
+                  border: '2px solid',
+                  borderColor: 'success.main',
+                  borderRadius: 1,
+                  p: 1,
+                  mb: 1
+                }}
+              >
+                <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
+                  <Typography variant="caption" sx={{ fontWeight: 600 }}>Step</Typography>
+                  <TextField
+                    id={`step-id-${selectedNode.id}`}
+                    name="stepId"
+                    label="id"
+                    value={selectedNode.id}
+                    size="small"
+                    onChange={(e)=> renameNode(selectedNode.id, e.target.value)}
+                    sx={{ width: 180 }}
+                  />
+                </Stack>
+                <TextField id={`step-call-${selectedNode.id}`} name="call" label="call" fullWidth sx={{ mt: 1 }} value={callDraft} onChange={(e)=>setCallDraft(e.target.value)} onBlur={()=>updateNodeData(selectedNode.id, 'call', callDraft)} />
+                <TextField id={`step-deps-${selectedNode.id}`} name="deps" label="deps" fullWidth sx={{ mt: 1 }} value={selectedDeps.join(', ')} InputProps={{ readOnly: true }} />
+                <TextField id={`step-input-template-${selectedNode.id}`} name="input_template" label="input_template (JSON)" fullWidth multiline minRows={3} sx={{ mt: 1 }}
+                          value={itDraft}
+                          error={!!itErr}
+                          helperText={itErr || ''}
+                          onChange={(e)=>{ setItDraft(e.target.value); setItErr(null); }}
+                          onBlur={() => { try { const parsed = itDraft ? JSON.parse(itDraft) : undefined; updateNodeData(selectedNode.id, 'input_template', parsed); setItErr(null);} catch (e:any) { setItErr(e?.message || 'Invalid JSON'); } }}
                 />
-              </Stack>
-              <TextField id={`step-call-${selectedNode.id}`} name="call" label="call" fullWidth sx={{ mt: 1 }} value={callDraft} onChange={(e)=>setCallDraft(e.target.value)} onBlur={()=>updateNodeData(selectedNode.id, 'call', callDraft)} />
-              <TextField id={`step-deps-${selectedNode.id}`} name="deps" label="deps" fullWidth sx={{ mt: 1 }} value={selectedDeps.join(', ')} InputProps={{ readOnly: true }} />
-              <TextField id={`step-input-template-${selectedNode.id}`} name="input_template" label="input_template (JSON)" fullWidth multiline minRows={3} sx={{ mt: 1 }}
-                        value={itDraft}
-                        error={!!itErr}
-                        helperText={itErr || ''}
-                        onChange={(e)=>{ setItDraft(e.target.value); setItErr(null); }}
-                        onBlur={() => { try { const parsed = itDraft ? JSON.parse(itDraft) : undefined; updateNodeData(selectedNode.id, 'input_template', parsed); setItErr(null);} catch (e:any) { setItErr(e?.message || 'Invalid JSON'); } }}
-              />
-            </Box>
-          )}
-          {validation && <Alert sx={{ mt: 1 }} severity={validation.includes('OK')||validation.includes('Saved')? 'success':'warning'}>{validation}</Alert>}
+              </Box>
+            )}
+          </Box>
+          {validation && <Alert sx={{ mt: 1, flexShrink: 0 }} severity={validation.includes('OK')||validation.includes('Saved')? 'success':'warning'}>{validation}</Alert>}
         </Paper>
       </Grid>
       <Grid size={8}>
-        <Paper sx={{ height: 620 }}>
+        <Paper sx={{ p: 1, height: PANEL_HEIGHT, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           {!isNew && rd.isFetching && <LinearProgress />}
           {rd.isError && <Alert severity="error">{(rd.error as any)?.message || 'Failed to load'}</Alert>}
-          <Box sx={{ height: '100%', width: '100%' }}>
+          <Box sx={{ flex: 1, minHeight: 0, width: '100%', overflow: 'auto' }}>
             <ReactFlow
+              style={{ width: '100%', height: '100%' }}
               nodes={nodes}
               edges={edges}
               onNodesChange={onNodesChange}

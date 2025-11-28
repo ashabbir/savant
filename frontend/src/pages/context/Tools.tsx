@@ -15,6 +15,8 @@ import Button from '@mui/material/Button';
 import TextField from '@mui/material/TextField';
 import Viewer from '../../components/Viewer';
 
+const PANEL_HEIGHT = 'calc(100vh - 260px)';
+
 function isSimpleSchema(schema: any): boolean {
   try {
     if (!schema || typeof schema !== 'object') return false;
@@ -95,29 +97,34 @@ export default function ContextTools() {
   return (
     <Grid container spacing={2}>
       <Grid size={{ xs: 12, md: 4 }}>
-        <Paper sx={{ p: 1 }}>
+        <Paper sx={{ p: 1, height: PANEL_HEIGHT, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <Typography variant="subtitle1" sx={{ px: 1, py: 1 }}>Context Tools</Typography>
           <TextField size="small" label="Filter" value={filter} onChange={(e)=>setFilter(e.target.value)} sx={{ m: 1 }} />
           {isLoading && <LinearProgress />}
           {isError && <Alert severity="error">{(error as any)?.message || 'Failed to load tools'}</Alert>}
-          <List dense>
-            {tools.filter(t => !filter || t.name.includes(filter) || (t.description||'').includes(filter)).map(t => (
-              <ListItem key={t.name} disablePadding>
-                <ListItemButton selected={sel?.name === t.name} onClick={() => { setSel(t); setInput('{}'); setOut(''); }}>
-                  <ListItemText primary={t.name} secondary={t.description} />
-                </ListItemButton>
-              </ListItem>
-            ))}
-          </List>
+          <Box sx={{ flex: 1, overflowY: 'auto' }}>
+            <List dense>
+              {tools.filter(t => !filter || t.name.includes(filter) || (t.description||'').includes(filter)).map(t => (
+                <ListItem key={t.name} disablePadding>
+                  <ListItemButton selected={sel?.name === t.name} onClick={() => { setSel(t); setInput('{}'); setOut(''); }}>
+                    <ListItemText primary={t.name} secondary={t.description} />
+                  </ListItemButton>
+                </ListItem>
+              ))}
+            </List>
+          </Box>
         </Paper>
       </Grid>
       <Grid size={{ xs: 12, md: 8 }}>
-        <Paper sx={{ p: 2 }}>
+        <Paper sx={{ p: 2, height: PANEL_HEIGHT, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <Typography variant="subtitle1" sx={{ fontSize: 12 }}>{name || 'Select a tool'}</Typography>
           {schema && (
-            <Viewer content={JSON.stringify(schema, null, 2)} contentType="application/json" height={200} />
+            <Box sx={{ mt: 1 }}>
+              <Viewer content={JSON.stringify(schema, null, 2)} contentType="application/json" height={200} />
+            </Box>
           )}
-          <Stack spacing={1} sx={{ mt: 1 }}>
+          <Box sx={{ flex: 1, overflowY: 'auto', mt: 1, pr: 1 }}>
+          <Stack spacing={1}>
             <Stack direction="row" spacing={1} sx={{ mb: 1 }}>
               <Button
                 size="small"
@@ -166,9 +173,10 @@ export default function ContextTools() {
               </Button>
             </Stack>
             {out && (
-              <Viewer content={out} contentType={outContentType} height={400} />
+              <Viewer content={out} contentType={outContentType} height={320} />
             )}
           </Stack>
+          </Box>
         </Paper>
       </Grid>
     </Grid>
