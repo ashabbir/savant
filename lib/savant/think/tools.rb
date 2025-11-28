@@ -60,6 +60,37 @@ module Savant
             eng.workflows_read(workflow: a['workflow'])
           end
 
+          tool 'think.workflows.graph', description: 'Return nodes and topological order for a workflow',
+                                        schema: { type: 'object', properties: { workflow: { type: 'string' } }, required: ['workflow'] } do |_ctx, a|
+            eng.workflows_graph(workflow: a['workflow'])
+          end
+
+          # CRUD + validation for Think workflows
+          tool 'think.workflows.validate', description: 'Validate Think workflow graph',
+                                           schema: { type: 'object', properties: { graph: { type: 'object' } }, required: ['graph'] } do |_ctx, a|
+            eng.workflows_validate_graph(graph: a['graph'] || {})
+          end
+
+          tool 'think.workflows.create', description: 'Create Think workflow from graph',
+                                         schema: { type: 'object', properties: { workflow: { type: 'string' }, graph: { type: 'object' } }, required: %w[workflow graph] } do |_ctx, a|
+            eng.workflows_create_from_graph(workflow: a['workflow'], graph: a['graph'] || {})
+          end
+
+          tool 'think.workflows.update', description: 'Update Think workflow from graph',
+                                         schema: { type: 'object', properties: { workflow: { type: 'string' }, graph: { type: 'object' } }, required: %w[workflow graph] } do |_ctx, a|
+            eng.workflows_update_from_graph(workflow: a['workflow'], graph: a['graph'] || {})
+          end
+
+          tool 'think.workflows.write', description: 'Overwrite workflow YAML',
+                                        schema: { type: 'object', properties: { workflow: { type: 'string' }, yaml: { type: 'string' } }, required: %w[workflow yaml] } do |_ctx, a|
+            eng.workflows_write_yaml(workflow: a['workflow'], yaml: a['yaml'] || '')
+          end
+
+          tool 'think.workflows.delete', description: 'Delete a Think workflow YAML',
+                                         schema: { type: 'object', properties: { workflow: { type: 'string' } }, required: %w[workflow] } do |_ctx, a|
+            eng.workflows_delete(workflow: a['workflow'])
+          end
+
           tool 'think.prompts.list', description: 'List available Think prompt versions',
                                      schema: { type: 'object', properties: {} } do |_ctx, _a|
             eng.prompts_list
@@ -93,11 +124,6 @@ module Savant
           tool 'think.runs.delete', description: 'Delete a Think run state',
                                     schema: { type: 'object', properties: { workflow: { type: 'string' }, run_id: { type: 'string' } }, required: %w[workflow run_id] } do |_ctx, a|
             eng.run_delete(workflow: a['workflow'], run_id: a['run_id'])
-          end
-
-          tool 'think.workflows.graph', description: 'Return nodes and topological order for a workflow',
-                                        schema: { type: 'object', properties: { workflow: { type: 'string' } }, required: ['workflow'] } do |_ctx, a|
-            eng.workflows_graph(workflow: a['workflow'])
           end
 
           # NOTE: Think does not re‑expose Context FTS or local FS search.

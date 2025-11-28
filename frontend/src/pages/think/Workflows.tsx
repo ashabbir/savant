@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useThinkWorkflows, useThinkWorkflowRead } from '../../api';
+import { useNavigate } from 'react-router-dom';
 import Box from '@mui/material/Box';
 import Grid from '@mui/material/Grid2';
 import Tabs from '@mui/material/Tabs';
@@ -16,6 +17,7 @@ import Alert from '@mui/material/Alert';
 import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
 import Snackbar from '@mui/material/Snackbar';
+import Button from '@mui/material/Button';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import CircularProgress from '@mui/material/CircularProgress';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
@@ -40,6 +42,7 @@ async function getMermaid() {
 }
 
 export default function ThinkWorkflows() {
+  const navigate = useNavigate();
   const { data, isLoading, isError, error } = useThinkWorkflows();
   const [sel, setSel] = useState<string | null>(null);
   const wfRead = useThinkWorkflowRead(sel);
@@ -95,15 +98,21 @@ export default function ThinkWorkflows() {
 
   return (
     <Grid container spacing={2}>
-      <Grid size={{ xs: 12, md: 4 }}>
+      <Grid size={4}>
         <Paper sx={{ p: 1 }}>
-          <Typography variant="subtitle1" sx={{ px: 1, py: 1 }}>Workflows</Typography>
+          <Stack direction="row" alignItems="center" justifyContent="space-between">
+            <Typography variant="subtitle1" sx={{ px: 1, py: 1 }}>Workflows</Typography>
+            <Stack direction="row" spacing={1} alignItems="center">
+              <Button size="small" variant="outlined" disabled={!sel} onClick={() => sel && navigate(`/engines/think/workflows/edit/${sel}`)}>Edit</Button>
+              <Button size="small" variant="contained" onClick={() => navigate('/engines/think/workflows/new')}>Create</Button>
+            </Stack>
+          </Stack>
           {isLoading && <LinearProgress />}
           {isError && <Alert severity="error">{getErrorMessage(error as any)}</Alert>}
           <List dense>
             {(data?.workflows || []).map(w => (
               <ListItem key={w.id} disablePadding>
-                <ListItemButton selected={sel === w.id} onClick={() => setSel(w.id)}>
+                <ListItemButton selected={sel === w.id} onClick={() => setSel(w.id)} onDoubleClick={()=>navigate(`/engines/think/workflows/edit/${w.id}`)}>
                   <ListItemText primary={w.id} secondary={`${w.version} — ${w.desc || ''}`} />
                 </ListItemButton>
               </ListItem>
@@ -111,7 +120,7 @@ export default function ThinkWorkflows() {
           </List>
         </Paper>
       </Grid>
-      <Grid size={{ xs: 12, md: 8 }}>
+      <Grid size={8}>
         <Paper sx={{ p: 2 }}>
           <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between">
             <Typography variant="subtitle1" sx={{ fontSize: 12 }}>Workflow {sel ? `(${sel})` : ''}</Typography>
