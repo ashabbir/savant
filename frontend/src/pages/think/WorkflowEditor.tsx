@@ -76,6 +76,9 @@ export default function ThinkWorkflowEditor() {
   const [validation, setValidation] = React.useState<string>('');
   const [previewOpen, setPreviewOpen] = React.useState(false);
   const [selId, setSelId] = React.useState<string | null>(null);
+  // Draft state to avoid flicker while typing JSON
+  const [itDraft, setItDraft] = React.useState<string>('');
+  const [itErr, setItErr] = React.useState<string | null>(null);
   const [diagramOpen, setDiagramOpen] = React.useState(false);
   const [diagramSvg, setDiagramSvg] = React.useState<string>('');
   const [diagramBusy, setDiagramBusy] = React.useState(false);
@@ -86,6 +89,16 @@ export default function ThinkWorkflowEditor() {
     const d = edges.filter(e => e.target === selId && e.source).map(e => String(e.source));
     return Array.from(new Set(d));
   }, [edges, selId]);
+
+  // Initialize drafts when selection changes
+  React.useEffect(() => {
+    if (!selectedNode) { setItDraft(''); setItErr(null); return; }
+    try {
+      const txt = selectedNode.data.input_template ? JSON.stringify(selectedNode.data.input_template, null, 2) : '';
+      setItDraft(txt);
+      setItErr(null);
+    } catch { setItDraft(''); setItErr(null); }
+  }, [selectedNode?.id]);
 
   // --- Auto layout helpers (top-to-bottom with same-level alignment) ---
   const ORIGIN_X = 120, ORIGIN_Y = 120, GRID_X = 220, GRID_Y = 120;
@@ -228,6 +241,18 @@ export default function ThinkWorkflowEditor() {
 
   const save = async () => {
     if (!wfId) return;
+    // Apply pending draft for input_template if selection exists
+    if (selectedNode) {
+      try {
+        const parsed = itDraft ? JSON.parse(itDraft) : undefined;
+        updateNodeData(selectedNode.id, 'input_template', parsed);
+        setItErr(null);
+      } catch (e: any) {
+        setItErr(e?.message || 'Invalid JSON');
+        setValidation('Fix input_template JSON before saving');
+        return;
+      }
+    }
     const graph = toGraphPayload(nodes, edges);
     const v = await thinkWorkflowValidateGraph(graph);
     if (!v.ok) { setValidation(v.errors.join('\n')); return; }
@@ -354,10 +379,13 @@ export default function ThinkWorkflowEditor() {
               </Stack>
               <TextField label="call" fullWidth sx={{ mt: 1 }} value={selectedNode.data.call || ''} onChange={(e)=>updateNodeData(selectedNode.id, 'call', e.target.value)} />
               <TextField label="deps" fullWidth sx={{ mt: 1 }} value={selectedDeps.join(', ')} InputProps={{ readOnly: true }} />
-              <TextField label="input_template (JSON)" fullWidth multiline minRows={3} sx={{ mt: 1 }} value={selectedNode.data.input_template ? JSON.stringify(selectedNode.data.input_template, null, 2) : ''}
-                        onChange={(e)=>{
-                          try { updateNodeData(selectedNode.id, 'input_template', e.target.value ? JSON.parse(e.target.value) : undefined); } catch { /* ignore */ }
-                        }} />
+              <TextField label="input_template (JSON)" fullWidth multiline minRows={3} sx={{ mt: 1 }}
+                        value={itDraft}
+                        error={!!itErr}
+                        helperText={itErr || ''}
+                        onChange={(e)=>{ setItDraft(e.target.value); setItErr(null); }}
+                        onBlur={() => { try { const parsed = itDraft ? JSON.parse(itDraft) : undefined; updateNodeData(selectedNode.id, 'input_template', parsed); setItErr(null);} catch (e:any) { setItErr(e?.message || 'Invalid JSON'); } }}
+              />
             </Box>
           )}
           {validation && <Alert sx={{ mt: 1 }} severity={validation.includes('OK')||validation.includes('Saved')? 'success':'warning'}>{validation}</Alert>}
