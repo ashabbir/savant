@@ -12,12 +12,12 @@ import { thinkWorkflowCreateGraph, thinkWorkflowUpdateGraph, thinkWorkflowValida
 import YAML from 'js-yaml';
 import Viewer from '../../components/Viewer';
 
-type RFNode = Node<{ call: string; input_template?: any; capture_as?: string }>;
+type RFNode = Node<{ call: string; input_template?: any; capture_as?: string; label?: string }>;
 
 function defaultGraph(): { nodes: RFNode[]; edges: Edge[] } {
   const nodes: RFNode[] = [
-    { id: 'step_1', position: { x: 120, y: 120 }, data: { call: 'prompt.say', input_template: { text: 'Start' } }, type: 'default' },
-    { id: 'step_2', position: { x: 120, y: 240 }, data: { call: 'prompt.say', input_template: { text: 'Done' } }, type: 'default' }
+    { id: 'step_1', position: { x: 120, y: 120 }, data: { call: 'prompt.say', input_template: { text: 'Start' }, label: 'step_1' }, type: 'default' },
+    { id: 'step_2', position: { x: 120, y: 240 }, data: { call: 'prompt.say', input_template: { text: 'Done' }, label: 'step_2' }, type: 'default' }
   ];
   const edges: Edge[] = [{ id: 'e1-2', source: 'step_1', target: 'step_2' }];
   return { nodes, edges };
@@ -90,7 +90,7 @@ export default function ThinkWorkflowEditor() {
       return;
     }
     // Rename in nodes
-    const renamedNodes = nodes.map(n => n.id === oldId ? { ...n, id: newId } as RFNode : n);
+    const renamedNodes = nodes.map(n => n.id === oldId ? { ...n, id: newId, data: { ...n.data, label: newId } } as RFNode : n);
     // Update edges
     const renamedEdges = edges.map(e => ({
       ...e,
@@ -107,7 +107,7 @@ export default function ThinkWorkflowEditor() {
       try {
         const y = YAML.load(rd.data.workflow_yaml) as any;
         const steps: any[] = Array.isArray(y?.steps) ? y.steps : [];
-        const npos: RFNode[] = steps.map((s, i) => ({ id: String(s.id), data: { call: String(s.call || ''), input_template: s.input_template || undefined, capture_as: s.capture_as || undefined }, position: { x: 120, y: 120 + i * 120 }, type: 'default' }));
+        const npos: RFNode[] = steps.map((s, i) => ({ id: String(s.id), data: { call: String(s.call || ''), input_template: s.input_template || undefined, capture_as: s.capture_as || undefined, label: String(s.id) }, position: { x: 120, y: 120 + i * 120 }, type: 'default' }));
         const depEdges: Edge[] = steps.flatMap((s, _i) => (Array.isArray(s.deps) ? s.deps : []).map((d: any, j: number) => ({ id: `e${String(d)}-${String(s.id)}-${j}` , source: String(d), target: String(s.id) })));
         setNodes(npos);
         setEdges(depEdges);
@@ -121,7 +121,7 @@ export default function ThinkWorkflowEditor() {
   const addNode = () => {
     const num = nodes.length + 1;
     const id = `step_${num}`;
-    setNodes([...nodes, { id, data: { call: 'prompt.say', input_template: { text: '...' } }, position: { x: 120, y: 120 + (nodes.length) * 120 }, type: 'default' } as RFNode]);
+    setNodes([...nodes, { id, data: { call: 'prompt.say', input_template: { text: '...' }, label: id }, position: { x: 120, y: 120 + (nodes.length) * 120 }, type: 'default' } as RFNode]);
     setTimeout(() => setSelection(id), 0);
   };
 
