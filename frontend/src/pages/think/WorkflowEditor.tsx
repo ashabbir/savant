@@ -65,9 +65,10 @@ function toYamlPreview(nodes: RFNode[], edges: Edge[], id: string) {
 
 export default function ThinkWorkflowEditor() {
   const { id: routeId } = useParams();
-  const isNew = routeId === 'new';
+  // Treat absence of :id param as Create mode
+  const isNew = !routeId;
   const nav = useNavigate();
-  const [wfId, setWfId] = React.useState(isNew ? '' : (routeId || ''));
+  const [wfId, setWfId] = React.useState(routeId || '');
   const rd = useThinkWorkflowRead(isNew ? null : wfId);
   const init = React.useMemo(() => defaultGraph(), []);
   const [nodes, setNodes, onNodesChange] = useNodesState<RFNode>(init.nodes);
