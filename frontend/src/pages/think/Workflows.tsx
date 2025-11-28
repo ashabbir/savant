@@ -18,13 +18,21 @@ import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
 import Snackbar from '@mui/material/Snackbar';
 import Button from '@mui/material/Button';
-import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import Dialog from '@mui/material/Dialog';
+import DialogTitle from '@mui/material/DialogTitle';
+import DialogContent from '@mui/material/DialogContent';
+import DialogActions from '@mui/material/DialogActions';
 import CircularProgress from '@mui/material/CircularProgress';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
+import EditIcon from '@mui/icons-material/Edit';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import AddCircleIcon from '@mui/icons-material/AddCircle';
 import WorkflowDiagram from '../../components/WorkflowDiagram';
 import { workflowToMermaid } from '../../utils/workflowToMermaid';
 import { getErrorMessage } from '../../api';
 import Viewer from '../../components/Viewer';
+import { thinkWorkflowDelete } from '../../thinkApi';
 
 // Lazy load mermaid and cache it
 let mermaidInstance: any = null;
@@ -43,12 +51,15 @@ async function getMermaid() {
 
 export default function ThinkWorkflows() {
   const navigate = useNavigate();
-  const { data, isLoading, isError, error } = useThinkWorkflows();
+  const { data, isLoading, isError, error, refetch } = useThinkWorkflows();
   const [sel, setSel] = useState<string | null>(null);
   const wfRead = useThinkWorkflowRead(sel);
   const [subTab, setSubTab] = useState(0);
   const [diagramOpen, setDiagramOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteErr, setDeleteErr] = useState<string | null>(null);
 
   const [mermaidError, setMermaidError] = useState<string | null>(null);
   const [preRenderedSvg, setPreRenderedSvg] = useState<string | null>(null);
@@ -96,6 +107,26 @@ export default function ThinkWorkflows() {
     return () => { cancelled = true; };
   }, [mermaidCode]);
 
+  const handleDelete = async () => {
+    if (!sel) return;
+    setDeleteBusy(true);
+    setDeleteErr(null);
+    try {
+      const res = await thinkWorkflowDelete(sel);
+      if (!res.ok) {
+        setDeleteErr('Failed to delete workflow');
+      } else {
+        setDeleteOpen(false);
+        setSel(null);
+        await refetch();
+      }
+    } catch (e: any) {
+      setDeleteErr(getErrorMessage(e));
+    } finally {
+      setDeleteBusy(false);
+    }
+  };
+
   return (
     <Grid container spacing={2}>
       <Grid size={4}>
@@ -103,8 +134,25 @@ export default function ThinkWorkflows() {
           <Stack direction="row" alignItems="center" justifyContent="space-between">
             <Typography variant="subtitle1" sx={{ px: 1, py: 1 }}>Workflows</Typography>
             <Stack direction="row" spacing={1} alignItems="center">
-              <Button size="small" variant="outlined" disabled={!sel} onClick={() => sel && navigate(`/engines/think/workflows/edit/${sel}`)}>Edit</Button>
-              <Button size="small" variant="contained" onClick={() => navigate('/engines/think/workflows/new')}>Create</Button>
+              <Tooltip title="Edit workflow">
+                <span>
+                  <IconButton size="small" disabled={!sel} onClick={() => sel && navigate(`/engines/think/workflows/edit/${sel}`)}>
+                    <EditIcon fontSize="small" />
+                  </IconButton>
+                </span>
+              </Tooltip>
+              <Tooltip title="Delete workflow">
+                <span>
+                  <IconButton size="small" color="error" disabled={!sel} onClick={()=>setDeleteOpen(true)}>
+                    <DeleteOutlineIcon fontSize="small" />
+                  </IconButton>
+                </span>
+              </Tooltip>
+              <Tooltip title="Create workflow">
+                <IconButton size="small" color="primary" onClick={() => navigate('/engines/think/workflows/new')}>
+                  <AddCircleIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
             </Stack>
           </Stack>
           {isLoading && <LinearProgress />}
@@ -174,6 +222,19 @@ export default function ThinkWorkflows() {
         svgContent={preRenderedSvg || ''}
         workflowName={sel || undefined}
       />
+      <Dialog open={deleteOpen} onClose={() => { if (!deleteBusy) { setDeleteOpen(false); setDeleteErr(null); } }}>
+        <DialogTitle>Delete Workflow</DialogTitle>
+        <DialogContent dividers>
+          <Typography variant="body2">Are you sure you want to delete workflow <strong>{sel}</strong>? This action cannot be undone.</Typography>
+          {deleteErr && <Alert severity="error" sx={{ mt: 2 }}>{deleteErr}</Alert>}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => { setDeleteOpen(false); setDeleteErr(null); }} disabled={deleteBusy}>Cancel</Button>
+          <Button onClick={handleDelete} color="error" variant="contained" disabled={!sel || deleteBusy} startIcon={deleteBusy ? <CircularProgress size={16} /> : undefined}>
+            {deleteBusy ? 'Deleting…' : 'Delete'}
+          </Button>
+        </DialogActions>
+      </Dialog>
       <Snackbar open={copied} autoHideDuration={2000} onClose={() => setCopied(false)} message="Copied YAML" anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }} />
     </Grid>
   );

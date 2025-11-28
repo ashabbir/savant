@@ -24,6 +24,8 @@ import Collapse from '@mui/material/Collapse';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 
+const PANEL_HEIGHT = 'calc(100vh - 260px)';
+
 export default function ThinkRuns() {
   const { data, isLoading, isError, error, refetch } = useThinkRuns();
   const rows = data?.runs || [];
@@ -98,23 +100,25 @@ export default function ThinkRuns() {
   return (
     <Grid container spacing={2}>
       <Grid size={{ xs: 12, md: 4 }}>
-        <Paper sx={{ p: 1 }}>
+        <Paper sx={{ p: 1, height: PANEL_HEIGHT, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <Typography variant="subtitle1" sx={{ px: 1, py: 1 }}>Runs</Typography>
           {isLoading && <LinearProgress />}
           {isError && <Alert severity="error">{getErrorMessage(error as any)}</Alert>}
-          <List dense>
-            {rows.map(r => (
-              <ListItem key={`${r.workflow}__${r.run_id}`} disablePadding>
-                <ListItemButton selected={sel?.run_id === r.run_id && sel?.workflow === r.workflow} onClick={() => setSel({ workflow: r.workflow, run_id: r.run_id })}>
-                  <ListItemText primary={`${r.workflow} / ${r.run_id}`} secondary={`completed=${r.completed} next=${r.next_step_id || '-'} updated=${r.updated_at}`} />
-                </ListItemButton>
-              </ListItem>
-            ))}
-          </List>
+          <Box sx={{ flex: 1, overflowY: 'auto' }}>
+            <List dense>
+              {rows.map(r => (
+                <ListItem key={`${r.workflow}__${r.run_id}`} disablePadding>
+                  <ListItemButton selected={sel?.run_id === r.run_id && sel?.workflow === r.workflow} onClick={() => setSel({ workflow: r.workflow, run_id: r.run_id })}>
+                    <ListItemText primary={`${r.workflow} / ${r.run_id}`} secondary={`completed=${r.completed} next=${r.next_step_id || '-'} updated=${r.updated_at}`} />
+                  </ListItemButton>
+                </ListItem>
+              ))}
+            </List>
+          </Box>
         </Paper>
       </Grid>
       <Grid size={{ xs: 12, md: 8 }}>
-        <Paper sx={{ p: 2 }}>
+        <Paper sx={{ p: 2, height: PANEL_HEIGHT, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <Stack direction="row" justifyContent="space-between" alignItems="center"> 
             <Typography variant="subtitle1">Run state — {title}</Typography>
             <Stack direction="row" spacing={1} alignItems="center">
@@ -128,35 +132,37 @@ export default function ThinkRuns() {
           </Stack>
           {run.isFetching && <LinearProgress />}
           {run.isError && <Alert severity="error">{getErrorMessage(run.error as any)}</Alert>}
-          {viewTab === 0 && (
-            <Box sx={{ mt: 1 }}>
-              {run.data ? (
-                <VisualNode value={(run.data as any).state} />
-              ) : (
-                <Typography>Select a run to view state</Typography>
-              )}
-            </Box>
-          )}
-          {viewTab === 1 && (
-            <Box sx={{ mt: 1 }}>
-              <Stack direction="row" justifyContent="flex-end" sx={{ mb: 1 }}>
-                {run.data && (
-                  <Tooltip title="Copy JSON">
-                    <span>
-                      <IconButton size="small" onClick={() => copyJson(typeof (run.data as any).state === 'string' ? (run.data as any).state : JSON.stringify((run.data as any).state, null, 2))}>
-                        <ContentCopyIcon fontSize="small" />
-                      </IconButton>
-                    </span>
-                  </Tooltip>
+          <Box sx={{ flex: 1, overflowY: 'auto', mt: 1 }}>
+            {viewTab === 0 && (
+              <Box>
+                {run.data ? (
+                  <VisualNode value={(run.data as any).state} />
+                ) : (
+                  <Typography>Select a run to view state</Typography>
                 )}
-              </Stack>
-              <Viewer
-                content={run.data ? (typeof (run.data as any).state === 'string' ? (run.data as any).state : JSON.stringify((run.data as any).state, null, 2)) : 'Pick a run to view state'}
-                contentType="application/json"
-                height={420}
-              />
-            </Box>
-          )}
+              </Box>
+            )}
+            {viewTab === 1 && (
+              <Box>
+                <Stack direction="row" justifyContent="flex-end" sx={{ mb: 1 }}>
+                  {run.data && (
+                    <Tooltip title="Copy JSON">
+                      <span>
+                        <IconButton size="small" onClick={() => copyJson(typeof (run.data as any).state === 'string' ? (run.data as any).state : JSON.stringify((run.data as any).state, null, 2))}>
+                          <ContentCopyIcon fontSize="small" />
+                        </IconButton>
+                      </span>
+                    </Tooltip>
+                  )}
+                </Stack>
+                <Viewer
+                  content={run.data ? (typeof (run.data as any).state === 'string' ? (run.data as any).state : JSON.stringify((run.data as any).state, null, 2)) : 'Pick a run to view state'}
+                  contentType="application/json"
+                  height={'100%'}
+                />
+              </Box>
+            )}
+          </Box>
         </Paper>
       </Grid>
       <Snackbar open={copiedOpen} autoHideDuration={2000} onClose={() => setCopiedOpen(false)} message="Copied JSON to clipboard" anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }} />

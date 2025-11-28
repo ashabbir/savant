@@ -16,6 +16,8 @@ import MenuItem from '@mui/material/MenuItem';
 
 import Viewer from '../../components/Viewer';
 
+const PANEL_HEIGHT = 'calc(100vh - 260px)';
+
 export default function ContextResources() {
   const { data: status } = useRepoStatus();
   const [repo, setRepo] = useState<string>(() => localStorage.getItem('ctx.resources.repo') || '');
@@ -45,7 +47,7 @@ export default function ContextResources() {
   return (
     <Grid container spacing={2}>
       <Grid size={{ xs: 12, md: 4 }}>
-        <Paper sx={{ p: 1 }}>
+        <Paper sx={{ p: 1, height: PANEL_HEIGHT, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <Typography variant="subtitle1" sx={{ px: 1, py: 1 }}>Memory Resources</Typography>
           <TextField id="res-repo" name="repo" label="Repo" select value={repo} onChange={(e)=>setRepo(e.target.value)} sx={{ m:1, minWidth: 220 }}>
             <MenuItem value="">All</MenuItem>
@@ -53,27 +55,29 @@ export default function ContextResources() {
           </TextField>
           {isLoading && <LinearProgress />}
           {isError && <Alert severity="error">{getErrorMessage(error as any)}</Alert>}
-          <List dense>
-            {rows.map(r => (
-              <ListItem key={r.uri} disablePadding>
-                <ListItemButton selected={sel?.uri === r.uri} onClick={()=>setSel(r)}>
-                  <ListItemText primary={r.metadata.title} secondary={`${r.metadata.path}`} />
-                </ListItemButton>
-              </ListItem>
-            ))}
-          </List>
+          <Box sx={{ flex: 1, overflowY: 'auto' }}>
+            <List dense>
+              {rows.map(r => (
+                <ListItem key={r.uri} disablePadding>
+                  <ListItemButton selected={sel?.uri === r.uri} onClick={()=>setSel(r)}>
+                    <ListItemText primary={r.metadata.title} secondary={`${r.metadata.path}`} />
+                  </ListItemButton>
+                </ListItem>
+              ))}
+            </List>
+          </Box>
         </Paper>
       </Grid>
       <Grid size={{ xs: 12, md: 8 }}>
-        <Paper sx={{ p: 2 }}>
+        <Paper sx={{ p: 2, height: PANEL_HEIGHT, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <Typography variant="subtitle1">{sel ? sel.metadata.title : 'Select a resource'}</Typography>
           {content.isFetching && <LinearProgress />}
           {content.isError && <Alert severity="error">{getErrorMessage(content.error as any)}</Alert>}
-          {content.data && (
-            <Box sx={{ mt: 1 }}>
-              <Viewer content={content.data} contentType={sel?.mimeType} filename={sel?.metadata.path} height={480} />
-            </Box>
-          )}
+          <Box sx={{ flex: 1, overflowY: 'auto', mt: 1 }}>
+            {content.data && (
+              <Viewer content={content.data} contentType={sel?.mimeType} filename={sel?.metadata.path} height={'100%'} />
+            )}
+          </Box>
         </Paper>
       </Grid>
     </Grid>
