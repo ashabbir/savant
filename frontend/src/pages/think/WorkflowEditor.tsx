@@ -1,7 +1,7 @@
 import React from 'react';
 import ReactFlow, { Background, Controls, MiniMap, addEdge, Connection, Edge, Node, useNodesState, useEdgesState } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { Alert, Box, Button, Divider, Grid2 as Grid, IconButton, LinearProgress, Paper, Stack, TextField, Tooltip, Typography } from '@mui/material';
+import { Alert, Box, Button, Divider, Grid2 as Grid, IconButton, LinearProgress, Paper, Stack, TextField, Tooltip, Typography, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
 import SaveIcon from '@mui/icons-material/Save';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import TaskAltIcon from '@mui/icons-material/TaskAlt';
@@ -10,6 +10,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useThinkWorkflowRead } from '../../api';
 import { thinkWorkflowCreateGraph, thinkWorkflowUpdateGraph, thinkWorkflowValidateGraph } from '../../thinkApi';
 import YAML from 'js-yaml';
+import Viewer from '../../components/Viewer';
 
 type RFNode = Node<{ call: string; input_template?: any; capture_as?: string }>;
 
@@ -58,6 +59,7 @@ export default function ThinkWorkflowEditor() {
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(init.edges);
   const [yamlPreview, setYamlPreview] = React.useState<string>('');
   const [validation, setValidation] = React.useState<string>('');
+  const [previewOpen, setPreviewOpen] = React.useState(false);
 
   React.useEffect(() => {
     if (!isNew && rd.data?.workflow_yaml) {
@@ -97,6 +99,7 @@ export default function ThinkWorkflowEditor() {
     const v = await thinkWorkflowValidateGraph(graph);
     if (!v.ok) { setValidation(v.errors.join('\n')); return; }
     setYamlPreview(toYamlPreview(nodes, edges, wfId));
+    setPreviewOpen(true);
   };
 
   const updateNodeData = (id: string, key: string, value: any) => {
@@ -163,13 +166,17 @@ export default function ThinkWorkflowEditor() {
             </Box>
           ))}
         </Paper>
-        <Paper sx={{ p: 1, mt: 2 }}>
-          <Typography variant="subtitle2" sx={{ mb: 1 }}>YAML Preview</Typography>
-          <Box component="pre" sx={{ fontSize: 12, whiteSpace: 'pre-wrap', p: 1, bgcolor: '#fafafa', maxHeight: 240, overflow: 'auto' }}>
-            {yamlPreview || 'Click Preview to render YAML'}
-          </Box>
-        </Paper>
+        {/* YAML preview moved to dialog */}
       </Grid>
+      <Dialog open={previewOpen} onClose={() => setPreviewOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle>YAML Preview — {wfId}</DialogTitle>
+        <DialogContent dividers>
+          <Viewer content={yamlPreview || ''} language="yaml" height={420} />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPreviewOpen(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
     </Grid>
   );
 }
