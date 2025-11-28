@@ -77,6 +77,8 @@ export default function ThinkWorkflowEditor() {
   const [validation, setValidation] = React.useState<string>('');
   const [previewOpen, setPreviewOpen] = React.useState(false);
   const [selId, setSelId] = React.useState<string | null>(null);
+  const [selEdgeId, setSelEdgeId] = React.useState<string | null>(null);
+  const [selKind, setSelKind] = React.useState<'node' | 'edge' | null>(null);
   // Draft state to avoid flicker while typing JSON
   const [itDraft, setItDraft] = React.useState<string>('');
   const [itErr, setItErr] = React.useState<string | null>(null);
@@ -171,9 +173,28 @@ export default function ThinkWorkflowEditor() {
     }));
   };
 
+  const applyEdgeSelectionStyling = (edgeId: string | null) => {
+    setEdges(es => es.map(e => {
+      const selected = e.id === edgeId;
+      const style = selected ? { stroke: '#2e7d32', strokeWidth: 2 } : { stroke: '#bbb', strokeWidth: 1 };
+      return { ...e, style } as Edge;
+    }));
+  };
+
   const setSelection = (id: string | null) => {
+    setSelEdgeId(null);
     setSelId(id);
+    setSelKind(id ? 'node' : null);
     applySelectionStyling(id);
+    applyEdgeSelectionStyling(null);
+  };
+
+  const setEdgeSelection = (edgeId: string | null) => {
+    setSelId(null);
+    setSelEdgeId(edgeId);
+    setSelKind(edgeId ? 'edge' : null);
+    applySelectionStyling(null);
+    applyEdgeSelectionStyling(edgeId);
   };
 
   // Helper to normalize/validate node IDs
@@ -240,6 +261,15 @@ export default function ThinkWorkflowEditor() {
     setNodes(remainingNodes);
     setEdges(remainingEdges);
     setSelId(null);
+    setSelKind(null);
+  };
+
+  const removeSelectedEdge = () => {
+    if (!selEdgeId) return;
+    const remainingEdges = edges.filter(e => e.id !== selEdgeId);
+    setEdges(remainingEdges);
+    setSelEdgeId(null);
+    setSelKind(null);
   };
 
   const save = async () => {
