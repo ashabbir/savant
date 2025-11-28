@@ -109,7 +109,7 @@ export default function ThinkWorkflowEditor() {
         <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between">
           <Stack direction="row" spacing={1} alignItems="center">
             <Typography variant="subtitle1">Think Workflow Builder</Typography>
-            <TextField label="ID" value={wfId} onChange={(e)=>setWfId(e.target.value)} placeholder="new_workflow" sx={{ minWidth: 260 }} />
+            <TextField label="ID" value={wfId} onChange={(e)=>setWfId(e.target.value)} placeholder="new_workflow" sx={{ minWidth: 260 }} disabled={!isNew} />
           </Stack>
           <Stack direction="row" spacing={1}>
             <Tooltip title="Validate">
