@@ -93,6 +93,7 @@ export default function ThinkWorkflowEditor() {
     const d = edges.filter(e => e.target === selId && e.source).map(e => String(e.source));
     return Array.from(new Set(d));
   }, [edges, selId]);
+  const selectedEdge = React.useMemo(() => edges.find(e => e.id === selEdgeId) || null, [edges, selEdgeId]);
 
   // Initialize drafts when selection changes
   React.useEffect(() => {
