@@ -37,7 +37,15 @@ function toYamlPreview(nodes: RFNode[], edges: Edge[], id: string) {
   const ids = nodes.map(n => n.id);
   const indeg: Record<string, number> = {}; ids.forEach(i => indeg[i] = 0);
   const adj: Record<string, string[]> = {};
-  edges.forEach(e => { if (e.source && e.target) { indeg[e.target] = (indeg[e.target] || 0) + 1; (adj[e.source] ||= []).push(e.target); } });
+  const depsMap: Record<string, string[]> = {};
+  ids.forEach(i => depsMap[i] = []);
+  edges.forEach(e => {
+    if (e.source && e.target) {
+      indeg[e.target] = (indeg[e.target] || 0) + 1;
+      (adj[e.source] ||= []).push(e.target);
+      if (!depsMap[e.target].includes(e.source)) depsMap[e.target].push(e.source);
+    }
+  });
   const q = ids.filter(i => (indeg[i] || 0) === 0);
   const order: string[] = [];
   while (q.length) { const u = q.shift()!; order.push(u); (adj[u] || []).forEach(v => { indeg[v]--; if (indeg[v] === 0) q.push(v); }); }
@@ -46,6 +54,8 @@ function toYamlPreview(nodes: RFNode[], edges: Edge[], id: string) {
     const n = map[sid];
     const h: any = { id: sid, call: n.data.call };
     const it = n.data.input_template; if (it && Object.keys(it).length) h.input_template = it;
+    const deps = (depsMap[sid] || []).filter(Boolean);
+    if (deps.length) h.deps = deps;
     return h;
   });
   return YAML.dump({ id, title: id, description: '', steps });
@@ -68,6 +78,12 @@ export default function ThinkWorkflowEditor() {
   const [diagramSvg, setDiagramSvg] = React.useState<string>('');
   const [diagramBusy, setDiagramBusy] = React.useState(false);
   const [diagramErr, setDiagramErr] = React.useState<string | null>(null);
+  const selectedNode = React.useMemo(() => nodes.find(n => n.id === selId) || null, [nodes, selId]);
+  const selectedDeps = React.useMemo(() => {
+    if (!selId) return [] as string[];
+    const d = edges.filter(e => e.target === selId && e.source).map(e => String(e.source));
+    return Array.from(new Set(d));
+  }, [edges, selId]);
 
   const applySelectionStyling = (id: string | null) => {
     setNodes(ns => ns.map(n => {
@@ -253,13 +269,14 @@ export default function ThinkWorkflowEditor() {
       <Grid size={3}>
         <Paper sx={{ p: 1 }}>
           <Typography variant="subtitle2" sx={{ mb: 1 }}>Properties</Typography>
-          {nodes.map(n => (
+          {!selectedNode ? (
+            <Alert severity="info">Select a step to edit properties</Alert>
+          ) : (
             <Box
-              key={n.id}
-              onClick={() => setSelection(n.id)}
+              key={selectedNode.id}
               sx={{
-                border: n.id === selId ? '2px solid' : '1px solid',
-                borderColor: n.id === selId ? 'success.main' : '#eee',
+                border: '2px solid',
+                borderColor: 'success.main',
                 borderRadius: 1,
                 p: 1,
                 mb: 1
@@ -269,19 +286,20 @@ export default function ThinkWorkflowEditor() {
                 <Typography variant="caption" sx={{ fontWeight: 600 }}>Step</Typography>
                 <TextField
                   label="id"
-                  value={n.id}
+                  value={selectedNode.id}
                   size="small"
-                  onChange={(e)=> renameNode(n.id, e.target.value)}
+                  onChange={(e)=> renameNode(selectedNode.id, e.target.value)}
                   sx={{ width: 180 }}
                 />
               </Stack>
-              <TextField label="call" fullWidth sx={{ mt: 1 }} value={n.data.call || ''} onChange={(e)=>updateNodeData(n.id, 'call', e.target.value)} />
-              <TextField label="input_template (JSON)" fullWidth multiline minRows={3} sx={{ mt: 1 }} value={n.data.input_template ? JSON.stringify(n.data.input_template, null, 2) : ''}
+              <TextField label="call" fullWidth sx={{ mt: 1 }} value={selectedNode.data.call || ''} onChange={(e)=>updateNodeData(selectedNode.id, 'call', e.target.value)} />
+              <TextField label="deps" fullWidth sx={{ mt: 1 }} value={selectedDeps.join(', ')} InputProps={{ readOnly: true }} />
+              <TextField label="input_template (JSON)" fullWidth multiline minRows={3} sx={{ mt: 1 }} value={selectedNode.data.input_template ? JSON.stringify(selectedNode.data.input_template, null, 2) : ''}
                         onChange={(e)=>{
-                          try { updateNodeData(n.id, 'input_template', e.target.value ? JSON.parse(e.target.value) : undefined); } catch { /* ignore */ }
+                          try { updateNodeData(selectedNode.id, 'input_template', e.target.value ? JSON.parse(e.target.value) : undefined); } catch { /* ignore */ }
                         }} />
             </Box>
-          ))}
+          )}
         </Paper>
         {/* YAML preview moved to dialog */}
       </Grid>
