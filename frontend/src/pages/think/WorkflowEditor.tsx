@@ -313,7 +313,7 @@ export default function ThinkWorkflowEditor() {
         <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between">
           <Stack direction="row" spacing={1} alignItems="center">
             <Typography variant="subtitle1">Think Workflow Builder</Typography>
-            <TextField label="ID" value={wfId} onChange={(e)=>setWfId(e.target.value)} placeholder="new_workflow" sx={{ minWidth: 260 }} disabled={!isNew} />
+            <TextField id="wf-id" name="workflowId" label="ID" value={wfId} onChange={(e)=>setWfId(e.target.value)} placeholder="new_workflow" sx={{ minWidth: 260 }} disabled={!isNew} />
           </Stack>
           <Stack direction="row" spacing={1}>
             <Tooltip title="Validate">
@@ -372,6 +372,8 @@ export default function ThinkWorkflowEditor() {
               <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
                 <Typography variant="caption" sx={{ fontWeight: 600 }}>Step</Typography>
                 <TextField
+                  id={`step-id-${selectedNode.id}`}
+                  name="stepId"
                   label="id"
                   value={selectedNode.id}
                   size="small"
@@ -379,9 +381,9 @@ export default function ThinkWorkflowEditor() {
                   sx={{ width: 180 }}
                 />
               </Stack>
-              <TextField label="call" fullWidth sx={{ mt: 1 }} value={callDraft} onChange={(e)=>setCallDraft(e.target.value)} onBlur={()=>updateNodeData(selectedNode.id, 'call', callDraft)} />
-              <TextField label="deps" fullWidth sx={{ mt: 1 }} value={selectedDeps.join(', ')} InputProps={{ readOnly: true }} />
-              <TextField label="input_template (JSON)" fullWidth multiline minRows={3} sx={{ mt: 1 }}
+              <TextField id={`step-call-${selectedNode.id}`} name="call" label="call" fullWidth sx={{ mt: 1 }} value={callDraft} onChange={(e)=>setCallDraft(e.target.value)} onBlur={()=>updateNodeData(selectedNode.id, 'call', callDraft)} />
+              <TextField id={`step-deps-${selectedNode.id}`} name="deps" label="deps" fullWidth sx={{ mt: 1 }} value={selectedDeps.join(', ')} InputProps={{ readOnly: true }} />
+              <TextField id={`step-input-template-${selectedNode.id}`} name="input_template" label="input_template (JSON)" fullWidth multiline minRows={3} sx={{ mt: 1 }}
                         value={itDraft}
                         error={!!itErr}
                         helperText={itErr || ''}
