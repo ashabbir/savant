@@ -109,3 +109,13 @@ Requirements
 - Ruby + Bundler installed (`bundle install`).
 - Git repo with a configured remote (default `origin`).
 - RuboCop and RSpec present in the bundle for linting/tests.
+
+UI Layout Rules (Codex)
+
+- Left/Right Panels: Always use a two-panel layout where the left panel is the Action panel and the right panel is the Result panel.
+  - Action panel (left): navigation, filters, create/edit/delete controls, property forms, and editors for input.
+  - Result panel (right): read-only views, previews, diagrams, logs, YAML/Markdown rendering.
+- Sizing Defaults: Use a 4/8 split on md+ screens (left md:4, right md:8) unless a page has strong reasons to deviate. Keep xs at 12 for both.
+- Preview Behavior: Use popups (modal Dialog) for large YAML/Markdown previews. Keep the right panel focused on the primary result (graph/list/view) and only open larger previews in a dialog.
+- Close Controls: All dialogs must include a close icon button in the title bar and may also include a Close action button.
+- Consistency: Apply this pattern to all “Rules” windows and editors, and prefer it across the app (Workflows, Personas, Diagnostics) unless a different UX is clearly better for usability.

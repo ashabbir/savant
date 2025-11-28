@@ -58,4 +58,28 @@ RSpec.describe Savant::Rules::Ops do
       expect { ops.list }.to raise_error(/load_error/)
     end
   end
+
+  it 'creates, updates, reads yaml, and deletes a ruleset' do
+    Dir.mktmpdir do |d|
+      write_yaml(d, <<~YAML)
+        - name: base
+          title: Base
+          version: v1
+          summary: s
+          rules_md: "# Base\n- x"
+      YAML
+      ops = described_class.new(root: d)
+      # create
+      expect(ops.create(name: 'new_rule', title: 'New', version: 'v1', summary: 'sum', rules_md: "# H\n- a")[:ok]).to eq(true)
+      # update
+      expect(ops.update(name: 'new_rule', summary: 'updated')[:ok]).to eq(true)
+      # read single yaml
+      ry = ops.read_rule_yaml(name: 'new_rule')
+      expect(ry[:rule_yaml]).to include('name: new_rule')
+      # write single yaml (overwrite)
+      expect(ops.write_rule_yaml(name: 'new_rule', yaml: "name: new_rule\ntitle: T\nversion: v2\nsummary: s2\nrules_md: '# R'\n")[:ok]).to eq(true)
+      # delete
+      expect(ops.delete(name: 'new_rule')[:deleted]).to eq(true)
+    end
+  end
 end

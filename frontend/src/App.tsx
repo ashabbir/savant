@@ -14,14 +14,17 @@ import Dashboard from './pages/Dashboard';
 import ThinkWorkflows from './pages/think/Workflows';
 import ThinkWorkflowEditor from './pages/think/WorkflowEditor';
 import ThinkPrompts from './pages/think/Prompts';
+import PromptEditor from './pages/think/PromptEditor';
 import ThinkRuns from './pages/think/Runs';
 import Personas from './pages/personas/Personas';
+import PersonaEditor from './pages/personas/PersonaEditor';
 import RulesPage from './pages/rules/Rules';
+import RuleEditor from './pages/rules/RuleEditor';
 import JiraTools from './pages/jira/Tools';
 import ContextTools from './pages/context/Tools';
 import ContextResources from './pages/context/Resources';
 import MemorySearch from './pages/context/MemorySearch';
-import { getErrorMessage, useHubHealth, useHubInfo } from './api';
+import { getErrorMessage, loadConfig, useHubHealth, useHubInfo } from './api';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import HubIcon from '@mui/icons-material/Hub';
 import StorageIcon from '@mui/icons-material/Storage';
@@ -113,7 +116,22 @@ function formatUptime(seconds: number): string {
 
 export default function App() {
   const [open, setOpen] = useState(false);
+  const [themeMode, setThemeMode] = useState<'light' | 'dark'>(() => loadConfig().themeMode || 'light');
   const theme = useMemo(() => createTheme({
+    palette: {
+      mode: themeMode,
+      primary: {
+        main: themeMode === 'dark' ? '#90caf9' : '#283593'
+      },
+      background: {
+        default: themeMode === 'dark' ? '#0b1220' : '#f5f7fb',
+        paper: themeMode === 'dark' ? '#111827' : '#ffffff'
+      },
+      text: {
+        primary: themeMode === 'dark' ? '#f8fafc' : '#111827',
+        secondary: themeMode === 'dark' ? 'rgba(248,250,252,0.7)' : 'rgba(17,24,39,0.7)'
+      }
+    },
     components: {
       MuiButton: {
         defaultProps: { size: 'small' },
@@ -161,7 +179,7 @@ export default function App() {
         }
       }
     }
-  }), []);
+  }), [themeMode]);
   const mainIdx = useMainTabIndex();
   const ctxIdx = useContextSubIndex();
   const thinkIdx = useThinkSubIndex();
@@ -193,10 +211,14 @@ export default function App() {
     });
   }, []);
 
+  const chromeGradient = themeMode === 'dark'
+    ? 'linear-gradient(135deg, #0f172a 0%, #1f2937 100%)'
+    : 'linear-gradient(135deg, #1a237e 0%, #283593 100%)';
+
   return (
     <ThemeProvider theme={theme}>
-      <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
-      <AppBar position="static" sx={{ background: 'linear-gradient(135deg, #1a237e 0%, #283593 100%)' }}>
+      <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: 'background.default', color: 'text.primary' }}>
+      <AppBar position="static" sx={{ background: chromeGradient }}>
         <Toolbar variant="dense">
           <Stack direction="row" spacing={1.5} alignItems="center" sx={{ flexGrow: 1 }}>
             <HubIcon sx={{ fontSize: 28 }} />
@@ -342,7 +364,7 @@ export default function App() {
           <Tab label="Tools" component={Link} to="/engines/jira/tools" />
         </Tabs>
       )}
-      <Container maxWidth="lg" sx={{ mt: 3, mb: 4, flex: 1 }}>
+      <Container maxWidth="lg" sx={{ mt: 3, mb: 4, flex: 1, color: 'text.primary' }}>
         <Routes>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<Dashboard />} />
@@ -368,14 +390,19 @@ export default function App() {
           <Route path="/engines/think/workflows/new" element={<ThinkWorkflowEditor />} />
           <Route path="/engines/think/workflows/edit/:id" element={<ThinkWorkflowEditor />} />
           <Route path="/engines/think/prompts" element={<ThinkPrompts />} />
+          <Route path="/engines/think/prompts/new" element={<PromptEditor />} />
+          <Route path="/engines/think/prompts/edit/:version" element={<PromptEditor />} />
           <Route path="/engines/think/runs" element={<ThinkRuns />} />
 
           <Route path="/engines/personas" element={<Personas />} />
+          <Route path="/engines/personas/new" element={<PersonaEditor />} />
+          <Route path="/engines/personas/edit/:name" element={<PersonaEditor />} />
           <Route path="/engines/rules" element={<RulesPage />} />
+          <Route path="/engines/rules/new" element={<RuleEditor />} />
+          <Route path="/engines/rules/edit/:name" element={<RuleEditor />} />
           {/* Workflows editor moved under Think engine */}
           {/* Legacy shortcuts */}
           <Route path="/rules" element={<RulesPage />} />
-          <Route path="/engines/rules" element={<RulesPage />} />
           <Route path="/engines/jira/tools" element={<JiraTools />} />
           <Route path="/ctx/tools" element={<ContextTools />} />
           <Route path="/ctx/resources" element={<ContextResources />} />
@@ -390,7 +417,7 @@ export default function App() {
       </Container>
       {/* Footer banner (always blue like header; DEV shows icon + text) */}
       <Box sx={{
-        background: 'linear-gradient(135deg, #1a237e 0%, #283593 100%)',
+        background: chromeGradient,
         color: 'rgba(255,255,255,0.8)',
         px: 2,
         py: 0.5,
@@ -411,7 +438,13 @@ export default function App() {
         <Typography variant="caption" sx={{ opacity: 0.9 }}>github.com/ashabbir</Typography>
       </Box>
       </Box>
-      <SettingsDialog open={open} onClose={() => setOpen(false)} />
+      <SettingsDialog
+        open={open}
+        onClose={() => setOpen(false)}
+        onConfigChange={(cfg) => {
+          setThemeMode(cfg.themeMode || 'light');
+        }}
+      />
       <Snackbar
         open={snackOpen}
         autoHideDuration={6000}

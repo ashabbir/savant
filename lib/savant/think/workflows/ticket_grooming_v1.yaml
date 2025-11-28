@@ -1,37 +1,45 @@
 ---
 id: ticket_grooming_v1
-title: ticket_grooming_v1
-description: ''
+name: Ticket Grooming
+description: 'Ticket grooming workflow '
+driver_version: stable
+rules: []
+version: 3
 steps:
-- id: fetch_ticket
+- id: 1
+  name: fetch_ticket
   call: jira_get_issue
   input_template:
     key: "{{params.issueKey}}"
   capture_as: ticket
-- id: scan_repo_context
+- id: 2
+  name: scan_repo_context
   call: fts/search
   deps:
-  - fetch_ticket
+  - 1
   input_template:
     q: "{{params.issueKey}} OR {{ticket.fields.summary}}"
   capture_as: similar_code
-- id: enumerate_resources
+- id: 3
+  name: enumerate_resources
   call: memory/resources/list
   deps:
-  - fetch_ticket
+  - 1
   input_template:
     repo:
   capture_as: resources
-- id: planning_guides
+- id: 4
+  name: planning_guides
   call: fts/search
   deps:
-  - enumerate_resources
+  - 3
   input_template:
     q: ACCEPTANCE CRITERIA|CONTRIBUTING|DESIGN|ADR|PLAYBOOK|README
   capture_as: guidelines
-- id: step_5
+- id: 5
+  name: list_diffs
   call: prompt.say
   deps:
-  - scan_repo_context
+  - 2
   input_template:
-    text: hi there
+    text: look at all the changes in repo and list them file by file.

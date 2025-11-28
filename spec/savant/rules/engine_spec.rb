@@ -9,7 +9,7 @@ RSpec.describe Savant::Rules::Tools do
     engine = Savant::Rules::Engine.new
     reg = described_class.build_registrar(engine)
     names = reg.specs.map { |s| s[:name] }
-    expect(names).to include('rules.list', 'rules.get')
+    expect(names).to include('rules.list', 'rules.get', 'rules.create', 'rules.update', 'rules.delete', 'rules.read', 'rules.write', 'rules.catalog.read', 'rules.catalog.write')
 
     list = reg.call('rules.list', { 'filter' => 'rules' }, ctx: { engine: engine })
     expect(list).to be_a(Hash)

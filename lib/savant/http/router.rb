@@ -592,8 +592,16 @@ module Savant
             logger&.info(event: 'tool.call finish', name: tool, duration_ms: dur)
             return result
           rescue StandardError => e
-            logger&.error(event: 'tool.call error', name: tool, message: e.message)
-            raise
+            # Try a hot-reload fallback: load fresh engine/tools and dispatch
+            begin
+              result = hot_reload_and_call(engine_name, tool, params, user_id)
+              dur = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round
+              logger&.info(event: 'tool.call finish', name: tool, duration_ms: dur)
+              return result
+            rescue StandardError => e2
+              logger&.error(event: 'tool.call error', name: tool, message: e2.message)
+              raise
+            end
           end
         end
 
@@ -604,9 +612,29 @@ module Savant
           logger&.info(event: 'tool.call finish', name: tool, duration_ms: dur)
           result
         rescue StandardError => e
-          logger&.error(event: 'tool.call error', name: tool, message: e.message)
-          raise
+          # Final attempt: hot-reload and call
+          begin
+            result = hot_reload_and_call(engine_name, tool, params, user_id)
+            dur = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round
+            logger&.info(event: 'tool.call finish', name: tool, duration_ms: dur)
+            return result
+          rescue StandardError => e2
+            logger&.error(event: 'tool.call error', name: tool, message: e2.message)
+            raise
+          end
         end
+      end
+
+      # Load fresh engine + tools for the given engine and dispatch the tool call.
+      def hot_reload_and_call(engine_name, tool, params, user_id)
+        camel = engine_name.split(/[^a-zA-Z0-9]/).map { |seg| seg.empty? ? '' : seg[0].upcase + seg[1..] }.join
+        require File.join(__dir__, '..', engine_name, 'engine')
+        require File.join(__dir__, '..', engine_name, 'tools')
+        mod = Savant.const_get(camel)
+        engine = mod.const_get(:Engine).new
+        tools_mod = mod.const_get(:Tools)
+        reg = tools_mod.build_registrar(engine)
+        reg.call(tool, params, ctx: { engine: engine_name, user_id: user_id })
       end
 
       def sse_headers
@@ -643,7 +671,14 @@ module Savant
           read_last_lines(path, n).each do |line|
             next if level_pattern && !level_pattern.match?(line)
 
-            y << format_sse_event('log', { line: line })
+            safe = begin
+              s = line.to_s.dup
+              s.force_encoding('UTF-8')
+              s.encode('UTF-8', invalid: :replace, undef: :replace, replace: '')
+            rescue StandardError
+              line.to_s
+            end
+            y << format_sse_event('log', { line: safe })
             @connections.touch(conn_id)
           end
           break if once
@@ -660,7 +695,14 @@ module Savant
                 chunk.to_s.split(/\r?\n/).each do |ln|
                   next if ln.empty? || (level_pattern && !level_pattern.match?(ln))
 
-                  y << format_sse_event('log', { line: ln })
+                  safe = begin
+                    s = ln.to_s.dup
+                    s.force_encoding('UTF-8')
+                    s.encode('UTF-8', invalid: :replace, undef: :replace, replace: '')
+                  rescue StandardError
+                    ln.to_s
+                  end
+                  y << format_sse_event('log', { line: safe })
                   @connections.touch(conn_id)
                 end
               end
