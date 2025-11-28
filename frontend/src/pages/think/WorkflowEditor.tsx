@@ -8,6 +8,7 @@ import TaskAltIcon from '@mui/icons-material/TaskAlt';
 import AddBoxIcon from '@mui/icons-material/AddBox';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useThinkWorkflowRead } from '../../api';
 import { thinkWorkflowCreateGraph, thinkWorkflowUpdateGraph, thinkWorkflowValidateGraph } from '../../thinkApi';
@@ -203,6 +204,15 @@ export default function ThinkWorkflowEditor() {
     setTimeout(() => setSelection(id), 0);
   };
 
+  const removeSelected = () => {
+    if (!selId) return;
+    const remainingNodes = nodes.filter(n => n.id !== selId);
+    const remainingEdges = edges.filter(e => e.source !== selId && e.target !== selId);
+    setNodes(remainingNodes);
+    setEdges(remainingEdges);
+    setSelId(null);
+  };
+
   const save = async () => {
     if (!wfId) return;
     const graph = toGraphPayload(nodes, edges);
@@ -296,40 +306,15 @@ export default function ThinkWorkflowEditor() {
           </Stack>
         </Stack>
       </Grid>
-      <Grid size={2}>
+      {/* Two-panel layout: Action (left, small) and Result (right, large) */}
+      <Grid size={4}>
         <Paper sx={{ p: 1 }}>
-          <Typography variant="subtitle2" sx={{ mb: 1 }}>Palette</Typography>
-          <Button fullWidth startIcon={<AddBoxIcon />} onClick={addNode}>Add Step</Button>
+          <Typography variant="subtitle2" sx={{ mb: 1 }}>Actions</Typography>
+          <Stack direction="row" spacing={1} sx={{ mb: 1 }}>
+            <Button startIcon={<AddBoxIcon />} onClick={addNode}>Add Step</Button>
+            <Button startIcon={<DeleteOutlineIcon />} onClick={removeSelected} disabled={!selId}>Remove</Button>
+          </Stack>
           <Divider sx={{ my: 1 }} />
-          {validation && <Alert severity={validation.includes('OK')||validation.includes('Saved')? 'success':'warning'}>{validation}</Alert>}
-        </Paper>
-      </Grid>
-      <Grid size={7}>
-        <Paper sx={{ height: 560 }}>
-          {!isNew && rd.isFetching && <LinearProgress />}
-          {rd.isError && <Alert severity="error">{(rd.error as any)?.message || 'Failed to load'}</Alert>}
-          <Box sx={{ height: '100%', width: '100%' }}>
-            <ReactFlow
-              nodes={nodes}
-              edges={edges}
-              onNodesChange={onNodesChange}
-              onEdgesChange={onEdgesChange}
-              onConnect={onConnect}
-              onSelectionChange={(s: any) => {
-                const id = s?.nodes && s.nodes[0] ? s.nodes[0].id : null;
-                setSelection(id);
-              }}
-              fitView
-            >
-              <MiniMap />
-              <Controls />
-              <Background />
-            </ReactFlow>
-          </Box>
-        </Paper>
-      </Grid>
-      <Grid size={3}>
-        <Paper sx={{ p: 1 }}>
           <Typography variant="subtitle2" sx={{ mb: 1 }}>Properties</Typography>
           {!selectedNode ? (
             <Alert severity="info">Select a step to edit properties</Alert>
@@ -362,8 +347,32 @@ export default function ThinkWorkflowEditor() {
                         }} />
             </Box>
           )}
+          {validation && <Alert sx={{ mt: 1 }} severity={validation.includes('OK')||validation.includes('Saved')? 'success':'warning'}>{validation}</Alert>}
         </Paper>
-        {/* YAML preview moved to dialog */}
+      </Grid>
+      <Grid size={8}>
+        <Paper sx={{ height: 620 }}>
+          {!isNew && rd.isFetching && <LinearProgress />}
+          {rd.isError && <Alert severity="error">{(rd.error as any)?.message || 'Failed to load'}</Alert>}
+          <Box sx={{ height: '100%', width: '100%' }}>
+            <ReactFlow
+              nodes={nodes}
+              edges={edges}
+              onNodesChange={onNodesChange}
+              onEdgesChange={onEdgesChange}
+              onConnect={onConnect}
+              onSelectionChange={(s: any) => {
+                const id = s?.nodes && s.nodes[0] ? s.nodes[0].id : null;
+                setSelection(id);
+              }}
+              fitView
+            >
+              <MiniMap />
+              <Controls />
+              <Background />
+            </ReactFlow>
+          </Box>
+        </Paper>
       </Grid>
       <Dialog open={previewOpen} onClose={() => setPreviewOpen(false)} maxWidth="md" fullWidth>
         <DialogTitle>YAML Preview — {wfId}</DialogTitle>
