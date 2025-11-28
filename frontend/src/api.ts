@@ -172,7 +172,7 @@ export function useDiagnostics() {
 }
 
 // THINK engine API
-export type ThinkWorkflowRow = { id: string; version: string; desc: string; name?: string };
+export type ThinkWorkflowRow = { id: string; version: string; desc: string; name?: string; driver_version?: string };
 export type ThinkWorkflows = { workflows: ThinkWorkflowRow[] };
 export function useThinkWorkflows() {
   return useQuery<ThinkWorkflows>({

@@ -347,7 +347,8 @@ module Savant
           begin
             h = safe_yaml(read_text_utf8(File.join(dir, fn)))
             name = h['name'] || id
-            { id: id, version: (h['version'] || '1.0').to_s, desc: h['description'] || '', name: name.to_s }
+            drv = (h['driver_version'] || 'stable').to_s
+            { id: id, version: (h['version'] || '1.0').to_s, desc: h['description'] || '', name: name.to_s, driver_version: drv }
           rescue StandardError
             # Skip invalid or unreadable workflow files during listing
             nil
