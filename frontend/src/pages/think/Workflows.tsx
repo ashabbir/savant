@@ -98,7 +98,7 @@ export default function ThinkWorkflows() {
 
   return (
     <Grid container spacing={2}>
-      <Grid size={12} md={4}>
+      <Grid size={4}>
         <Paper sx={{ p: 1 }}>
           <Stack direction="row" alignItems="center" justifyContent="space-between">
             <Typography variant="subtitle1" sx={{ px: 1, py: 1 }}>Workflows</Typography>
@@ -120,7 +120,7 @@ export default function ThinkWorkflows() {
           </List>
         </Paper>
       </Grid>
-      <Grid size={12} md={8}>
+      <Grid size={8}>
         <Paper sx={{ p: 2 }}>
           <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between">
             <Typography variant="subtitle1" sx={{ fontSize: 12 }}>Workflow {sel ? `(${sel})` : ''}</Typography>
