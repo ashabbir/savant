@@ -261,9 +261,10 @@ export default function Viewer({ content, contentType, filename, language, heigh
         '& p': { my: 1 },
         '& pre': { backgroundColor: '#0f1320', color: '#e6e6e6', p: 1.25, borderRadius: 1 },
         '& a': { color: '#2d6cdf' },
-        '& ul': { pl: 3 }
+        '& ul': { pl: 3 },
+        '& .mermaid': { my: 2, '& svg': { maxWidth: '100%' } }
       }}>
-        <div dangerouslySetInnerHTML={{ __html: markdownHtml }} />
+        <div ref={markdownRef} dangerouslySetInnerHTML={{ __html: markdownHtml }} />
       </Box>
     );
   }
