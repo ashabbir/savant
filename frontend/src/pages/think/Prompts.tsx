@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { useThinkPrompts, useThinkPrompt, thinkPromptsDelete } from '../../api';
+import { useThinkPrompts, useThinkPrompt, thinkPromptsDelete, useThinkWorkflows } from '../../api';
 import Box from '@mui/material/Box';
 import Stack from '@mui/material/Stack';
 import Grid from '@mui/material/Grid2';
@@ -11,6 +11,7 @@ import ListItemText from '@mui/material/ListItemText';
 import Typography from '@mui/material/Typography';
 import LinearProgress from '@mui/material/LinearProgress';
 import Alert from '@mui/material/Alert';
+import Chip from '@mui/material/Chip';
 import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
 import Snackbar from '@mui/material/Snackbar';
@@ -34,6 +35,7 @@ export default function ThinkPrompts() {
   const { data, isLoading, isError, error } = useThinkPrompts();
   const [sel, setSel] = useState<string | null>(null);
   const pr = useThinkPrompt(sel);
+  const workflows = useThinkWorkflows();
   const [copied, setCopied] = useState(false);
   const [filter, setFilter] = useState('');
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -41,6 +43,11 @@ export default function ThinkPrompts() {
   const nav = useNavigate();
 
   const rows = data?.versions || [];
+  const usedBySelected = React.useMemo(() => {
+    if (!sel) return 0;
+    const ws = workflows.data?.workflows || [];
+    return ws.filter((w: any) => (w.driver_version || 'stable') === sel).length;
+  }, [workflows.data?.workflows, sel]);
   const filtered = useMemo(() => {
     const q = filter.trim().toLowerCase();
     if (!q) return rows;
@@ -66,9 +73,9 @@ export default function ThinkPrompts() {
                   </IconButton>
                 </span>
               </Tooltip>
-              <Tooltip title={sel ? 'Delete Prompt' : 'Select a prompt'}>
+              <Tooltip title={sel ? (usedBySelected > 0 ? 'Cannot delete: prompt in use by workflows' : 'Delete Prompt') : 'Select a prompt'}>
                 <span>
-                  <IconButton size="small" color="error" disabled={!sel} onClick={() => setConfirmOpen(true)}>
+                  <IconButton size="small" color="error" disabled={!sel || usedBySelected > 0} onClick={() => setConfirmOpen(true)}>
                     <DeleteOutlineIcon fontSize="small" />
                   </IconButton>
                 </span>
@@ -132,10 +139,17 @@ export default function ThinkPrompts() {
         <Snackbar open={copied} autoHideDuration={2000} onClose={() => setCopied(false)} message="Copied prompt" anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }} />
         <Dialog open={confirmOpen} onClose={() => setConfirmOpen(false)}>
           <DialogTitle>Delete Prompt</DialogTitle>
-          <DialogContent>Are you sure you want to delete "{sel}"?</DialogContent>
+          <DialogContent>
+            {usedBySelected > 0 && (
+              <Alert severity="warning" sx={{ mb: 1 }}>
+                Cannot delete: this prompt is used by {usedBySelected} workflow{usedBySelected === 1 ? '' : 's'}.
+              </Alert>
+            )}
+            Are you sure you want to delete "{sel}"?
+          </DialogContent>
           <DialogActions>
             <Button onClick={()=>setConfirmOpen(false)}>Cancel</Button>
-            <Button color="error" disabled={!sel || busy} onClick={async ()=>{ if (!sel) return; try { setBusy(true); await thinkPromptsDelete(sel); setConfirmOpen(false); setSel(null); } finally { setBusy(false); } }}>Delete</Button>
+            <Button color="error" disabled={!sel || busy || usedBySelected > 0} onClick={async ()=>{ if (!sel) return; try { setBusy(true); await thinkPromptsDelete(sel); setConfirmOpen(false); setSel(null); } finally { setBusy(false); } }}>Delete</Button>
           </DialogActions>
         </Dialog>
       </Grid>

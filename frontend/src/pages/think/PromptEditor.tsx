@@ -10,7 +10,7 @@ import CloseIcon from '@mui/icons-material/Close';
 import SaveAltIcon from '@mui/icons-material/SaveAlt';
 import { useNavigate, useParams } from 'react-router-dom';
 import Viewer from '../../components/Viewer';
-import { ThinkPrompts, useThinkPrompt, useThinkPrompts, thinkPromptsCreate, thinkPromptsDelete, thinkPromptsUpdate } from '../../api';
+import { ThinkPrompts, useThinkPrompt, useThinkPrompts, thinkPromptsCreate, thinkPromptsDelete, thinkPromptsUpdate, useThinkWorkflows } from '../../api';
 
 const PANEL_HEIGHT = 'calc(100vh - 260px)';
 
@@ -20,6 +20,7 @@ export default function PromptEditor() {
   const nav = useNavigate();
   const list = useThinkPrompts();
   const details = useThinkPrompt(isNew ? null : routeVersion || null);
+  const workflows = useThinkWorkflows();
 
   const [version, setVersion] = React.useState(routeVersion || '');
   const [name, setName] = React.useState('');
@@ -36,22 +37,21 @@ export default function PromptEditor() {
   }, [isNew, details.data?.version]);
 
   const existing = React.useMemo(() => new Set((list.data?.versions || []).map(v => v.version)), [list.data?.versions]);
-  React.useEffect(() => {
-    if (isNew && !version) setVersion('1');
-  }, [isNew, version]);
+  // No default version on create; user must enter a valid key
   const nameSlug = React.useMemo(() => (name || '').toLowerCase().trim().replace(/[^a-z0-9_.-]+/g, '_').replace(/^_+|_+$/g, ''), [name]);
   const canSave = React.useMemo(() => {
     if (isNew) {
-      return !!nameSlug && !!promptMd.trim();
+      const validVersion = /^[a-z]+$/.test(version || '');
+      return !!nameSlug && !!promptMd.trim() && validVersion && !existing.has(version || '');
     }
     return !!promptMd.trim();
-  }, [nameSlug, promptMd, isNew]);
+  }, [nameSlug, promptMd, isNew, version, existing]);
 
   const onSave = async () => {
     if (!canSave) return;
     if (isNew) {
       const relPath = `prompts/${nameSlug}.md`;
-      await thinkPromptsCreate({ version: '1', prompt_md: promptMd, path: relPath });
+      await thinkPromptsCreate({ version: version, prompt_md: promptMd, path: relPath });
     } else {
       await thinkPromptsUpdate({ version: routeVersion as string, prompt_md: promptMd });
     }
@@ -76,6 +76,13 @@ export default function PromptEditor() {
     return row?.path || '';
   }, [nameSlug, isNew, list.data?.versions, routeVersion]);
 
+  // Workflows using this prompt version (edit mode only)
+  const usingWorkflows = React.useMemo(() => {
+    if (isNew || !routeVersion) return [] as { id: string }[];
+    const rows = workflows.data?.workflows || [];
+    return rows.filter((w: any) => (w.driver_version || 'stable') === routeVersion) as any[];
+  }, [workflows.data?.workflows, isNew, routeVersion]);
+
   return (
     <Grid container spacing={2}>
       <Grid size={{ xs: 12, md: 4 }}>
@@ -84,9 +91,9 @@ export default function PromptEditor() {
               <Typography variant="subtitle1" sx={{ fontSize: 12 }}>{isNew ? 'Create Prompt' : `Edit Prompt (${routeVersion})`}</Typography>
             <Stack direction="row" spacing={1}>
               {!isNew && (
-                <Tooltip title="Delete">
+                <Tooltip title={usingWorkflows.length > 0 ? 'Cannot delete: prompt in use by workflows' : 'Delete'}>
                   <span>
-                    <IconButton onClick={() => setConfirmOpen(true)} color="error">
+                    <IconButton onClick={() => setConfirmOpen(true)} color="error" disabled={usingWorkflows.length > 0}>
                       <DeleteOutlineIcon fontSize="small" />
                     </IconButton>
                   </span>
@@ -105,10 +112,18 @@ export default function PromptEditor() {
             <Stack spacing={1.2}>
               {isNew ? (
                 <>
-                  <Stack direction="row" spacing={1} alignItems="center">
-                    <Typography variant="caption" sx={{ fontWeight: 600 }}>version</Typography>
-                    <Chip size="small" color="primary" label={version || '1'} />
-                  </Stack>
+                  <TextField
+                    label="version"
+                    value={version}
+                    onChange={(e)=>{ const raw = e.target.value || ''; const cleaned = raw.toLowerCase().replace(/[^a-z]/g, ''); setVersion(cleaned); }}
+                    error={!!version && (!/^[a-z]+$/.test(version) || existing.has(version))}
+                    helperText={(function(){
+                      if (!version) return 'Enter a version (lowercase a-z; e.g., stable)';
+                      if (!/^[a-z]+$/.test(version)) return 'Use only lowercase letters a-z (no spaces or symbols)';
+                      if (existing.has(version)) return 'A prompt with this version already exists';
+                      return ' ';
+                    })()}
+                  />
                   <TextField
                     label="name"
                     value={name}
@@ -120,9 +135,29 @@ export default function PromptEditor() {
                   />
                 </>
               ) : (
-                <Stack direction="row" spacing={1} alignItems="center">
-                  <Typography variant="caption" sx={{ fontWeight: 600 }}>file</Typography>
-                  <Chip size="small" label={resolvedPath || '(unknown)'} />
+                <>
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <Typography variant="caption" sx={{ fontWeight: 600 }}>version</Typography>
+                    <Chip size="small" color="primary" label={routeVersion || '(unknown)'} />
+                  </Stack>
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <Typography variant="caption" sx={{ fontWeight: 600 }}>file</Typography>
+                    <Chip size="small" label={resolvedPath || '(unknown)'} />
+                  </Stack>
+                </>
+              )}
+              {!isNew && (
+                <Stack spacing={0.5}>
+                  <Typography variant="caption" sx={{ fontWeight: 600 }}>Used by</Typography>
+                  {usingWorkflows.length === 0 ? (
+                    <Typography variant="caption" color="text.secondary">No workflows reference this prompt</Typography>
+                  ) : (
+                    <Stack direction="row" spacing={1} flexWrap="wrap">
+                      {usingWorkflows.map((w: any) => (
+                        <Chip key={w.id} label={w.name || w.id} onClick={() => nav(`/engines/think/workflows/edit/${w.id}`)} clickable size="small" />
+                      ))}
+                    </Stack>
+                  )}
                 </Stack>
               )}
               <Stack direction="row" spacing={1} alignItems="center">
@@ -175,10 +210,17 @@ export default function PromptEditor() {
             <CloseIcon fontSize="small" />
           </IconButton>
         </DialogTitle>
-        <DialogContent>Are you sure you want to delete "{routeVersion}"?</DialogContent>
+        <DialogContent>
+          {usingWorkflows.length > 0 && (
+            <Alert severity="warning" sx={{ mb: 1 }}>
+              Cannot delete: this prompt is used by {usingWorkflows.length} workflow{usingWorkflows.length === 1 ? '' : 's'}.
+            </Alert>
+          )}
+          Are you sure you want to delete "{routeVersion}"?
+        </DialogContent>
         <DialogActions>
           <Button onClick={() => setConfirmOpen(false)}>Cancel</Button>
-          <Button color="error" onClick={onDelete}>Delete</Button>
+          <Button color="error" onClick={onDelete} disabled={!routeVersion || usingWorkflows.length > 0}>Delete</Button>
         </DialogActions>
       </Dialog>
       <Dialog open={previewOpen} onClose={() => setPreviewOpen(false)} fullWidth maxWidth="md">
