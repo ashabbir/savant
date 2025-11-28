@@ -20,19 +20,27 @@ import DialogActions from '@mui/material/DialogActions';
 import Tooltip from '@mui/material/Tooltip';
 import IconButton from '@mui/material/IconButton';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import CloseIcon from '@mui/icons-material/Close';
 import DescriptionIcon from '@mui/icons-material/Description';
 import Snackbar from '@mui/material/Snackbar';
 import yaml from 'js-yaml';
 import Viewer from '../../components/Viewer';
-import { getErrorMessage, useRule, useRules } from '../../api';
+import { getErrorMessage, useRule, useRules, rulesDelete } from '../../api';
+import AddCircleIcon from '@mui/icons-material/AddCircle';
+import EditIcon from '@mui/icons-material/Edit';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import { useNavigate } from 'react-router-dom';
 
 export default function Rules() {
+  const nav = useNavigate();
   const [filter, setFilter] = useState('');
-  const { data, isLoading, isError, error } = useRules(filter);
+  const { data, isLoading, isError, error, refetch } = useRules(filter) as any;
   const [sel, setSel] = useState<string | null>(null);
   const details = useRule(sel);
   const [openDialog, setOpenDialog] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
 
   const rows = data?.rules || [];
   const selected = details.data || null;
@@ -52,23 +60,52 @@ export default function Rules() {
   return (
     <Grid container spacing={2}>
       <Grid size={{ xs: 12, md: 4 }}>
-        <Paper sx={{ p: 2 }}>
-          <Typography variant="subtitle1" sx={{ mb: 1, fontSize: 12 }}>Rules</Typography>
-          <TextField id="rules-filter" name="rulesFilter"
-            fullWidth
-            placeholder="Filter by name, title, tags..."
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            sx={{ mb: 1.5 }}
-          />
+        <Paper sx={{ p: 1, height: 'calc(100vh - 260px)', display: 'flex', flexDirection: 'column' }}>
+          <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+            <Typography variant="subtitle1" sx={{ fontSize: 12 }}>Rules</Typography>
+            <Stack direction="row" spacing={1} alignItems="center">
+              <Tooltip title="New Rule">
+                <IconButton size="small" color="primary" onClick={() => nav('/engines/rules/new')}>
+                  <AddCircleIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title={sel ? 'Edit Rule' : 'Select a ruleset'}>
+                <span>
+                  <IconButton size="small" color="primary" disabled={!sel} onClick={() => sel && nav(`/engines/rules/edit/${sel}`)}>
+                    <EditIcon fontSize="small" />
+                  </IconButton>
+                </span>
+              </Tooltip>
+              <Tooltip title={sel ? 'Delete Rule' : 'Select a ruleset'}>
+                <span>
+                  <IconButton size="small" color="error" disabled={!sel} onClick={() => setConfirmOpen(true)}>
+                    <DeleteOutlineIcon fontSize="small" />
+                  </IconButton>
+                </span>
+              </Tooltip>
+            </Stack>
+          </Stack>
           {isLoading && <LinearProgress />}
           {isError && <Alert severity="error">{getErrorMessage(error as any)}</Alert>}
-          <List dense>
+          <TextField id="rules-filter" name="rulesFilter"
+            fullWidth
+            size="small"
+            placeholder="Search rules..."
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            sx={{ mb: 1 }}
+          />
+          <List dense sx={{ flex: 1, overflowY: 'auto' }}>
             {rows.map((r) => (
               <ListItem key={r.name} disablePadding>
-                <ListItemButton selected={sel === r.name} onClick={() => setSel(r.name)}>
+                <ListItemButton selected={sel === r.name} onClick={() => setSel(r.name)} onDoubleClick={() => nav(`/engines/rules/edit/${r.name}`)}>
                   <ListItemText
-                    primary={<Box display="flex" alignItems="center" gap={1}><strong>{r.title}</strong><Chip size="small" label={r.version} /></Box>}
+                    primary={
+                      <Box display="flex" alignItems="center" gap={1}>
+                        <Typography component="span" sx={{ fontWeight: 600 }}>{r.name}</Typography>
+                        <Chip size="small" label={`v${String(r.version)}`} />
+                      </Box>
+                    }
                     secondary={r.summary}
                   />
                 </ListItemButton>
@@ -78,10 +115,17 @@ export default function Rules() {
         </Paper>
       </Grid>
       <Grid size={{ xs: 12, md: 8 }}>
-        <Stack spacing={2}>
-          <Paper sx={{ p: 2 }}>
+        <Paper sx={{ p: 2, height: 'calc(100vh - 260px)', display: 'flex', flexDirection: 'column' }}>
             <Stack direction="row" alignItems="center" justifyContent="space-between">
-              <Typography variant="subtitle1" sx={{ fontSize: 12 }}>Ruleset {selected ? `(${selected.title})` : ''}</Typography>
+              <Stack spacing={0.5}>
+                <Typography variant="subtitle1" sx={{ fontSize: 12 }}>Ruleset Details</Typography>
+                {selected && (
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <Chip size="small" label={`ID: ${selected.name}`}/>
+                    <Chip size="small" color="primary" label={`v${selected.version}`}/>
+                  </Stack>
+                )}
+              </Stack>
               <Stack direction="row" spacing={1} alignItems="center">
                 <Tooltip title={selected ? 'View Rules Markdown' : 'Select a ruleset'}>
                   <span>
@@ -101,12 +145,17 @@ export default function Rules() {
             </Stack>
             {details.isFetching && <LinearProgress />}
             {details.isError && <Alert severity="error">{getErrorMessage(details.error as any)}</Alert>}
-            <Viewer content={yamlText} contentType="text/yaml" height={360} />
+            <Box sx={{ flex: 1, minHeight: 0 }}>
+              <Viewer content={yamlText} contentType="text/yaml" height={'100%'} />
+            </Box>
           </Paper>
 
           <Dialog open={openDialog} onClose={() => setOpenDialog(false)} fullWidth maxWidth="md">
-            <DialogTitle>
-              Rules (Markdown) {selected ? `(${selected.title})` : ''}
+            <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              Rules (Markdown) {selected ? `(${selected.name})` : ''}
+              <IconButton size="small" onClick={() => setOpenDialog(false)}>
+                <CloseIcon fontSize="small" />
+              </IconButton>
             </DialogTitle>
             <DialogContent dividers>
               <Viewer content={selected?.rules_md || 'Select a ruleset to view markdown'} contentType="text/markdown" height={'60vh'} />
@@ -119,11 +168,38 @@ export default function Rules() {
                   </IconButton>
                 </span>
               </Tooltip>
-              <Button onClick={() => setOpenDialog(false)}>Close</Button>
+              <Tooltip title="Close">
+                <IconButton size="small" onClick={() => setOpenDialog(false)}>
+                  <CloseIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
             </DialogActions>
           </Dialog>
           <Snackbar open={copied} autoHideDuration={2000} onClose={() => setCopied(false)} message="Copied" anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }} />
-        </Stack>
+          <Dialog open={confirmOpen} onClose={() => setConfirmOpen(false)}>
+            <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              Delete rule
+              <IconButton size="small" onClick={() => setConfirmOpen(false)}>
+                <CloseIcon fontSize="small" />
+              </IconButton>
+            </DialogTitle>
+            <DialogContent>Are you sure you want to delete "{selected?.name}"?</DialogContent>
+            <DialogActions>
+              <Button onClick={() => setConfirmOpen(false)}>Cancel</Button>
+              <Button color="error" disabled={!selected || busy} onClick={async () => {
+                if (!selected) return;
+                try {
+                  setBusy(true);
+                  await rulesDelete(selected.name);
+                  setConfirmOpen(false);
+                  setSel(null);
+                  await refetch?.();
+                } finally {
+                  setBusy(false);
+                }
+              }}>Delete</Button>
+            </DialogActions>
+          </Dialog>
       </Grid>
     </Grid>
   );

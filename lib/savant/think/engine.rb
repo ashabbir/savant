@@ -55,6 +55,102 @@ module Savant
         { versions: rows }
       end
 
+      # Read/write full prompts.yml
+      def prompts_catalog_read
+        path = File.join(@root, 'prompts.yml')
+        raise 'CATALOG_NOT_FOUND' unless File.file?(path)
+        { catalog_yaml: read_text_utf8(path) }
+      end
+
+      def prompts_catalog_write(yaml:)
+        path = File.join(@root, 'prompts.yml')
+        data = YAML.safe_load(yaml.to_s) || {}
+        raise 'INVALID_CATALOG' unless data.is_a?(Hash)
+        versions = data['versions'] || {}
+        raise 'INVALID_CATALOG: versions must be mapping' unless versions.is_a?(Hash)
+        # basic sanity: ensure referenced files are under prompts/
+        versions.each do |_k, v|
+          next if v.is_a?(String) && v.start_with?('prompts/')
+          raise 'INVALID_CATALOG: each version path must be under prompts/'
+        end
+        File.write(path, YAML.dump({ 'versions' => versions }))
+        { ok: true, count: versions.size }
+      rescue Psych::SyntaxError => e
+        raise "INVALID_CATALOG: #{e.message}"
+      end
+
+      # CRUD for individual prompt versions
+      # Create a new version: writes markdown file and updates registry
+      def prompts_create(version:, prompt_md:, path: nil)
+        ver = normalize_version_key(version)
+        raise 'INVALID_VERSION' if ver.empty?
+        reg_path = File.join(@root, 'prompts.yml')
+        reg = safe_yaml(read_text_utf8(reg_path))
+        reg['versions'] ||= {}
+        raise 'ALREADY_EXISTS' if reg['versions'].key?(ver)
+
+        rel = if path && !path.to_s.strip.empty?
+                path.to_s.strip
+              else
+                # derive filename from version key
+                slug = ver.gsub(/[^A-Za-z0-9_.-]/, '_')
+                "prompts/#{slug}.md"
+              end
+        raise 'INVALID_PATH' unless rel.start_with?('prompts/') && rel.end_with?('.md')
+        abs = File.join(@root, rel)
+        FileUtils.mkdir_p(File.dirname(abs))
+        File.write(abs, prompt_md.to_s)
+        reg['versions'][ver] = rel
+        File.write(reg_path, YAML.dump(reg))
+        { ok: true, version: ver, path: rel }
+      end
+
+      # Update an existing version's markdown; optionally rename the version key
+      def prompts_update(version:, prompt_md: nil, new_version: nil)
+        ver = normalize_version_key(version)
+        raise 'INVALID_VERSION' if ver.empty?
+        reg_path = File.join(@root, 'prompts.yml')
+        reg = safe_yaml(read_text_utf8(reg_path))
+        reg['versions'] ||= {}
+        raise 'NOT_FOUND' unless reg['versions'].key?(ver)
+        rel = reg['versions'][ver]
+        abs = File.join(@root, rel)
+        if prompt_md
+          raise 'MISSING_FILE' unless File.file?(abs)
+          File.write(abs, prompt_md.to_s)
+        end
+        if new_version && !new_version.to_s.strip.empty? && new_version.to_s != ver
+          new_ver = normalize_version_key(new_version)
+          raise 'ALREADY_EXISTS' if reg['versions'].key?(new_ver)
+          reg['versions'].delete(ver)
+          reg['versions'][new_ver] = rel
+          File.write(reg_path, YAML.dump(reg))
+          { ok: true, version: new_ver, path: rel }
+        else
+          File.write(reg_path, YAML.dump(reg))
+          { ok: true, version: ver, path: rel }
+        end
+      end
+
+      # Delete a version mapping and its underlying file (best-effort)
+      def prompts_delete(version:)
+        ver = normalize_version_key(version)
+        raise 'INVALID_VERSION' if ver.empty?
+        reg_path = File.join(@root, 'prompts.yml')
+        reg = safe_yaml(read_text_utf8(reg_path))
+        reg['versions'] ||= {}
+        rel = reg['versions'][ver]
+        deleted = false
+        if rel
+          abs = File.join(@root, rel)
+          FileUtils.rm_f(abs)
+          deleted = true
+        end
+        reg['versions'].delete(ver)
+        File.write(reg_path, YAML.dump(reg))
+        { ok: true, deleted: deleted }
+      end
+
       # Return current limits/configuration
       attr_reader :limits
 
@@ -250,7 +346,9 @@ module Savant
 
           begin
             h = safe_yaml(read_text_utf8(File.join(dir, fn)))
-            { id: id, version: (h['version'] || '1.0').to_s, desc: h['description'] || '' }
+            name = h['name'] || id
+            drv = (h['driver_version'] || 'stable').to_s
+            { id: id, version: (h['version'] || '1.0').to_s, desc: h['description'] || '', name: name.to_s, driver_version: drv }
           rescue StandardError
             # Skip invalid or unreadable workflow files during listing
             nil
@@ -422,6 +520,17 @@ module Savant
           nodes.each { |n| n['deps'] = deps[n['id']] }
         end
 
+        desc = graph['description'] || graph[:description]
+        desc = desc.to_s if desc
+        drv = graph['driver_version'] || graph[:driver_version]
+        drv = drv.to_s unless drv.nil?
+        name = graph['name'] || graph[:name]
+        name = name.to_s unless name.nil?
+        rules = Array(graph['rules'] || graph[:rules]).map { |r| r.to_s }.reject(&:empty?)
+        version = graph['version'] || graph[:version]
+        version = version.to_i if version
+        version = 1 if version.nil? || version <= 0
+
         steps = nodes.map do |n|
           h = { 'id' => n['id'], 'call' => n['call'] }
           d = Array(n['deps']).map(&:to_s)
@@ -432,7 +541,16 @@ module Savant
           h['capture_as'] = cap if cap.is_a?(String) && !cap.empty?
           h
         end
-        YAML.dump({ 'id' => id, 'title' => id, 'description' => '', 'steps' => steps })
+        payload = {
+          'id' => id,
+          'name' => name || id,
+          'description' => desc || '',
+          'driver_version' => drv || 'stable',
+          'rules' => rules,
+          'version' => version,
+          'steps' => steps
+        }
+        YAML.dump(payload)
       end
 
       # Validate Think graph semantics
@@ -672,6 +790,10 @@ module Savant
         return nil if s.empty?
 
         s.gsub(/[^A-Za-z0-9_.-]/, '_')
+      end
+
+      def normalize_version_key(v)
+        v.to_s.strip
       end
     end
     # rubocop:enable Metrics/ClassLength

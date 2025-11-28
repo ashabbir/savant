@@ -15,3 +15,13 @@ frontend/node_modules/
 frontend/dist/
 public/
 
+lib/savant/think/prompts/*
+!lib/savant/think/prompts/savant*
+
+
+lib/savant/think/workflows/*
+!lib/savant/think/workflows/savat*
+!lib/savant/think/workflows/_template*
+
+
+*bak*

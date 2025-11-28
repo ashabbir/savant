@@ -1,16 +1,19 @@
 import React from 'react';
 import ReactFlow, { Background, Controls, MiniMap, addEdge, Connection, Edge, Node, useNodesState, useEdgesState } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { Alert, Box, Button, Divider, Grid2 as Grid, IconButton, LinearProgress, Paper, Stack, TextField, Tooltip, Typography, Dialog, DialogTitle, DialogContent, DialogActions } from '@mui/material';
+import { Alert, Autocomplete, Box, Button, Divider, Grid2 as Grid, IconButton, LinearProgress, Paper, Stack, TextField, Tooltip, Typography, Dialog, DialogTitle, DialogContent, DialogActions, MenuItem, Chip, Snackbar, Tabs, Tab } from '@mui/material';
+import CloseIcon from '@mui/icons-material/Close';
 import SaveIcon from '@mui/icons-material/Save';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import VisibilityIcon from '@mui/icons-material/Visibility';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import TaskAltIcon from '@mui/icons-material/TaskAlt';
 import AddBoxIcon from '@mui/icons-material/AddBox';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useThinkWorkflowRead } from '../../api';
+import { useThinkPrompts, useThinkWorkflowRead, useRules } from '../../api';
 import { thinkWorkflowCreateGraph, thinkWorkflowUpdateGraph, thinkWorkflowValidateGraph } from '../../thinkApi';
 import YAML from 'js-yaml';
 import Viewer from '../../components/Viewer';
@@ -19,25 +22,43 @@ import { workflowToMermaid } from '../../utils/workflowToMermaid';
 
 const PANEL_HEIGHT = 'calc(100vh - 260px)';
 
-type RFNode = Node<{ call: string; input_template?: any; capture_as?: string; label?: string }>;
+type RFNode = Node<{ id: number; name: string; call: string; input_template?: any; capture_as?: string; label?: string }>;
 
 function defaultGraph(): { nodes: RFNode[]; edges: Edge[] } {
   const nodes: RFNode[] = [
-    { id: 'step_1', position: { x: 120, y: 120 }, data: { call: 'prompt.say', input_template: { text: 'Start' }, label: 'step_1' }, type: 'default' },
-    { id: 'step_2', position: { x: 120, y: 240 }, data: { call: 'prompt.say', input_template: { text: 'Done' }, label: 'step_2' }, type: 'default' }
+    { id: '1', position: { x: 120, y: 120 }, data: { id: 1, name: 'start', call: 'prompt.say', input_template: { text: 'Start' }, label: '1 start' }, type: 'default' },
+    { id: '2', position: { x: 120, y: 240 }, data: { id: 2, name: 'done', call: 'prompt.say', input_template: { text: 'Done' }, label: '2 done' }, type: 'default' }
   ];
-  const edges: Edge[] = [{ id: 'e1-2', source: 'step_1', target: 'step_2' }];
+  const edges: Edge[] = [{ id: 'e1-2', source: '1', target: '2' }];
   return { nodes, edges };
 }
 
-function toGraphPayload(nodes: RFNode[], edges: Edge[]) {
+function slugifyName(name: string): string {
+  return (name || '')
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .replace(/_{2,}/g, '_');
+}
+
+function cleanRules(list?: string[]) {
+  return (list || []).map((r) => r?.trim() || '').filter(Boolean);
+}
+
+function toGraphPayload(nodes: RFNode[], edges: Edge[], description?: string, driverVersion?: string, name?: string, rules?: string[], version?: number) {
   return {
-    nodes: nodes.map(n => ({ id: n.id, call: n.data.call, input_template: n.data.input_template, capture_as: n.data.capture_as })),
+    description: description || '',
+    driver_version: driverVersion || 'stable',
+    name: name || '',
+    rules: cleanRules(rules),
+    version: version || 1,
+    nodes: nodes.map(n => ({ id: n.data.id, name: n.data.name, call: n.data.call, input_template: n.data.input_template, capture_as: n.data.capture_as })),
     edges: edges.map(e => ({ source: e.source, target: e.target }))
   };
 }
 
-function toYamlPreview(nodes: RFNode[], edges: Edge[], id: string) {
+function toYamlPreview(nodes: RFNode[], edges: Edge[], id: string, description?: string, driverVersion?: string, name?: string, rules?: string[], version?: number) {
   const ids = nodes.map(n => n.id);
   const indeg: Record<string, number> = {}; ids.forEach(i => indeg[i] = 0);
   const adj: Record<string, string[]> = {};
@@ -56,13 +77,17 @@ function toYamlPreview(nodes: RFNode[], edges: Edge[], id: string) {
   const map: Record<string, RFNode> = Object.fromEntries(nodes.map(n => [n.id, n]));
   const steps = order.map(sid => {
     const n = map[sid];
-    const h: any = { id: sid, call: n.data.call };
+    const h: any = { id: n.data.id, name: n.data.name, call: n.data.call };
     const it = n.data.input_template; if (it && Object.keys(it).length) h.input_template = it;
-    const deps = (depsMap[sid] || []).filter(Boolean);
+    // Convert deps from node.id (string) to data.id (number)
+    const deps = (depsMap[sid] || []).filter(Boolean).map(depNodeId => map[depNodeId]?.data.id).filter(Boolean);
     if (deps.length) h.deps = deps;
     return h;
   });
-  return YAML.dump({ id, title: id, description: '', steps });
+  const clean = cleanRules(rules);
+  const payload: any = { id, name: name || id, description: description || '', driver_version: driverVersion || 'stable', version: version || 1, steps };
+  payload.rules = clean;
+  return YAML.dump(payload);
 }
 
 export default function ThinkWorkflowEditor() {
@@ -71,13 +96,16 @@ export default function ThinkWorkflowEditor() {
   const isNew = !routeId;
   const nav = useNavigate();
   const [wfId, setWfId] = React.useState(routeId || '');
-  const rd = useThinkWorkflowRead(isNew ? null : wfId);
+  const rd = useThinkWorkflowRead(isNew ? '_template' : wfId);
+  const prompts = useThinkPrompts();
+  const rulesList = useRules();
   const init = React.useMemo(() => defaultGraph(), []);
   const [nodes, setNodes, onNodesChange] = useNodesState<RFNode>(init.nodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(init.edges);
   const [yamlPreview, setYamlPreview] = React.useState<string>('');
-  const [validation, setValidation] = React.useState<string>('');
   const [previewOpen, setPreviewOpen] = React.useState(false);
+  const [rightTab, setRightTab] = React.useState(0); // 0: Graph, 1: YAML
+  const [validation, setValidation] = React.useState<string>('');
   const [selId, setSelId] = React.useState<string | null>(null);
   const [selEdgeId, setSelEdgeId] = React.useState<string | null>(null);
   const [selKind, setSelKind] = React.useState<'node' | 'edge' | null>(null);
@@ -90,22 +118,41 @@ export default function ThinkWorkflowEditor() {
   const [diagramErr, setDiagramErr] = React.useState<string | null>(null);
   const selectedNode = React.useMemo(() => nodes.find(n => n.id === selId) || null, [nodes, selId]);
   const [callDraft, setCallDraft] = React.useState('');
+  const [nameDraft, setNameDraft] = React.useState('');
+  const [description, setDescription] = React.useState('');
+  const [nextId, setNextId] = React.useState(1);
+  const [driverVersion, setDriverVersion] = React.useState('stable');
+  const [name, setName] = React.useState('');
+  const [version, setVersion] = React.useState(1);
+  const [rules, setRules] = React.useState<string[]>([]);
+  const [saveToast, setSaveToast] = React.useState(false);
   const selectedDeps = React.useMemo(() => {
     if (!selId) return [] as string[];
     const d = edges.filter(e => e.target === selId && e.source).map(e => String(e.source));
     return Array.from(new Set(d));
   }, [edges, selId]);
   const selectedEdge = React.useMemo(() => edges.find(e => e.id === selEdgeId) || null, [edges, selEdgeId]);
+  const validationTone = React.useMemo(() => {
+    if (!validation) return null;
+    const msg = validation.toLowerCase();
+    return (msg.includes('ok') || msg.includes('saved')) ? 'success' : 'error';
+  }, [validation]);
+  const availableRules = rulesList.data?.rules || [];
+  const selectedRuleObjects = React.useMemo(() => {
+    const map = new Map(availableRules.map((r) => [r.name, r]));
+    return rules.map((name) => map.get(name) || { name });
+  }, [availableRules, rules]);
 
   // Initialize drafts when selection changes
   React.useEffect(() => {
-    if (!selectedNode) { setItDraft(''); setItErr(null); return; }
+    if (!selectedNode) { setItDraft(''); setItErr(null); setNameDraft(''); return; }
     try {
       const txt = selectedNode.data.input_template ? JSON.stringify(selectedNode.data.input_template, null, 2) : '';
       setItDraft(txt);
       setItErr(null);
     } catch { setItDraft(''); setItErr(null); }
     setCallDraft(selectedNode?.data.call || '');
+    setNameDraft(selectedNode?.data.name || '');
   }, [selectedNode?.id]);
 
   // --- Auto layout helpers (top-to-bottom with same-level alignment) ---
@@ -202,37 +249,66 @@ export default function ThinkWorkflowEditor() {
     applyEdgeSelectionStyling(edgeId);
   };
 
-  // Helper to normalize/validate node IDs
-  const normalizeId = (s: string) => (s || '').trim().replace(/[^A-Za-z0-9_.-]/g, '_');
-
-  const renameNode = (oldId: string, newIdRaw: string) => {
-    const newId = normalizeId(newIdRaw);
-    if (!newId || newId === oldId) return;
-    // Prevent duplicates
-    if (nodes.some(n => n.id === newId)) {
-      setValidation(`Duplicate id: ${newId}`);
+  // Update nextId whenever nodes change
+  React.useEffect(() => {
+    if (nodes.length === 0) {
+      setNextId(1);
       return;
     }
-    // Rename in nodes
-    const renamedNodes = nodes.map(n => n.id === oldId ? { ...n, id: newId, data: { ...n.data, label: newId } } as RFNode : n);
-    // Update edges
-    const renamedEdges = edges.map(e => ({
-      ...e,
-      source: e.source === oldId ? newId : e.source,
-      target: e.target === oldId ? newId : e.target
-    }));
-    setNodes(renamedNodes);
-    setEdges(renamedEdges);
-    if (selId === oldId) setSelection(newId);
-  };
+    const maxId = Math.max(...nodes.map(n => n.data.id || 0));
+    setNextId(maxId + 1);
+  }, [nodes]);
 
   React.useEffect(() => {
-    if (!isNew && rd.data?.workflow_yaml) {
-      try {
-        const y = YAML.load(rd.data.workflow_yaml) as any;
-        const steps: any[] = Array.isArray(y?.steps) ? y.steps : [];
-        const npos: RFNode[] = steps.map((s, i) => ({ id: String(s.id), data: { call: String(s.call || ''), input_template: s.input_template || undefined, capture_as: s.capture_as || undefined, label: String(s.id) }, position: { x: 120, y: 120 + i * 120 }, type: 'default' }));
-        const depEdges: Edge[] = steps.flatMap((s, _i) => (Array.isArray(s.deps) ? s.deps : []).map((d: any, j: number) => ({ id: `e${String(d)}-${String(s.id)}-${j}` , source: String(d), target: String(s.id) })));
+    if (!rd.data?.workflow_yaml) return;
+    try {
+      const y = YAML.load(rd.data.workflow_yaml) as any;
+      setDescription(typeof y?.description === 'string' ? y.description : '');
+      setDriverVersion(typeof y?.driver_version === 'string' ? y.driver_version : 'stable');
+      const fallbackName = y?.name || y?.workflow || y?.id || routeId || '';
+      setName(String(fallbackName || ''));
+      setVersion(Number(y?.version || 1));
+      const yRules = Array.isArray(y?.rules) ? y.rules.map((r: any)=> String(r || '')) : [];
+      setRules(yRules);
+      const steps: any[] = Array.isArray(y?.steps) ? y.steps : [];
+        const npos: RFNode[] = steps.map((s, i) => {
+          // Parse ID - could be number or string from YAML
+          const parsedId = typeof s.id === 'number' ? s.id : (isNaN(Number(s.id)) ? (i + 1) : Number(s.id));
+          // Use name field if it exists, otherwise fall back to old ID format
+          const stepName = s.name || (typeof s.id === 'string' && isNaN(Number(s.id)) ? s.id : `step_${parsedId}`);
+
+          return {
+            id: String(parsedId),
+            data: {
+              id: parsedId,
+              name: stepName,
+              call: String(s.call || ''),
+              input_template: s.input_template || undefined,
+              capture_as: s.capture_as || undefined,
+              label: `${parsedId} ${stepName}`
+            },
+            position: { x: 120, y: 120 + i * 120 },
+            type: 'default'
+          };
+        });
+        // Create mapping of original step IDs to parsed integer IDs
+        const stepIdMap = new Map<any, number>();
+        steps.forEach((s, i) => {
+          const parsedId = typeof s.id === 'number' ? s.id : (isNaN(Number(s.id)) ? (i + 1) : Number(s.id));
+          stepIdMap.set(s.id, parsedId);
+        });
+
+        const depEdges: Edge[] = steps.flatMap((s, _i) => {
+          const targetId = stepIdMap.get(s.id) || s.id;
+          return (Array.isArray(s.deps) ? s.deps : []).map((d: any, j: number) => {
+            const sourceId = stepIdMap.get(d) || d;
+            return {
+              id: `e${String(sourceId)}-${String(targetId)}-${j}`,
+              source: String(sourceId),
+              target: String(targetId)
+            };
+          });
+        });
         // Auto-align positions based on deps for initial load
         const ids = npos.map(n => n.id);
         const lvl = computeLevels(ids, depEdges);
@@ -247,18 +323,50 @@ export default function ThinkWorkflowEditor() {
         setNodes(positioned);
         setEdges(depEdges);
         // Allow auto-select to run again for this loaded workflow
-        didAutoSelectRef.current = false;
-      } catch { /* ignore */ }
-    }
-  }, [rd.data?.workflow_yaml, isNew, computeLevels]);
+      didAutoSelectRef.current = false;
+    } catch { /* ignore */ }
+  }, [rd.data?.workflow_yaml, computeLevels, routeId]);
+
+  React.useEffect(() => {
+    const list = prompts.data?.versions || [];
+    if (!list.length) return;
+    const versions = list.map(v => v.version);
+    if (driverVersion && versions.includes(driverVersion)) return;
+    const stable = list.find(v => v.version === 'stable');
+    if (stable) { setDriverVersion(stable.version); return; }
+    if (!driverVersion && list[0]?.version) { setDriverVersion(list[0].version); return; }
+    if (!versions.includes(driverVersion)) { setDriverVersion(list[0].version); }
+  }, [driverVersion, prompts.data?.versions]);
+
+  React.useEffect(() => {
+    if (!isNew) return;
+    const slug = slugifyName(name);
+    if (slug && slug !== wfId) setWfId(slug);
+  }, [name, isNew, wfId]);
+
+  const addRuleField = () => setRules(r => [...r, '']);
+  const updateRuleField = (idx: number, value: string) => setRules(r => r.map((rule, i) => i === idx ? value : rule));
+  const removeRuleField = (idx: number) => setRules(r => r.filter((_, i) => i !== idx));
 
   const onConnect = React.useCallback((c: Connection) => setEdges((eds) => addEdge(c as any, eds)), []);
 
   const addNode = () => {
-    const num = nodes.length + 1;
-    const id = `step_${num}`;
-    setNodes([...nodes, { id, data: { call: 'prompt.say', input_template: { text: '...' }, label: id }, position: { x: 120, y: 120 + (nodes.length) * 120 }, type: 'default' } as RFNode]);
-    setTimeout(() => setSelection(id), 0);
+    const newId = nextId;
+    const nodeId = String(newId);
+    const newName = `step_${newId}`;
+    setNodes([...nodes, {
+      id: nodeId,
+      data: {
+        id: newId,
+        name: newName,
+        call: 'prompt.say',
+        input_template: { text: '...' },
+        label: `${newId} ${newName}`
+      },
+      position: { x: 120, y: 120 + (nodes.length) * 120 },
+      type: 'default'
+    } as RFNode]);
+    setTimeout(() => setSelection(nodeId), 0);
   };
 
   const removeSelected = () => {
@@ -279,13 +387,58 @@ export default function ThinkWorkflowEditor() {
     setSelKind(null);
   };
 
+  const computeResequencedGraph = (currentNodes: RFNode[], currentEdges: Edge[]) => {
+    // Sort nodes by current ID
+    const sorted = [...currentNodes].sort((a, b) => a.data.id - b.data.id);
+
+    // Create mapping of old node.id (string) -> new data.id (number)
+    const idMap = new Map<string, number>();
+    sorted.forEach((node, index) => {
+      idMap.set(node.id, index + 1);
+    });
+
+    // Renumber nodes
+    const resequencedNodes = sorted.map((node, index) => {
+      const newId = index + 1;
+      return {
+        ...node,
+        id: String(newId),
+        data: {
+          ...node.data,
+          id: newId,
+          label: `${newId} ${node.data.name}`
+        }
+      } as RFNode;
+    });
+
+    // Update edges with new IDs
+    const resequencedEdges = currentEdges.map(edge => ({
+      ...edge,
+      source: String(idMap.get(edge.source as string) || edge.source),
+      target: String(idMap.get(edge.target as string) || edge.target)
+    }));
+
+    return { nodes: resequencedNodes, edges: resequencedEdges, idMap };
+  };
+
   const save = async () => {
-    if (!wfId) return;
+    const slug = slugifyName(name);
+    if (!slug) { setValidation('Name is required to generate workflow id'); return; }
+    if (isNew && slug !== wfId) setWfId(slug);
+    const currId = isNew ? slug : wfId;
+
+    // Auto-resequence IDs before saving
+    const { nodes: resequencedNodes, edges: resequencedEdges, idMap } = computeResequencedGraph(nodes, edges);
+
     // Apply pending draft for input_template if selection exists
     if (selectedNode) {
       try {
         const parsed = itDraft ? JSON.parse(itDraft) : undefined;
-        updateNodeData(selectedNode.id, 'input_template', parsed);
+        const targetNodeId = String(idMap.get(selectedNode.id) || selectedNode.id);
+        const nodeToUpdate = resequencedNodes.find(n => n.id === targetNodeId);
+        if (nodeToUpdate) {
+          nodeToUpdate.data.input_template = parsed;
+        }
         setItErr(null);
       } catch (e: any) {
         setItErr(e?.message || 'Invalid JSON');
@@ -293,21 +446,65 @@ export default function ThinkWorkflowEditor() {
         return;
       }
     }
-    const graph = toGraphPayload(nodes, edges);
-    const v = await thinkWorkflowValidateGraph(graph);
-    if (!v.ok) { setValidation(v.errors.join('\n')); return; }
-    if (isNew) await thinkWorkflowCreateGraph(wfId, graph);
-    else await thinkWorkflowUpdateGraph(wfId, graph);
-    setValidation('Saved successfully');
-    nav('/engines/think/workflows');
+    try {
+      const nextVersion = isNew ? 1 : (version || 0) + 1;
+      const graph = toGraphPayload(resequencedNodes, resequencedEdges, description, driverVersion, name || currId, rules, nextVersion);
+      const v = await thinkWorkflowValidateGraph(graph);
+      if (!v.ok) { setValidation(v.errors.join('\n')); return; }
+
+      if (isNew) {
+        await thinkWorkflowCreateGraph(currId, graph);
+        setVersion(nextVersion);
+        setValidation('Saved successfully');
+        setSaveToast(true);
+      } else {
+        try {
+          await thinkWorkflowUpdateGraph(currId, graph);
+          setVersion(nextVersion);
+          setValidation('Saved successfully');
+          setSaveToast(true);
+        } catch (e: any) {
+          const msg = (e?.response?.data?.error || e?.message || '').toString();
+          if (msg.includes('WORKFLOW_NOT_FOUND')) {
+            // Fallback: create if missing (e.g., file deleted or new id)
+            await thinkWorkflowCreateGraph(currId, graph);
+            setVersion(nextVersion);
+            setValidation('Created new workflow (missing original).');
+            setSaveToast(true);
+          } else {
+            setValidation(msg || 'Save failed');
+            return;
+          }
+        }
+      }
+
+      // Update state with resequenced nodes and edges after successful save
+      setNodes(resequencedNodes);
+      setEdges(resequencedEdges);
+      // Update selection if it existed
+      if (selId && idMap.has(selId)) {
+        setSelection(String(idMap.get(selId)));
+      }
+
+      try { await rd.refetch?.(); } catch {}
+    } catch (e: any) {
+      const msg = (e?.response?.data?.error || e?.message || '').toString();
+      setValidation(msg || 'Save failed');
+    }
   };
 
+  // Keep YAML preview up-to-date with current editor state
+  React.useEffect(() => {
+    const currId = isNew ? slugifyName(name) || wfId || 'workflow' : wfId || 'workflow';
+    setYamlPreview(toYamlPreview(nodes, edges, currId, description, driverVersion, name || currId, rules, version));
+  }, [nodes, edges, name, description, driverVersion, rules, version, wfId, isNew]);
+
   const preview = async () => {
-    if (!wfId) return;
-    const graph = toGraphPayload(nodes, edges);
+    const currId = isNew ? slugifyName(name) || wfId : wfId;
+    if (!currId) { setValidation('Name is required'); return; }
+    const graph = toGraphPayload(nodes, edges, description, driverVersion, name || currId, rules, version);
     const v = await thinkWorkflowValidateGraph(graph);
     if (!v.ok) { setValidation(v.errors.join('\n')); return; }
-    setYamlPreview(toYamlPreview(nodes, edges, wfId));
     setPreviewOpen(true);
   };
 
@@ -326,7 +523,8 @@ export default function ThinkWorkflowEditor() {
     try {
       setDiagramErr(null);
       setDiagramBusy(true);
-      const yaml = toYamlPreview(nodes, edges, wfId || 'workflow');
+      const currId = isNew ? slugifyName(name) || wfId || 'workflow' : wfId || 'workflow';
+      const yaml = toYamlPreview(nodes, edges, currId, description, driverVersion, name || currId, rules, version);
       const code = workflowToMermaid(yaml);
       const mm = await getMermaid();
       const { svg } = await mm.render(`wf-${Date.now()}`, code);
@@ -342,53 +540,127 @@ export default function ThinkWorkflowEditor() {
   };
 
   const updateNodeData = (id: string, key: string, value: any) => {
-    setNodes(ns => ns.map(n => n.id === id ? { ...n, data: { ...n.data, [key]: value } } : n));
+    setNodes(ns => ns.map(n => {
+      if (n.id !== id) return n;
+      const updatedData = { ...n.data, [key]: value };
+      // If name is being updated, also update the label
+      if (key === 'name') {
+        updatedData.label = `${n.data.id} ${value}`;
+      }
+      return { ...n, data: updatedData };
+    }));
   };
 
   return (
     <Grid container spacing={2} columns={12}>
       <Grid size={12}>
-        <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between">
-          <Stack direction="row" spacing={1} alignItems="center">
-            <Typography variant="subtitle1">Think Workflow Builder</Typography>
-            <TextField id="wf-id" name="workflowId" label="ID" value={wfId} onChange={(e)=>setWfId(e.target.value)} placeholder="new_workflow" sx={{ minWidth: 260 }} disabled={!isNew} />
+        <Stack direction="row" spacing={0.5} alignItems="center" justifyContent="flex-end">
+          <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mr: 'auto' }}>
+            <IconButton onClick={() => nav('/engines/think/workflows')} title="Back to workflows">
+              <ArrowBackIcon />
+            </IconButton>
+            {validation && (
+              <Chip
+                size="small"
+                label={validation}
+                color={validationTone === 'success' ? 'success' : 'error'}
+              />
+            )}
           </Stack>
-          <Stack direction="row" spacing={1}>
-            <Tooltip title="Validate">
-              <span>
-                <IconButton onClick={async ()=>{ const v = await thinkWorkflowValidateGraph(toGraphPayload(nodes, edges)); setValidation(v.ok? 'OK' : v.errors.join('\n')); }}>
-                  <TaskAltIcon />
-                </IconButton>
-              </span>
-            </Tooltip>
-            <Tooltip title="Preview YAML">
-              <span>
-                <IconButton onClick={preview}><VisibilityIcon /></IconButton>
-              </span>
-            </Tooltip>
-            <Tooltip title="Auto Align">
-              <span>
-                <IconButton onClick={layoutGraph}>
-                  <AutoFixHighIcon />
-                </IconButton>
-              </span>
-            </Tooltip>
-            <Tooltip title={diagramBusy ? 'Rendering…' : 'View Diagram'}>
-              <span>
-                <IconButton onClick={previewDiagram} disabled={diagramBusy} color="primary">
-                  <AccountTreeIcon />
-                </IconButton>
-              </span>
-            </Tooltip>
-            <Button variant="contained" startIcon={<SaveIcon />} onClick={save} disabled={!wfId}>Save</Button>
-          </Stack>
+          <Tooltip title="Validate">
+            <span>
+              <IconButton onClick={async ()=>{ const v = await thinkWorkflowValidateGraph(toGraphPayload(nodes, edges, description, driverVersion, name || wfId, rules, version)); setValidation(v.ok? 'OK' : v.errors.join('\n')); }}>
+                <TaskAltIcon />
+              </IconButton>
+            </span>
+          </Tooltip>
+          {/* YAML preview moved to right Result panel tabs */}
+          <Tooltip title="Auto Align">
+            <span>
+              <IconButton onClick={layoutGraph}>
+                <AutoFixHighIcon />
+              </IconButton>
+            </span>
+          </Tooltip>
+          <Tooltip title={diagramBusy ? 'Rendering…' : 'View Diagram'}>
+            <span>
+              <IconButton onClick={previewDiagram} disabled={diagramBusy} color="primary">
+                <AccountTreeIcon />
+              </IconButton>
+            </span>
+          </Tooltip>
+          <Tooltip title="Save workflow">
+            <span>
+              <IconButton onClick={save} disabled={!wfId} color="primary">
+                <SaveIcon />
+              </IconButton>
+            </span>
+          </Tooltip>
         </Stack>
       </Grid>
-      {/* Two-panel layout: Action (left, small) and Result (right, large) */}
+      {/* Two-panel layout: Action (left) and Result (right) — 4/8 split */}
       <Grid size={4}>
         <Paper sx={{ p: 1, height: PANEL_HEIGHT, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          <Box sx={{ flex: 1, overflowY: 'auto', pr: 1 }}>
-            <Typography variant="subtitle2" sx={{ mb: 1 }}>Actions</Typography>
+          <Box id="workflow-actions-panel" aria-labelledby="workflow-actions-heading" sx={{ flex: 1, overflowY: 'auto', pr: 1 }}>
+            <Typography id="workflow-actions-heading" component="span" sx={{ position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap', border: 0 }}>Workflow Actions Panel</Typography>
+            <Stack spacing={1.5} sx={{ mb: 2, mt: 1 }}>
+              <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} alignItems="center">
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <Typography variant="caption" sx={{ fontWeight: 600 }}>Workflow ID</Typography>
+                  <Chip label={wfId || 'new'} size="small" color="default" />
+                </Stack>
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <Typography variant="caption" sx={{ fontWeight: 600 }}>Version</Typography>
+                  <Chip label={`v${version}`} size="small" color="primary" />
+                </Stack>
+              </Stack>
+              <TextField id="wf-name" name="workflowName" label="Name" value={name} onChange={(e)=>setName(e.target.value)} placeholder="Workflow name" fullWidth />
+              <TextField id="wf-driver" name="workflowDriver" label="Driver Version" select value={driverVersion} onChange={(e)=>setDriverVersion(e.target.value)} fullWidth>
+                {(prompts.data?.versions || [{ version: 'stable', path: '' }]).map(v => (
+                  <MenuItem key={v.version} value={v.version}>{v.version}</MenuItem>
+                ))}
+              </TextField>
+              <Stack spacing={1.5}>
+                <Typography variant="caption" sx={{ fontWeight: 600 }}>Rules</Typography>
+                <Autocomplete
+                  multiple
+                  options={availableRules}
+                  getOptionLabel={(option) => option.name}
+                  value={selectedRuleObjects}
+                  onChange={(_, newValue) => setRules(newValue.map((r) => r.name))}
+                  disableCloseOnSelect
+                  loading={rulesList.isLoading}
+                  isOptionEqualToValue={(option, value) => option.name === value.name}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      label="Select rules"
+                      placeholder={availableRules.length ? 'Type to find rules' : 'No rules available'}
+                    />
+                  )}
+                  renderTags={(tagValue, getTagProps) =>
+                    tagValue.map((option, index) => (
+                      <Chip
+                        {...getTagProps({ index })}
+                        label={option.name}
+                        size="small"
+                      />
+                    ))
+                  }
+                />
+              </Stack>
+              <TextField
+                id="wf-desc"
+                name="workflowDescription"
+                label="Description"
+                value={description}
+                onChange={(e)=>setDescription(e.target.value)}
+                placeholder="Enter workflow description"
+                fullWidth
+                multiline
+                minRows={3}
+              />
+            </Stack>
             <Stack direction="row" spacing={1} sx={{ mb: 1 }}>
               <Button startIcon={<AddBoxIcon />} onClick={addNode}>Add Step</Button>
               <Button startIcon={<DeleteOutlineIcon />} onClick={removeSelected} disabled={!selId}>Remove Step</Button>
@@ -416,18 +688,21 @@ export default function ThinkWorkflowEditor() {
                   mb: 1
                 }}
               >
-                <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
-                  <Typography variant="caption" sx={{ fontWeight: 600 }}>Step</Typography>
-                  <TextField
-                    id={`step-id-${selectedNode.id}`}
-                    name="stepId"
-                    label="id"
-                    value={selectedNode.id}
-                    size="small"
-                    onChange={(e)=> renameNode(selectedNode.id, e.target.value)}
-                    sx={{ width: 180 }}
-                  />
+                <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+                  <Typography variant="caption" sx={{ fontWeight: 600 }}>Step ID</Typography>
+                  <Chip label={selectedNode.data.id} size="small" color="primary" />
                 </Stack>
+                <TextField
+                  id="step-name-field"
+                  name="stepName"
+                  label="name"
+                  value={nameDraft}
+                  size="small"
+                  fullWidth
+                  onChange={(e)=> setNameDraft(e.target.value)}
+                  onBlur={()=> updateNodeData(selectedNode.id, 'name', nameDraft)}
+                  sx={{ mb: 1 }}
+                />
                 <TextField id={`step-call-${selectedNode.id}`} name="call" label="call" fullWidth sx={{ mt: 1 }} value={callDraft} onChange={(e)=>setCallDraft(e.target.value)} onBlur={()=>updateNodeData(selectedNode.id, 'call', callDraft)} />
                 <TextField id={`step-deps-${selectedNode.id}`} name="deps" label="deps" fullWidth sx={{ mt: 1 }} value={selectedDeps.join(', ')} InputProps={{ readOnly: true }} />
                 <TextField id={`step-input-template-${selectedNode.id}`} name="input_template" label="input_template (JSON)" fullWidth multiline minRows={3} sx={{ mt: 1 }}
@@ -440,13 +715,24 @@ export default function ThinkWorkflowEditor() {
               </Box>
             )}
           </Box>
-          {validation && <Alert sx={{ mt: 1, flexShrink: 0 }} severity={validation.includes('OK')||validation.includes('Saved')? 'success':'warning'}>{validation}</Alert>}
         </Paper>
       </Grid>
       <Grid size={8}>
         <Paper sx={{ p: 1, height: PANEL_HEIGHT, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          {!isNew && rd.isFetching && <LinearProgress />}
+          {rd.isFetching && <LinearProgress />}
           {rd.isError && <Alert severity="error">{(rd.error as any)?.message || 'Failed to load'}</Alert>}
+          <Stack direction="row" alignItems="center" justifyContent="flex-end" sx={{ px: 1 }}>
+            <Tooltip title="Copy YAML">
+              <IconButton onClick={() => { try { navigator.clipboard.writeText(yamlPreview); } catch { /* ignore */ } }}>
+                <ContentCopyIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Preview YAML">
+              <IconButton onClick={preview} color="primary">
+                <VisibilityIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </Stack>
           <Box sx={{ flex: 1, minHeight: 0, width: '100%', overflow: 'auto' }}>
             <ReactFlow
               style={{ width: '100%', height: '100%' }}
@@ -473,20 +759,40 @@ export default function ThinkWorkflowEditor() {
         </Paper>
       </Grid>
       <Dialog open={previewOpen} onClose={() => setPreviewOpen(false)} maxWidth="md" fullWidth>
-        <DialogTitle>YAML Preview — {wfId}</DialogTitle>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          YAML Preview — {wfId || slugifyName(name) || 'workflow'}
+          <IconButton size="small" onClick={() => setPreviewOpen(false)}>
+            <CloseIcon fontSize="small" />
+          </IconButton>
+        </DialogTitle>
         <DialogContent dividers>
           <Viewer content={yamlPreview || ''} language="yaml" height={420} />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setPreviewOpen(false)}>Close</Button>
+          <Tooltip title="Close">
+            <IconButton onClick={() => setPreviewOpen(false)}>
+              <CloseIcon />
+            </IconButton>
+          </Tooltip>
         </DialogActions>
       </Dialog>
+      {/* YAML preview is now inline in the right panel */}
       <WorkflowDiagram
         open={diagramOpen}
         onClose={() => setDiagramOpen(false)}
         svgContent={diagramSvg}
         workflowName={wfId || undefined}
       />
+      <Snackbar
+        open={saveToast}
+        autoHideDuration={2000}
+        onClose={() => setSaveToast(false)}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      >
+        <Alert onClose={() => setSaveToast(false)} severity="success" sx={{ width: '100%' }}>
+          Workflow saved
+        </Alert>
+      </Snackbar>
     </Grid>
   );
 }

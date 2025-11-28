@@ -101,6 +101,33 @@ module Savant
             eng.driver_prompt(version: a['version'])
           end
 
+          # Catalog read/write for prompts.yml
+          tool 'think.prompts.catalog.read', description: 'Read prompts.yml catalog',
+                                             schema: { type: 'object', properties: {} } do |_ctx, _a|
+            eng.prompts_catalog_read
+          end
+
+          tool 'think.prompts.catalog.write', description: 'Overwrite prompts.yml catalog',
+                                              schema: { type: 'object', properties: { yaml: { type: 'string' } }, required: ['yaml'] } do |_ctx, a|
+            eng.prompts_catalog_write(yaml: a['yaml'] || '')
+          end
+
+          # CRUD for individual prompt versions (markdown files + registry update)
+          tool 'think.prompts.create', description: 'Create a new Think prompt version',
+                                       schema: { type: 'object', properties: { version: { type: 'string' }, prompt_md: { type: 'string' }, path: { type: 'string' } }, required: %w[version prompt_md] } do |_ctx, a|
+            eng.prompts_create(version: a['version'], prompt_md: a['prompt_md'], path: a['path'])
+          end
+
+          tool 'think.prompts.update', description: 'Update an existing Think prompt markdown (optionally rename version)',
+                                       schema: { type: 'object', properties: { version: { type: 'string' }, prompt_md: { type: 'string' }, new_version: { type: 'string' } }, required: %w[version] } do |_ctx, a|
+            eng.prompts_update(version: a['version'], prompt_md: a['prompt_md'], new_version: a['new_version'])
+          end
+
+          tool 'think.prompts.delete', description: 'Delete a Think prompt version',
+                                       schema: { type: 'object', properties: { version: { type: 'string' } }, required: %w[version] } do |_ctx, a|
+            eng.prompts_delete(version: a['version'])
+          end
+
           tool 'prompt.say', description: 'Display a message to the LLM/user (no-op for engine)',
                              schema: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'] } do |_ctx, a|
             { message: a['text'].to_s, display: true, timestamp: Time.now.utc.iso8601 }

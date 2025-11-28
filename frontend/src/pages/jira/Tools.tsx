@@ -7,6 +7,7 @@ import ListItem from '@mui/material/ListItem';
 import ListItemButton from '@mui/material/ListItemButton';
 import ListItemText from '@mui/material/ListItemText';
 import Typography from '@mui/material/Typography';
+import Stack from '@mui/material/Stack';
 import LinearProgress from '@mui/material/LinearProgress';
 import Alert from '@mui/material/Alert';
 import TextField from '@mui/material/TextField';
@@ -31,16 +32,25 @@ export default function JiraTools() {
     <Grid container spacing={2}>
       <Grid size={{ xs: 12, md: 4 }}>
         <Paper sx={{ p: 1, height: PANEL_HEIGHT, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          <Typography variant="subtitle1" sx={{ px: 1, py: 1 }}>Jira Tools</Typography>
-          <TextField id="jira-filter" name="jiraFilter" size="small" label="Filter" value={filter} onChange={(e)=>setFilter(e.target.value)} sx={{ m: 1 }} />
+          <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+            <Typography variant="subtitle1" sx={{ fontSize: 12 }}>Jira Tools</Typography>
+          </Stack>
           {isLoading && <LinearProgress />}
           {isError && <Alert severity="error">{(error as any)?.message || 'Failed to load tools'}</Alert>}
+          <TextField id="jira-filter" name="jiraFilter" fullWidth size="small" placeholder="Search tools..." value={filter} onChange={(e)=>setFilter(e.target.value)} sx={{ mb: 1 }} />
           <Box sx={{ flex: 1, overflowY: 'auto' }}>
             <List dense>
-              {tools.filter(t => !filter || t.name.includes(filter) || (t.description||'').includes(filter)).map(t => (
+              {tools.filter(t => !filter || t.name.toLowerCase().includes(filter.toLowerCase()) || (t.description||'').toLowerCase().includes(filter.toLowerCase())).map(t => (
                 <ListItem key={t.name} disablePadding>
                   <ListItemButton selected={sel?.name === t.name} onClick={() => setSel(t)}>
-                    <ListItemText primary={t.name} secondary={t.description} />
+                    <ListItemText
+                      primary={
+                        <Box display="flex" alignItems="center" gap={1}>
+                          <Typography component="span" sx={{ fontWeight: 600 }}>{t.name}</Typography>
+                        </Box>
+                      }
+                      secondary={t.description}
+                    />
                   </ListItemButton>
                 </ListItem>
               ))}

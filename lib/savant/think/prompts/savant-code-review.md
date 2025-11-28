@@ -1,10 +1,5 @@
 # Driver: Savant Think - Code Review
-
-**Version**: 1.0
-**Workflows**: `code_review_initial` + `code_review_final`
-
 ---
-
 ## Orchestration Loop
 
 Always follow this loop:
