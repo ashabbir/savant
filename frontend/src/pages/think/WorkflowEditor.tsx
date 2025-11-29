@@ -1,7 +1,7 @@
 import React from 'react';
 import ReactFlow, { Background, Controls, MiniMap, addEdge, Connection, Edge, Node, useNodesState, useEdgesState } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { Alert, Autocomplete, Box, Button, Divider, Grid2 as Grid, IconButton, LinearProgress, Paper, Stack, TextField, Tooltip, Typography, Dialog, DialogTitle, DialogContent, DialogActions, MenuItem, Chip, Snackbar, Tabs, Tab } from '@mui/material';
+import { Alert, Autocomplete, Box, Button, Divider, Grid2 as Grid, IconButton, LinearProgress, Paper, Stack, TextField, Tooltip, Typography, Dialog, DialogTitle, DialogContent, DialogActions, MenuItem, Chip, Snackbar, Tabs, Tab, useTheme, GlobalStyles } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import SaveIcon from '@mui/icons-material/Save';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -95,6 +95,7 @@ export default function ThinkWorkflowEditor() {
   // Treat absence of :id param as Create mode
   const isNew = !routeId;
   const nav = useNavigate();
+  const theme = useTheme();
   const [wfId, setWfId] = React.useState(routeId || '');
   const rd = useThinkWorkflowRead(isNew ? '_template' : wfId);
   const prompts = useThinkPrompts();
@@ -228,7 +229,9 @@ export default function ThinkWorkflowEditor() {
   const applyEdgeSelectionStyling = (edgeId: string | null) => {
     setEdges(es => es.map(e => {
       const selected = e.id === edgeId;
-      const style = selected ? { stroke: '#2e7d32', strokeWidth: 2 } : { stroke: '#bbb', strokeWidth: 1 };
+      const edgeColor = theme.palette.mode === 'dark' ? '#90caf9' : '#283593';
+      const defaultColor = theme.palette.mode === 'dark' ? '#666' : '#bbb';
+      const style = selected ? { stroke: edgeColor, strokeWidth: 2 } : { stroke: defaultColor, strokeWidth: 1 };
       return { ...e, style } as Edge;
     }));
   };
@@ -552,8 +555,24 @@ export default function ThinkWorkflowEditor() {
   };
 
   return (
-    <Grid container spacing={2} columns={12}>
-      <Grid size={12}>
+    <>
+      <GlobalStyles
+        styles={{
+          '.react-flow__edge-text, .react-flow__edge-textbg': {
+            fill: theme.palette.mode === 'dark' ? '#f8fafc' : '#111827'
+          },
+          '.react-flow__node-default': {
+            backgroundColor: theme.palette.background.paper,
+            color: theme.palette.text.primary,
+            border: `1px solid ${theme.palette.mode === 'dark' ? '#334155' : '#cbd5e1'}`
+          },
+          '.react-flow__handle': {
+            backgroundColor: theme.palette.mode === 'dark' ? '#64748b' : '#94a3b8'
+          }
+        }}
+      />
+      <Grid container spacing={2} columns={12}>
+        <Grid size={12}>
         <Stack direction="row" spacing={0.5} alignItems="center" justifyContent="flex-end">
           <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mr: 'auto' }}>
             <IconButton onClick={() => nav('/engines/think/workflows')} title="Back to workflows">
@@ -735,7 +754,11 @@ export default function ThinkWorkflowEditor() {
           </Stack>
           <Box sx={{ flex: 1, minHeight: 0, width: '100%', overflow: 'auto' }}>
             <ReactFlow
-              style={{ width: '100%', height: '100%' }}
+              style={{
+                width: '100%',
+                height: '100%',
+                backgroundColor: theme.palette.background.paper
+              }}
               nodes={nodes}
               edges={edges}
               onNodesChange={onNodesChange}
@@ -751,9 +774,15 @@ export default function ThinkWorkflowEditor() {
                 }
               }}
             >
-              <MiniMap />
+              <MiniMap
+                nodeColor={theme.palette.mode === 'dark' ? '#90caf9' : '#283593'}
+                maskColor={theme.palette.mode === 'dark' ? 'rgba(17,24,39,0.8)' : 'rgba(255,255,255,0.8)'}
+              />
               <Controls />
-              <Background />
+              <Background
+                color={theme.palette.mode === 'dark' ? '#334155' : '#aaa'}
+                gap={16}
+              />
             </ReactFlow>
           </Box>
         </Paper>
@@ -794,5 +823,6 @@ export default function ThinkWorkflowEditor() {
         </Alert>
       </Snackbar>
     </Grid>
+    </>
   );
 }
