@@ -8,6 +8,7 @@ This README is intentionally concise. Full, detailed docs (with diagrams) live i
 | --- | --- |
 | [Framework](memory_bank/framework.md) | Core concepts, lifecycle, and configuration surface. |
 | [Architecture](memory_bank/architecture.md) | System topology, data model, and component responsibilities. |
+| [Boot Runtime](memory_bank/engine_boot.md) | Boot initialization, RuntimeContext, AMR system, and CLI commands. |
 | [Context Engine](memory_bank/engine_context.md) | FTS search flow, cache/indexer coordination, and tool APIs. |
 | [Think Engine](memory_bank/engine_think.md) | Plan/next workflow orchestration and prompt drivers. |
 | [Jira Engine](memory_bank/engine_jira.md) | Jira integration details, auth requirements, and tool contracts. |
@@ -17,6 +18,30 @@ This README is intentionally concise. Full, detailed docs (with diagrams) live i
 ## Getting Started
 
 Prereqs: Docker, Ruby + Bundler (for stdio runs).
+
+### Boot Runtime (Quick Start)
+
+The Boot Runtime is the foundation for the Savant Engine. Run it first to initialize all core components:
+
+```bash
+./bin/savant run
+```
+
+This boots the engine and displays runtime status including session ID, persona, driver prompt, AMR rules, and repo context. Files created:
+- `.savant/runtime.json` - Persistent runtime state
+- `logs/engine_boot.log` - Structured boot logs
+
+**Options:**
+```bash
+./bin/savant run --persona=savant-architect  # Use different persona
+./bin/savant run --skip-git                  # Skip git detection
+./bin/savant review                          # Boot for MR review
+./bin/savant workflow <name>                 # Boot for workflow execution
+```
+
+See [Boot Runtime docs](memory_bank/engine_boot.md) for complete reference.
+
+### Full Stack Setup
 
 1) Quick stack (Postgres + Hub, no indexing):
 ```
@@ -69,10 +94,11 @@ flowchart LR
 
 ## Engines (Overview)
 
-- Context: DB-backed FTS over repo chunks; memory bank helpers; repo admin tools. See memory_bank/engine_context.md
-- Think: deterministic workflow orchestration (`plan/next`) with driver prompts. See memory_bank/engine_think.md
-- Jira: Jira REST v3 (search + guarded write actions). See memory_bank/engine_jira.md
-- Personas: local YAML personas catalog with list/get tools. See memory_bank/engine_personas.md
+- **Boot Runtime:** P0 foundation that initializes all core components (personas, driver prompts, AMR rules, repo context, session memory). Provides global `Savant::Runtime.current` access. CLI: `savant run|review|workflow`. See [memory_bank/engine_boot.md](memory_bank/engine_boot.md)
+- **Context:** DB-backed FTS over repo chunks; memory bank helpers; repo admin tools. See [memory_bank/engine_context.md](memory_bank/engine_context.md)
+- **Think:** deterministic workflow orchestration (`plan/next`) with driver prompts. See [memory_bank/engine_think.md](memory_bank/engine_think.md)
+- **Jira:** Jira REST v3 (search + guarded write actions). See [memory_bank/engine_jira.md](memory_bank/engine_jira.md)
+- **Personas:** local YAML personas catalog with list/get tools. See [memory_bank/engine_personas.md](memory_bank/engine_personas.md)
 
 ## Generators
 
@@ -102,6 +128,7 @@ Creates `lib/savant/<name>/{engine.rb,tools.rb}` and a baseline spec. Then run w
 All detailed docs (with Mermaid diagrams) live under `memory_bank/`. Use the table above (and the direct links below) to jump into the source of truth:
 
 - Framework + architecture: [`framework.md`](memory_bank/framework.md), [`architecture.md`](memory_bank/architecture.md)
+- Boot Runtime: [`engine_boot.md`](memory_bank/engine_boot.md) - RuntimeContext, boot sequence, AMR system, CLI reference
 - Engines: [`engine_context.md`](memory_bank/engine_context.md), [`engine_think.md`](memory_bank/engine_think.md), [`engine_jira.md`](memory_bank/engine_jira.md), [`engine_personas.md`](memory_bank/engine_personas.md)
 - Guardrails + patterns: [`engine_rules.md`](memory_bank/engine_rules.md)
 
