@@ -1,4 +1,4 @@
-# Driver: Savant Think (Guide Mode)
+# Savant - Guide
 ---
 ## Always follow this loop:
 1. Call `think.plan` first.

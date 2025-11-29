@@ -16,7 +16,6 @@ dev:
 	@echo "  Savant is ready!"
 	@echo "  UI:        http://localhost:9999/ui"
 	@echo "  Hub:       http://localhost:9999"
-	@echo "  Console:   http://localhost:9999/console"
 	@echo "  React Dev: http://localhost:5173 (make ui-dev)"
 	@echo "========================================="
 
@@ -29,7 +28,6 @@ up:
 	@echo "  Stack is up, DB migrated, FTS ready."
 	@echo "  Repos indexed; UI:        http://localhost:9999/ui"
 	@echo "                 Hub:       http://localhost:9999"
-	@echo "                 Console:   http://localhost:9999/console"
 	@echo "                 React Dev: http://localhost:5173 (use: make ui-dev)"
 	@echo "========================================="
 
@@ -43,7 +41,6 @@ quickstart:
 	@echo "  Quickstart complete!"
 	@echo "  DB migrated and FTS ready."
 	@echo "  Hub:       http://localhost:9999"
-	@echo "  Console:   http://localhost:9999/console"
 	@echo "  React UI:  http://localhost:5173"
 	@echo "  UI build:  http://localhost:9999/ui"
 	@echo "-----------------------------------------"

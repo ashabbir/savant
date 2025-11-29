@@ -7,8 +7,8 @@
 # Selects the active service via `MCP_SERVICE` (e.g., 'context' or 'jira'), and
 # starts either stdio or websocket transport based on config/flags.
 
-require_relative 'transports/stdio'
-require_relative 'transports/websocket'
+require_relative 'transports/mcp/stdio'
+require_relative 'transports/mcp/websocket'
 require_relative 'config'
 
 module Savant
@@ -40,9 +40,9 @@ module Savant
     def start
       case @transport_mode
       when 'websocket'
-        Savant::Transports::WebSocket.new(service: @service, host: @ws_host, port: @ws_port, path: @ws_path).start
+        Savant::Transports::MCP::WebSocket.new(service: @service, host: @ws_host, port: @ws_port, path: @ws_path).start
       else
-        Savant::Transports::Stdio.new(service: @service).start
+        Savant::Transports::MCP::Stdio.new(service: @service).start
       end
     end
   end

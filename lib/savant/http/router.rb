@@ -591,7 +591,7 @@ module Savant
             dur = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round
             logger&.info(event: 'tool.call finish', name: tool, duration_ms: dur)
             return result
-          rescue StandardError => e
+          rescue StandardError
             # Try a hot-reload fallback: load fresh engine/tools and dispatch
             begin
               result = hot_reload_and_call(engine_name, tool, params, user_id)
@@ -611,13 +611,13 @@ module Savant
           dur = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round
           logger&.info(event: 'tool.call finish', name: tool, duration_ms: dur)
           result
-        rescue StandardError => e
+        rescue StandardError
           # Final attempt: hot-reload and call
           begin
             result = hot_reload_and_call(engine_name, tool, params, user_id)
             dur = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round
             logger&.info(event: 'tool.call finish', name: tool, duration_ms: dur)
-            return result
+            result
           rescue StandardError => e2
             logger&.error(event: 'tool.call error', name: tool, message: e2.message)
             raise

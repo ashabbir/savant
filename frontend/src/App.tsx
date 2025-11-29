@@ -2,7 +2,6 @@ import React, { useMemo, useState } from 'react';
 import { Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { AppBar, Toolbar, Typography, Tabs, Tab, IconButton, Container, Alert, Snackbar, Chip, Box, Tooltip, Stack } from '@mui/material';
 import SettingsIcon from '@mui/icons-material/Settings';
-import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import { createTheme, ThemeProvider } from '@mui/material/styles';
 import Search from './pages/Search';
 import Repos from './pages/Repos';
@@ -248,11 +247,6 @@ export default function App() {
             ) : (
               <Chip size="small" label="Connected" sx={{ bgcolor: 'success.main', color: 'white', height: 22 }} />
             )}
-            <Tooltip title="Open legacy console">
-              <IconButton size="small" color="inherit" component="a" href="/console" target="_blank" rel="noreferrer">
-                <OpenInNewIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
             <IconButton size="small" color="inherit" onClick={() => setOpen(true)} title="Settings">
               <SettingsIcon fontSize="small" />
             </IconButton>

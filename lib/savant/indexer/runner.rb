@@ -16,7 +16,6 @@ module Savant
     #
     # Purpose: Orchestrate the indexing flow per repo using RepositoryScanner,
     # Chunkers, and BlobStore with caching and progress logging.
-    # rubocop:disable Metrics/ClassLength
     class Runner
       def initialize(config:, db:, logger:, cache:)
         @config = config
@@ -63,7 +62,7 @@ module Savant
 
       private
 
-      # rubocop:disable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength, Metrics/PerceivedComplexity
+      # rubocop:disable Metrics/AbcSize
       def process_repo(repo:, repo_id:, scanner:, files:, verbose:)
         using = scanner.last_used == :git ? 'gitls' : 'ls'
         @log.repo_header(name: repo['name'], total: files.length, strategy: using)
@@ -176,7 +175,7 @@ module Savant
           memory_bank: kind_counts['memory_bank'] || 0, doc_files: doc_files, code_files: code_files }
       end
 
-      # rubocop:enable Metrics/AbcSize, Metrics/CyclomaticComplexity, Metrics/MethodLength, Metrics/PerceivedComplexity
+      # rubocop:enable Metrics/AbcSize
 
       def select_repos(name)
         if name
@@ -238,6 +237,5 @@ module Savant
         false
       end
     end
-    # rubocop:enable Metrics/ClassLength
   end
 end

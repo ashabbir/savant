@@ -79,6 +79,7 @@ module Savant
         # Ensure required fields and name alignment
         entry['name'] = n if entry['name'].to_s.strip.empty?
         raise 'name_mismatch' unless entry['name'].to_s == n
+
         validate_entry!(entry)
 
         rows = load_catalog
@@ -99,6 +100,7 @@ module Savant
       # Read full catalog
       def catalog_read
         raise 'load_error: personas.yml not found' unless File.file?(@data_path)
+
         { catalog_yaml: File.read(@data_path) }
       end
 
@@ -226,7 +228,8 @@ module Savant
           raise "invalid_data: missing #{req}" unless p.key?(req) && !p[req].to_s.strip.empty?
         end
         v = coerce_version(p['version'])
-        raise 'invalid_data: version must be integer >= 1' unless v && v.is_a?(Integer) && v >= 1
+        raise 'invalid_data: version must be integer >= 1' unless v.is_a?(Integer) && v >= 1
+
         p['version'] = v
       end
 
@@ -241,11 +244,11 @@ module Savant
       def coerce_version(v)
         return nil if v.nil?
         return v if v.is_a?(Integer)
-        if v.is_a?(String)
-          if (m = v.match(/(\d+)/))
-            return m[1].to_i
-          end
+
+        if v.is_a?(String) && (m = v.match(/(\d+)/))
+          return m[1].to_i
         end
+
         nil
       end
     end

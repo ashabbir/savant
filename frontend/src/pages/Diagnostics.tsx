@@ -6,9 +6,11 @@ import Paper from '@mui/material/Paper';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import TerminalIcon from '@mui/icons-material/Terminal';
 import HttpIcon from '@mui/icons-material/Http';
+import RouteIcon from '@mui/icons-material/Route';
 import DiagnosticsOverview from './diagnostics/Overview';
 import DiagnosticsLogs from './diagnostics/Logs';
 import DiagnosticsRequests from './diagnostics/Requests';
+import DiagnosticsRoutes from './diagnostics/Routes';
 
 export default function Diagnostics() {
   const [tab, setTab] = useState<number>(() => {
@@ -36,12 +38,14 @@ export default function Diagnostics() {
           <Tab icon={<DashboardIcon />} iconPosition="start" label="Overview" />
           <Tab icon={<HttpIcon />} iconPosition="start" label="Requests" />
           <Tab icon={<TerminalIcon />} iconPosition="start" label="Logs" />
+          <Tab icon={<RouteIcon />} iconPosition="start" label="Routes" />
         </Tabs>
       </Paper>
 
       {tab === 0 && <DiagnosticsOverview />}
       {tab === 1 && <DiagnosticsRequests />}
       {tab === 2 && <DiagnosticsLogs />}
+      {tab === 3 && <DiagnosticsRoutes />}
     </Box>
   );
 }

@@ -4,7 +4,7 @@ require 'yaml'
 require 'rack'
 require_relative 'http/router'
 require_relative 'http/static_ui'
-require_relative 'transport/base'
+require_relative 'service_manager'
 
 module Savant
   # Hub builder: loads engines and returns a Rack app.
@@ -32,12 +32,10 @@ module Savant
       mounts = build_mounts(mounts_cfg, base_path: base)
       router = Savant::HTTP::Router.build(mounts: mounts, transport: transport_mode)
 
-      # Compose Rack app with static UI under /ui and legacy console under /console
+      # Compose Rack app with static UI under /ui
       ui_root = File.join(base, 'public', 'ui')
-      console_root = File.join(base, 'public', 'console')
       builder = Rack::Builder.new
       builder.map('/ui') { run Savant::HTTP::StaticUI.new(root: ui_root) }
-      builder.map('/console') { run Savant::HTTP::StaticUI.new(root: console_root) }
       builder.run router
 
       # Wrap the composed app to expose router metadata (for startup logs and CLI routes)
@@ -50,7 +48,7 @@ module Savant
         name = entry['engine']
         next if name.to_s.empty?
 
-        h[name] = Savant::Transport::ServiceManager.new(service: name)
+        h[name] = Savant::ServiceManager.new(service: name)
       end
 
       return mounts unless mounts.empty?
@@ -63,7 +61,7 @@ module Savant
           tools_rb = File.join(File.dirname(engine_rb), 'tools.rb')
           next unless File.file?(tools_rb)
 
-          mounts[name] = Savant::Transport::ServiceManager.new(service: name)
+          mounts[name] = Savant::ServiceManager.new(service: name)
         end
       rescue StandardError
         # ignore discovery errors

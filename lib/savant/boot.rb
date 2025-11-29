@@ -14,6 +14,7 @@ module Savant
   # Boot Runtime: Initializes the Savant Engine
   # This is the core initializer that prepares everything required for any agent,
   # workflow, or multiplexer to function.
+  # rubocop:disable Metrics/ModuleLength
   module Boot
     class BootError < StandardError; end
 
@@ -147,9 +148,7 @@ module Savant
         logger.info(event: 'loading_amr_rules')
 
         amr_path = File.join(base_path, 'lib', 'savant', 'amr', 'rules.yml')
-        unless File.exist?(amr_path)
-          raise BootError, "AMR rules file not found at #{amr_path}. Please create lib/savant/amr/rules.yml"
-        end
+        raise BootError, "AMR rules file not found at #{amr_path}. Please create lib/savant/amr/rules.yml" unless File.exist?(amr_path)
 
         data = YAML.safe_load(File.read(amr_path), permitted_classes: [], aliases: true)
 
@@ -210,6 +209,7 @@ module Savant
 
           parent = File.dirname(current)
           break if parent == current # Reached root
+
           current = parent
         end
 
@@ -284,4 +284,5 @@ module Savant
       end
     end
   end
+  # rubocop:enable Metrics/ModuleLength
 end
