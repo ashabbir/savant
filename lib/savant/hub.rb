@@ -32,12 +32,10 @@ module Savant
       mounts = build_mounts(mounts_cfg, base_path: base)
       router = Savant::HTTP::Router.build(mounts: mounts, transport: transport_mode)
 
-      # Compose Rack app with static UI under /ui and legacy console under /console
+      # Compose Rack app with static UI under /ui
       ui_root = File.join(base, 'public', 'ui')
-      console_root = File.join(base, 'public', 'console')
       builder = Rack::Builder.new
       builder.map('/ui') { run Savant::HTTP::StaticUI.new(root: ui_root) }
-      builder.map('/console') { run Savant::HTTP::StaticUI.new(root: console_root) }
       builder.run router
 
       # Wrap the composed app to expose router metadata (for startup logs and CLI routes)

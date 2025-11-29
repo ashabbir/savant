@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
+require_relative '../../../lib/savant/db'
 require_relative '../../../lib/savant/context/ops'
 
 RSpec.describe Savant::Context::Ops do

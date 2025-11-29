@@ -43,7 +43,7 @@ RSpec.describe Savant::Personas::Ops do
       write_yaml(d, <<~YAML)
         - name: x
           title: X
-          version: stable
+          version: 1
           summary: summary
           prompt_md: |
             test prompt
