@@ -40,8 +40,8 @@ require 'json'
 
 # Load library under test
 $LOAD_PATH.unshift(File.expand_path('../lib', __dir__))
-require 'savant/logger'
-require 'savant/middleware/logging'
+require 'savant/logging/logger'
+require 'savant/framework/middleware/logging'
 
 RSpec.configure do |config|
   config.expect_with :rspec do |c|

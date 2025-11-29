@@ -2,7 +2,7 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
-require_relative '../../lib/savant/runtime_context'
+require_relative '../lib/savant/framework/engine/runtime_context'
 
 RSpec.describe Savant::RuntimeContext do
   describe 'structure' do
@@ -96,7 +96,7 @@ RSpec.describe Savant::RuntimeContext do
   end
 end
 
-RSpec.describe Savant::Runtime do
+RSpec.describe Savant::Framework::Runtime do
   describe '.current' do
     it 'allows setting and getting the current runtime context' do
       context = Savant::RuntimeContext.new(

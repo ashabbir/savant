@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 require 'tmpdir'
-require_relative '../../lib/savant/generator'
+require_relative '../lib/savant/framework/generator'
 
 RSpec.describe Savant::Generator do
   it 'scaffolds a new engine with tools and spec (no db)' do
@@ -16,7 +16,7 @@ RSpec.describe Savant::Generator do
       spec = File.join(dir, 'spec', 'savant', 'abc', 'engine_spec.rb')
       [engine, tools, spec].each { |p| expect(File).to exist(p) }
       expect(File.read(tools)).to include("tool 'abc/hello'")
-      expect(File.read(engine)).not_to include('@db = Savant::DB.new')
+      expect(File.read(engine)).not_to include('@db = Savant::Framework::DB.new')
     end
   end
 
@@ -25,7 +25,7 @@ RSpec.describe Savant::Generator do
       gen = described_class.new(dest_root: dir, out: StringIO.new)
       gen.generate_engine('svc', with_db: true)
       engine = File.join(dir, 'lib', 'savant', 'svc', 'engine.rb')
-      expect(File.read(engine)).to include('@db = Savant::DB.new')
+      expect(File.read(engine)).to include('@db = Savant::Framework::DB.new')
     end
   end
 

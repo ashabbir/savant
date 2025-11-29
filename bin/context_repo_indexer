@@ -2,8 +2,8 @@
 # frozen_string_literal: true
 
 require 'time'
-require_relative '../lib/savant/context/fs/repo_indexer'
-require_relative '../lib/savant/db'
+require_relative '../lib/savant/engines/context/fs/repo_indexer'
+require_relative '../lib/savant/framework/db'
 
 def usage!
   warn 'usage: context_repo_indexer index all | index <repo> | delete all | delete <repo> | status'
@@ -13,8 +13,8 @@ end
 cmd = ARGV.shift
 usage! unless cmd
 
-logger = Savant::Logger.new(io: $stdout, json: false, service: 'context.repo_indexer')
-repo_indexer = Savant::Context::FS::RepoIndexer.new(db: Savant::DB.new, logger: logger)
+logger = Savant::Logging::Logger.new(io: $stdout, json: false, service: 'context.repo_indexer')
+repo_indexer = Savant::Context::FS::RepoIndexer.new(db: Savant::Framework::DB.new, logger: logger)
 
 begin
   case cmd
@@ -46,7 +46,7 @@ begin
   when 'status'
     rows = repo_indexer.status
     begin
-      raw = Savant::Config.load('config/settings.json')
+      raw = Savant::Framework::Config.load('config/settings.json')
       icfg = Savant::Indexer::Config.new(raw)
       scan_str = (icfg.scan_mode == :git ? 'git-ls' : 'ls')
     rescue StandardError

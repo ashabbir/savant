@@ -1,12 +1,12 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
-require 'savant/ai/agent_runner'
-require 'savant/mcp/core/dsl'
+require 'savant/engines/ai/agent_runner'
+require 'savant/framework/mcp/core/dsl'
 
 RSpec.describe Savant::AI::AgentRunner do
   it 'runs a sequential plan and threads memory' do
-    reg = Savant::MCP::Core::DSL.build do
+    reg = Savant::Framework::MCP::Core::DSL.build do
       tool 'a/one' do |_ctx, _a|
         { 'n' => 1 }
       end

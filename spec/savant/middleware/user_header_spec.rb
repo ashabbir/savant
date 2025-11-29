@@ -3,7 +3,7 @@
 require 'json'
 require 'rack/mock'
 
-require_relative '../../../lib/savant/middleware/user_header'
+require_relative '../lib/savant/framework/middleware/user_header'
 
 class EchoRackApp
   def call(env)
@@ -12,7 +12,7 @@ class EchoRackApp
   end
 end
 
-RSpec.describe Savant::Middleware::UserHeader do
+RSpec.describe Savant::Framework::Middleware::UserHeader do
   let(:app) { described_class.new(EchoRackApp.new) }
   let(:request) { Rack::MockRequest.new(app) }
 

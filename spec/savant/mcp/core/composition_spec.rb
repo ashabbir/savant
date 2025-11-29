@@ -1,14 +1,14 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
-require 'savant/mcp/core/dsl'
-require 'savant/mcp/core/registrar'
+require 'savant/framework/mcp/core/dsl'
+require 'savant/framework/mcp/core/registrar'
 
 RSpec.describe 'Tool composition via ctx.invoke' do
   it 'allows a tool to invoke another tool through the same middleware chain' do
     logs = []
 
-    registrar = Savant::MCP::Core::DSL.build do
+    registrar = Savant::Framework::MCP::Core::DSL.build do
       # simple logging middleware to capture execution order
       middleware do |ctx, nm, a, nxt|
         logs << "mw:#{nm}:before"

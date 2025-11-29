@@ -4,7 +4,7 @@
 require 'spec_helper'
 require 'fileutils'
 require 'tmpdir'
-require_relative '../../lib/savant/boot'
+require_relative '../lib/savant/framework/boot'
 
 RSpec.describe Savant::Boot do
   let(:test_base_path) { Dir.mktmpdir('savant-boot-test') }
@@ -51,12 +51,12 @@ RSpec.describe Savant::Boot do
     File.write(File.join(test_base_path, 'lib', 'savant', 'amr', 'rules.yml'), amr_yml)
 
     # Reset global runtime
-    Savant::Runtime.current = nil
+    Savant::Framework::Runtime.current = nil
   end
 
   after do
     FileUtils.rm_rf(test_base_path)
-    Savant::Runtime.current = nil
+    Savant::Framework::Runtime.current = nil
   end
 
   describe '.initialize!' do
@@ -105,7 +105,7 @@ RSpec.describe Savant::Boot do
         skip_git: true
       )
 
-      expect(Savant::Runtime.current).to eq(context)
+      expect(Savant::Framework::Runtime.current).to eq(context)
     end
 
     it 'creates .savant directory and runtime.json' do
@@ -223,7 +223,7 @@ RSpec.describe Savant::Boot do
       sleep 0.1
 
       # Reset runtime
-      Savant::Runtime.current = nil
+      Savant::Framework::Runtime.current = nil
 
       context2 = described_class.initialize!(
         base_path: test_base_path,
@@ -248,7 +248,7 @@ RSpec.describe Savant::Boot do
       first_data = JSON.parse(File.read(runtime_file))
 
       # Reset runtime
-      Savant::Runtime.current = nil
+      Savant::Framework::Runtime.current = nil
       sleep 0.1
 
       # Second boot
