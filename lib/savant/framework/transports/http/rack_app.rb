@@ -58,7 +58,7 @@ module Savant
         end
 
         def validate_payload!(payload)
-          raise Savant::BadRequestError, 'Invalid Request' unless payload.is_a?(Hash) && payload['method']
+          raise Savant::Hub::BadRequestError, 'Invalid Request' unless payload.is_a?(Hash) && payload['method']
         end
 
         def payload_id(payload)
@@ -120,8 +120,8 @@ module Savant
           id = payload_id(payload)
           case error
           when JSON::ParserError then parse_error_response(error)
-          when Savant::BadRequestError then [400, json_error(id, -32_600, error.message), :warn, 'request.invalid']
-          when Savant::UnknownServiceError then [404, json_error(id, -32_601, error.message), :error, 'service.unknown']
+          when Savant::Hub::BadRequestError then [400, json_error(id, -32_600, error.message), :warn, 'request.invalid']
+          when Savant::Hub::UnknownServiceError then [404, json_error(id, -32_601, error.message), :error, 'service.unknown']
           else [500, json_error(id, -32_000, 'Internal error'), :error, 'response.error']
           end
         end
