@@ -25,7 +25,7 @@ module Savant
       def initialize(env: ENV)
         @env = env
         @base = resolve_base_path
-        @root = File.join(@base, 'lib', 'savant', 'think')
+        @root = File.join(@base, 'lib', 'savant', 'engines', 'think')
         @limits = load_think_limits
       end
 

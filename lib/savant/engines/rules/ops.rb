@@ -10,7 +10,7 @@ module Savant
     class Ops
       def initialize(root: nil)
         @base = root || default_base_path
-        @data_path = File.join(@base, 'lib', 'savant', 'rules', 'rules.yml')
+        @data_path = File.join(@base, 'lib', 'savant', 'engines', 'rules', 'rules.yml')
       end
 
       def list(filter: nil)

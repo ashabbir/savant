@@ -147,8 +147,8 @@ module Savant
       def load_amr_rules(base_path, logger)
         logger.info(event: 'loading_amr_rules')
 
-        amr_path = File.join(base_path, 'lib', 'savant', 'amr', 'rules.yml')
-        raise BootError, "AMR rules file not found at #{amr_path}. Please create lib/savant/amr/rules.yml" unless File.exist?(amr_path)
+        amr_path = File.join(base_path, 'lib', 'savant', 'engines', 'amr', 'rules.yml')
+        raise BootError, "AMR rules file not found at #{amr_path}. Please create lib/savant/engines/amr/rules.yml" unless File.exist?(amr_path)
 
         data = YAML.safe_load(File.read(amr_path), permitted_classes: [], aliases: true)
 
