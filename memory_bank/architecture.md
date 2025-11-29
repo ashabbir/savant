@@ -8,6 +8,9 @@
 
 ### Key Components
 
+- **Boot Runtime (`lib/savant/boot.rb`):** P0 critical path component that initializes the Savant Engine. Orchestrates loading of personas, driver prompts, AMR rules, repo context, and session memory. Provides global `Savant::Runtime.current` access to RuntimeContext. Creates `.savant/runtime.json` state and `logs/engine_boot.log`. Required before any agent, workflow, or multiplexer operations.
+- **RuntimeContext (`lib/savant/runtime_context.rb`):** Global state container holding session_id, persona, driver_prompt, amr_rules, repo, memory, logger, and multiplexer. Accessible throughout codebase via `Savant::Runtime.current`.
+- **AMR System (`lib/savant/amr/`):** Ahmed Matching Rules define request pattern matching and action routing. Loaded from `rules.yml` during boot. Contains rules for code_review, workflow_execution, agent_run, context_query, and persona_switch.
 - **Indexer (`lib/savant/indexer/*`):** Runner orchestrates repo scans, merges ignore files, skips hidden/binary/unchanged files (tracked in `.cache/indexer.json`), dedupes blobs via SHA256, chunks code vs. markdown differently, and maintains file↔blob associations plus cleanup for deleted files.
 - **Database Layer (`lib/savant/db.rb`):** Wraps `pg` with helpers to migrate schema, ensure FTS, upsert repos/files/blobs, replace chunks, and drop data for deleted repos.
 - **Context MCP Engine:** Uses chunk search via `lib/savant/context/fts.rb`, operations defined in `ops.rb`, tools registered in `tools.rb`, and orchestrated by `engine.rb`.
@@ -23,9 +26,11 @@
 
 ### Operational Highlights
 
-- Use CLI entrypoints in `bin/` (`context_repo_indexer`, `db_migrate`, `mcp_server`, etc.) to manage lifecycle.
+- **Boot Runtime CLI:** Use `bin/savant run`, `bin/savant review`, or `bin/savant workflow <name>` to initialize the engine with full boot diagnostics. All commands create `.savant/runtime.json` and `logs/engine_boot.log`.
+- Use other CLI entrypoints in `bin/` (`context_repo_indexer`, `db_migrate`, `mcp_server`, etc.) to manage lifecycle.
 - Docker Compose spins up Postgres plus optional services; Make targets wrap indexing, DB prep, MCP runs, and tests.
 - No secrets in repo; load Jira credentials via env or `secrets.yml` copy.
+- Session state persists in `.savant/runtime.json` with session_id, persona, driver_prompt, amr, and repo metadata.
 
 ---
 
@@ -155,6 +160,36 @@ flowchart LR
   class YAML1,YAML2 yaml
 ```
 
+### Boot Runtime Flow
+```mermaid
+flowchart TD
+  CLI[bin/savant run/review/workflow] --> BOOT[Savant::Boot.initialize!]
+  BOOT --> LOG[Create Logger]
+  LOG --> SID[Generate Session ID]
+  SID --> PERS[Load Persona]
+  PERS --> DRV[Load Driver Prompt]
+  DRV --> AMR[Load AMR Rules]
+  AMR --> REPO{Skip Git?}
+  REPO -->|No| GIT[Detect Git Repo]
+  REPO -->|Yes| MEM[Initialize Memory]
+  GIT --> MEM
+  MEM --> CTX[Create RuntimeContext]
+  CTX --> GLOB[Set Savant::Runtime.current]
+  GLOB --> SAVE[Persist .savant/runtime.json]
+  SAVE --> DONE[Boot Complete]
+
+  PERS -.->|reads| YAML1[(personas.yml)]
+  DRV -.->|reads| YAML2[(prompts.yml)]
+  AMR -.->|reads| YAML3[(amr/rules.yml)]
+
+  classDef boot fill:#f6d365,stroke:#ffa400
+  classDef yaml fill:#ecfccb,stroke:#65a30d
+  classDef ctx fill:#84fab0,stroke:#8fd3f4
+  class BOOT,LOG,SID boot
+  class YAML1,YAML2,YAML3 yaml
+  class CTX,GLOB,SAVE,DONE ctx
+```
+
 ### Logs & Secrets
 ```mermaid
 flowchart LR
@@ -171,6 +206,10 @@ flowchart LR
 
 ## Notes & Gotchas
 
+- **Boot Runtime:** All Savant commands (`run`, `review`, `workflow`) must go through the boot sequence. The RuntimeContext is globally accessible via `Savant::Runtime.current` after boot completes.
+- **AMR Rules:** Loaded once during boot from `lib/savant/amr/rules.yml`. Changes to AMR require reboot.
+- **Session State:** Each boot creates a unique session_id and persists state to `.savant/runtime.json`. Historical sessions remain in the file.
+- **Git Detection:** Boot auto-detects git repos unless `--skip-git` is used. Repo path resolution handles macOS `/private` symlinks.
 - One engine per stdio MCP process; the Hub multiplexes multiple engines via HTTP.
 - Indexer cache avoids rehashing unchanged files; bump `mtime_ns` on real edits.
 - FTS tuning: adjust `mdMaxChars`, `codeMaxLines`, `overlapLines` for retrieval quality/perf.
