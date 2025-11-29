@@ -11,9 +11,10 @@ require_relative '../../logging/replay_buffer'
 require_relative 'metrics'
 
 module Savant
-  module Middleware
-    # Wraps tool executions with trace IDs, audit logging, and metrics emission.
-    class Trace
+  module Framework
+    module Middleware
+      # Wraps tool executions with trace IDs, audit logging, and metrics emission.
+      class Trace
       attr_reader :replay_buffer
 
       def initialize(logger_factory: nil, metrics: Savant::Framework::Middleware::Metrics.new,
@@ -110,6 +111,7 @@ module Savant
 
       def now_ms
         (Process.clock_gettime(Process::CLOCK_MONOTONIC) * 1000).to_i
+      end
       end
     end
   end

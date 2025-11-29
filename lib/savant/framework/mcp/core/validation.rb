@@ -2,15 +2,16 @@
 # frozen_string_literal: true
 
 module Savant
-  module MCP
-    module Core
-      # Error raised when MCP tool arg validation fails.
-      #
-      # Purpose: Provide a specific error class for coherent error handling.
-      class ValidationError < StandardError; end
+  module Framework
+    module MCP
+      module Core
+        # Error raised when MCP tool arg validation fails.
+        #
+        # Purpose: Provide a specific error class for coherent error handling.
+        class ValidationError < StandardError; end
 
-      # Schema validation and basic coercion for tool inputs.
-      module Validation
+        # Schema validation and basic coercion for tool inputs.
+        module Validation
         module_function
 
         def validate!(schema, args)
@@ -126,6 +127,7 @@ module Savant
           else
             obj
           end
+        end
         end
       end
     end

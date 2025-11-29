@@ -11,10 +11,11 @@ require_relative '../../../logging/audit/store'
 require_relative '../../../logging/replay_buffer'
 
 module Savant
-  module MCP
-    module Core
-      # Tool definition DSL for building a Registrar with middleware.
-      module DSL
+  module Framework
+    module MCP
+      module Core
+        # Tool definition DSL for building a Registrar with middleware.
+        module DSL
         # Builds tool specs via a small internal DSL.
         #
         # Purpose: Make registrar declarations concise and readable.
@@ -72,6 +73,7 @@ module Savant
           b = Builder.new
           b.instance_eval(&blk) if blk
           b.registrar
+        end
         end
       end
     end

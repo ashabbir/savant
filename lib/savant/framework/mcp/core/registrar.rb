@@ -5,12 +5,13 @@ require_relative 'tool'
 require_relative 'middleware'
 
 module Savant
-  module MCP
-    module Core
-      # Holds and exposes tool specs for MCP discovery and dispatch.
-      #
-      # Purpose: Provide a small registry abstraction used by service tools.
-      class Registrar
+  module Framework
+    module MCP
+      module Core
+        # Holds and exposes tool specs for MCP discovery and dispatch.
+        #
+        # Purpose: Provide a small registry abstraction used by service tools.
+        class Registrar
         def initialize
           @tools = {}
           @mw = MiddlewareChain.new
@@ -44,6 +45,7 @@ module Savant
           @mw.call(ctx2, name, args) do |c, _nm, a|
             tool.handler.call(c, a)
           end
+        end
         end
       end
     end

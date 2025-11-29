@@ -4,7 +4,7 @@ require 'json'
 require 'rack/request'
 
 module Savant
-  module HTTP
+  module Hub
     # Minimal SSE Rack app which can be embedded by the hub router.
     # It supports a testing flag `?once=1` to emit a single heartbeat and close.
     class SSE

@@ -2,12 +2,13 @@
 # frozen_string_literal: true
 
 module Savant
-  module MCP
-    module Core
-      # Simple middleware chain for wrapping tool calls.
-      #
-      # Purpose: Allow pre/post processing (logging, validation) around calls.
-      class MiddlewareChain
+  module Framework
+    module MCP
+      module Core
+        # Simple middleware chain for wrapping tool calls.
+        #
+        # Purpose: Allow pre/post processing (logging, validation) around calls.
+        class MiddlewareChain
         def initialize
           @middlewares = []
         end
@@ -22,6 +23,7 @@ module Savant
             proc { |c, nm, a| mw.call(c, nm, a, nxt) }
           end
           chain.call(ctx, name, args)
+        end
         end
       end
     end

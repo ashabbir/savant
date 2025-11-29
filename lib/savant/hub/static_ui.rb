@@ -3,7 +3,7 @@
 require 'rack'
 
 module Savant
-  module HTTP
+  module Hub
     # Minimal static file server for the Hub UI under /ui.
     # Serves index.html for directory root.
     class StaticUI

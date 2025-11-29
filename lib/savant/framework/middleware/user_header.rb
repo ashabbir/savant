@@ -3,9 +3,10 @@
 require 'json'
 
 module Savant
-  module Middleware
-    # Rack middleware that enforces `x-savant-user-id` and attaches it to env.
-    class UserHeader
+  module Framework
+    module Middleware
+      # Rack middleware that enforces `x-savant-user-id` and attaches it to env.
+      class UserHeader
       HEADER = 'HTTP_X_SAVANT_USER_ID'
 
       def initialize(app)
@@ -28,6 +29,7 @@ module Savant
 
         env['savant.user_id'] = user
         @app.call(env)
+      end
       end
     end
   end

@@ -2,15 +2,16 @@
 # frozen_string_literal: true
 
 require 'json'
-require_relative 'logging/logger'
+require_relative '../../logging/logger'
 
 module Savant
-  module MCP
-    # Dispatcher for JSON-RPC 2.0 requests targeting a single Savant service.
-    # - Loads the requested service lazily.
-    # - Validates and handles core MCP methods.
-    # - Returns JSON strings (no direct IO) so transports can decide how to send.
-    class Dispatcher
+  module Framework
+    module MCP
+      # Dispatcher for JSON-RPC 2.0 requests targeting a single Savant service.
+      # - Loads the requested service lazily.
+      # - Validates and handles core MCP methods.
+      # - Returns JSON strings (no direct IO) so transports can decide how to send.
+      class Dispatcher
       def initialize(service:, log: Savant::Logging::Logger.new(io: $stdout, json: true, service: 'savant'))
         @service = service.to_s
         @log = log
@@ -143,6 +144,7 @@ module Savant
         @services[key] = { engine: engine, registrar: registrar }
       rescue LoadError, NameError
         raise 'Unknown service'
+      end
       end
     end
   end

@@ -5,8 +5,8 @@
 # Purpose: Expose repository indexing under the Context::FS namespace.
 
 require_relative '../../indexer'
-require_relative '../../framework/db'
-require_relative '../../logging/logger'
+require_relative '../../../framework/db'
+require_relative '../../../logging/logger'
 
 module Savant
   module Context
