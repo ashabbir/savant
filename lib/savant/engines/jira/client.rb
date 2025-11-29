@@ -12,7 +12,7 @@ require 'json'
 require 'net/http'
 require 'uri'
 require 'base64'
-require_relative '../logging/logger'
+require_relative '../../logging/logger'
 
 module Savant
   module Jira

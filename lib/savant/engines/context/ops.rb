@@ -16,7 +16,7 @@
 # - Heavy I/O or DB work is delegated to helper classes to keep Ops small.
 #
 require 'json'
-require_relative '../logging/logger'
+require_relative '../../logging/logger'
 
 module Savant
   module Context

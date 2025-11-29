@@ -16,7 +16,7 @@
 # - Forward calls to Ops and return results as plain Ruby objects
 #
 require 'json'
-require_relative '../logging/logger'
+require_relative '../../logging/logger'
 require_relative 'ops'
 require_relative 'fs/repo_indexer'
 
