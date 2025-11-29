@@ -10,9 +10,9 @@
 
 require 'json'
 require 'digest'
-require_relative 'framework/config'
-require_relative 'framework/db'
-require_relative 'logging/logger'
+require_relative '../framework/config'
+require_relative '../framework/db'
+require_relative '../logging/logger'
 
 module Savant
   module Indexer

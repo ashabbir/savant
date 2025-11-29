@@ -3,7 +3,7 @@
 
 require 'time'
 require 'securerandom'
-require_relative 'logging/event_recorder'
+require_relative '../logging/event_recorder'
 
 module Savant
   # Global connection registry for SSE/HTTP/STDIO clients.
