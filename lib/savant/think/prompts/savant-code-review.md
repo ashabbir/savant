@@ -1,4 +1,4 @@
-# Driver: Savant Think - Code Review
+# Savant - Code Review
 ---
 ## Orchestration Loop
 

@@ -4,7 +4,7 @@ require 'yaml'
 require 'rack'
 require_relative 'http/router'
 require_relative 'http/static_ui'
-require_relative 'transport/base'
+require_relative 'service_manager'
 
 module Savant
   # Hub builder: loads engines and returns a Rack app.
@@ -50,7 +50,7 @@ module Savant
         name = entry['engine']
         next if name.to_s.empty?
 
-        h[name] = Savant::Transport::ServiceManager.new(service: name)
+        h[name] = Savant::ServiceManager.new(service: name)
       end
 
       return mounts unless mounts.empty?
@@ -63,7 +63,7 @@ module Savant
           tools_rb = File.join(File.dirname(engine_rb), 'tools.rb')
           next unless File.file?(tools_rb)
 
-          mounts[name] = Savant::Transport::ServiceManager.new(service: name)
+          mounts[name] = Savant::ServiceManager.new(service: name)
         end
       rescue StandardError
         # ignore discovery errors

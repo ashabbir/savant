@@ -6,8 +6,8 @@ require 'rack/handler/webrick'
 require 'webrick'
 
 require_relative '../logger'
-require_relative '../transport/base'
-require_relative '../transport/http'
+require_relative '../service_manager'
+require_relative '../transports/http/rack_app'
 
 module Savant
   module Server
@@ -31,7 +31,7 @@ module Savant
         private
 
         def run_server(manager, logger, host, port)
-          app = Savant::Transport::HTTP.build(service_manager: manager, logger: logger)
+          app = Savant::Transports::HTTP::RackApp.build(service_manager: manager, logger: logger)
           bind_host = resolve_host(host)
           bind_port = resolve_port(port)
           announce(logger, manager, bind_host, bind_port)
@@ -44,7 +44,7 @@ module Savant
 
         def build_manager(service, logger)
           service_name = (service || ENV['MCP_SERVICE'] || 'context').to_s
-          Savant::Transport::ServiceManager.new(service: service_name, logger: logger)
+          Savant::ServiceManager.new(service: service_name, logger: logger)
         end
 
         def resolve_base_path
