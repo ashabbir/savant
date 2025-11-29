@@ -42,6 +42,24 @@ sequenceDiagram
   Hub-->>UI: result
 ```
 
+## Transport Layer
+
+Savant uses a clean dual-transport architecture:
+
+- **HTTP Transport** (`lib/savant/transports/http/rack_app.rb`): JSON-RPC over HTTP for Hub and UI access
+  - Accessed via `Savant::Transports::HTTP::RackApp`
+  - Used by Hub (`lib/savant/hub.rb`) and HTTP Runner (`lib/savant/server/http_runner.rb`)
+
+- **MCP Transport** (`lib/savant/transports/mcp/`): JSON-RPC 2.0 over stdio/websocket for editor integrations
+  - Stdio: `Savant::Transports::MCP::Stdio` for Claude Desktop, VSCode
+  - WebSocket: `Savant::Transports::MCP::WebSocket` for WS connections
+  - Launcher: `lib/savant/mcp_server.rb` selects transport based on config
+
+- **ServiceManager** (`lib/savant/service_manager.rb`): Transport-agnostic engine loader shared by all transports
+  - Loads engines dynamically based on service name
+  - Manages tool registries and middleware
+  - Provides consistent tool call interface regardless of transport
+
 - Keep `memory_bank` entries concise and factual so downstream agents can quickly ingest architecture, engine behaviors, and workflows.
 - Reference `Savant::Logger.with_timing` when instrumenting long-running tasks to keep logs consistent.
 - Ensure Postgres migrations and FTS setup have run before indexing or serving context queries to avoid runtime errors.

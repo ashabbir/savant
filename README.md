@@ -88,9 +88,16 @@ flowchart LR
   Ops --> DB[(Postgres)]
 ```
 
-- Transports: stdio (editors) and HTTP (Hub + UI). Exactly one engine per MCP process.
-- Registrar DSL + middleware: tools are declared with JSON schemas and wrapped with logging/validation.
-- Logging: structured logs per engine under `/tmp/savant/<engine>.log` (Hub) or `logs/<engine>.log` (stdio).
+**Transport Layer:**
+- **HTTP**: `lib/savant/transports/http/rack_app.rb` - Rack app for Hub + UI (JSON-RPC over HTTP)
+- **MCP**: `lib/savant/transports/mcp/{stdio,websocket}.rb` - Stdio/WebSocket for editors (JSON-RPC 2.0)
+- **ServiceManager**: `lib/savant/service_manager.rb` - Transport-agnostic engine loading shared by all transports
+- Exactly one engine per MCP process; Hub multiplexes multiple engines via HTTP
+
+**Core Features:**
+- Registrar DSL + middleware: tools declared with JSON schemas, wrapped with logging/validation
+- Logging: `/tmp/savant/<engine>.log` (HTTP) or `logs/<engine>.log` (MCP stdio)
+- Single codebase supports both protocols with clean separation
 
 ## Engines (Overview)
 
