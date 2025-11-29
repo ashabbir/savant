@@ -564,3 +564,25 @@ export function useHubStats() {
     refetchInterval: 5000 // Auto-refresh every 5 seconds
   });
 }
+
+// Routes API for diagnostics
+export type RouteInfo = {
+  module: string;
+  method: string;
+  path: string;
+  description: string;
+};
+
+export type RoutesResponse = {
+  routes: RouteInfo[];
+};
+
+export function useRoutes() {
+  return useQuery<RoutesResponse>({
+    queryKey: ['hub', 'routes'],
+    queryFn: async () => {
+      const res = await client().get('/routes?expand=1');
+      return res.data as RoutesResponse;
+    }
+  });
+}

@@ -11,11 +11,33 @@
 - **Boot Runtime (`lib/savant/boot.rb`):** P0 critical path component that initializes the Savant Engine. Orchestrates loading of personas, driver prompts, AMR rules, repo context, and session memory. Provides global `Savant::Runtime.current` access to RuntimeContext. Creates `.savant/runtime.json` state and `logs/engine_boot.log`. Required before any agent, workflow, or multiplexer operations.
 - **RuntimeContext (`lib/savant/runtime_context.rb`):** Global state container holding session_id, persona, driver_prompt, amr_rules, repo, memory, logger, and multiplexer. Accessible throughout codebase via `Savant::Runtime.current`.
 - **AMR System (`lib/savant/amr/`):** Ahmed Matching Rules define request pattern matching and action routing. Loaded from `rules.yml` during boot. Contains rules for code_review, workflow_execution, agent_run, context_query, and persona_switch.
+- **ServiceManager (`lib/savant/service_manager.rb`):** Transport-agnostic core infrastructure for loading MCP engines and managing tool registries. Used by all transport layers (HTTP and MCP).
+- **Transport Layer (`lib/savant/transports/`):** Dual-protocol support with HTTP (`transports/http/rack_app.rb` for Hub + UI) and MCP (`transports/mcp/stdio.rb` + `transports/mcp/websocket.rb` for stdio/ws connections).
 - **Indexer (`lib/savant/indexer/*`):** Runner orchestrates repo scans, merges ignore files, skips hidden/binary/unchanged files (tracked in `.cache/indexer.json`), dedupes blobs via SHA256, chunks code vs. markdown differently, and maintains file↔blob associations plus cleanup for deleted files.
 - **Database Layer (`lib/savant/db.rb`):** Wraps `pg` with helpers to migrate schema, ensure FTS, upsert repos/files/blobs, replace chunks, and drop data for deleted repos.
 - **Context MCP Engine:** Uses chunk search via `lib/savant/context/fts.rb`, operations defined in `ops.rb`, tools registered in `tools.rb`, and orchestrated by `engine.rb`.
 - **Jira MCP Engine:** REST v3 client in `lib/savant/jira/client.rb`, operations + engine orchestrate ticket queries/actions exposed via `jira/tools.rb`.
-- **MCP Server (`lib/savant/mcp_server.rb`):** JSON-RPC 2.0 stdio server loading either Context or Jira registrar per `MCP_SERVICE`, exposing `tools/list` and `tools/call`.
+- **MCP Server (`lib/savant/mcp_server.rb`):** Transport-agnostic launcher selecting stdio or websocket via `Savant::Transports::MCP::*` based on `MCP_SERVICE` and config, exposing JSON-RPC 2.0 `tools/list` and `tools/call`.
+
+### Transport Architecture
+
+Savant supports two transport protocols, cleanly separated:
+
+**HTTP Transport** (`lib/savant/transports/http/`)
+- `rack_app.rb`: Rack application exposing JSON-RPC endpoints for Hub and UI
+- Used by: Hub (`lib/savant/hub.rb`), HTTP Runner (`lib/savant/server/http_runner.rb`)
+- Module: `Savant::Transports::HTTP::RackApp`
+
+**MCP Transport** (`lib/savant/transports/mcp/`)
+- `stdio.rb`: Stdio transport for editor integrations (Claude Desktop, VSCode)
+- `websocket.rb`: WebSocket transport for MCP protocol
+- Used by: MCP Server (`lib/savant/mcp_server.rb`)
+- Modules: `Savant::Transports::MCP::Stdio`, `Savant::Transports::MCP::WebSocket`
+
+**Shared Infrastructure**
+- `ServiceManager` (`lib/savant/service_manager.rb`): Core engine loading and tool registry management, used by all transports
+- Both transport types use the same engine registrars and tool definitions
+- Logging varies by transport: HTTP logs to `/tmp/savant/<service>.log`, MCP logs to `logs/<service>.log`
 
 ### Data Model
 

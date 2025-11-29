@@ -88,9 +88,16 @@ flowchart LR
   Ops --> DB[(Postgres)]
 ```
 
-- Transports: stdio (editors) and HTTP (Hub + UI). Exactly one engine per MCP process.
-- Registrar DSL + middleware: tools are declared with JSON schemas and wrapped with logging/validation.
-- Logging: structured logs per engine under `/tmp/savant/<engine>.log` (Hub) or `logs/<engine>.log` (stdio).
+**Transport Layer:**
+- **HTTP**: `lib/savant/transports/http/rack_app.rb` - Rack app for Hub + UI (JSON-RPC over HTTP)
+- **MCP**: `lib/savant/transports/mcp/{stdio,websocket}.rb` - Stdio/WebSocket for editors (JSON-RPC 2.0)
+- **ServiceManager**: `lib/savant/service_manager.rb` - Transport-agnostic engine loading shared by all transports
+- Exactly one engine per MCP process; Hub multiplexes multiple engines via HTTP
+
+**Core Features:**
+- Registrar DSL + middleware: tools declared with JSON schemas, wrapped with logging/validation
+- Logging: `/tmp/savant/<engine>.log` (HTTP) or `logs/<engine>.log` (MCP stdio)
+- Single codebase supports both protocols with clean separation
 
 ## Engines (Overview)
 
@@ -108,11 +115,17 @@ ruby ./bin/savant generate engine <name> [--with-db] [--force]
 ```
 Creates `lib/savant/<name>/{engine.rb,tools.rb}` and a baseline spec. Then run with `MCP_SERVICE=<name> ruby ./bin/mcp_server`.
 
-## UI (Old + New)
+## UI
 
-- Old: static console under `/console` (request logs + helpers).
-- New: React UI under `/ui` (or dev at 5173) with three-tier tabs — Dashboard, Engines (per-engine tabs), Diagnostics (Overview/Requests/Logs). Footer shows Dev-Mode/Build-Mode.
-- Diagnostics → Logs includes a log-level dropdown (All/Debug/Info/Warn/Error) that streams only the selected levels directly from the hub for accurate filtering and copy/export.
+- React UI under `/ui` (or dev at 5173) with three main sections:
+  - **Dashboard**: Overview of all engines and system status
+  - **Engines**: Per-engine tabs for tool execution and testing
+  - **Diagnostics**: Four tabs for system monitoring
+    - Overview: System configuration, DB connectivity, repos, personas, rules
+    - Requests: HTTP request logs and traffic statistics
+    - Logs: Live event streaming with log-level filtering (All/Debug/Info/Warn/Error)
+    - Routes: API route browser with filtering by module, method, and path
+- Footer shows Dev-Mode/Build-Mode indicator
 
 ## Diagnostics & Logs
 

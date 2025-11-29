@@ -3,7 +3,7 @@
 require 'json'
 require 'rack/mock'
 
-require_relative '../../../lib/savant/transport/http'
+require_relative '../../../lib/savant/transports/http/rack_app'
 
 NullLogger = Class.new do
   def info(*) = nil
@@ -41,12 +41,12 @@ module SavantTransportHttpSpec
   end
 
   def self.build_request(service_manager, logger)
-    app = Savant::Transport::HTTP.build(service_manager: service_manager, logger: logger)
+    app = Savant::Transports::HTTP::RackApp.build(service_manager: service_manager, logger: logger)
     Rack::MockRequest.new(app)
   end
 end
 
-RSpec.describe Savant::Transport::HTTP, 'POST /rpc success' do
+RSpec.describe Savant::Transports::HTTP::RackApp, 'POST /rpc success' do
   let(:logger) { NullLogger.new }
   let(:service_manager) { SavantTransportHttpSpec::EchoManager.new }
 
@@ -67,7 +67,7 @@ RSpec.describe Savant::Transport::HTTP, 'POST /rpc success' do
   end
 end
 
-RSpec.describe Savant::Transport::HTTP, 'POST /rpc parse error' do
+RSpec.describe Savant::Transports::HTTP::RackApp, 'POST /rpc parse error' do
   let(:logger) { NullLogger.new }
 
   it 'returns parse error payload on invalid JSON' do
@@ -80,7 +80,7 @@ RSpec.describe Savant::Transport::HTTP, 'POST /rpc parse error' do
   end
 end
 
-RSpec.describe Savant::Transport::HTTP, 'POST /rpc invalid request' do
+RSpec.describe Savant::Transports::HTTP::RackApp, 'POST /rpc invalid request' do
   let(:logger) { NullLogger.new }
 
   it 'returns invalid request error when method missing' do
@@ -94,7 +94,7 @@ RSpec.describe Savant::Transport::HTTP, 'POST /rpc invalid request' do
   end
 end
 
-RSpec.describe Savant::Transport::HTTP, 'POST /rpc internal error' do
+RSpec.describe Savant::Transports::HTTP::RackApp, 'POST /rpc internal error' do
   let(:logger) { NullLogger.new }
 
   it 'returns internal error payload when tool fails' do
@@ -109,12 +109,12 @@ RSpec.describe Savant::Transport::HTTP, 'POST /rpc internal error' do
   end
 end
 
-RSpec.describe Savant::Transport::HTTP, 'GET /healthz' do
+RSpec.describe Savant::Transports::HTTP::RackApp, 'GET /healthz' do
   let(:logger) { NullLogger.new }
   let(:service_manager) { SavantTransportHttpSpec::PassthroughManager.new }
 
   let(:request) do
-    app = Savant::Transport::HTTP.build(service_manager: service_manager, logger: logger)
+    app = Savant::Transports::HTTP::RackApp.build(service_manager: service_manager, logger: logger)
     Rack::MockRequest.new(app)
   end
 

@@ -59,6 +59,7 @@ module Savant
       def prompts_catalog_read
         path = File.join(@root, 'prompts.yml')
         raise 'CATALOG_NOT_FOUND' unless File.file?(path)
+
         { catalog_yaml: read_text_utf8(path) }
       end
 
@@ -66,11 +67,14 @@ module Savant
         path = File.join(@root, 'prompts.yml')
         data = YAML.safe_load(yaml.to_s) || {}
         raise 'INVALID_CATALOG' unless data.is_a?(Hash)
+
         versions = data['versions'] || {}
         raise 'INVALID_CATALOG: versions must be mapping' unless versions.is_a?(Hash)
+
         # basic sanity: ensure referenced files are under prompts/
-        versions.each do |_k, v|
+        versions.each_value do |v|
           next if v.is_a?(String) && v.start_with?('prompts/')
+
           raise 'INVALID_CATALOG: each version path must be under prompts/'
         end
         File.write(path, YAML.dump({ 'versions' => versions }))
@@ -84,6 +88,7 @@ module Savant
       def prompts_create(version:, prompt_md:, path: nil)
         ver = normalize_version_key(version)
         raise 'INVALID_VERSION' if ver.empty?
+
         reg_path = File.join(@root, 'prompts.yml')
         reg = safe_yaml(read_text_utf8(reg_path))
         reg['versions'] ||= {}
@@ -97,6 +102,7 @@ module Savant
                 "prompts/#{slug}.md"
               end
         raise 'INVALID_PATH' unless rel.start_with?('prompts/') && rel.end_with?('.md')
+
         abs = File.join(@root, rel)
         FileUtils.mkdir_p(File.dirname(abs))
         File.write(abs, prompt_md.to_s)
@@ -109,19 +115,23 @@ module Savant
       def prompts_update(version:, prompt_md: nil, new_version: nil)
         ver = normalize_version_key(version)
         raise 'INVALID_VERSION' if ver.empty?
+
         reg_path = File.join(@root, 'prompts.yml')
         reg = safe_yaml(read_text_utf8(reg_path))
         reg['versions'] ||= {}
         raise 'NOT_FOUND' unless reg['versions'].key?(ver)
+
         rel = reg['versions'][ver]
         abs = File.join(@root, rel)
         if prompt_md
           raise 'MISSING_FILE' unless File.file?(abs)
+
           File.write(abs, prompt_md.to_s)
         end
         if new_version && !new_version.to_s.strip.empty? && new_version.to_s != ver
           new_ver = normalize_version_key(new_version)
           raise 'ALREADY_EXISTS' if reg['versions'].key?(new_ver)
+
           reg['versions'].delete(ver)
           reg['versions'][new_ver] = rel
           File.write(reg_path, YAML.dump(reg))
@@ -136,6 +146,7 @@ module Savant
       def prompts_delete(version:)
         ver = normalize_version_key(version)
         raise 'INVALID_VERSION' if ver.empty?
+
         reg_path = File.join(@root, 'prompts.yml')
         reg = safe_yaml(read_text_utf8(reg_path))
         reg['versions'] ||= {}
@@ -526,7 +537,7 @@ module Savant
         drv = drv.to_s unless drv.nil?
         name = graph['name'] || graph[:name]
         name = name.to_s unless name.nil?
-        rules = Array(graph['rules'] || graph[:rules]).map { |r| r.to_s }.reject(&:empty?)
+        rules = Array(graph['rules'] || graph[:rules]).map(&:to_s).reject(&:empty?)
         version = graph['version'] || graph[:version]
         version = version.to_i if version
         version = 1 if version.nil? || version <= 0
