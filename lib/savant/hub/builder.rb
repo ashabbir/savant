@@ -53,10 +53,10 @@ module Savant
 
       return mounts unless mounts.empty?
 
-      # Fallback: auto-discover engines under lib/savant/*/engine.rb with tools.rb present
+      # Fallback: auto-discover engines under lib/savant/engines/*/engine.rb with tools.rb present
       begin
         lib_root = base_path ? File.join(base_path, 'lib', 'savant') : File.join(File.expand_path('../../..', __dir__), 'lib', 'savant')
-        Dir.glob(File.join(lib_root, '*', 'engine.rb')).each do |engine_rb|
+        Dir.glob(File.join(lib_root, 'engines', '*', 'engine.rb')).each do |engine_rb|
           name = File.basename(File.dirname(engine_rb))
           tools_rb = File.join(File.dirname(engine_rb), 'tools.rb')
           next unless File.file?(tools_rb)

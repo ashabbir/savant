@@ -281,8 +281,8 @@ else
     end
 
     svc = (options[:service] || 'context').to_s
-    require File.join(__dir__, '..', 'lib', 'savant', svc, 'engine')
-    require File.join(__dir__, '..', 'lib', 'savant', svc, 'tools')
+    require File.join(__dir__, '..', 'lib', 'savant', 'engines', svc, 'engine')
+    require File.join(__dir__, '..', 'lib', 'savant', 'engines', svc, 'tools')
     camel = svc.split(/[^a-zA-Z0-9]/).map { |s| s[0] ? s[0].upcase + s[1..] : '' }.join
     mod = Savant.const_get(camel)
     engine_class = mod.const_get(:Engine)

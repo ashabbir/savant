@@ -628,8 +628,8 @@ module Savant
       # Load fresh engine + tools for the given engine and dispatch the tool call.
       def hot_reload_and_call(engine_name, tool, params, user_id)
         camel = engine_name.split(/[^a-zA-Z0-9]/).map { |seg| seg.empty? ? '' : seg[0].upcase + seg[1..] }.join
-        require File.join(__dir__, '..', engine_name, 'engine')
-        require File.join(__dir__, '..', engine_name, 'tools')
+        require File.join(__dir__, '..', 'engines', engine_name, 'engine')
+        require File.join(__dir__, '..', 'engines', engine_name, 'tools')
         mod = Savant.const_get(camel)
         engine = mod.const_get(:Engine).new
         tools_mod = mod.const_get(:Tools)

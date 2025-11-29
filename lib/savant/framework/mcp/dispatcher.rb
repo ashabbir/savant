@@ -125,8 +125,8 @@ module Savant
         return @services[key] if @services[key]
 
         camel = key.split(/[^a-zA-Z0-9]/).map { |s| s[0] ? s[0].upcase + s[1..] : '' }.join
-        require File.join(__dir__, key, 'engine')
-        require File.join(__dir__, key, 'tools')
+        require File.join(__dir__, '..', '..', '..', 'engines', key, 'engine')
+        require File.join(__dir__, '..', '..', '..', 'engines', key, 'tools')
 
         mod = Savant.const_get(camel)
         engine_class = mod.const_get(:Engine)
