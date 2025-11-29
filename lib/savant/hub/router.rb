@@ -549,7 +549,7 @@ module Savant
         return [] if svc.nil? || svc.empty?
 
         begin
-          require File.join(__dir__, '..', svc, 'tools')
+          require File.join(__dir__, '..', 'engines', svc, 'tools')
           camel = svc.split(/[^a-zA-Z0-9]/).map { |seg| seg.empty? ? '' : seg[0].upcase + seg[1..] }.join
           mod = Savant.const_get(camel)
           tools_mod = mod.const_get(:Tools)
