@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
-require 'savant/mcp/core/dsl'
+require 'savant/framework/mcp/core/dsl'
 
 RSpec.describe 'DSL dynamic tool loading' do
   let(:tmpdir) { File.join('tmp', 'tools_discovery') }
@@ -29,7 +29,7 @@ RSpec.describe 'DSL dynamic tool loading' do
 
   it 'registers tools from files in sorted order' do
     path = tmpdir
-    reg = Savant::MCP::Core::DSL.build do
+    reg = Savant::Framework::MCP::Core::DSL.build do
       load_dir path
     end
 

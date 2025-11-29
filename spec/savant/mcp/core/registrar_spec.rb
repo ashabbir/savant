@@ -2,12 +2,12 @@
 
 require 'spec_helper'
 
-require_relative '../../../../lib/savant/mcp/core/registrar'
-require_relative '../../../../lib/savant/mcp/core/dsl'
+require_relative '../lib/savant/framework/mcp/core/registrar'
+require_relative '../lib/savant/framework/mcp/core/dsl'
 
-RSpec.describe Savant::MCP::Core::Registrar do
+RSpec.describe Savant::Framework::MCP::Core::Registrar do
   it 'collects specs and dispatches handlers' do
-    reg = Savant::MCP::Core::DSL.build do
+    reg = Savant::Framework::MCP::Core::DSL.build do
       tool 'ns/echo', description: 'Echo args',
                       schema: { type: 'object', properties: { msg: { type: 'string' } }, required: ['msg'] } do |ctx, args|
         { echoed: args['msg'], rid: ctx[:request_id] }
@@ -23,7 +23,7 @@ RSpec.describe Savant::MCP::Core::Registrar do
 
   it 'runs middleware around handlers in order' do
     order = []
-    reg = Savant::MCP::Core::DSL.build do
+    reg = Savant::Framework::MCP::Core::DSL.build do
       middleware do |ctx, name, args, nxt|
         order << :before
         out = nxt.call(ctx.merge(mid: true), name, args)
@@ -42,7 +42,7 @@ RSpec.describe Savant::MCP::Core::Registrar do
   end
 
   it 'raises Unknown tool on missing name' do
-    reg = Savant::MCP::Core::Registrar.new
+    reg = Savant::Framework::MCP::Core::Registrar.new
     expect { reg.call('missing', {}) }.to raise_error('Unknown tool')
   end
 end

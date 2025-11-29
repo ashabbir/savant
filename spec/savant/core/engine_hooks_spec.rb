@@ -1,12 +1,12 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
-require 'savant/core/engine'
+require 'savant/framework/engine/engine'
 
-RSpec.describe 'Savant::Core::Engine lifecycle hooks' do
+RSpec.describe 'Savant::Framework::Engine::Base lifecycle hooks' do
   it 'runs before and after hooks around tool execution in order' do
     # Dummy engine with hooks capturing order
-    klass = Class.new(Savant::Core::Engine) do
+    klass = Class.new(Savant::Framework::Engine::Base) do
       def initialize
         super()
         @events = []

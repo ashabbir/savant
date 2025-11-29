@@ -74,7 +74,95 @@ MCP_SERVICE=think   SAVANT_PATH=$(pwd) bundle exec ruby ./bin/mcp_server
 MCP_SERVICE=personas SAVANT_PATH=$(pwd) bundle exec ruby ./bin/mcp_server
 ```
 
-## Framework (Overview)
+## Architecture
+
+Savant is organized into four main backend modules plus a separate frontend:
+
+```
+lib/savant/
+├── hub/              # MODULE 1: Hub API (HTTP routing, SSE, service management)
+├── logging/          # MODULE 2: Logging & Observability (structured logging, metrics, audit)
+├── framework/        # MODULE 3: Framework (MCP core, middleware, transports, config)
+└── engines/          # MODULE 4: Engines (context, think, jira, personas, rules, etc.)
+```
+
+### Module 1: Hub API (`lib/savant/hub/`)
+
+**Purpose**: HTTP API serving tool calls, diagnostics, and engine management
+
+**Key Files**:
+- `builder.rb` - Hub construction from config
+- `router.rb` - HTTP request routing
+- `sse.rb` - Server-Sent Events for live streaming
+- `service_manager.rb` - Engine loader and dispatcher
+- `connections.rb` - Connection registry
+- `static_ui.rb` - Static asset serving
+
+**Key Endpoints**: `/`, `/routes`, `/diagnostics`, `/hub/status`, `/logs`, `/:engine/tools/:name/call`
+
+### Module 2: Logging & Observability (`lib/savant/logging/`)
+
+**Purpose**: Centralized logging, metrics, audit trails, and telemetry
+
+**Key Files**:
+- `logger.rb` - Structured logger with levels and timing
+- `event_recorder.rb` - In-memory + file event store
+- `metrics.rb` - Counters and distributions
+- `replay_buffer.rb` - Request replay buffer
+- `exporter.rb` - Metrics export (Prometheus format)
+- `audit/policy.rb` - Audit configuration
+- `audit/store.rb` - Audit log persistence
+
+**Key APIs**: `Logger.new(service:, tool:)`, `EventRecorder.record(event)`, `Metrics.increment(metric, labels)`
+
+### Module 3: Framework (`lib/savant/framework/`)
+
+**Purpose**: MCP framework core, middleware, transports, and shared utilities
+
+**Key Files**:
+- `mcp/core/` - Tool specification, Registrar, DSL, middleware, validation
+- `mcp/server.rb` - MCP server implementation
+- `mcp/dispatcher.rb` - JSON-RPC dispatcher
+- `engine/base.rb` - Engine base class
+- `engine/context.rb` - Runtime context
+- `middleware/` - trace.rb, logging.rb, metrics.rb, user_header.rb
+- `transports/http/rack_app.rb` - Minimal Rack app
+- `transports/mcp/stdio.rb` - Stdio transport
+- `transports/mcp/websocket.rb` - WebSocket transport
+- `config.rb` - Configuration loader
+- `db.rb` - Database abstraction
+- `secret_store.rb` - Secrets management
+- `boot.rb` - Bootstrap
+- `generator.rb` - Code generation
+
+**Key APIs**: `Framework::MCP::Core::DSL.build { ... }`, `Registrar.call(name, args, ctx:)`, `Engine#before_call`
+
+### Module 4: Engines (`lib/savant/engines/`)
+
+**Purpose**: All MCP engine implementations
+
+**Engines**:
+- **Boot Runtime** (`boot`): P0 foundation that initializes all core components. CLI: `savant run|review|workflow`. See [memory_bank/engine_boot.md](memory_bank/engine_boot.md)
+- **Context** (`context/`): DB-backed FTS over repo chunks; memory bank helpers. See [memory_bank/engine_context.md](memory_bank/engine_context.md)
+- **Think** (`think/`): Workflow orchestration (`plan/next`) with driver prompts. See [memory_bank/engine_think.md](memory_bank/engine_think.md)
+- **Jira** (`jira/`): Jira REST v3 integration. See [memory_bank/engine_jira.md](memory_bank/engine_jira.md)
+- **Personas** (`personas/`): YAML personas catalog. See [memory_bank/engine_personas.md](memory_bank/engine_personas.md)
+- **Rules** (`rules/`): Shared guardrails and best practices. See [memory_bank/engine_rules.md](memory_bank/engine_rules.md)
+- **Indexer** (`indexer/`): Repository indexing and chunking
+- **AI** (`ai/`): Agent orchestration
+- **AMR** (`amr/`): Asset management rules
+
+**Engine Pattern**: Each engine has `engine.rb` (extends `Framework::Engine::Base`), `tools.rb` (uses `Framework::MCP::Core::DSL`), and `ops.rb` (business logic).
+
+## Generators
+
+Scaffold a new engine in seconds:
+```
+ruby ./bin/savant generate engine <name> [--with-db] [--force]
+```
+Creates `lib/savant/engines/<name>/{engine.rb,tools.rb}` and a baseline spec. Then run with `MCP_SERVICE=<name> ruby ./bin/mcp_server`.
+
+## Transport Layer
 
 ```mermaid
 flowchart LR
@@ -88,32 +176,10 @@ flowchart LR
   Ops --> DB[(Postgres)]
 ```
 
-**Transport Layer:**
-- **HTTP**: `lib/savant/transports/http/rack_app.rb` - Rack app for Hub + UI (JSON-RPC over HTTP)
-- **MCP**: `lib/savant/transports/mcp/{stdio,websocket}.rb` - Stdio/WebSocket for editors (JSON-RPC 2.0)
-- **ServiceManager**: `lib/savant/service_manager.rb` - Transport-agnostic engine loading shared by all transports
+- **HTTP**: `lib/savant/framework/transports/http/rack_app.rb` - Rack app for Hub + UI
+- **MCP**: `lib/savant/framework/transports/mcp/{stdio,websocket}.rb` - Stdio/WebSocket for editors
+- **ServiceManager**: `lib/savant/hub/service_manager.rb` - Transport-agnostic engine loading
 - Exactly one engine per MCP process; Hub multiplexes multiple engines via HTTP
-
-**Core Features:**
-- Registrar DSL + middleware: tools declared with JSON schemas, wrapped with logging/validation
-- Logging: `/tmp/savant/<engine>.log` (HTTP) or `logs/<engine>.log` (MCP stdio)
-- Single codebase supports both protocols with clean separation
-
-## Engines (Overview)
-
-- **Boot Runtime:** P0 foundation that initializes all core components (personas, driver prompts, AMR rules, repo context, session memory). Provides global `Savant::Runtime.current` access. CLI: `savant run|review|workflow`. See [memory_bank/engine_boot.md](memory_bank/engine_boot.md)
-- **Context:** DB-backed FTS over repo chunks; memory bank helpers; repo admin tools. See [memory_bank/engine_context.md](memory_bank/engine_context.md)
-- **Think:** deterministic workflow orchestration (`plan/next`) with driver prompts. See [memory_bank/engine_think.md](memory_bank/engine_think.md)
-- **Jira:** Jira REST v3 (search + guarded write actions). See [memory_bank/engine_jira.md](memory_bank/engine_jira.md)
-- **Personas:** local YAML personas catalog with list/get tools. See [memory_bank/engine_personas.md](memory_bank/engine_personas.md)
-
-## Generators
-
-Scaffold a new engine in seconds:
-```
-ruby ./bin/savant generate engine <name> [--with-db] [--force]
-```
-Creates `lib/savant/<name>/{engine.rb,tools.rb}` and a baseline spec. Then run with `MCP_SERVICE=<name> ruby ./bin/mcp_server`.
 
 ## UI
 

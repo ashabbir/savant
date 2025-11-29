@@ -51,7 +51,7 @@ RSpec.describe 'Savant Think MCP' do
 
   it 'lists think tools via registrar and serves driver prompt' do
     expect do
-      require_relative '../../../lib/savant/think/tools'
+      require_relative '../lib/savant/engines/think/tools'
     end.to_not raise_error
 
     registrar = Savant::Think::Tools.build_registrar(nil)
@@ -67,7 +67,7 @@ RSpec.describe 'Savant Think MCP' do
   end
 
   it 'plans first instruction and advances deterministically' do
-    require_relative '../../../lib/savant/think/tools'
+    require_relative '../lib/savant/engines/think/tools'
     registrar = Savant::Think::Tools.build_registrar(nil)
 
     # Plan the workflow
@@ -123,7 +123,7 @@ RSpec.describe 'Savant Think MCP' do
   end
 
   it 'lists and reads workflows' do
-    require_relative '../../../lib/savant/think/tools'
+    require_relative '../lib/savant/engines/think/tools'
     registrar = Savant::Think::Tools.build_registrar(nil)
 
     list = registrar.call('think.workflows.list', { 'filter' => 'review' }, ctx: {})

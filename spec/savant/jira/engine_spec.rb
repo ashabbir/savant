@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
-require_relative '../../../lib/savant/jira/engine'
+require_relative '../lib/savant/engines/jira/engine'
 
 RSpec.describe Savant::Jira::Engine do
   let(:base_env) do

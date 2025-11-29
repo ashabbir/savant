@@ -4,9 +4,9 @@ require 'spec_helper'
 require 'tempfile'
 require 'yaml'
 
-require 'savant/audit/policy'
+require 'savant/logging/audit/policy'
 
-RSpec.describe Savant::Audit::Policy do
+RSpec.describe Savant::Logging::Audit::Policy do
   describe '.load' do
     it 'merges defaults and exposes helpers' do
       file = Tempfile.new('policy.yml')
@@ -30,7 +30,7 @@ RSpec.describe Savant::Audit::Policy do
       policy = described_class.new('sandbox' => true)
       expect do
         policy.enforce!(tool: 'fs/exec', requires_system: true)
-      end.to raise_error(Savant::Audit::Policy::SandboxViolation)
+      end.to raise_error(Savant::Logging::Audit::Policy::SandboxViolation)
     end
 
     it 'allows safe operations' do

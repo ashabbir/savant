@@ -43,7 +43,7 @@ module HubSpec
       'context' => FakeServiceManager.new(service: 'context', tools: %w[fts/search fts/stats]),
       'jira' => FakeServiceManager.new(service: 'jira', tools: %w[jira_search jira_self])
     }
-    Savant::HTTP::Router.build(mounts: mounts, transport: 'sse')
+    Savant::Hub::Router.build(mounts: mounts, transport: 'sse')
   end
 end
 

@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 
-require_relative '../../lib/savant/secret_store'
+require_relative '../../lib/savant/framework/secret_store'
 
-RSpec.describe Savant::SecretStore do
+RSpec.describe Savant::Framework::SecretStore do
   before do
     described_class.reset!
   end

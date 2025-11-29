@@ -42,7 +42,7 @@ end
 case cmd
 when 'run'
   ensure_savant_path!
-  require_relative '../lib/savant/boot'
+  require_relative '../lib/savant/framework/boot'
 
   options = { persona_name: nil, skip_git: false }
   OptionParser.new do |o|
@@ -52,7 +52,7 @@ when 'run'
 
   begin
     puts '🚀 Booting Savant Engine...'
-    context = Savant::Boot.initialize!(options)
+    context = Savant::Framework::Boot.initialize!(options)
 
     puts "\n✓ Boot successful!"
     puts "\n📊 Runtime Status:"
@@ -67,14 +67,14 @@ when 'run'
     end
     puts "  Runtime State:   #{context.memory[:persistent_path]}"
     puts "\nEngine ready for agent execution."
-  rescue Savant::Boot::BootError => e
+  rescue Savant::Framework::Boot::BootError => e
     warn "\n❌ Boot failed: #{e.message}"
     exit 1
   end
 
 when 'review'
   ensure_savant_path!
-  require_relative '../lib/savant/boot'
+  require_relative '../lib/savant/framework/boot'
 
   options = { persona_name: nil }
   OptionParser.new do |o|
@@ -83,7 +83,7 @@ when 'review'
 
   begin
     puts '🚀 Booting Savant Engine for MR Review...'
-    context = Savant::Boot.initialize!(options)
+    context = Savant::Framework::Boot.initialize!(options)
 
     puts "\n✓ Boot successful!"
     puts "\n📊 Runtime Status:"
@@ -94,14 +94,14 @@ when 'review'
     puts "    Branch:        #{context.repo[:branch]}" if context.repo
     puts "\n⚠️  MR Review logic not yet implemented (coming in next iteration)."
     puts 'Engine initialized and ready.'
-  rescue Savant::Boot::BootError => e
+  rescue Savant::Framework::Boot::BootError => e
     warn "\n❌ Boot failed: #{e.message}"
     exit 1
   end
 
 when 'workflow'
   ensure_savant_path!
-  require_relative '../lib/savant/boot'
+  require_relative '../lib/savant/framework/boot'
 
   workflow_name = ARGV.shift
   usage! if workflow_name.nil? || workflow_name.strip.empty?
@@ -114,7 +114,7 @@ when 'workflow'
 
   begin
     puts '🚀 Booting Savant Engine for Workflow Execution...'
-    context = Savant::Boot.initialize!(options)
+    context = Savant::Framework::Boot.initialize!(options)
 
     puts "\n✓ Boot successful!"
     puts "\n📊 Runtime Status:"
@@ -125,7 +125,7 @@ when 'workflow'
 
     puts "\n⚠️  Workflow execution logic not yet implemented (coming in next iteration)."
     puts 'Engine initialized and ready.'
-  rescue Savant::Boot::BootError => e
+  rescue Savant::Framework::Boot::BootError => e
     warn "\n❌ Boot failed: #{e.message}"
     exit 1
   end
@@ -183,7 +183,7 @@ when 'hub'
     o.on('--port=PORT', Integer) { |v| options[:port] = v }
   end.parse!(ARGV)
 
-  require_relative '../lib/savant/hub'
+  require_relative '../lib/savant/hub/builder'
   require 'rack'
   handler = nil
   handler_name = nil
@@ -229,7 +229,7 @@ when 'routes'
     o.on('--expand', 'Expand tool call routes') { options[:expand] = true }
   end.parse!(ARGV)
 
-  require_relative '../lib/savant/hub'
+  require_relative '../lib/savant/hub/builder'
   app = Savant::Hub.build_from_config
   unless app.respond_to?(:routes)
     warn 'Hub router does not support routes listing'

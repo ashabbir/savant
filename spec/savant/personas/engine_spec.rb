@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
-require_relative '../../../lib/savant/personas/tools'
-require_relative '../../../lib/savant/personas/engine'
+require_relative '../lib/savant/engines/personas/tools'
+require_relative '../lib/savant/engines/personas/engine'
 
 RSpec.describe Savant::Personas::Tools do
   it 'exposes personas.list and personas.get tools' do
@@ -36,7 +36,7 @@ RSpec.describe 'Hub includes mount for engines' do
       def specs = [{ name: 'personas.list' }, { name: 'personas.get' }]
     end
     mounts = { 'personas' => fm.new }
-    app = Savant::HTTP::Router.build(mounts: mounts, transport: 'http')
+    app = Savant::Hub::Router.build(mounts: mounts, transport: 'http')
     res = Rack::MockRequest.new(app).get('/', 'HTTP_X_SAVANT_USER_ID' => 't')
     expect(res.status).to eq(200)
     body = JSON.parse(res.body)

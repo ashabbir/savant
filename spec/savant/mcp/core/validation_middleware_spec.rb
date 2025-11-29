@@ -1,14 +1,14 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
-require 'savant/mcp/core/dsl'
-require 'savant/mcp/core/validation_middleware'
+require 'savant/framework/mcp/core/dsl'
+require 'savant/framework/mcp/core/validation_middleware'
 
-RSpec.describe Savant::MCP::Core::ValidationMiddleware do
+RSpec.describe Savant::Framework::MCP::Core::ValidationMiddleware do
   it 'coerces input and validates output when provided' do
-    reg = Savant::MCP::Core::DSL.build do
+    reg = Savant::Framework::MCP::Core::DSL.build do
       middleware do |ctx, nm, a, nxt|
-        Savant::MCP::Core::ValidationMiddleware.new.call(ctx, nm, a, nxt)
+        Savant::Framework::MCP::Core::ValidationMiddleware.new.call(ctx, nm, a, nxt)
       end
 
       tool 'adder/sum', description: 'sum',
@@ -23,9 +23,9 @@ RSpec.describe Savant::MCP::Core::ValidationMiddleware do
   end
 
   it 'raises validation error on missing required' do
-    reg = Savant::MCP::Core::DSL.build do
+    reg = Savant::Framework::MCP::Core::DSL.build do
       middleware do |ctx, nm, a, nxt|
-        Savant::MCP::Core::ValidationMiddleware.new.call(ctx, nm, a, nxt)
+        Savant::Framework::MCP::Core::ValidationMiddleware.new.call(ctx, nm, a, nxt)
       end
 
       tool 'echo/need', description: 'needs x',

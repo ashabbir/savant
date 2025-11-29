@@ -32,7 +32,7 @@ RSpec.describe 'Logs endpoint' do
       File.write(path, "one\ntwo\n")
 
       mounts = { 'context' => LogsSpec::FakeServiceManager.new(service: 'context') }
-      app = Savant::HTTP::Router.build(mounts: mounts, transport: 'sse', logs_dir: logs_dir)
+      app = Savant::Hub::Router.build(mounts: mounts, transport: 'sse', logs_dir: logs_dir)
       req = Rack::MockRequest.new(app)
 
       res = req.get('/context/logs?n=1', 'HTTP_X_SAVANT_USER_ID' => 'bob')
@@ -59,7 +59,7 @@ RSpec.describe 'Logs endpoint' do
       File.write(path, "DEBUG first\nINFO second\nERROR boom\n")
 
       mounts = { 'context' => LogsSpec::FakeServiceManager.new(service: 'context') }
-      app = Savant::HTTP::Router.build(mounts: mounts, transport: 'sse', logs_dir: logs_dir)
+      app = Savant::Hub::Router.build(mounts: mounts, transport: 'sse', logs_dir: logs_dir)
       req = Rack::MockRequest.new(app)
 
       res = req.get('/context/logs?n=5&level=error', 'HTTP_X_SAVANT_USER_ID' => 'sam')

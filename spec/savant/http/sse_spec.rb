@@ -4,7 +4,7 @@ require 'rack/mock'
 
 require_relative '../../../lib/savant/http/sse'
 
-RSpec.describe Savant::HTTP::SSE do
+RSpec.describe Savant::Hub::SSE do
   it 'sets correct SSE headers and yields at least one event when once=1' do
     app = described_class.new(heartbeat_interval: 0.01)
     env = Rack::MockRequest.env_for('/stream?once=1', 'REQUEST_METHOD' => 'GET')

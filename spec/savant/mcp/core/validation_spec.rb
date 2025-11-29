@@ -2,9 +2,9 @@
 
 require 'spec_helper'
 
-require_relative '../../../../lib/savant/mcp/core/validation'
+require_relative '../lib/savant/framework/mcp/core/validation'
 
-RSpec.describe Savant::MCP::Core::Validation do
+RSpec.describe Savant::Framework::MCP::Core::Validation do
   it 'validates required fields and types' do
     schema = { type: 'object', properties: { q: { type: 'string' }, limit: { type: 'integer' } }, required: ['q'] }
     args = { 'q' => 'hello', 'limit' => '5' }
@@ -24,6 +24,6 @@ RSpec.describe Savant::MCP::Core::Validation do
 
   it 'raises on invalid integer' do
     schema = { type: 'object', properties: { limit: { type: 'integer' } } }
-    expect { described_class.validate!(schema, { 'limit' => 'nope' }) }.to raise_error(Savant::MCP::Core::ValidationError)
+    expect { described_class.validate!(schema, { 'limit' => 'nope' }) }.to raise_error(Savant::Framework::MCP::Core::ValidationError)
   end
 end

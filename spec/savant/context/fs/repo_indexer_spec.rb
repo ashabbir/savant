@@ -4,7 +4,7 @@ require 'spec_helper'
 require 'tmpdir'
 require 'json'
 require 'fileutils'
-require_relative '../../../../lib/savant/context/fs/repo_indexer'
+require_relative '../lib/savant/engines/context/fs/repo_indexer'
 require_relative '../../../support/fakes/fake_db'
 
 RSpec.describe Savant::Context::FS::RepoIndexer do
