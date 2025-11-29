@@ -1,0 +1,46 @@
+# AMR (Ahmed Matching Rules) for Savant Engine
+# These rules define how the engine matches and processes requests
+
+version: 1
+description: Core AMR ruleset for Savant Engine MVP
+
+rules:
+  - id: code_review
+    pattern: "review|mr|pull request|code review"
+    action: trigger_review_workflow
+    priority: high
+    tags:
+      - review
+      - code
+
+  - id: workflow_execution
+    pattern: "workflow|execute|run workflow"
+    action: execute_workflow
+    priority: high
+    tags:
+      - workflow
+      - execution
+
+  - id: agent_run
+    pattern: "agent|run|execute|perform"
+    action: run_agent
+    priority: medium
+    tags:
+      - agent
+      - execution
+
+  - id: context_query
+    pattern: "context|repo|codebase|search"
+    action: query_context
+    priority: medium
+    tags:
+      - context
+      - search
+
+  - id: persona_switch
+    pattern: "persona|switch|use persona"
+    action: load_persona
+    priority: low
+    tags:
+      - persona
+      - config

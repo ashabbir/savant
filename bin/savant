@@ -6,6 +6,9 @@ require 'optparse'
 def usage!
   warn <<~TXT
     usage:
+      savant run [--persona=NAME] [--skip-git]
+      savant review [--persona=NAME]
+      savant workflow <name> [--params='{}']
       savant generate engine <name> [--with-db] [--force]
       savant serve [--transport=stdio|http] [--host=HOST] [--port=PORT] [--service=NAME]
       savant hub [--host=HOST] [--port=PORT]
@@ -28,7 +31,107 @@ end
 
 cmd = ARGV.shift
 
+# Ensure SAVANT_PATH is set for boot commands
+def ensure_savant_path!
+  return if ENV['SAVANT_PATH'] && !ENV['SAVANT_PATH'].empty?
+
+  # Set to project root (2 levels up from bin/)
+  ENV['SAVANT_PATH'] = File.expand_path('..', __dir__)
+end
+
 case cmd
+when 'run'
+  ensure_savant_path!
+  require_relative '../lib/savant/boot'
+
+  options = { persona_name: nil, skip_git: false }
+  OptionParser.new do |o|
+    o.on('--persona=NAME', 'Persona to load (default: savant-engineer)') { |v| options[:persona_name] = v }
+    o.on('--skip-git', 'Skip git repository detection') { options[:skip_git] = true }
+  end.parse!(ARGV)
+
+  begin
+    puts "🚀 Booting Savant Engine..."
+    context = Savant::Boot.initialize!(options)
+
+    puts "\n✓ Boot successful!"
+    puts "\n📊 Runtime Status:"
+    puts "  Session ID:      #{context.session_id}"
+    puts "  Persona:         #{context.persona[:name]} (v#{context.persona[:version]})"
+    puts "  Driver:          #{context.driver_prompt[:version]}"
+    puts "  AMR Rules:       #{context.amr_rules[:rules].size} rules loaded"
+    puts "  Repository:      #{context.repo ? context.repo[:path] : 'none detected'}"
+    if context.repo
+      puts "    Branch:        #{context.repo[:branch]}"
+      puts "    Last Commit:   #{context.repo[:last_commit]}" if context.repo[:last_commit]
+    end
+    puts "  Runtime State:   #{context.memory[:persistent_path]}"
+    puts "\nEngine ready for agent execution."
+  rescue Savant::Boot::BootError => e
+    warn "\n❌ Boot failed: #{e.message}"
+    exit 1
+  end
+
+when 'review'
+  ensure_savant_path!
+  require_relative '../lib/savant/boot'
+
+  options = { persona_name: nil }
+  OptionParser.new do |o|
+    o.on('--persona=NAME', 'Persona to load (default: savant-engineer)') { |v| options[:persona_name] = v }
+  end.parse!(ARGV)
+
+  begin
+    puts "🚀 Booting Savant Engine for MR Review..."
+    context = Savant::Boot.initialize!(options)
+
+    puts "\n✓ Boot successful!"
+    puts "\n📊 Runtime Status:"
+    puts "  Session ID:      #{context.session_id}"
+    puts "  Persona:         #{context.persona[:name]} (v#{context.persona[:version]})"
+    puts "  Driver:          #{context.driver_prompt[:version]}"
+    puts "  Repository:      #{context.repo ? context.repo[:path] : 'none detected'}"
+    if context.repo
+      puts "    Branch:        #{context.repo[:branch]}"
+    end
+    puts "\n⚠️  MR Review logic not yet implemented (coming in next iteration)."
+    puts "Engine initialized and ready."
+  rescue Savant::Boot::BootError => e
+    warn "\n❌ Boot failed: #{e.message}"
+    exit 1
+  end
+
+when 'workflow'
+  ensure_savant_path!
+  require_relative '../lib/savant/boot'
+
+  workflow_name = ARGV.shift
+  usage! if workflow_name.nil? || workflow_name.strip.empty?
+
+  options = { params: '{}', persona_name: nil }
+  OptionParser.new do |o|
+    o.on('--params=JSON', 'Workflow parameters as JSON') { |v| options[:params] = v }
+    o.on('--persona=NAME', 'Persona to load') { |v| options[:persona_name] = v }
+  end.parse!(ARGV)
+
+  begin
+    puts "🚀 Booting Savant Engine for Workflow Execution..."
+    context = Savant::Boot.initialize!(options)
+
+    puts "\n✓ Boot successful!"
+    puts "\n📊 Runtime Status:"
+    puts "  Session ID:      #{context.session_id}"
+    puts "  Workflow:        #{workflow_name}"
+    puts "  Persona:         #{context.persona[:name]} (v#{context.persona[:version]})"
+    puts "  Driver:          #{context.driver_prompt[:version]}"
+
+    puts "\n⚠️  Workflow execution logic not yet implemented (coming in next iteration)."
+    puts "Engine initialized and ready."
+  rescue Savant::Boot::BootError => e
+    warn "\n❌ Boot failed: #{e.message}"
+    exit 1
+  end
+
 when 'generate'
   require_relative '../lib/savant/generator'
 
