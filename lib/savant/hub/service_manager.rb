@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 
 require 'fileutils'
-require_relative 'logging/logger'
-require_relative 'logging/event_recorder'
+require_relative '../logging/logger'
+require_relative '../logging/event_recorder'
 
 module Savant
   class UnknownServiceError < StandardError; end

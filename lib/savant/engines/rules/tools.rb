@@ -1,7 +1,7 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
-require_relative '../framework/mcp/core/dsl'
+require_relative '../../framework/mcp/core/dsl'
 require_relative 'engine'
 
 module Savant

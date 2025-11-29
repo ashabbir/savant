@@ -4,7 +4,7 @@
 require 'spec_helper'
 require 'fileutils'
 require 'tmpdir'
-require_relative '../lib/savant/framework/boot'
+require_relative '../../lib/savant/framework/boot'
 
 RSpec.describe Savant::Boot do
   let(:test_base_path) { Dir.mktmpdir('savant-boot-test') }

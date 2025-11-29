@@ -2,7 +2,7 @@
 
 require 'rack/mock'
 
-require_relative '../../../lib/savant/http/sse'
+require_relative '../../../lib/savant/hub/sse'
 
 RSpec.describe Savant::Hub::SSE do
   it 'sets correct SSE headers and yields at least one event when once=1' do

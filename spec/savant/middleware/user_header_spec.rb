@@ -3,7 +3,7 @@
 require 'json'
 require 'rack/mock'
 
-require_relative '../lib/savant/framework/middleware/user_header'
+require_relative '../../../lib/savant/framework/middleware/user_header'
 
 class EchoRackApp
   def call(env)

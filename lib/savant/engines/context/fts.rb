@@ -9,7 +9,7 @@
 # optionally scoped to a specific repository name. This class holds the minimal
 # DB coupling needed by Context::Ops and favors explicit SQL for transparency.
 #
-require_relative '../framework/db'
+require_relative '../../framework/db'
 
 module Savant
   module Context

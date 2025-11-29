@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 require 'stringio'
-require_relative '../../../lib/savant/indexer'
+require_relative '../../../lib/savant/engines/indexer'
 require_relative '../../support/fakes/fake_db'
 require_relative '../../support/fakes/fake_cache'
 

@@ -1,8 +1,9 @@
 # frozen_string_literal: true
 
 module Savant
-  # Simple in-memory secret store with per-user segregation and sanitization.
-  module SecretStore
+  module Framework
+    # Simple in-memory secret store with per-user segregation and sanitization.
+    module SecretStore
     module_function
 
     def reset!
@@ -96,5 +97,6 @@ module Savant
       else obj
       end
     end
+  end
   end
 end

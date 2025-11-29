@@ -149,7 +149,7 @@ module Savant
       # Load default credentials from SecretStore using 'default' or '_system_' user.
       # @return [Hash] credential hash with symbolized keys (base_url, email, api_token, etc.)
       def load_default_credentials
-        require_relative '../framework/secret_store'
+        require_relative '../../framework/secret_store'
         # Try 'default' user first, then '_system_', to get default Jira credentials
         %w[default _system_].each do |user_id|
           creds = Savant::Framework::SecretStore.for(user_id, :jira)
@@ -196,7 +196,7 @@ module Savant
       # Looks up from SecretStore using provided user_id and expected keys.
       # Supported keys under service :jira: base_url, email+api_token OR username+password.
       def with_user_credentials(user_id)
-        require_relative '../framework/secret_store'
+        require_relative '../../framework/secret_store'
         creds = Savant::Framework::SecretStore.for(user_id, :jira)
         return yield unless creds
 

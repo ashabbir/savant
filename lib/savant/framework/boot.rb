@@ -5,10 +5,10 @@ require 'yaml'
 require 'json'
 require 'fileutils'
 require 'securerandom'
-require_relative 'framework/engine/runtime_context'
-require_relative 'logging/logger'
-require_relative 'personas/ops'
-require_relative 'think/engine'
+require_relative 'engine/runtime_context'
+require_relative '../logging/logger'
+require_relative '../engines/personas/ops'
+require_relative '../engines/think/engine'
 
 module Savant
   # Boot Runtime: Initializes the Savant Engine

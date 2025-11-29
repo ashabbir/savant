@@ -57,7 +57,7 @@ RSpec.describe 'Savant Think workflows listing' do
   end
 
   it 'returns workflows list without crashing on invalid files' do
-    require_relative '../lib/savant/engines/think/tools'
+    require_relative '../../../lib/savant/engines/think/tools'
     registrar = Savant::Think::Tools.build_registrar(nil)
 
     list = registrar.call('think.workflows.list', { 'filter' => '' }, ctx: {})
@@ -67,7 +67,7 @@ RSpec.describe 'Savant Think workflows listing' do
   end
 
   it 'reads .yml workflows via workflows.read and loads via plan' do
-    require_relative '../lib/savant/engines/think/tools'
+    require_relative '../../../lib/savant/engines/think/tools'
     registrar = Savant::Think::Tools.build_registrar(nil)
 
     read = registrar.call('think.workflows.read', { 'workflow' => 'valid_wf' }, ctx: {})

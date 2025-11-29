@@ -2,7 +2,7 @@
 
 require 'json'
 require_relative '../../../lib/savant/mcp_dispatcher'
-require_relative '../lib/savant/logging/logger'
+require_relative '../../../lib/savant/logging/logger'
 
 RSpec.describe Savant::Framework::MCP::Dispatcher do
   let(:log) { Savant::Logging::Logger.new(io: StringIO.new, json: true, service: 'test') }

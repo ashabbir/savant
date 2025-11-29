@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 require 'open3'
-require_relative '../lib/savant/engines/indexer/repository_scanner'
+require_relative '../../../lib/savant/engines/indexer/repository_scanner'
 
 RSpec.describe Savant::Indexer::RepositoryScanner do
   it 'uses git ls-files when enabled and filters with config ignores' do

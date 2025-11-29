@@ -3,7 +3,7 @@
 require 'json'
 require 'rack/mock'
 
-require_relative '../../../lib/savant/http/router'
+require_relative '../../../lib/savant/hub/router'
 
 module HubSpec
   class FakeRegistrar

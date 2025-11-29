@@ -1,7 +1,7 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
-require_relative '../logging/logger'
+require_relative '../../logging/logger'
 
 module Savant
   module Core

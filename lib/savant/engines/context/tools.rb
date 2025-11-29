@@ -11,7 +11,7 @@
 #
 require 'json'
 require_relative 'engine'
-require_relative '../framework/mcp/core/dsl'
+require_relative '../../framework/mcp/core/dsl'
 
 module Savant
   module Context
@@ -45,7 +45,7 @@ module Savant
       def build_registrar(engine = nil)
         Savant::Framework::MCP::Core::DSL.build do
           # Validation middleware using tool schema
-          require_relative '../framework/mcp/core/validation'
+          require_relative '../../framework/mcp/core/validation'
           middleware do |ctx, nm, a, nxt|
             schema = ctx[:schema]
             begin

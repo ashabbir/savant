@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 require 'tmpdir'
-require_relative '../lib/savant/framework/generator'
+require_relative '../../lib/savant/framework/generator'
 
 RSpec.describe Savant::Generator do
   it 'scaffolds a new engine with tools and spec (no db)' do

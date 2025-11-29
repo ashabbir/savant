@@ -2,8 +2,8 @@
 
 require 'spec_helper'
 
-require_relative '../lib/savant/framework/mcp/core/registrar'
-require_relative '../lib/savant/framework/mcp/core/dsl'
+require_relative '../../../../lib/savant/framework/mcp/core/registrar'
+require_relative '../../../../lib/savant/framework/mcp/core/dsl'
 
 RSpec.describe Savant::Framework::MCP::Core::Registrar do
   it 'collects specs and dispatches handlers' do

@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
-require_relative '../lib/savant/framework/db'
-require_relative '../lib/savant/engines/context/ops'
+require_relative '../../../lib/savant/framework/db'
+require_relative '../../../lib/savant/engines/context/ops'
 
 RSpec.describe Savant::Context::Ops do
   describe '#repos_readme_list' do
