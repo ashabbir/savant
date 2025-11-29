@@ -62,8 +62,8 @@ module Savant
 
     def load_service(name)
       camel = camelize(name)
-      require File.join(__dir__, name, 'engine')
-      require File.join(__dir__, name, 'tools')
+      require File.join(__dir__, '..', 'engines', name, 'engine')
+      require File.join(__dir__, '..', 'engines', name, 'tools')
 
       mod = Savant.const_get(camel)
       engine = mod.const_get(:Engine).new
