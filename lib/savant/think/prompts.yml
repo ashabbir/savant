@@ -3,3 +3,4 @@ versions:
   stable: prompts/savant-stable.md
   code_review: prompts/savant-code-review.md
   developer: prompts/savant-developer.md
+  architect: prompts/savant-architect.md
