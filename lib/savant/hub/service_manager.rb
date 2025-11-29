@@ -5,11 +5,12 @@ require_relative '../logging/logger'
 require_relative '../logging/event_recorder'
 
 module Savant
-  class UnknownServiceError < StandardError; end
-  class BadRequestError < StandardError; end
+  module Hub
+    class UnknownServiceError < StandardError; end
+    class BadRequestError < StandardError; end
 
-  # Shared service loader/dispatcher for Savant transports (stdio, HTTP, etc.).
-  class ServiceManager
+    # Shared service loader/dispatcher for Savant transports (stdio, HTTP, etc.).
+    class ServiceManager
     attr_reader :service, :total_tool_calls, :last_seen
     attr_accessor :logger
 
@@ -148,6 +149,7 @@ module Savant
     rescue StandardError
       # Fallback to stdout logger if file path is not writable
       Savant::Logging::Logger.new(io: $stdout, json: true, service: service)
+      end
     end
   end
 end

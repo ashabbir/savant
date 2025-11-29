@@ -6,9 +6,10 @@ require 'securerandom'
 require_relative '../logging/event_recorder'
 
 module Savant
-  # Global connection registry for SSE/HTTP/STDIO clients.
-  # Tracks: id, type, mcp, path, user_id, connected_at, last_activity
-  class Connections
+  module Hub
+    # Global connection registry for SSE/HTTP/STDIO clients.
+    # Tracks: id, type, mcp, path, user_id, connected_at, last_activity
+    class Connections
     def self.global
       @global ||= new
     end
@@ -52,6 +53,7 @@ module Savant
 
     def gen_id(type)
       "#{type}-#{SecureRandom.hex(6)}"
+      end
     end
   end
 end
