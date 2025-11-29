@@ -4,11 +4,12 @@
 require_relative 'validation'
 
 module Savant
-  module MCP
-    module Core
-      # Middleware that validates and coerces input using the tool's schema
-      # and optionally validates output when an :output_schema is present in ctx.
-      class ValidationMiddleware
+  module Framework
+    module MCP
+      module Core
+        # Middleware that validates and coerces input using the tool's schema
+        # and optionally validates output when an :output_schema is present in ctx.
+        class ValidationMiddleware
         def initialize(coerce: true)
           @coerce = coerce
         end
@@ -24,6 +25,7 @@ module Savant
           out
         rescue ValidationError => e
           raise "validation error: #{e.message}"
+        end
         end
       end
     end

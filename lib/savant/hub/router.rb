@@ -9,7 +9,7 @@ require_relative '../logging/event_recorder'
 require_relative '../hub/connections'
 
 module Savant
-  module HTTP
+  module Hub
     # Lightweight hub router for multi-engine HTTP + SSE endpoints.
     # rubocop:disable Metrics/ClassLength
     class Router

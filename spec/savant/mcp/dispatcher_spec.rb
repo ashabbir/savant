@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require 'json'
-require_relative '../../../lib/savant/mcp_dispatcher'
+require_relative '../../../lib/savant/framework/mcp/dispatcher'
 require_relative '../../../lib/savant/logging/logger'
 
 RSpec.describe Savant::Framework::MCP::Dispatcher do

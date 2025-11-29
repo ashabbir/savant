@@ -1,10 +1,11 @@
 # frozen_string_literal: true
 
 module Savant
-  module Middleware
-    # Logging middleware that wraps tool calls with start/end events
-    # and logs exceptions in structured JSON.
-    class Logging
+  module Framework
+    module Middleware
+      # Logging middleware that wraps tool calls with start/end events
+      # and logs exceptions in structured JSON.
+      class Logging
       def initialize(app, logger:)
         @app = app
         @logger = logger
@@ -29,6 +30,7 @@ module Savant
 
       def now_ms
         (Process.clock_gettime(Process::CLOCK_MONOTONIC) * 1000).to_i
+      end
       end
     end
   end
