@@ -3,11 +3,11 @@
 require 'securerandom'
 require 'time'
 
-require_relative '../logging/logger'
-require_relative '../logging/audit/policy'
-require_relative '../logging/audit/store'
-require_relative '../logging/metrics'
-require_relative '../logging/replay_buffer'
+require_relative '../../logging/logger'
+require_relative '../../logging/audit/policy'
+require_relative '../../logging/audit/store'
+require_relative '../../logging/metrics'
+require_relative '../../logging/replay_buffer'
 require_relative 'metrics'
 
 module Savant

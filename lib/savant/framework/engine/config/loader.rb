@@ -2,15 +2,16 @@
 # frozen_string_literal: true
 
 require 'yaml'
-require_relative '../../framework/config'
+require_relative '../../config'
 
 module Savant
-  module Core
-    module Config
-      # Lightweight loader for framework config with compatibility fallback.
-      # - Reads YAML from config/savant.yml when present.
-      # - Falls back to existing JSON settings via Savant::Framework::Config.load.
-      module Loader
+  module Framework
+    module Engine
+      module Config
+        # Lightweight loader for framework config with compatibility fallback.
+        # - Reads YAML from config/savant.yml when present.
+        # - Falls back to existing JSON settings via Savant::Framework::Config.load.
+        module Loader
         module_function
 
         def load(yaml_path: 'config/savant.yml', json_path: 'config/settings.json')
@@ -26,6 +27,7 @@ module Savant
           content = ::YAML.safe_load(File.read(path), permitted_classes: [], aliases: false)
           content.is_a?(Hash) ? content : {}
         end
+      end
       end
     end
   end

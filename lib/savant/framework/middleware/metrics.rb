@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-require_relative '../logging/metrics'
+require_relative '../../logging/metrics'
 
 module Savant
   module Middleware

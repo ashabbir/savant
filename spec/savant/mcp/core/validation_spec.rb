@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-require_relative '../lib/savant/framework/mcp/core/validation'
+require_relative '../../../../lib/savant/framework/mcp/core/validation'
 
 RSpec.describe Savant::Framework::MCP::Core::Validation do
   it 'validates required fields and types' do

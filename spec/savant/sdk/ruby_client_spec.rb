@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
-require 'savant/sdk/ruby_client'
+require 'savant/framework/sdk/ruby_client'
 
 RSpec.describe Savant::SDK::RubyClient do
   it 'constructs JSON-RPC calls and parses responses using a pluggable transport' do

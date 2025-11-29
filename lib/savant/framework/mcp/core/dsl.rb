@@ -3,12 +3,12 @@
 
 require_relative 'tool'
 require_relative 'registrar'
-require_relative '../../logging/logger'
-require_relative '../../framework/middleware/trace'
-require_relative '../../framework/middleware/metrics'
-require_relative '../../logging/audit/policy'
-require_relative '../../logging/audit/store'
-require_relative '../../logging/replay_buffer'
+require_relative '../../../logging/logger'
+require_relative '../../middleware/trace'
+require_relative '../../middleware/metrics'
+require_relative '../../../logging/audit/policy'
+require_relative '../../../logging/audit/store'
+require_relative '../../../logging/replay_buffer'
 
 module Savant
   module MCP

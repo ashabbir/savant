@@ -4,7 +4,7 @@ require 'json'
 require 'rack/mock'
 require 'tmpdir'
 
-require_relative '../../../lib/savant/http/router'
+require_relative '../../../lib/savant/hub/router'
 
 module LogsSpec
   class FakeRegistrar

@@ -2,7 +2,7 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
-require_relative '../lib/savant/framework/engine/runtime_context'
+require_relative '../../lib/savant/framework/engine/runtime_context'
 
 RSpec.describe Savant::RuntimeContext do
   describe 'structure' do

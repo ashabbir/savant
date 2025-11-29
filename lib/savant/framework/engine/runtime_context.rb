@@ -27,10 +27,12 @@ module Savant
     end
   end
 
-  # Global runtime accessor
-  module Runtime
-    class << self
-      attr_accessor :current
+  module Framework
+    # Global runtime accessor
+    module Runtime
+      class << self
+        attr_accessor :current
+      end
     end
   end
 end

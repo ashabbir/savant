@@ -6,8 +6,8 @@
 
 require 'json'
 require_relative 'engine'
-require_relative '../framework/mcp/core/dsl'
-require_relative '../framework/mcp/core/validation'
+require_relative '../../framework/mcp/core/dsl'
+require_relative '../../framework/mcp/core/validation'
 
 module Savant
   module Jira

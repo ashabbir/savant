@@ -212,7 +212,7 @@ module Savant
 
         # Try DB lookup by repo name
         begin
-          require_relative '../framework/db'
+          require_relative '../../framework/db'
           db = Savant::Framework::DB.new
           res = db.with_connection { |conn| conn.exec_params('SELECT root_path FROM repos WHERE name=$1', [repo.to_s]) }
           if res.ntuples.positive?

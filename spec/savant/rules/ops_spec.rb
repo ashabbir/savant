@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 require 'tmpdir'
-require_relative '../lib/savant/engines/rules/ops'
+require_relative '../../../lib/savant/engines/rules/ops'
 
 RSpec.describe Savant::Rules::Ops do
   def write_yaml(dir, content)
