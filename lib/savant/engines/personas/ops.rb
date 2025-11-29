@@ -9,7 +9,7 @@ module Savant
     class Ops
       def initialize(root: nil)
         @base = root || default_base_path
-        @data_path = File.join(@base, 'lib', 'savant', 'personas', 'personas.yml')
+        @data_path = File.join(@base, 'lib', 'savant', 'engines', 'personas', 'personas.yml')
       end
 
       # List personas with optional filter on name|tags|summary
