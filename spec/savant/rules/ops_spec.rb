@@ -41,7 +41,7 @@ RSpec.describe Savant::Rules::Ops do
       write_yaml(d, <<~YAML)
         - name: x
           title: X
-          version: stable
+          version: 1
           summary: s
           rules_md: "# X\n- rule"
       YAML
@@ -70,7 +70,7 @@ RSpec.describe Savant::Rules::Ops do
       YAML
       ops = described_class.new(root: d)
       # create
-      expect(ops.create(name: 'new_rule', title: 'New', version: 'v1', summary: 'sum', rules_md: "# H\n- a")[:ok]).to eq(true)
+      expect(ops.create(name: 'new_rule', summary: 'sum', rules_md: "# H\n- a")[:ok]).to eq(true)
       # update
       expect(ops.update(name: 'new_rule', summary: 'updated')[:ok]).to eq(true)
       # read single yaml

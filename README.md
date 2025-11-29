@@ -115,11 +115,17 @@ ruby ./bin/savant generate engine <name> [--with-db] [--force]
 ```
 Creates `lib/savant/<name>/{engine.rb,tools.rb}` and a baseline spec. Then run with `MCP_SERVICE=<name> ruby ./bin/mcp_server`.
 
-## UI (Old + New)
+## UI
 
-- Old: static console under `/console` (request logs + helpers).
-- New: React UI under `/ui` (or dev at 5173) with three-tier tabs — Dashboard, Engines (per-engine tabs), Diagnostics (Overview/Requests/Logs). Footer shows Dev-Mode/Build-Mode.
-- Diagnostics → Logs includes a log-level dropdown (All/Debug/Info/Warn/Error) that streams only the selected levels directly from the hub for accurate filtering and copy/export.
+- React UI under `/ui` (or dev at 5173) with three main sections:
+  - **Dashboard**: Overview of all engines and system status
+  - **Engines**: Per-engine tabs for tool execution and testing
+  - **Diagnostics**: Four tabs for system monitoring
+    - Overview: System configuration, DB connectivity, repos, personas, rules
+    - Requests: HTTP request logs and traffic statistics
+    - Logs: Live event streaming with log-level filtering (All/Debug/Info/Warn/Error)
+    - Routes: API route browser with filtering by module, method, and path
+- Footer shows Dev-Mode/Build-Mode indicator
 
 ## Diagnostics & Logs
 

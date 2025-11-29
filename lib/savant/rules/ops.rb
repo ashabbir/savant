@@ -3,7 +3,6 @@
 
 require 'yaml'
 require 'fileutils'
-require 'fileutils'
 
 module Savant
   module Rules
@@ -71,6 +70,7 @@ module Savant
         # Ensure required fields and name alignment
         entry['name'] = n if entry['name'].to_s.strip.empty?
         raise 'name_mismatch' unless entry['name'].to_s == n
+
         validate_entry!(entry)
 
         rows = load_catalog
@@ -115,12 +115,8 @@ module Savant
         new_id = generate_id(n)
         rows = load_catalog
         # Disallow duplicate name or duplicate id (id is derived from name and immutable)
-        if rows.any? { |r| r['name'] == n }
-          raise friendly_conflict_error(new_id, n)
-        end
-        if rows.any? { |r| (r['id'] && r['id'].to_s == new_id) || (!r['id'] && generate_id(r['name'].to_s) == new_id) }
-          raise friendly_conflict_error(new_id, n)
-        end
+        raise friendly_conflict_error(new_id, n) if rows.any? { |r| r['name'] == n }
+        raise friendly_conflict_error(new_id, n) if rows.any? { |r| (r['id'] && r['id'].to_s == new_id) || (!r['id'] && generate_id(r['name'].to_s) == new_id) }
 
         entry = {
           'id' => new_id,
@@ -129,7 +125,7 @@ module Savant
           'summary' => summary.to_s.strip,
           'rules_md' => rules_md.to_s
         }
-        t = Array(tags).map { |x| x.to_s }.reject(&:empty?)
+        t = Array(tags).map(&:to_s).reject(&:empty?)
         entry['tags'] = t unless t.empty?
         entry['notes'] = notes.to_s unless notes.nil? || notes.to_s.strip.empty?
         validate_entry!(entry)
@@ -154,7 +150,7 @@ module Savant
         cur['summary'] = fields[:summary].to_s if fields.key?(:summary)
         cur['rules_md'] = fields[:rules_md].to_s if fields.key?(:rules_md)
         if fields.key?(:tags)
-          tags = Array(fields[:tags]).map { |x| x.to_s }.reject(&:empty?)
+          tags = Array(fields[:tags]).map(&:to_s).reject(&:empty?)
           if tags.empty?
             cur.delete('tags')
           else
@@ -230,7 +226,8 @@ module Savant
           raise "invalid_data: missing #{req}" unless r.key?(req) && !r[req].to_s.strip.empty?
         end
         v = coerce_version(r['version'])
-        raise 'invalid_data: version must be integer >= 1' unless v && v.is_a?(Integer) && v >= 1
+        raise 'invalid_data: version must be integer >= 1' unless v.is_a?(Integer) && v >= 1
+
         r['version'] = v
         # Ensure id presence and format (derive if missing during validation)
         r['id'] = generate_id(r['name'].to_s) if !r['id'] || r['id'].to_s.strip.empty?
@@ -239,12 +236,12 @@ module Savant
       def coerce_version(v)
         return nil if v.nil?
         return v if v.is_a?(Integer)
-        if v.is_a?(String)
-          # Extract first integer occurrence (e.g., "v1" -> 1, "1" -> 1)
-          if (m = v.match(/(\d+)/))
-            return m[1].to_i
-          end
+
+        # Extract first integer occurrence (e.g., "v1" -> 1, "1" -> 1)
+        if v.is_a?(String) && (m = v.match(/(\d+)/))
+          return m[1].to_i
         end
+
         nil
       end
 
@@ -265,6 +262,7 @@ module Savant
         s = s.gsub(/_+/, '_')
         s = s.gsub(/^_+|_+$/, '')
         raise 'invalid_input: name must produce a non-empty id' if s.empty?
+
         s
       end
 

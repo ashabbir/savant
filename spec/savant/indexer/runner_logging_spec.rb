@@ -6,7 +6,6 @@ require_relative '../../../lib/savant/indexer'
 require_relative '../../support/fakes/fake_db'
 require_relative '../../support/fakes/fake_cache'
 
-# rubocop:disable Metrics/BlockLength
 RSpec.describe Savant::Indexer::Runner do
   let(:raw_cfg) do
     {
@@ -128,4 +127,3 @@ RSpec.describe Savant::Indexer::Runner do
     expect(progress_logs.last).to match(%r{progress: indexing \[[#.]+\] 100% \(1/1\)})
   end
 end
-# rubocop:enable Metrics/BlockLength
