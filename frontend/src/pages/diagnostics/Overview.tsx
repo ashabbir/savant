@@ -306,6 +306,17 @@ export default function DiagnosticsOverview() {
                 ))}
               </Stack>
             </Paper>
+
+            {/* Workflows Telemetry */}
+            <Paper sx={{ p: 1.5 }}>
+              <Typography variant="subtitle2" sx={{ mb: 0.5, fontWeight: 600 }}>Workflows</Typography>
+              <Typography variant="body2" color="text.secondary">
+                View recent workflow execution events and download the full trace.
+              </Typography>
+              <Box sx={{ mt: 1 }}>
+                <a href="/diagnostics/workflows" target="_blank" rel="noreferrer">Open Workflow Telemetry</a>
+              </Box>
+            </Paper>
             {/* Personas */}
             <Paper sx={{ p: 1.5 }}>
               <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>Personas</Typography>
