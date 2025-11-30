@@ -7,6 +7,8 @@ require_relative '../../framework/mcp/core/validation'
 
 module Savant
   module Git
+    # MCP tools registrar for the Git service.
+    # Provides tool specs and dispatches invocations to the Git engine.
     module Tools
       module_function
 
@@ -53,12 +55,29 @@ module Savant
           end
 
           tool 'read_file', description: 'Read file from worktree or HEAD',
-                             schema: { type: 'object', properties: { path: { type: 'string' }, at: { type: 'string', enum: %w[worktree HEAD] } }, required: ['path'] } do |_ctx, a|
+                            schema: {
+                              type: 'object',
+                              properties: {
+                                path: { type: 'string' },
+                                at: { type: 'string', enum: %w[worktree HEAD] }
+                              },
+                              required: ['path']
+                            } do |_ctx, a|
             (engine || Savant::Git::Engine.new).read_file(path: a['path'].to_s, at: (a['at'] || 'worktree').to_s)
           end
 
           tool 'file_context', description: 'Line‑centric file context (before/after) at worktree or HEAD',
-                               schema: { type: 'object', properties: { path: { type: 'string' }, line: { type: 'integer', minimum: 1 }, before: { type: 'integer', minimum: 0, maximum: 200 }, after: { type: 'integer', minimum: 0, maximum: 200 }, at: { type: 'string', enum: %w[worktree HEAD] } }, required: ['path'] } do |_ctx, a|
+                               schema: {
+                                 type: 'object',
+                                 properties: {
+                                   path: { type: 'string' },
+                                   line: { type: 'integer', minimum: 1 },
+                                   before: { type: 'integer', minimum: 0, maximum: 200 },
+                                   after: { type: 'integer', minimum: 0, maximum: 200 },
+                                   at: { type: 'string', enum: %w[worktree HEAD] }
+                                 },
+                                 required: ['path']
+                               } do |_ctx, a|
             (engine || Savant::Git::Engine.new).file_context(path: a['path'].to_s, line: a['line'], before: a['before'] || 3, after: a['after'] || 3, at: (a['at'] || 'worktree').to_s)
           end
         end
@@ -66,4 +85,3 @@ module Savant
     end
   end
 end
-

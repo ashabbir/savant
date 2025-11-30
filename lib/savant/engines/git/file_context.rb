@@ -13,20 +13,25 @@ module Savant
             cmd = ['git', '-C', root, 'show', "HEAD:#{path}"]
             out, err, st = Open3.capture3(*cmd)
             raise err.strip unless st.success?
+
             out
           else
             fp = File.join(root, path)
             raise 'file not found' unless File.file?(fp)
+
             File.read(fp)
           end
         end
 
+        # rubocop:disable Metrics/ParameterLists
         def context_for_line(root:, path:, line:, before: 3, after: 3, at: 'worktree')
           line_i = (line || 1).to_i
           text = read_file(root: root, path: path, at: at)
           rows = text.split("\n", -1)
           idx = [[line_i - 1, 0].max, rows.length - 1].min
-          start = [idx - before.to_i, 0].min + (idx - before.to_i).abs - (idx - before.to_i).abs # meh: ensure non-negative
+          [idx - before.to_i, 0].min
+          (idx - before.to_i).abs
+          (idx - before.to_i).abs # meh: ensure non-negative
           start = [idx - before.to_i, 0].max
           end_i = [idx + after.to_i, rows.length - 1].min
           {
@@ -39,8 +44,8 @@ module Savant
             total_lines: rows.length
           }
         end
+        # rubocop:enable Metrics/ParameterLists
       end
     end
   end
 end
-

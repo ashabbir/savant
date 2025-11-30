@@ -174,11 +174,11 @@ module Savant
 
       def handle_response(line)
         data = JSON.parse(line)
-        id = data['id']
-        return unless id
+        # Accept only JSON-RPC responses, not engine log lines.
+        return unless data.is_a?(Hash) && data['jsonrpc'] == '2.0' && data['id']
 
         @pending_lock.synchronize do
-          waiter = @pending.delete(id)
+          waiter = @pending.delete(data['id'])
           waiter << data if waiter
         end
       rescue JSON::ParserError => e
