@@ -25,7 +25,7 @@ import DescriptionIcon from '@mui/icons-material/Description';
 import Snackbar from '@mui/material/Snackbar';
 import yaml from 'js-yaml';
 import Viewer from '../../components/Viewer';
-import { getErrorMessage, useRule, useRules, rulesDelete } from '../../api';
+import { getErrorMessage, useRule, useRules, rulesDelete, useThinkWorkflows } from '../../api';
 import AddCircleIcon from '@mui/icons-material/AddCircle';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
@@ -37,6 +37,7 @@ export default function Rules() {
   const { data, isLoading, isError, error, refetch } = useRules(filter) as any;
   const [sel, setSel] = useState<string | null>(null);
   const details = useRule(sel);
+  const thinkWorkflows = useThinkWorkflows();
   const [openDialog, setOpenDialog] = useState(false);
   const [copied, setCopied] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -44,6 +45,20 @@ export default function Rules() {
 
   const rows = data?.rules || [];
   const selected = details.data || null;
+  const workflows = thinkWorkflows.data?.workflows || [];
+  const ruleUsageMap = useMemo(() => {
+    const map = new Map<string, { id: string; label: string }[]>();
+    workflows.forEach((wf) => {
+      const rules = Array.isArray(wf.rules) ? wf.rules : [];
+      rules.forEach((rule) => {
+        if (!map.has(rule)) map.set(rule, []);
+        map.get(rule)!.push({ id: wf.id, label: wf.name || wf.id });
+      });
+    });
+    return map;
+  }, [workflows]);
+  const selectedUsage = selected ? ruleUsageMap.get(selected.name) || [] : [];
+  const deleteDisabled = !selected || selectedUsage.length > 0;
   const yamlText = useMemo(() => {
     if (!selected) return '# Select a ruleset to view details as YAML';
     const obj: any = { ...selected };
@@ -76,9 +91,9 @@ export default function Rules() {
                   </IconButton>
                 </span>
               </Tooltip>
-              <Tooltip title={sel ? 'Delete Rule' : 'Select a ruleset'}>
+              <Tooltip title={!sel ? 'Select a ruleset' : selectedUsage.length ? `Used by ${selectedUsage.length} workflow${selectedUsage.length === 1 ? '' : 's'}` : 'Delete Rule'}>
                 <span>
-                  <IconButton size="small" color="error" disabled={!sel} onClick={() => setConfirmOpen(true)}>
+                  <IconButton size="small" color="error" disabled={deleteDisabled} onClick={() => setConfirmOpen(true)}>
                     <DeleteOutlineIcon fontSize="small" />
                   </IconButton>
                 </span>
@@ -124,6 +139,30 @@ export default function Rules() {
                     <Chip size="small" label={`ID: ${selected.name}`}/>
                     <Chip size="small" color="primary" label={`v${selected.version}`}/>
                   </Stack>
+                )}
+                {selected && (
+                  <Box>
+                    <Typography variant="caption" sx={{ fontWeight: 600 }}>Used by</Typography>
+                    {thinkWorkflows.isLoading && <Typography variant="caption" sx={{ ml: 1 }}>Loading…</Typography>}
+                    {!thinkWorkflows.isLoading && (
+                      selectedUsage.length > 0 ? (
+                        <Stack direction="row" spacing={1} sx={{ mt: 0.5, flexWrap: 'wrap' }}>
+                          {selectedUsage.map((wf) => (
+                            <Chip
+                              key={wf.id}
+                              size="small"
+                              label={wf.label}
+                              onClick={() => nav(`/engines/think/workflows/edit/${wf.id}`)}
+                              clickable
+                              sx={{ mb: 0.5 }}
+                            />
+                          ))}
+                        </Stack>
+                      ) : (
+                        <Typography variant="caption" sx={{ display: 'block', mt: 0.5 }}>No workflows reference this rule.</Typography>
+                      )
+                    )}
+                  </Box>
                 )}
               </Stack>
               <Stack direction="row" spacing={1} alignItems="center">
@@ -183,10 +222,16 @@ export default function Rules() {
                 <CloseIcon fontSize="small" />
               </IconButton>
             </DialogTitle>
-            <DialogContent>Are you sure you want to delete "{selected?.name}"?</DialogContent>
+            <DialogContent>
+              {selectedUsage.length > 0 ? (
+                `Cannot delete "${selected?.name}" because it is used by ${selectedUsage.length} workflow${selectedUsage.length === 1 ? '' : 's'}.`
+              ) : (
+                <>Are you sure you want to delete "{selected?.name}"?</>
+              )}
+            </DialogContent>
             <DialogActions>
               <Button onClick={() => setConfirmOpen(false)}>Cancel</Button>
-              <Button color="error" disabled={!selected || busy} onClick={async () => {
+              <Button color="error" disabled={!selected || busy || selectedUsage.length > 0} onClick={async () => {
                 if (!selected) return;
                 try {
                   setBusy(true);

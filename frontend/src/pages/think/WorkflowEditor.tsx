@@ -658,13 +658,17 @@ export default function ThinkWorkflowEditor() {
                     />
                   )}
                   renderTags={(tagValue, getTagProps) =>
-                    tagValue.map((option, index) => (
-                      <Chip
-                        {...getTagProps({ index })}
-                        label={option.name}
-                        size="small"
-                      />
-                    ))
+                    tagValue.map((option, index) => {
+                      const { key, ...chipProps } = getTagProps({ index });
+                      return (
+                        <Chip
+                          key={key}
+                          {...chipProps}
+                          label={option.name}
+                          size="small"
+                        />
+                      );
+                    })
                   }
                 />
               </Stack>
