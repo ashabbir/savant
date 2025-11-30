@@ -56,7 +56,7 @@ module Savant
             nxt.call(ctx, nm, a2)
           end
 
-          tool 'fts/search', description: 'Full‑text search over indexed repos (filter by repo name(s))',
+          tool 'fts_search', description: 'Full‑text search over indexed repos (filter by repo name(s))',
                              schema: { type: 'object', properties: { q: { type: 'string' }, repo: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }, { type: 'null' }] }, limit: { type: 'integer', minimum: 1, maximum: 100 } }, required: ['q'] } do |_ctx, a|
             limit = begin
               Integer(a['limit'] || 10)
@@ -66,7 +66,7 @@ module Savant
             engine.search(q: (a['q'] || '').to_s, repo: a['repo'], limit: limit)
           end
 
-          tool 'memory/search', description: 'Search memory_bank markdown in DB FTS (filter by repo name(s))',
+          tool 'memory_search', description: 'Search memory_bank markdown in DB FTS (filter by repo name(s))',
                                 schema: { type: 'object', properties: { q: { type: 'string' }, repo: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }, { type: 'null' }] }, limit: { type: 'integer', minimum: 1, maximum: 100 } }, required: ['q'] } do |_ctx, a|
             limit = begin
               Integer(a['limit'] || 20)
@@ -76,17 +76,17 @@ module Savant
             engine.search_memory(q: (a['q'] || '').to_s, repo: a['repo'], limit: limit)
           end
 
-          tool 'memory/resources/list', description: 'List memory_bank resources from DB (optional repo filter)',
+          tool 'memory_resources_list', description: 'List memory_bank resources from DB (optional repo filter)',
                                         schema: { type: 'object', properties: { repo: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }, { type: 'null' }] } } } do |_ctx, a|
             engine.resources_list(repo: a['repo'])
           end
 
-          tool 'memory/resources/read', description: 'Read a memory_bank resource by URI',
+          tool 'memory_resources_read', description: 'Read a memory_bank resource by URI',
                                         schema: { type: 'object', properties: { uri: { type: 'string' } }, required: ['uri'] } do |_ctx, a|
             engine.resources_read(uri: (a['uri'] || '').to_s)
           end
 
-          tool 'repos/list', description: 'List indexed repos with README excerpts',
+          tool 'repos_list', description: 'List indexed repos with README excerpts',
                              schema: { type: 'object', properties: { filter: { type: 'string' }, max_length: { type: 'integer', minimum: 256, maximum: 16_384 } } } do |_ctx, a|
             limit = begin
               Integer(a['max_length'] || 4096)
@@ -96,22 +96,22 @@ module Savant
             engine.repos_readme_list(filter: a['filter'], max_length: limit)
           end
 
-          tool 'fs/repo/index', description: 'Index all repos or a single repo by name',
+          tool 'fs_repo_index', description: 'Index all repos or a single repo by name',
                                 schema: { type: 'object', properties: { repo: { anyOf: [{ type: 'string' }, { type: 'null' }] }, verbose: { type: 'boolean' } } } do |_ctx, a|
             engine.repo_indexer_index(repo: a['repo'], verbose: !!a['verbose'])
           end
 
-          tool 'fs/repo/delete', description: 'Delete all indexed data or a single repo by name',
+          tool 'fs_repo_delete', description: 'Delete all indexed data or a single repo by name',
                                  schema: { type: 'object', properties: { repo: { anyOf: [{ type: 'string' }, { type: 'null' }] } } } do |_ctx, a|
             engine.repo_indexer_delete(repo: a['repo'])
           end
 
-          tool 'fs/repo/status', description: 'List per-repo index status counts',
+          tool 'fs_repo_status', description: 'List per-repo index status counts',
                                  schema: { type: 'object', properties: {} } do |_ctx, _a|
             engine.repo_indexer_status
           end
 
-          tool 'fs/repo/diagnostics', description: 'Diagnostics for repo mounts, settings visibility, DB counts',
+          tool 'fs_repo_diagnostics', description: 'Diagnostics for repo mounts, settings visibility, DB counts',
                                       schema: { type: 'object', properties: {} } do |_ctx, _a|
             engine.repo_indexer_diagnostics
           end
