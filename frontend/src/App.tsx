@@ -298,6 +298,7 @@ export default function App() {
           else if (v === 1) navigate('/engines/context/search');
           else if (v === 2) navigate('/engines/context/memory-search');
           else if (v === 3) navigate('/engines/context/repos');
+          else if (v === 4) navigate('/engines/context/tools');
         }} centered sx={{
           '& .MuiTab-root': { fontSize: 12, minHeight: 36, py: 0.5, textTransform: 'none', color: 'text.secondary' },
           '& .Mui-selected': { color: 'primary.main !important' },
@@ -307,6 +308,7 @@ export default function App() {
           <Tab label="FTS" component={Link} to="/engines/context/search" />
           <Tab label="Memory Search" component={Link} to="/engines/context/memory-search" />
           <Tab label="Repos" component={Link} to="/engines/context/repos" />
+          <Tab label="Tools" component={Link} to="/engines/context/tools" />
         </Tabs>
       )}
       {mainIdx === 1 && selEngine === 'think' && (
@@ -314,49 +316,8 @@ export default function App() {
           if (v === 0) navigate('/engines/think/workflows');
           else if (v === 1) navigate('/engines/think/prompts');
           else if (v === 2) navigate('/engines/think/runs');
+          else if (v === 3) navigate('/engines/think/tools');
         }} centered sx={{
-          '& .MuiTab-root': { fontSize: 12, minHeight: 36, py: 0.5, textTransform: 'none', color: 'text.secondary' },
-          '& .Mui-selected': { color: 'primary.main !important' },
-          '& .MuiTabs-indicator': { height: 2, backgroundColor: 'primary.light' }
-        }}>
-          <Tab label="Workflows" component={Link} to="/engines/think/workflows" />
-          <Tab label="Prompts" component={Link} to="/engines/think/prompts" />
-          <Tab label="Runs" component={Link} to="/engines/think/runs" />
-        </Tabs>
-      )}
-      {mainIdx === 1 && selEngine === 'personas' && (
-        <Tabs value={0} centered sx={{
-          '& .MuiTab-root': { fontSize: 12, minHeight: 36, py: 0.5, textTransform: 'none', color: 'text.secondary' },
-          '& .Mui-selected': { color: 'primary.main !important' },
-          '& .MuiTabs-indicator': { height: 2, backgroundColor: 'primary.light' }
-        }}>
-          <Tab label="Browse" component={Link} to="/engines/personas" />
-        </Tabs>
-      )}
-      {mainIdx === 1 && selEngine === 'rules' && (
-        <Tabs value={0} centered sx={{
-          '& .MuiTab-root': { fontSize: 12, minHeight: 36, py: 0.5, textTransform: 'none', color: 'text.secondary' },
-          '& .Mui-selected': { color: 'primary.main !important' },
-          '& .MuiTabs-indicator': { height: 2, backgroundColor: 'primary.light' }
-        }}>
-          <Tab label="Browse" component={Link} to="/engines/rules" />
-        </Tabs>
-      )}
-      {mainIdx === 1 && selEngine === 'context' && (
-        <Tabs value={engSubIdx} centered sx={{
-          '& .MuiTab-root': { fontSize: 12, minHeight: 36, py: 0.5, textTransform: 'none', color: 'text.secondary' },
-          '& .Mui-selected': { color: 'primary.main !important' },
-          '& .MuiTabs-indicator': { height: 2, backgroundColor: 'primary.light' }
-        }}>
-          <Tab label="Resources" component={Link} to="/engines/context/resources" />
-          <Tab label="Search" component={Link} to="/engines/context/search" />
-          <Tab label="Memory" component={Link} to="/engines/context/memory-search" />
-          <Tab label="Repos" component={Link} to="/engines/context/repos" />
-          <Tab label="Tools" component={Link} to="/engines/context/tools" />
-        </Tabs>
-      )}
-      {mainIdx === 1 && selEngine === 'think' && (
-        <Tabs value={engSubIdx} centered sx={{
           '& .MuiTab-root': { fontSize: 12, minHeight: 36, py: 0.5, textTransform: 'none', color: 'text.secondary' },
           '& .Mui-selected': { color: 'primary.main !important' },
           '& .MuiTabs-indicator': { height: 2, backgroundColor: 'primary.light' }
@@ -367,16 +328,6 @@ export default function App() {
           <Tab label="Tools" component={Link} to="/engines/think/tools" />
         </Tabs>
       )}
-      {mainIdx === 1 && selEngine === 'rules' && (
-        <Tabs value={0} centered sx={{
-          '& .MuiTab-root': { fontSize: 12, minHeight: 36, py: 0.5, textTransform: 'none', color: 'text.secondary' },
-          '& .Mui-selected': { color: 'primary.main !important' },
-          '& .MuiTabs-indicator': { height: 2, backgroundColor: 'primary.light' }
-        }}>
-          <Tab label="Browse" component={Link} to="/engines/rules" />
-          <Tab label="Tools" component={Link} to="/engines/rules/tools" />
-        </Tabs>
-      )}
       {mainIdx === 1 && selEngine === 'personas' && (
         <Tabs value={0} centered sx={{
           '& .MuiTab-root': { fontSize: 12, minHeight: 36, py: 0.5, textTransform: 'none', color: 'text.secondary' },
@@ -385,6 +336,16 @@ export default function App() {
         }}>
           <Tab label="Browse" component={Link} to="/engines/personas" />
           <Tab label="Tools" component={Link} to="/engines/personas/tools" />
+        </Tabs>
+      )}
+      {mainIdx === 1 && selEngine === 'rules' && (
+        <Tabs value={0} centered sx={{
+          '& .MuiTab-root': { fontSize: 12, minHeight: 36, py: 0.5, textTransform: 'none', color: 'text.secondary' },
+          '& .Mui-selected': { color: 'primary.main !important' },
+          '& .MuiTabs-indicator': { height: 2, backgroundColor: 'primary.light' }
+        }}>
+          <Tab label="Browse" component={Link} to="/engines/rules" />
+          <Tab label="Tools" component={Link} to="/engines/rules/tools" />
         </Tabs>
       )}
       {mainIdx === 1 && selEngine === 'workflow' && (

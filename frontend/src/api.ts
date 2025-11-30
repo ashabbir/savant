@@ -367,7 +367,7 @@ export function useWorkflowRuns() {
   return useQuery<{ runs: { workflow: string; run_id: string; steps: number; status: string; path: string; updated_at: string }[] }>({
     queryKey: ['workflow', 'runs'],
     queryFn: async () => {
-      const res = await client().post('/workflow/tools/workflow_runs.list/call', { params: {} });
+      const res = await client().post('/workflow/tools/workflow_runs_list/call', { params: {} });
       return res.data;
     }
   });
@@ -377,7 +377,7 @@ export function useWorkflowRun(workflow: string | null, runId: string | null) {
   return useQuery<{ state: any }>({
     queryKey: ['workflow', 'run', workflow, runId],
     queryFn: async () => {
-      const res = await client().post('/workflow/tools/workflow_runs.read/call', { params: { workflow, run_id: runId } });
+      const res = await client().post('/workflow/tools/workflow_runs_read/call', { params: { workflow, run_id: runId } });
       return res.data;
     },
     enabled: !!workflow && !!runId
@@ -385,7 +385,7 @@ export function useWorkflowRun(workflow: string | null, runId: string | null) {
 }
 
 export async function workflowRunDelete(workflow: string, runId: string) {
-  const res = await client().post('/workflow/tools/workflow_runs.delete/call', { params: { workflow, run_id: runId } });
+  const res = await client().post('/workflow/tools/workflow_runs_delete/call', { params: { workflow, run_id: runId } });
   return res.data as { ok: boolean; deleted: boolean };
 }
 
@@ -398,7 +398,7 @@ export function useWorkflowList(filter: string = '') {
   return useQuery<{ workflows: { id: string; path: string }[] }>({
     queryKey: ['workflow', 'list', filter],
     queryFn: async () => {
-      const res = await client().post('/workflow/tools/workflow.list/call', { params: { filter: filter || undefined } });
+      const res = await client().post('/workflow/tools/workflow_list/call', { params: { filter: filter || undefined } });
       return res.data as { workflows: { id: string; path: string }[] };
     }
   });
