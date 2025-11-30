@@ -26,6 +26,7 @@ import PsychologyIcon from '@mui/icons-material/Psychology';
 import IntegrationInstructionsIcon from '@mui/icons-material/IntegrationInstructions';
 import GavelIcon from '@mui/icons-material/Gavel';
 import PersonIcon from '@mui/icons-material/Person';
+import GitHubIcon from '@mui/icons-material/GitHub';
 import { useEngineStatus, useEngineTools, ContextToolSpec } from '../api';
 
 function formatUptime(seconds: number): string {
@@ -38,6 +39,7 @@ function formatUptime(seconds: number): string {
 
 const ENGINE_ICONS: Record<string, React.ReactNode> = {
   context: <StorageIcon sx={{ fontSize: 32 }} />,
+  git: <GitHubIcon sx={{ fontSize: 32 }} />,
   think: <PsychologyIcon sx={{ fontSize: 32 }} />,
   jira: <IntegrationInstructionsIcon sx={{ fontSize: 32 }} />,
   personas: <PersonIcon sx={{ fontSize: 32 }} />,
@@ -62,6 +64,7 @@ function formatEngineName(rawName: string): string {
 
 const ENGINE_COLORS: Record<string, string> = {
   context: '#4caf50',
+  git: '#607d8b',
   think: '#2196f3',
   jira: '#ff9800',
   personas: '#9c27b0',
@@ -219,6 +222,25 @@ export default function EngineCard({ name, mount, toolCount }: EngineCardProps) 
           endIcon={expanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
         >
           {expanded ? 'Hide' : 'Show'} Tools
+        </Button>
+        {/* Open raw JSON diagnostics for this engine */}
+        <Button
+          size="small"
+          onClick={() => {
+            // Open Hub diagnostics endpoint in a new tab (outside /ui base)
+            window.open(`/diagnostics/mcp/${name}`, '_blank');
+          }}
+        >
+          Diagnostics
+        </Button>
+        {/* Open per-engine logs (JSON tail) */}
+        <Button
+          size="small"
+          onClick={() => {
+            window.open(`/${name}/logs?n=200`, '_blank');
+          }}
+        >
+          Logs
         </Button>
       </CardActions>
     </Card>
