@@ -114,7 +114,7 @@ when 'run'
         options[:force_tool] = nil
       end
       agent = Savant::Agent::Runtime.new(goal: goal, slm_model: options[:slm], llm_model: options[:llm], forced_tool: options[:force_tool], forced_args: force_args_hash, forced_finish: options[:force_finish], forced_final: options[:force_final])
-      res = agent.run(max_steps: (options[:max_steps] || 25), dry_run: options[:dry_run])
+      res = agent.run(max_steps: options[:max_steps] || 25, dry_run: options[:dry_run])
       puts JSON.pretty_generate(res)
     end
   rescue Savant::Boot::BootError => e

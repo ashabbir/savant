@@ -24,7 +24,7 @@ module Savant
     # - provider [:ollama,:anthropic,:openai,nil]
     # Returns: { text: String, usage: { prompt_tokens:, output_tokens: } }
     def self.call(prompt:, model: nil, system: nil, json: false, max_tokens: nil, temperature: nil, provider: nil)
-      use_model = (model && !model.to_s.empty?) ? model.to_s : DEFAULT_SLM
+      use_model = model && !model.to_s.empty? ? model.to_s : DEFAULT_SLM
       prov = (provider || default_provider_for(use_model)).to_sym
       case prov
       when :ollama

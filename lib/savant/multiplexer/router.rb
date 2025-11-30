@@ -1,7 +1,5 @@
 # frozen_string_literal: true
 
-require 'thread'
-
 module Savant
   class Multiplexer
     # Maintains a namespaced view of all engine tools and resolves routes.
@@ -49,18 +47,16 @@ module Savant
 
       def symbolize(spec)
         if spec.respond_to?(:to_h)
-          spec.to_h.each_with_object({}) { |(k, v), h| h[k.to_sym] = v }
+          spec.to_h.transform_keys(&:to_sym)
         elsif spec.is_a?(Hash)
           spec.transform_keys(&:to_sym)
-        else
-          nil
         end
       end
 
       def deep_dup(obj)
         case obj
         when Hash
-          obj.each_with_object({}) { |(k, v), h| h[k] = deep_dup(v) }
+          obj.transform_values { |v| deep_dup(v) }
         when Array
           obj.map { |v| deep_dup(v) }
         else

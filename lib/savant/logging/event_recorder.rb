@@ -55,12 +55,12 @@ module Savant
       end
 
       # Public: Return last N events (as Hashes). Optional filter by :mcp or :type.
-      def last(n = 100, mcp: nil, type: nil)
+      def last(count = 100, mcp: nil, type: nil)
         arr = @mutex.synchronize { @events.dup }
         arr = arr.select { |e| e[:mcp].to_s == mcp.to_s } if mcp
         arr = arr.select { |e| e[:type].to_s == type.to_s } if type
-        n = [[n.to_i, 0].max, 1000].min
-        arr.last(n)
+        limit = [[count.to_i, 0].max, 1000].min
+        arr.last(limit)
       end
 
       # Public: Subscribe to events. Yields an Enumerator that yields lines suitable for SSE data payloads.
@@ -151,10 +151,10 @@ module Savant
         @subs_mutex.synchronize { @subscribers.delete(queue) }
       end
 
-      def broadcast(ev)
+      def broadcast(event)
         subs = @subs_mutex.synchronize { @subscribers.dup }
         subs.each do |q|
-          q << ev
+          q << event
         rescue StandardError
           # ignore
         end

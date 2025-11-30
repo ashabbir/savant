@@ -372,15 +372,11 @@ module Savant
       def handle_multiplexer_get(req, rest)
         case rest
         when ['logs']
-          if req.params['stream']
-            return sse_logs(req, 'multiplexer', log_file: multiplexer_log_path)
-          end
+          return sse_logs(req, 'multiplexer', log_file: multiplexer_log_path) if req.params['stream']
 
           n = (req.params['n'] || '100').to_i
           path = multiplexer_log_path
-          unless File.file?(path)
-            return respond(200, { engine: 'multiplexer', count: 0, path: path, lines: [], note: 'log file not found' })
-          end
+          return respond(200, { engine: 'multiplexer', count: 0, path: path, lines: [], note: 'log file not found' }) unless File.file?(path)
 
           level = req.params['level']
           lines = filter_log_lines(read_last_lines(path, n), level)
@@ -605,7 +601,7 @@ module Savant
           tools_mod = mod.const_get(:Tools)
           reg = tools_mod.build_registrar(nil)
           reg.specs
-        rescue Exception
+        rescue StandardError
           []
         end
       end
@@ -816,7 +812,11 @@ module Savant
         if File.file?(trace_path)
           begin
             lines = read_last_lines(trace_path, 1000)
-            file_events = lines.map { |ln| JSON.parse(ln) rescue nil }.compact
+            file_events = lines.map do |ln|
+              JSON.parse(ln)
+            rescue StandardError
+              nil
+            end.compact
             file_steps = file_events.select { |e| (e['type'] || e[:type]) == 'reasoning_step' }
           rescue StandardError
             file_steps = []
@@ -826,7 +826,11 @@ module Savant
         rec_steps = @recorder.last(200, type: 'reasoning_step')
         # Merge and de-dup by step+timestamp hash if available
         merged = (rec_steps + file_steps).uniq do |e|
-          k = e.is_a?(Hash) ? e : (e.respond_to?(:to_h) ? e.to_h : {})
+          k = if e.is_a?(Hash)
+                e
+              else
+                (e.respond_to?(:to_h) ? e.to_h : {})
+              end
           "#{k['timestamp'] || k[:timestamp]}:#{k['step'] || k[:step]}"
         end
 

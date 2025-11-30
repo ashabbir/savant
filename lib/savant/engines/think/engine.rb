@@ -359,7 +359,7 @@ module Savant
             h = safe_yaml(read_text_utf8(File.join(dir, fn)))
             name = h['name'] || id
             drv = (h['driver_version'] || 'stable').to_s
-            rules = Array(h['rules']).map { |r| r.to_s }.reject(&:empty?)
+            rules = Array(h['rules']).map(&:to_s).reject(&:empty?)
             {
               id: id,
               version: (h['version'] || '1.0').to_s,
