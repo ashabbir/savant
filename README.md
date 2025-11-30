@@ -144,6 +144,9 @@ ollama pull llama3:latest
 - `.savant/session.json` – per-step memory snapshot
 
 **Web UI Diagnostics:**
+- Open the Hub UI at `http://localhost:9999/ui`.
+  - Each Engine card now has quick links: Diagnostics (opens `/diagnostics/mcp/<engine>`) and Logs (opens `/<engine>/logs`).
+  - The Agent page is accessible under Diagnostics.
 ```
 http://localhost:9999/diagnostics/agents
   ├─ Timeline View    (chronological event stream)
@@ -152,7 +155,17 @@ http://localhost:9999/diagnostics/agents
   └─ Export           (download traces + session)
 ```
 
-**See [Agent Runtime docs](memory_bank/agent_runtime.md) for detailed architecture, memory system, and telemetry.**
+**HTTP Diagnostics & Logs Endpoints:**
+- Some diagnostics require a user header. Include `x-savant-user-id: <you>` in requests.
+- Examples:
+  - Per‑engine diagnostics (Git): `curl -H 'x-savant-user-id: me' http://localhost:9999/diagnostics/mcp/git`
+  - Per‑engine logs (tail JSON): `curl -H 'x-savant-user-id: me' 'http://localhost:9999/git/logs?n=200'`
+  - Aggregated events (filter by engine): `curl -H 'x-savant-user-id: me' 'http://localhost:9999/logs?mcp=git&n=100'`
+  - Agent summary: `curl -H 'x-savant-user-id: me' http://localhost:9999/diagnostics/agent`
+  - Agent trace (plain text): `curl -H 'x-savant-user-id: me' http://localhost:9999/diagnostics/agent/trace`
+  - SSE log stream: `curl -N -H 'x-savant-user-id: me' 'http://localhost:9999/logs/stream'`
+
+See [Agent Runtime docs](memory_bank/agent_runtime.md) for detailed architecture, memory system, and telemetry.
 
 ### Full Stack Setup
 
