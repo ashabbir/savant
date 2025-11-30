@@ -1,0 +1,28 @@
+---
+id: example_workflow
+name: Example WF
+description: One-line description so think.workflows.list can display helpful text.
+driver_version: stable
+rules:
+- development-rules
+version: 4
+steps:
+- id: '1'
+  call: think.driver_prompt
+  input_template:
+    version: stable
+  capture_as: __driver
+- id: '2'
+  call: prompt.say
+  deps:
+  - '1'
+  input_template:
+    text: 'Example workflow running for {{params.ticket_key}}
+
+      '
+- id: '3'
+  call: prompt.say
+  deps:
+  - '2'
+  input_template:
+    text: "✅ Finished {{workflow}} for {{params.ticket_key}}\n"

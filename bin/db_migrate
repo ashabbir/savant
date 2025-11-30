@@ -1,10 +1,10 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
-require_relative '../lib/savant/db'
+require_relative '../lib/savant/framework/db'
 
 begin
-  db = Savant::DB.new
+  db = Savant::Framework::DB.new
   warn 'WARNING: destructive migration — dropping and recreating all tables'
   db.migrate_tables
   db.ensure_fts

@@ -1,11 +1,11 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
-require_relative '../lib/savant/config'
+require_relative '../lib/savant/framework/config'
 
 begin
   settings_path = ARGV[0] || 'config/settings.json'
-  cfg = Savant::Config.load(settings_path)
+  cfg = Savant::Framework::Config.load(settings_path)
   repos_count = cfg.dig('indexer', 'repos').size
   ctx_host = cfg.dig('mcp', 'context', 'listenHost')
   ctx_port = cfg.dig('mcp', 'context', 'listenPort')

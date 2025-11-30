@@ -5,14 +5,14 @@ Expose versioned rule sets (code review, backend, testing, style, security) as s
 ## Structure
 ```mermaid
 flowchart LR
-  UI[Client/UI] -->|rules.list|get Registrar
+  UI[Client/UI]-->rulesList-->getRegistrar
   Registrar --> Engine
   Engine --> Ops
   Ops --> YAML[(rules.yml)]
 ```
 
 ## Data
-- File: `lib/savant/rules/rules.yml`
+- File: `lib/savant/engines/rules/rules.yml`
 - Schema: `name`, `title`, `version`, `summary`, `tags?`, `rules_md`, `notes?`
 
 ## Tools
