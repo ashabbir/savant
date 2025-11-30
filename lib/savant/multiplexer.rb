@@ -21,7 +21,7 @@ module Savant
     def self.ensure!(**opts)
       return nil if ENV['SAVANT_MULTIPLEXER_DISABLED'] == '1'
 
-      @ensure ||= new(**opts).tap(&:start)
+      @global ||= new(**opts).tap(&:start)
     end
 
     def initialize(base_path: nil, settings_path: nil, logger: nil)

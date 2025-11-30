@@ -1,18 +1,24 @@
-import React from 'react';
+import React, { useState } from 'react';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
+import CardActions from '@mui/material/CardActions';
 import Typography from '@mui/material/Typography';
 import Chip from '@mui/material/Chip';
 import Stack from '@mui/material/Stack';
 import Box from '@mui/material/Box';
 import Divider from '@mui/material/Divider';
 import Tooltip from '@mui/material/Tooltip';
+import Button from '@mui/material/Button';
+import Collapse from '@mui/material/Collapse';
 import HubIcon from '@mui/icons-material/Hub';
 import TroubleshootIcon from '@mui/icons-material/Troubleshoot';
 import StorageIcon from '@mui/icons-material/Storage';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import AssignmentIcon from '@mui/icons-material/Assignment';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import ExpandLessIcon from '@mui/icons-material/ExpandLess';
+import BuildIcon from '@mui/icons-material/Build';
 import { MultiplexerInfo } from '../api';
 
 function formatUptime(seconds?: number): string {
@@ -29,6 +35,7 @@ interface MultiplexerCardProps {
 }
 
 export default function MultiplexerCard({ info }: MultiplexerCardProps) {
+  const [expanded, setExpanded] = useState(false);
   const status = (info.status || 'unknown').toLowerCase();
   let statusColor: 'success' | 'warning' | 'error' | 'default' = 'default';
   if (status.includes('ok') || status.includes('online') || status === 'running') statusColor = 'success';
@@ -44,6 +51,10 @@ export default function MultiplexerCard({ info }: MultiplexerCardProps) {
   ];
 
   const chips = metrics.filter((m) => m.value !== undefined && m.value !== null);
+
+  const handleToggle = () => {
+    setExpanded(!expanded);
+  };
 
   return (
     <Card
@@ -69,42 +80,90 @@ export default function MultiplexerCard({ info }: MultiplexerCardProps) {
           <Chip label={info.status || 'unknown'} color={statusColor} size="small" />
         </Stack>
 
-        <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mb: 1 }}>
-          <Chip
-            icon={<AccessTimeIcon fontSize="small" />}
-            label={`Uptime: ${formatUptime(info.uptime_seconds)}`}
-            size="small"
-            variant="outlined"
-          />
-          {chips.map((chip) => (
+        <Collapse in={!expanded} timeout="auto">
+          <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mb: 1 }}>
             <Chip
-              key={chip.label}
-              icon={chip.icon}
-              label={`${chip.label}: ${chip.value}`}
+              icon={<AccessTimeIcon fontSize="small" />}
+              label={`Uptime: ${formatUptime(info.uptime_seconds)}`}
               size="small"
               variant="outlined"
             />
-          ))}
-        </Stack>
+            {chips.map((chip) => (
+              <Chip
+                key={chip.label}
+                icon={chip.icon}
+                label={`${chip.label}: ${chip.value}`}
+                size="small"
+                variant="outlined"
+              />
+            ))}
+          </Stack>
 
-        {info.notes && (
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-            {info.notes}
-          </Typography>
-        )}
+          {info.notes && (
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+              {info.notes}
+            </Typography>
+          )}
 
-        {info.log_path && (
-          <Box>
-            <Divider sx={{ my: 1 }} />
-            <Tooltip title="Log path">
-              <Stack direction="row" spacing={0.5} alignItems="center">
-                <AssignmentIcon fontSize="small" color="action" />
-                <Typography variant="caption" sx={{ fontFamily: 'monospace' }}>{info.log_path}</Typography>
-              </Stack>
-            </Tooltip>
+          {info.log_path && (
+            <Box>
+              <Divider sx={{ my: 1 }} />
+              <Tooltip title="Log path">
+                <Stack direction="row" spacing={0.5} alignItems="center">
+                  <AssignmentIcon fontSize="small" color="action" />
+                  <Typography variant="caption" sx={{ fontFamily: 'monospace' }}>{info.log_path}</Typography>
+                </Stack>
+              </Tooltip>
+            </Box>
+          )}
+        </Collapse>
+
+        <Collapse in={expanded} timeout="auto" unmountOnExit>
+          <Box sx={{ py: 1 }}>
+            <Typography variant="body2" color="text.secondary">
+              The multiplexer manages {info.engines || 0} engine processes and exposes {info.tools || 0} tools
+              through a unified interface. {info.online || 0} engines are currently online.
+            </Typography>
+            {info.log_path && (
+              <Box sx={{ mt: 2 }}>
+                <Divider sx={{ mb: 1 }} />
+                <Typography variant="caption" color="text.secondary">Log Path:</Typography>
+                <Typography variant="caption" sx={{ fontFamily: 'monospace', display: 'block' }}>
+                  {info.log_path}
+                </Typography>
+              </Box>
+            )}
           </Box>
-        )}
+        </Collapse>
       </CardContent>
+
+      <Divider />
+
+      <CardActions>
+        <Button
+          size="small"
+          onClick={handleToggle}
+          endIcon={expanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+        >
+          {expanded ? 'Hide' : 'Show'} Details
+        </Button>
+        <Button
+          size="small"
+          onClick={() => {
+            window.open('/diagnostics/mcp/multiplexer', '_blank');
+          }}
+        >
+          Diagnostics
+        </Button>
+        <Button
+          size="small"
+          onClick={() => {
+            window.open('/multiplexer/logs?n=200', '_blank');
+          }}
+        >
+          Logs
+        </Button>
+      </CardActions>
     </Card>
   );
 }
