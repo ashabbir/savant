@@ -60,5 +60,16 @@
     "db": "contextdb",
     "user": "context",
     "password": "contextpw"
+  },
+  "agent": {
+    "maxSteps": 25,
+    "retryLimit": 2,
+    "prompt": { "slmBudgetTokens": 8000, "llmBudgetTokens": 32000 }
+  },
+  "llm": {
+    "provider": "ollama",
+    "slmModel": "phi3.5:latest",
+    "llmModel": "llama3:latest",
+    "ollamaHost": "http://127.0.0.1:11434"
   }
 }

@@ -55,6 +55,37 @@ This boots the engine and displays runtime status including session ID, persona,
 
 See [Boot Runtime docs](memory_bank/engine_boot.md) for complete reference.
 
+### Agent Runtime (Local-first)
+
+Run a one-off agent session after booting:
+
+```bash
+./bin/savant run --skip-git --agent-input="Summarize recent changes and list relevant files"
+```
+
+Options:
+- `--agent-input=TEXT` or `--agent-file=PATH` for goal input
+- `--slm=MODEL` and `--llm=MODEL` to override defaults
+- `--max-steps=N` to cap the loop (default 25)
+- `--dry-run` to simulate tool calls without executing them
+- `--quiet` to suppress JSON logs to console (logs still written to files)
+- `--force-tool=NAME` and `--force-args=JSON` to force the first step to call a specific tool (use fully-qualified name like `think.prompts.list` or `context.fts/search`)
+- `--force-finish` to immediately finish after the forced tool (or finish at step 1 if no forced tool), optionally with `--force-final="text"`
+- `--force-finish-only` to finish immediately without executing any tool (ignores `--force-tool`)
+
+Artifacts:
+- `logs/agent_runtime.log` – runtime logs with timings and decisions
+- `logs/agent_trace.log` – telemetry events (one per reasoning step)
+- `.savant/session.json` – per-step memory snapshot
+
+Single-model quick test (Ollama):
+```
+ollama pull phi3.5:latest
+./bin/savant run --skip-git --agent-input="Hello" --slm=phi3.5:latest --llm=phi3.5:latest
+```
+
+Note on tool names: Use the fully qualified names from the multiplexer. For Context FTS the name is `context.fts/search` (slash), not `context.fts.search`.
+
 ### Full Stack Setup
 
 1) Quick stack (Postgres + Hub, no indexing):

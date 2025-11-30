@@ -5,6 +5,7 @@ require 'tmpdir'
 require 'json'
 require 'fileutils'
 require_relative '../../../../../lib/savant/engines/context/fs/repo_indexer'
+require_relative '../../../../../lib/savant/llm/adapter'
 require_relative '../../../../support/fakes/fake_db'
 
 RSpec.describe Savant::Context::FS::RepoIndexer do
@@ -62,6 +63,41 @@ RSpec.describe Savant::Context::FS::RepoIndexer do
       data = JSON.parse(File.read(cache_path))
       expect(data.keys).to contain_exactly('other::baz')
       expect(db.deleted_repos).to include('foo')
+    end
+  end
+
+  describe '#diagnostics' do
+    let(:indexer) { described_class.new(db: db, settings_path: settings_path) }
+
+    it 'includes llm model stats when Ollama responds' do
+      sample_models = [
+        { 'name' => 'phi3.5', 'state' => 'running', 'running' => true },
+        { 'name' => 'llama3.1:70b', 'state' => 'loading' }
+      ]
+      allow(Savant::LLM::Ollama).to receive(:models).and_return(sample_models)
+
+      diag = indexer.diagnostics
+
+      expect(diag[:llm_models][:total]).to eq(2)
+      expect(diag[:llm_models][:running]).to eq(1)
+      expect(diag[:llm_models][:states]['running']).to eq(1)
+      expect(diag[:llm_models][:models]).to eq(sample_models)
+    end
+
+    it 'captures errors when Ollama is unavailable' do
+      allow(Savant::LLM::Ollama).to receive(:models).and_raise(StandardError, 'boom')
+
+      diag = indexer.diagnostics
+
+      expect(diag[:llm_models][:error]).to include('boom')
+    end
+
+    it 'includes runtime model settings' do
+      diag = indexer.diagnostics
+
+      expect(diag[:llm_runtime][:slm_model]).to eq(Savant::LLM::DEFAULT_SLM)
+      expect(diag[:llm_runtime][:llm_model]).to eq(Savant::LLM::DEFAULT_LLM)
+      expect(diag[:llm_runtime][:provider]).to eq(Savant::LLM.default_provider_for(Savant::LLM::DEFAULT_LLM))
     end
   end
 end

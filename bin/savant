@@ -6,7 +6,7 @@ require 'optparse'
 def usage!
   warn <<~TXT
     usage:
-      savant run [--persona=NAME] [--skip-git]
+      savant run [--persona=NAME] [--skip-git] [--agent-input=TEXT|--agent-file=PATH] [--slm=MODEL] [--llm=MODEL] [--max-steps=N] [--dry-run]
       savant review [--persona=NAME]
       savant workflow <name> [--params='{}']
       savant generate engine <name> [--with-db] [--force]
@@ -43,30 +43,80 @@ case cmd
 when 'run'
   ensure_savant_path!
   require_relative '../lib/savant/framework/boot'
+  require_relative '../lib/savant/agent/runtime'
+  require 'json'
 
-  options = { persona_name: nil, skip_git: false }
+  options = { persona_name: nil, skip_git: false, agent_input: nil, agent_file: nil, slm: nil, llm: nil, max_steps: nil, dry_run: false, quiet: false, force_tool: nil, force_args: '{}', force_finish: false, force_final: nil, force_finish_only: false }
   OptionParser.new do |o|
     o.on('--persona=NAME', 'Persona to load (default: savant-engineer)') { |v| options[:persona_name] = v }
     o.on('--skip-git', 'Skip git repository detection') { options[:skip_git] = true }
+    o.on('--agent-input=TEXT', 'Run agent with input goal text') { |v| options[:agent_input] = v }
+    o.on('--agent-file=PATH', 'Run agent with input goal file') { |v| options[:agent_file] = v }
+    o.on('--slm=MODEL', 'Override SLM model') { |v| options[:slm] = v }
+    o.on('--llm=MODEL', 'Override LLM model') { |v| options[:llm] = v }
+    o.on('--max-steps=N', Integer, 'Max reasoning steps') { |v| options[:max_steps] = v }
+    o.on('--dry-run', 'Plan and simulate tool calls only') { options[:dry_run] = true }
+    o.on('--quiet', 'Reduce console logs (errors only, no JSON logs)') { options[:quiet] = true }
+    o.on('--force-tool=NAME', 'Force a first-step tool call (fully qualified name)') { |v| options[:force_tool] = v }
+    o.on('--force-args=JSON', 'JSON object for forced tool args') { |v| options[:force_args] = v }
+    o.on('--force-finish', 'Immediately finish after forced tool, or finish at step 1 if no forced tool') { options[:force_finish] = true }
+    o.on('--force-final=TEXT', 'Final text for forced finish') { |v| options[:force_final] = v }
+    o.on('--force-finish-only', 'Finish immediately without executing any tool (ignores --force-tool)') { options[:force_finish_only] = true }
+    # Alias to accommodate common shorthand/typo
+    o.on('--force-finish-onl') { options[:force_finish_only] = true }
   end.parse!(ARGV)
 
   begin
-    puts '🚀 Booting Savant Engine...'
+    ENV['SAVANT_QUIET'] = '1' if options[:quiet]
+    ENV['LOG_LEVEL'] ||= 'error' if options[:quiet]
+
+    puts '🚀 Booting Savant Engine...' unless options[:quiet]
     context = Savant::Boot.initialize!(options)
 
-    puts "\n✓ Boot successful!"
-    puts "\n📊 Runtime Status:"
-    puts "  Session ID:      #{context.session_id}"
-    puts "  Persona:         #{context.persona[:name]} (v#{context.persona[:version]})"
-    puts "  Driver:          #{context.driver_prompt[:version]}"
-    puts "  AMR Rules:       #{context.amr_rules[:rules].size} rules loaded"
-    puts "  Repository:      #{context.repo ? context.repo[:path] : 'none detected'}"
-    if context.repo
-      puts "    Branch:        #{context.repo[:branch]}"
-      puts "    Last Commit:   #{context.repo[:last_commit]}" if context.repo[:last_commit]
+    unless options[:quiet]
+      puts "\n✓ Boot successful!"
+      puts "\n📊 Runtime Status:"
+      puts "  Session ID:      #{context.session_id}"
+      puts "  Persona:         #{context.persona[:name]} (v#{context.persona[:version]})"
+      puts "  Driver:          #{context.driver_prompt[:version]}"
+      puts "  AMR Rules:       #{context.amr_rules[:rules].size} rules loaded"
+      puts "  Repository:      #{context.repo ? context.repo[:path] : 'none detected'}"
+      if context.repo
+        puts "    Branch:        #{context.repo[:branch]}"
+        puts "    Last Commit:   #{context.repo[:last_commit]}" if context.repo[:last_commit]
+      end
+      puts "  Runtime State:   #{context.memory[:persistent_path]}"
+      puts "\nEngine ready for agent execution."
     end
-    puts "  Runtime State:   #{context.memory[:persistent_path]}"
-    puts "\nEngine ready for agent execution."
+
+    # If agent input provided, execute a session now
+    goal = options[:agent_input]
+    if !goal && options[:agent_file]
+      begin
+        goal = File.read(options[:agent_file]).to_s
+      rescue StandardError => e
+        warn "Failed to read agent input file: #{e.message}"
+        exit 1
+      end
+    end
+
+    if goal && !goal.strip.empty?
+      puts "\n🧠 Running agent session..." unless options[:quiet]
+      force_args_hash = begin
+        JSON.parse(options[:force_args] || '{}')
+      rescue JSON::ParserError
+        warn 'Invalid JSON for --force-args (falling back to {})'
+        {}
+      end
+      # If --force-finish-only is set, override other force flags to ensure immediate finish without tools
+      if options[:force_finish_only]
+        options[:force_finish] = true
+        options[:force_tool] = nil
+      end
+      agent = Savant::Agent::Runtime.new(goal: goal, slm_model: options[:slm], llm_model: options[:llm], forced_tool: options[:force_tool], forced_args: force_args_hash, forced_finish: options[:force_finish], forced_final: options[:force_final])
+      res = agent.run(max_steps: (options[:max_steps] || 25), dry_run: options[:dry_run])
+      puts JSON.pretty_generate(res)
+    end
   rescue Savant::Boot::BootError => e
     warn "\n❌ Boot failed: #{e.message}"
     exit 1

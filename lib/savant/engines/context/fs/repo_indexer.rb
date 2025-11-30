@@ -7,6 +7,7 @@
 require_relative '../../indexer'
 require_relative '../../../framework/db'
 require_relative '../../../framework/config'
+require_relative '../../../llm/ollama'
 require_relative '../../../logging/logger'
 
 module Savant
@@ -144,6 +145,9 @@ module Savant
             '/host-crawler' => File.directory?('/host-crawler')
           }
 
+          info[:llm_models] = llm_models_info
+          info[:llm_runtime] = llm_runtime_info
+
           info[:secrets] = secrets_info(base)
 
           info
@@ -196,6 +200,70 @@ module Savant
           end
 
           info
+        end
+
+        def llm_models_info
+          models = Savant::LLM::Ollama.models
+          normalized = models.is_a?(Array) ? models : []
+
+          # Overlay running status from /api/ps
+          begin
+            running_list = Savant::LLM::Ollama.ps
+            running_names = running_list.map { |m| (m['name'] || m['model']).to_s }.to_set
+          rescue StandardError
+            running_names = Set.new
+          end
+
+          counts = Hash.new(0)
+          running = 0
+          normalized.each do |model|
+            name = (model['name'] || model['model']).to_s
+            if running_names.include?(name)
+              model['running'] = true
+              model['status'] ||= 'running'
+            end
+            state_label = llm_model_state(model)
+            key = state_label.downcase.empty? ? 'unknown' : state_label.downcase
+            counts[key] += 1
+            running += 1 if llm_model_running?(model, key)
+          end
+          { total: normalized.size, running: running, states: counts, models: normalized }
+        rescue StandardError => e
+          { error: e.message }
+        end
+
+        def llm_runtime_info
+          # Prefer hub runtime snapshot if available
+          begin
+            base = Dir.pwd
+            runtime_path = File.join(base, '.savant', 'runtime.json')
+            if File.file?(runtime_path)
+              raw = JSON.parse(File.read(runtime_path)) rescue {}
+              slm = (raw['slm_model'] || ENV['SLM_MODEL'] || Savant::LLM::DEFAULT_SLM).to_s
+              llm = (raw['llm_model'] || ENV['LLM_MODEL'] || Savant::LLM::DEFAULT_LLM).to_s
+              provider = (raw['provider'] || Savant::LLM.default_provider_for(llm)).to_s
+              return { slm_model: slm, llm_model: llm, provider: provider }
+            end
+          rescue StandardError
+            # Fall through to defaults below
+          end
+
+          slm = (ENV['SLM_MODEL'] || Savant::LLM::DEFAULT_SLM).to_s
+          llm = (ENV['LLM_MODEL'] || Savant::LLM::DEFAULT_LLM).to_s
+          { slm_model: slm, llm_model: llm, provider: Savant::LLM.default_provider_for(llm) }
+        rescue StandardError => e
+          { error: e.message }
+        end
+
+        def llm_model_state(model)
+          s = (model['state'] || model['status']).to_s.strip
+          s.empty? ? 'installed' : s
+        end
+
+        def llm_model_running?(model, state_key)
+          running_flag = model['running']
+          return true if running_flag == true || running_flag.to_s.downcase == 'true'
+          state_key.to_s == 'running'
         end
 
         def build_cache
