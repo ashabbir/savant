@@ -3,6 +3,8 @@ mounts:
     path: "/context"
   - engine: "think"
     path: "/think"
+  - engine: "git"
+    path: "/git"
   - engine: "personas"
     path: "/personas"
   - engine: "rules"
