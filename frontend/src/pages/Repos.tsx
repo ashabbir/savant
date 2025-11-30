@@ -18,8 +18,10 @@ import Snackbar from '@mui/material/Snackbar';
 import Typography from '@mui/material/Typography';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import CircularProgress from '@mui/material/CircularProgress';
+import { useTheme } from '@mui/material/styles';
 
 export default function Repos() {
+  const theme = useTheme();
   const { data, isLoading, isError, refetch } = useQuery<RepoStatus[]>({
     queryKey: ['repos', 'status'],
     queryFn: repoStatus
@@ -83,13 +85,13 @@ export default function Repos() {
       <TableContainer component={Paper}>
         <Table size="small">
           <TableHead>
-            <TableRow sx={{ bgcolor: 'grey.100' }}>
-              <TableCell sx={{ fontWeight: 600 }}>Name</TableCell>
-              <TableCell align="right" sx={{ fontWeight: 600 }}>Files</TableCell>
-              <TableCell align="right" sx={{ fontWeight: 600 }}>Blobs</TableCell>
-              <TableCell align="right" sx={{ fontWeight: 600 }}>Chunks</TableCell>
-              <TableCell sx={{ fontWeight: 600 }}>Last Indexed</TableCell>
-              <TableCell align="right" sx={{ fontWeight: 600 }}>Actions</TableCell>
+            <TableRow sx={{ bgcolor: theme.palette.mode === 'dark' ? theme.palette.grey[900] : 'grey.100' }}>
+              <TableCell sx={{ fontWeight: 600, color: theme.palette.mode === 'dark' ? theme.palette.grey[100] : undefined }}>Name</TableCell>
+              <TableCell align="right" sx={{ fontWeight: 600, color: theme.palette.mode === 'dark' ? theme.palette.grey[100] : undefined }}>Files</TableCell>
+              <TableCell align="right" sx={{ fontWeight: 600, color: theme.palette.mode === 'dark' ? theme.palette.grey[100] : undefined }}>Blobs</TableCell>
+              <TableCell align="right" sx={{ fontWeight: 600, color: theme.palette.mode === 'dark' ? theme.palette.grey[100] : undefined }}>Chunks</TableCell>
+              <TableCell sx={{ fontWeight: 600, color: theme.palette.mode === 'dark' ? theme.palette.grey[100] : undefined }}>Last Indexed</TableCell>
+              <TableCell align="right" sx={{ fontWeight: 600, color: theme.palette.mode === 'dark' ? theme.palette.grey[100] : undefined }}>Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>

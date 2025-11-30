@@ -240,8 +240,8 @@ module Savant
         id = normalize_workflow_id(workflow)
         raise 'INVALID_ID' if id.nil? || id.empty?
 
-        path = workflow_path_for(id)
-        raise 'WORKFLOW_NOT_FOUND' unless File.exist?(path)
+        path = resolve_workflow_path(id)
+        raise 'WORKFLOW_NOT_FOUND' unless path
 
         yaml = think_graph_to_yaml(id: id, graph: graph)
         write_yaml_with_backup(path, yaml)
@@ -253,8 +253,8 @@ module Savant
         id = normalize_workflow_id(workflow)
         raise 'INVALID_ID' if id.nil? || id.empty?
 
-        path = workflow_path_for(id)
-        raise 'WORKFLOW_NOT_FOUND' unless File.exist?(path)
+        path = resolve_workflow_path(id)
+        raise 'WORKFLOW_NOT_FOUND' unless path
 
         # Basic sanity check parse
         _h = safe_yaml(yaml.to_s)
@@ -359,7 +359,15 @@ module Savant
             h = safe_yaml(read_text_utf8(File.join(dir, fn)))
             name = h['name'] || id
             drv = (h['driver_version'] || 'stable').to_s
-            { id: id, version: (h['version'] || '1.0').to_s, desc: h['description'] || '', name: name.to_s, driver_version: drv }
+            rules = Array(h['rules']).map { |r| r.to_s }.reject(&:empty?)
+            {
+              id: id,
+              version: (h['version'] || '1.0').to_s,
+              desc: h['description'] || '',
+              name: name.to_s,
+              driver_version: drv,
+              rules: rules
+            }
           rescue StandardError
             # Skip invalid or unreadable workflow files during listing
             nil
