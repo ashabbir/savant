@@ -370,12 +370,26 @@ export type EngineStatus = {
   info: EngineInfo;
 };
 
+export type MultiplexerInfo = {
+  status?: string;
+  engines?: number;
+  online?: number;
+  offline?: number;
+  tools?: number;
+  routes?: number;
+  uptime_seconds?: number;
+  log_path?: string;
+  version?: string;
+  notes?: string;
+};
+
 export type HubInfo = {
   service: string;
   version: string;
   transport: string;
   hub: { pid: number; uptime_seconds: number };
   engines: { name: string; mount: string; tools: number }[];
+  multiplexer?: MultiplexerInfo;
 };
 
 export function useHubInfo() {

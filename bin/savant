@@ -147,6 +147,58 @@ when 'generate'
 
   Savant::Generator.new.generate_engine(name, **opts)
 
+when 'engines'
+  ensure_savant_path!
+  require 'json'
+  require_relative '../lib/savant/multiplexer'
+
+  options = { json: false }
+  OptionParser.new do |o|
+    o.on('--json', 'Output JSON instead of table') { options[:json] = true }
+  end.parse!(ARGV)
+
+  mux = Savant::Multiplexer.ensure!(base_path: ENV['SAVANT_PATH'])
+  unless mux
+    warn 'Multiplexer disabled (set SAVANT_MULTIPLEXER_DISABLED=0 to enable)'
+    exit 1
+  end
+  engines = mux.engines
+  if options[:json]
+    puts JSON.pretty_generate(engines)
+  else
+    puts format('%-12s %-10s %-8s %-6s %-10s', 'Engine', 'Status', 'PID', 'Tools', 'Uptime')
+    engines.each do |name, info|
+      puts format('%-12s %-10s %-8s %-6d %-10d', name, info[:status], info[:pid] || '-', info[:tools].to_i, info[:uptime_seconds].to_i)
+    end
+  end
+
+when 'tools'
+  ensure_savant_path!
+  require 'json'
+  require_relative '../lib/savant/multiplexer'
+
+  options = { json: false }
+  OptionParser.new do |o|
+    o.on('--json', 'Output JSON array') { options[:json] = true }
+  end.parse!(ARGV)
+
+  mux = Savant::Multiplexer.ensure!(base_path: ENV['SAVANT_PATH'])
+  unless mux
+    warn 'Multiplexer disabled (set SAVANT_MULTIPLEXER_DISABLED=0 to enable)'
+    exit 1
+  end
+  tool_specs = mux.tools.sort_by { |spec| spec[:name] || spec['name'] }
+  if options[:json]
+    puts JSON.pretty_generate(tool_specs)
+  else
+    tool_specs.each do |spec|
+      name = spec[:name] || spec['name']
+      desc = spec[:description] || spec['description'] || ''
+      puts format('%-50s %s', name, desc)
+    end
+    puts "Total tools: #{tool_specs.size}"
+  end
+
 when 'serve'
   options = {
     transport: ENV['MCP_TRANSPORT'] || 'stdio',

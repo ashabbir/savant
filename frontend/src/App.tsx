@@ -98,6 +98,15 @@ function defaultEngineRoute(name: string): string {
   return `/engines/${name}`;
 }
 
+function multiplexerChipColor(status?: string): 'default' | 'success' | 'warning' | 'error' {
+  const val = (status || '').toLowerCase();
+  if (!val) return 'default';
+  if (val.includes('ok') || val.includes('online') || val.includes('running')) return 'success';
+  if (val.includes('warn') || val.includes('degraded') || val.includes('partial')) return 'warning';
+  if (val.includes('error') || val.includes('offline') || val.includes('fail')) return 'error';
+  return 'default';
+}
+
 function useDiagnosticsSubIndex() {
   const { pathname } = useLocation();
   if (pathname.includes('/diagnostics/routes')) return 3;
@@ -276,6 +285,14 @@ export default function App() {
                 <Chip size="small" label={`v${hub.data.version}`} sx={{ bgcolor: 'rgba(255,255,255,0.15)', color: 'white', height: 22 }} />
                 <Chip size="small" label={`Uptime: ${formatUptime(hub.data.hub?.uptime_seconds || 0)}`} sx={{ bgcolor: 'rgba(255,255,255,0.15)', color: 'white', height: 22 }} />
                 <Chip size="small" label={`PID: ${hub.data.hub?.pid}`} sx={{ bgcolor: 'rgba(255,255,255,0.15)', color: 'white', height: 22 }} />
+                {hub.data.multiplexer && (
+                  <Chip
+                    size="small"
+                    label={`Mux: ${hub.data.multiplexer.status || 'unknown'}`}
+                    color={multiplexerChipColor(hub.data.multiplexer.status)}
+                    sx={{ height: 22 }}
+                  />
+                )}
               </>
             )}
             {isLoading ? (

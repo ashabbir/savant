@@ -9,6 +9,7 @@ require_relative 'engine/runtime_context'
 require_relative '../logging/logger'
 require_relative '../engines/personas/ops'
 require_relative '../engines/think/engine'
+require_relative '../multiplexer'
 
 module Savant
   # Boot Runtime: Initializes the Savant Engine
@@ -55,6 +56,8 @@ module Savant
             logger: logger,
             multiplexer: nil # Will be set later if needed
           )
+
+          context.multiplexer = initialize_multiplexer(base_path, logger)
 
           # Set global runtime
           Savant::Framework::Runtime.current = context
@@ -166,6 +169,13 @@ module Savant
       rescue StandardError => e
         logger.error(event: 'amr_rules_load_failed', error: e.message)
         raise BootError, "Failed to load AMR rules: #{e.message}"
+      end
+
+      def initialize_multiplexer(base_path, logger)
+        Savant::Multiplexer.ensure!(base_path: base_path)
+      rescue StandardError => e
+        logger.warn(event: 'multiplexer_init_failed', error: e.message)
+        nil
       end
 
       # Detect git repository context

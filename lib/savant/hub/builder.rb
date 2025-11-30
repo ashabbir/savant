@@ -6,6 +6,7 @@ require_relative 'router'
 require_relative 'static_ui'
 require_relative 'service_manager'
 require_relative '../framework/secret_store'
+require_relative '../multiplexer'
 
 module Savant
   module Hub
@@ -33,6 +34,12 @@ module Savant
 
           transport_mode = (transport_cfg.dig('transport', 'mode') || 'http').to_s
           mounts = build_mounts(mounts_cfg, base_path: base)
+          begin
+            settings_path = File.join(base, 'config', 'settings.json')
+            Savant::Multiplexer.ensure!(base_path: base, settings_path: settings_path)
+          rescue StandardError
+            # Multiplexer is optional for Hub startup; ignore failures
+          end
           router = Savant::Hub::Router.build(mounts: mounts, transport: transport_mode)
 
           # Compose Rack app with static UI under /ui
