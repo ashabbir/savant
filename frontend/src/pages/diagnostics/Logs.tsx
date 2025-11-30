@@ -31,7 +31,12 @@ const LOG_LEVELS = [
 export default function DiagnosticsLogs() {
   const hub = useHubInfo();
   // Include 'hub' as first option for HTTP request logs, and 'events' for aggregated hub events
-  const engines = [{ name: 'events' }, { name: 'hub' }, ...(hub.data?.engines || [])];
+  const engines = [
+    { name: 'events' },
+    { name: 'hub' },
+    ...(hub.data?.multiplexer ? [{ name: 'multiplexer' }] : []),
+    ...(hub.data?.engines || []),
+  ];
 
   const [engine, setEngine] = useState<string>(() => localStorage.getItem('diag.logs.engine') || 'context');
   const [lines, setLines] = useState<string[]>([]);

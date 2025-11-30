@@ -483,7 +483,7 @@ The following are explicitly **out of scope** for the Boot Runtime but will buil
 - ❌ MR review logic implementation
 - ❌ Git diff engine integration
 - ❌ Workflow execution logic
-- ❌ Multiplexer routing implementation
+- ✅ Multiplexer routing via `Savant::Multiplexer` (spawns stdio engines, namespaces tools, surfaces status to runtime)
 - ❌ Model selection and configuration
 
 These features will be implemented in subsequent PRs and will use the initialized RuntimeContext.

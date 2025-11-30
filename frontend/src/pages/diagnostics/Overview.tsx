@@ -17,6 +17,7 @@ import TableRow from '@mui/material/TableRow';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
 import StorageIcon from '@mui/icons-material/Storage';
+import HubIcon from '@mui/icons-material/Hub';
 // import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 // import TimerIcon from '@mui/icons-material/Timer';
 import HttpIcon from '@mui/icons-material/Http';
@@ -31,6 +32,15 @@ function formatEngineName(rawName: string): string {
     .trim();
   if (!clean) clean = 'Unknown';
   return clean.charAt(0).toUpperCase() + clean.slice(1);
+}
+
+function statusColor(status?: string): 'default' | 'success' | 'warning' | 'error' {
+  const val = (status || '').toLowerCase();
+  if (!val) return 'default';
+  if (val.includes('ok') || val.includes('online') || val.includes('running')) return 'success';
+  if (val.includes('warn') || val.includes('partial') || val.includes('degraded')) return 'warning';
+  if (val.includes('error') || val.includes('offline') || val.includes('fail')) return 'error';
+  return 'default';
 }
 
 export default function DiagnosticsOverview() {
@@ -217,6 +227,38 @@ export default function DiagnosticsOverview() {
             {/* Engines */}
             <Paper sx={{ p: 1.5 }}>
               <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>Engines</Typography>
+              {hub.data?.multiplexer && (
+                <Box sx={{ mb: 1, p: 0.75, borderRadius: 1, bgcolor: 'action.hover' }}>
+                  <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
+                    <Stack direction="row" spacing={0.5} alignItems="center">
+                      <HubIcon color="primary" sx={{ fontSize: 18 }} />
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>Multiplexer</Typography>
+                    </Stack>
+                    <Chip
+                      label={hub.data.multiplexer.status || 'unknown'}
+                      size="small"
+                      color={statusColor(hub.data.multiplexer.status)}
+                    />
+                  </Stack>
+                  <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap sx={{ mt: 0.5 }}>
+                    {[
+                      hub.data.multiplexer.engines !== undefined && `Engines: ${hub.data.multiplexer.engines}`,
+                      hub.data.multiplexer.online !== undefined && `Online: ${hub.data.multiplexer.online}`,
+                      hub.data.multiplexer.offline !== undefined && `Offline: ${hub.data.multiplexer.offline}`,
+                      hub.data.multiplexer.tools !== undefined && `Tools: ${hub.data.multiplexer.tools}`,
+                      hub.data.multiplexer.routes !== undefined && `Routes: ${hub.data.multiplexer.routes}`,
+                    ].filter(Boolean).map((label) => (
+                      <Chip
+                        key={label as string}
+                        size="small"
+                        label={label as string}
+                        variant="outlined"
+                        sx={{ height: 20, '& .MuiChip-label': { px: 0.5, fontSize: 10 } }}
+                      />
+                    ))}
+                  </Stack>
+                </Box>
+              )}
               <Stack spacing={0.5}>
                 {hub.data?.engines?.map((engine) => (
                   <Stack

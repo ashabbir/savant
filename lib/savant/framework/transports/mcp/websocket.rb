@@ -125,15 +125,15 @@ module Savant
         }.freeze
 
         # rubocop:disable Metrics/ParameterLists
-        def initialize(service: 'context', host: nil, port: nil, path: nil, max_connections: nil, base_path: nil)
+        def initialize(service: 'context', host: nil, port: nil, path: nil, max_connections: nil, base_path: nil, multiplexer: nil)
           init_params(service: service, host: host, port: port, path: path, max_connections: max_connections,
-                      base_path: base_path)
+                      base_path: base_path, multiplexer: multiplexer)
         end
         # rubocop:enable Metrics/ParameterLists
 
         def start
           log = prepare_logger(@service, @base_path)
-          dispatcher = Savant::Framework::MCP::Dispatcher.new(service: @service, log: log)
+          dispatcher = Savant::Framework::MCP::Dispatcher.new(service: @service, log: log, multiplexer: @multiplexer)
           log.info('=' * 80)
           log.info("start: mode=websocket service=#{@service} host=#{@host} port=#{@port} path=#{@path}")
           server = TCPServer.new(@host, @port)
@@ -160,7 +160,7 @@ module Savant
         private
 
         # rubocop:disable Metrics/ParameterLists
-        def init_params(service:, host:, port:, path:, max_connections:, base_path:)
+        def init_params(service:, host:, port:, path:, max_connections:, base_path:, multiplexer:)
           @service = service
           cfg = DEFAULTS.dup
           cfg[:host] = host if host
@@ -174,6 +174,7 @@ module Savant
           @base_path = base_path || default_base_path
           @connections = 0
           @connections_lock = Mutex.new
+          @multiplexer = multiplexer
         end
         # rubocop:enable Metrics/ParameterLists
 

@@ -26,6 +26,15 @@
     ]
   },
   "mcp": {
+    "multiplexer": {
+      "engines": [
+        { "name": "context" },
+        { "name": "think" },
+        { "name": "personas" },
+        { "name": "rules" },
+        { "name": "jira" }
+      ]
+    },
     "context": { "listenHost": "0.0.0.0", "listenPort": 8765, "allowOrigins": ["*"] },
     "jira":    { "listenHost": "0.0.0.0", "listenPort": 8766, "allowOrigins": ["*"] }
   },

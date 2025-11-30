@@ -13,14 +13,15 @@ module Savant
     module MCP
       # Stdio transport loops over stdin, writes to stdout.
       class Stdio
-        def initialize(service: 'context', base_path: nil)
+        def initialize(service: 'context', base_path: nil, multiplexer: nil)
           @service = service
           @base_path = base_path || default_base_path
+          @multiplexer = multiplexer
         end
 
         def start
           cfg = load_settings(@base_path)
-          core_file = cfg.dig('logging', 'core_file_path')
+          core_file = expand_path(cfg.dig('logging', 'core_file_path'))
           # Prefer per-engine file path if provided; else default to logs/<service>.log
           engine_file = resolve_engine_file(cfg, @service)
           file_path = engine_file || core_file || File.join(@base_path, 'logs', "#{@service}.log")
@@ -43,7 +44,7 @@ module Savant
             # Some environments may not support set_encoding on stdio; ignore
           end
 
-          dispatcher = Savant::Framework::MCP::Dispatcher.new(service: @service, log: log)
+          dispatcher = Savant::Framework::MCP::Dispatcher.new(service: @service, log: log, multiplexer: @multiplexer)
           # Register a pseudo-connection for this stdio session
           conn_id = Savant::Hub::Connections.global.connect(type: 'stdio', mcp: @service, path: 'stdio', user_id: ENV['USER'] || nil)
           rec = Savant::Logging::EventRecorder.global
@@ -96,12 +97,22 @@ module Savant
           ef = cfg.dig('logging', 'engine_file_path')
           return nil unless ef && !ef.to_s.strip.empty?
 
+          ef_str = ef.to_s.strip
+          abs = expand_path(ef_str)
+          return nil unless abs
+
           # If a directory is given (trailing slash or no extension and non-existent), append service filename
-          if ef.end_with?('/') || (File.extname(ef).empty? && !File.exist?(ef))
-            File.join(ef, "#{service}.log")
+          if ef_str.end_with?('/') || File.directory?(abs) || (File.extname(abs).empty? && !File.exist?(abs))
+            File.join(abs, "#{service}.log")
           else
-            ef
+            abs
           end
+        end
+
+        def expand_path(path)
+          return nil if path.nil? || path.to_s.strip.empty?
+
+          File.expand_path(path, @base_path)
         end
       end
     end
