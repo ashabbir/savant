@@ -119,6 +119,25 @@ export default function WorkflowRuns() {
           <Box sx={{ flex: 1, overflowY: 'auto', mt: 1 }}>
             {viewTab === 0 && (
               <Box>
+                {/* Specialized MR Review rendering */}
+                {(() => {
+                  const state = (run.data as any)?.state;
+                  const steps = Array.isArray(state?.steps) ? state.steps : [];
+                  const last = steps.length ? steps[steps.length - 1] : null;
+                  const out = last?.output || null;
+                  const agentName = (out && (out.agent || out['agent'])) || null;
+                  if (agentName === 'mr_review') {
+                    const finalText = out.final || out['final'] || '';
+                    return (
+                      <Box sx={{ mb: 2, p: 1, border: '1px solid #eee', borderRadius: 1 }}>
+                        <Typography variant="subtitle2" sx={{ mb: 1 }}>MR Review Summary</Typography>
+                        <Viewer content={finalText || '*No final text provided.*'} contentType="markdown" height={'auto'} />
+                      </Box>
+                    );
+                  }
+                  return null;
+                })()}
+
                 <Viewer
                   content={run.data ? (typeof (run.data as any).state === 'string' ? (run.data as any).state : JSON.stringify((run.data as any).state, null, 2)) : 'Pick a run to view state'}
                   contentType="application/json"
@@ -148,4 +167,3 @@ export default function WorkflowRuns() {
     </Grid>
   );
 }
-
