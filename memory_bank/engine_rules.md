@@ -12,7 +12,7 @@ flowchart LR
 ```
 
 ## Data
-- File: `lib/savant/rules/rules.yml`
+- File: `lib/savant/engines/rules/rules.yml`
 - Schema: `name`, `title`, `version`, `summary`, `tags?`, `rules_md`, `notes?`
 
 ## Tools

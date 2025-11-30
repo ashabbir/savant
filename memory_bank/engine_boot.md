@@ -6,14 +6,14 @@ The Boot Runtime is the **P0 critical path** foundation for the Savant Engine MV
 
 The Boot Runtime provides:
 - **Unified initialization** – single entry point for all Savant commands
-- **Runtime state container** – globally accessible context via `Savant::Runtime.current`
+- **Runtime state container** – globally accessible context via `Savant::Framework::Runtime.current`
 - **Component loading** – orchestrated loading of personas, driver prompts, AMR rules, repo context, and memory
 - **Session management** – unique session IDs and persistent state tracking
 - **Observability** – structured logging for all boot events
 
 ## Architecture
 
-### RuntimeContext (`lib/savant/runtime_context.rb`)
+### RuntimeContext (`lib/savant/framework/engine/runtime_context.rb`)
 
 A Struct-based container holding all runtime state:
 
@@ -25,7 +25,7 @@ Savant::RuntimeContext.new(
   amr_rules: Hash,          # AMR ruleset (version, rules array)
   repo: Hash,               # Git repository context (path, branch, commit)
   memory: Hash,             # Session memory (ephemeral + persistent_path)
-  logger: Savant::Logger,   # Boot logger instance
+  logger: Savant::Logging::Logger,   # Boot logger instance
   multiplexer: Object       # Reserved for future multiplexer integration
 )
 ```
@@ -33,9 +33,9 @@ Savant::RuntimeContext.new(
 **Global Access:**
 ```ruby
 # Access anywhere in the codebase
-Savant::Runtime.current.persona
-Savant::Runtime.current.session_id
-Savant::Runtime.current.driver_prompt[:version]
+Savant::Framework::Runtime.current.persona
+Savant::Framework::Runtime.current.session_id
+Savant::Framework::Runtime.current.driver_prompt[:version]
 ```
 
 **Serialization:**
@@ -52,7 +52,7 @@ context.to_h
 # }
 ```
 
-### Boot Module (`lib/savant/boot.rb`)
+### Boot Module (`lib/savant/framework/boot.rb`)
 
 Main initializer orchestrating the boot sequence:
 
@@ -85,10 +85,10 @@ context = Savant::Boot.initialize!(
 4. **Driver Prompt Loading**
    - Uses `Savant::Think::Engine` to load driver prompt
    - Returns: version, sha256 hash, prompt markdown
-   - Defaults to latest version from `lib/savant/think/prompts.yml`
+   - Defaults to latest version from `lib/savant/engines/think/prompts.yml`
 
 5. **AMR Rules Loading**
-   - Reads `lib/savant/amr/rules.yml`
+   - Reads `lib/savant/engines/amr/rules.yml`
    - Validates YAML structure
    - Returns: version, description, rules array
    - Error: `BootError` if file missing or invalid YAML
@@ -108,14 +108,14 @@ context = Savant::Boot.initialize!(
    - Includes: session_id, persona, driver_prompt, amr, repo, timestamps
 
 9. **Global Registration**
-   - Sets `Savant::Runtime.current = context`
+   - Sets `Savant::Framework::Runtime.current = context`
    - Makes runtime accessible throughout the application
 
-### AMR System (`lib/savant/amr/`)
+### AMR System (`lib/savant/engines/amr/`)
 
 Ahmed Matching Rules define how the engine matches and processes requests.
 
-**File:** `lib/savant/amr/rules.yml`
+**File:** `lib/savant/engines/amr/rules.yml`
 
 ```yaml
 version: 1
@@ -340,8 +340,8 @@ end
 
 **AMR Rules Missing:**
 ```
-❌ Boot failed: AMR rules file not found at /path/lib/savant/amr/rules.yml.
-Please create lib/savant/amr/rules.yml
+❌ Boot failed: AMR rules file not found at /path/lib/savant/engines/amr/rules.yml.
+Please create lib/savant/engines/amr/rules.yml
 ```
 
 **Invalid AMR YAML:**
@@ -390,7 +390,7 @@ flowchart TD
 ```mermaid
 flowchart LR
     BOOT[Boot.initialize!] --> CONTEXT[RuntimeContext]
-    CONTEXT --> GLOBAL[Savant::Runtime.current]
+    CONTEXT --> GLOBAL[Savant::Framework::Runtime.current]
 
     GLOBAL --> AGENT[Agent Runtime]
     GLOBAL --> WORKFLOW[Workflow Engine]
@@ -413,9 +413,9 @@ flowchart TD
     ROOT --> SAVANT[.savant/]
     ROOT --> LOGS[logs/]
 
-    LIB --> BOOT[boot.rb]
-    LIB --> RUNTIME[runtime_context.rb]
-    LIB --> AMR_DIR[amr/]
+    LIB --> BOOT[framework/boot.rb]
+    LIB --> RUNTIME[framework/engine/runtime_context.rb]
+    LIB --> AMR_DIR[engines/amr/]
 
     AMR_DIR --> RULES[rules.yml]
 
@@ -449,8 +449,8 @@ prompt_data = engine.driver_prompt(version: nil)
 
 ### With Logger
 ```ruby
-# Boot creates and uses Savant::Logger
-logger = Savant::Logger.new(
+# Boot creates and uses Savant::Logging::Logger
+logger = Savant::Logging::Logger.new(
   io: $stdout,
   file_path: 'logs/engine_boot.log',
   level: ENV['LOG_LEVEL'] || 'info',
@@ -462,15 +462,15 @@ logger = Savant::Logger.new(
 ## Dependencies
 
 **Required Existing Components:**
-- `Savant::Logger` (`lib/savant/logger.rb`)
-- `Savant::Personas::Ops` (`lib/savant/personas/ops.rb`)
-- `Savant::Think::Engine` (`lib/savant/think/engine.rb`)
+- `Savant::Logging::Logger` (`lib/savant/logging/logger.rb`)
+- `Savant::Personas::Ops` (`lib/savant/engines/personas/ops.rb`)
+- `Savant::Think::Engine` (`lib/savant/engines/think/engine.rb`)
 
 **Required Files:**
-- `lib/savant/personas/personas.yml` – Personas catalog
-- `lib/savant/think/prompts.yml` – Driver prompt registry
-- `lib/savant/think/prompts/*.md` – Driver prompt files
-- `lib/savant/amr/rules.yml` – AMR ruleset
+- `lib/savant/engines/personas/personas.yml` – Personas catalog
+- `lib/savant/engines/think/prompts.yml` – Driver prompt registry
+- `lib/savant/engines/think/prompts/*.md` – Driver prompt files
+- `lib/savant/engines/amr/rules.yml` – AMR ruleset
 
 **Optional:**
 - `.git/` directory – For repository context detection
@@ -497,7 +497,7 @@ These features will be implemented in subsequent PRs and will use the initialize
 - Keyword argument handling
 - Nil value support
 - `to_h` serialization
-- Global accessor (`Savant::Runtime.current`)
+- Global accessor (`Savant::Framework::Runtime.current`)
 
 **Boot Tests** (`spec/savant/boot_spec.rb`):
 - Complete boot sequence
@@ -584,8 +584,8 @@ Savant::Boot.initialize!
 
 # In any other file
 def some_method
-  persona = Savant::Runtime.current.persona
-  logger = Savant::Runtime.current.logger
+  persona = Savant::Framework::Runtime.current.persona
+  logger = Savant::Framework::Runtime.current.logger
 
   logger.info(event: 'using_persona', name: persona[:name])
 end
@@ -594,7 +594,7 @@ end
 ## References
 
 - **PRD:** `docs/prds/01-boot-time-sq.md`
-- **Implementation:** `lib/savant/boot.rb`, `lib/savant/runtime_context.rb`
-- **AMR Rules:** `lib/savant/amr/rules.yml`
+- **Implementation:** `lib/savant/framework/boot.rb`, `lib/savant/framework/engine/runtime_context.rb`
+- **AMR Rules:** `lib/savant/engines/amr/rules.yml`
 - **Tests:** `spec/savant/boot_spec.rb`, `spec/savant/runtime_context_spec.rb`
 - **CLI:** `bin/savant` (run, review, workflow commands)
