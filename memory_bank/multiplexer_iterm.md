@@ -68,7 +68,9 @@ Keep the 4/8 panel balance in mind—use a wider log pane to read multiplexer ev
 3. **Call Git Tools**
   - Run `./bin/savant call git.changed_files --input='{}'` to inspect working tree changes.
   - Run `./bin/savant call git.diff --input='{"paths":["lib/savant/framework/mcp/dispatcher.rb"]}'` for structured hunks/lines.
-4. **Isolate a Single Engine**
+4. **Use UI Diagnostics**
+  - Open the Dashboard at `/ui`. Each Engine card now includes quick links: Diagnostics (opens `/diagnostics/mcp/<engine>`) and Logs (opens `/<engine>/logs`). Use these to verify Git routes and recent events quickly.
+5. **Isolate a Single Engine**
    - Set `MCP_SERVICE=jira` and run `bundle exec ruby ./bin/mcp_server` in a temporary pane if you need to test Jira-only tooling.
    - After verifying, revert to the multiplexer command and check `./bin/savant tools` shows the merged namespace again.
 
