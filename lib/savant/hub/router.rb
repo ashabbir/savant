@@ -6,7 +6,7 @@ require 'rack/request'
 require_relative '../framework/middleware/user_header'
 require_relative 'sse'
 require_relative '../logging/event_recorder'
-require_relative '../hub/connections'
+require_relative 'connections'
 
 module Savant
   module Hub
@@ -482,7 +482,10 @@ module Savant
                            cfg_candidate = File.join(bp, 'config', 'secrets.yml')
                            File.file?(root_candidate) ? root_candidate : cfg_candidate
                          end
-          info[:secrets] = { path: secrets_path }
+          info[:secrets] = {
+            path: secrets_path,
+            exists: File.file?(secrets_path)
+          }
         rescue StandardError
           # ignore
         end

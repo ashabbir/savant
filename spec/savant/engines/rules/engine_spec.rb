@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
-require_relative '../../../lib/savant/engines/rules/tools'
-require_relative '../../../lib/savant/engines/rules/engine'
+require_relative '../../../../lib/savant/engines/rules/tools'
+require_relative '../../../../lib/savant/engines/rules/engine'
 
 RSpec.describe Savant::Rules::Tools do
   it 'exposes rules.list and rules.get tools' do

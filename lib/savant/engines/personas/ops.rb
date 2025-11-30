@@ -197,7 +197,7 @@ module Savant
         if ENV['SAVANT_PATH'] && !ENV['SAVANT_PATH'].empty?
           ENV['SAVANT_PATH']
         else
-          File.expand_path('../../..', __dir__)
+          File.expand_path('../../../..', __dir__)
         end
       end
 

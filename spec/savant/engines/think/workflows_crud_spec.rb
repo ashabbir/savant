@@ -26,7 +26,7 @@ RSpec.describe 'Think workflows CRUD (graph)' do
 
     res = engine.workflows_create_from_graph(workflow: 'wf1', graph: g)
     expect(res[:ok]).to eq(true)
-    pth = File.join(tmp_root, 'lib', 'savant', 'think', 'workflows', 'wf1.yaml')
+    pth = File.join(tmp_root, 'lib', 'savant', 'engines', 'think', 'workflows', 'wf1.yaml')
     expect(File).to exist(pth)
 
     g2 = g.dup

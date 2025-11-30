@@ -117,7 +117,7 @@ export default function DiagnosticsOverview() {
                         .filter((req) => (req.path || '').includes('/tools/') && (req.path || '').endsWith('/call'))
                         .slice(0, 10)
                         .map((req, i) => (
-                          <TableRow key={i} sx={{ '&:hover': { bgcolor: 'grey.50' } }}>
+                          <TableRow key={i} sx={{ '&:hover': { bgcolor: 'action.hover' } }}>
                             <TableCell sx={{ fontFamily: 'monospace' }}>
                               {(() => {
                                 const p = (req.path || '').split('/').filter(Boolean);
@@ -173,7 +173,7 @@ export default function DiagnosticsOverview() {
                     </TableHead>
                     <TableBody>
                       {stats.data.recent.slice(0, 10).map((req, i) => (
-                        <TableRow key={i} sx={{ '&:hover': { bgcolor: 'grey.50' } }}>
+                        <TableRow key={i} sx={{ '&:hover': { bgcolor: 'action.hover' } }}>
                           <TableCell>
                             <Chip
                               label={req.method}
@@ -225,7 +225,7 @@ export default function DiagnosticsOverview() {
                     spacing={1}
                     alignItems="center"
                     justifyContent="space-between"
-                    sx={{ p: 0.5, bgcolor: 'grey.50', borderRadius: 0.5 }}
+                    sx={{ p: 0.5, bgcolor: 'action.hover', borderRadius: 0.5 }}
                   >
                     <Stack direction="row" spacing={0.5} alignItems="center">
                       <CheckCircleIcon color="success" sx={{ fontSize: 16 }} />
@@ -399,12 +399,24 @@ export default function DiagnosticsOverview() {
               {diag.data && (diag.data as any).secrets ? (
                 <Stack spacing={1}>
                   <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                    <Chip size="small" label={`Path: ${(diag.data as any).secrets.path || 'unknown'}`} variant="outlined" />
-                    <Chip size="small" label={`Users: ${(diag.data as any).secrets.users || 0}`} variant="outlined" />
-                    <Chip size="small" label={`Services: ${((diag.data as any).secrets.services || []).join(', ') || 'n/a'}`} variant="outlined" />
+                    <Chip
+                      size="small"
+                      icon={(diag.data as any).secrets.exists ? <CheckCircleIcon /> : <ErrorIcon />}
+                      label={`Path: ${(diag.data as any).secrets.path || 'unknown'}`}
+                      variant="outlined"
+                      color={(diag.data as any).secrets.exists ? 'success' : 'warning'}
+                    />
+                    {(diag.data as any).secrets.users && (
+                      <Chip size="small" label={`Users: ${(diag.data as any).secrets.users}`} variant="outlined" />
+                    )}
+                    {(diag.data as any).secrets.services && (
+                      <Chip size="small" label={`Services: ${((diag.data as any).secrets.services || []).join(', ') || 'n/a'}`} variant="outlined" />
+                    )}
                   </Stack>
                   <Typography variant="caption" color="text.secondary">
-                    Values are redacted server-side.
+                    {(diag.data as any).secrets.exists
+                      ? 'Values are redacted server-side.'
+                      : 'File not found. Create it at the path shown above.'}
                   </Typography>
                 </Stack>
               ) : (

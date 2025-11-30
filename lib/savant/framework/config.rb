@@ -18,16 +18,17 @@ module Savant
   # errors so callers can present actionable messages.
   class ConfigError < StandardError; end
 
-  # Loads and validates application settings from `settings.json`.
-  #
-  # Purpose: Provide a single entrypoint for config IO and validation used by
-  # the indexer and MCP services. Ensures presence and shape of required keys
-  # and raises {Savant::ConfigError} on problems.
-  #
-  # @example Load validated settings
-  #   cfg = Savant::Framework::Config.load('config/settings.json')
-  #   cfg['indexer']['repos'].each { |r| puts r['name'] }
-  class Config
+  module Framework
+    # Loads and validates application settings from `settings.json`.
+    #
+    # Purpose: Provide a single entrypoint for config IO and validation used by
+    # the indexer and MCP services. Ensures presence and shape of required keys
+    # and raises {Savant::ConfigError} on problems.
+    #
+    # @example Load validated settings
+    #   cfg = Savant::Framework::Config.load('config/settings.json')
+    #   cfg['indexer']['repos'].each { |r| puts r['name'] }
+    class Config
     # Load and validate JSON settings.
     #
     # @param path [String] absolute or relative path to `settings.json`.
@@ -110,6 +111,7 @@ module Savant
               'transport.websocket.port must be integer'
       end
       raise ConfigError, 'transport.websocket.path must be string' if ws.key?('path') && !ws['path'].is_a?(String)
+    end
     end
   end
 end

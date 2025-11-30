@@ -17,6 +17,7 @@
 #
 require 'json'
 require_relative '../../logging/logger'
+require_relative '../../framework/db'
 
 module Savant
   module Context

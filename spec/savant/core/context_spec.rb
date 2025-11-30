@@ -6,7 +6,7 @@ require 'savant/framework/engine/context'
 RSpec.describe Savant::Framework::Engine::Context do
   it 'exposes logger and config with sensible defaults' do
     ctx = described_class.new
-    expect(ctx.logger).to be_a(Savant::Logger)
+    expect(ctx.logger).to be_a(Savant::Logging::Logger)
     expect(ctx.config).to be_a(Hash)
   end
 

@@ -17,6 +17,7 @@
 #
 require 'json'
 require_relative '../../logging/logger'
+require_relative '../../framework/db'
 require_relative 'ops'
 require_relative 'fs/repo_indexer'
 

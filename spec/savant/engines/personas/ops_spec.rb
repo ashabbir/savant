@@ -2,11 +2,11 @@
 
 require 'spec_helper'
 require 'tmpdir'
-require_relative '../../../lib/savant/engines/personas/ops'
+require_relative '../../../../lib/savant/engines/personas/ops'
 
 RSpec.describe Savant::Personas::Ops do
   def write_yaml(dir, content)
-    path = File.join(dir, 'lib', 'savant', 'personas')
+    path = File.join(dir, 'lib', 'savant', 'engines', 'personas')
     FileUtils.mkdir_p(path)
     File.write(File.join(path, 'personas.yml'), content)
   end

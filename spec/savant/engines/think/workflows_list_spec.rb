@@ -6,8 +6,8 @@ require 'fileutils'
 
 RSpec.describe 'Savant Think workflows listing' do
   let(:tmp_root) { Dir.mktmpdir('savant_think_wf_list') }
-  let(:workflows_dir) { File.join(tmp_root, 'lib', 'savant', 'think', 'workflows') }
-  let(:prompts_dir) { File.join(tmp_root, 'lib', 'savant', 'think', 'prompts') }
+  let(:workflows_dir) { File.join(tmp_root, 'lib', 'savant', 'engines', 'think', 'workflows') }
+  let(:prompts_dir) { File.join(tmp_root, 'lib', 'savant', 'engines', 'think', 'prompts') }
 
   before do
     ENV['SAVANT_PATH'] = tmp_root
@@ -44,7 +44,7 @@ RSpec.describe 'Savant Think workflows listing' do
     end
 
     # Prompts registry (required by engine for driver injection paths)
-    File.write(File.join(tmp_root, 'lib', 'savant', 'think', 'prompts.yml'), <<~YAML)
+    File.write(File.join(tmp_root, 'lib', 'savant', 'engines', 'think', 'prompts.yml'), <<~YAML)
       versions:
         stable-2025-11: prompts/stable-2025-11.md
     YAML
@@ -57,7 +57,7 @@ RSpec.describe 'Savant Think workflows listing' do
   end
 
   it 'returns workflows list without crashing on invalid files' do
-    require_relative '../../../lib/savant/engines/think/tools'
+    require_relative '../../../../lib/savant/engines/think/tools'
     registrar = Savant::Think::Tools.build_registrar(nil)
 
     list = registrar.call('think.workflows.list', { 'filter' => '' }, ctx: {})
@@ -67,7 +67,7 @@ RSpec.describe 'Savant Think workflows listing' do
   end
 
   it 'reads .yml workflows via workflows.read and loads via plan' do
-    require_relative '../../../lib/savant/engines/think/tools'
+    require_relative '../../../../lib/savant/engines/think/tools'
     registrar = Savant::Think::Tools.build_registrar(nil)
 
     read = registrar.call('think.workflows.read', { 'workflow' => 'valid_wf' }, ctx: {})

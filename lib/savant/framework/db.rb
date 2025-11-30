@@ -12,15 +12,16 @@
 require 'pg'
 
 module Savant
-  # Connection + schema helper around Postgres.
-  #
-  # Purpose: Centralize DB lifecycle and schema/CRUD helpers used by the
-  # indexer and context engines. Keeps business logic out of SQL access.
-  #
-  # Typical usage creates an instance per process and reuses a single
-  # connection; callers may use transaction helpers for multi-step writes.
-  # rubocop:disable Metrics/ClassLength
-  class DB
+  module Framework
+    # Connection + schema helper around Postgres.
+    #
+    # Purpose: Centralize DB lifecycle and schema/CRUD helpers used by the
+    # indexer and context engines. Keeps business logic out of SQL access.
+    #
+    # Typical usage creates an instance per process and reuses a single
+    # connection; callers may use transaction helpers for multi-step writes.
+    # rubocop:disable Metrics/ClassLength
+    class DB
     # @param url [String] Postgres connection URL (uses `ENV['DATABASE_URL']`).
     def initialize(url = ENV.fetch('DATABASE_URL', nil))
       @url = url
@@ -314,6 +315,7 @@ module Savant
       # best-effort; ignore if not supported or connection not ready
       nil
     end
+    end
+    # rubocop:enable Metrics/ClassLength
   end
-  # rubocop:enable Metrics/ClassLength
 end
