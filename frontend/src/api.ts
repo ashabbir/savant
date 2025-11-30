@@ -92,7 +92,7 @@ export async function searchMemory(q: string, repo?: string | null, limit: numbe
 }
 
 export async function repoStatus(): Promise<RepoStatus[]> {
-  const res = await client().post(`/context/tools/fs/repo/status/call`, { params: {} });
+  const res = await client().post(`/context/tools/fs_repo_status/call`, { params: {} });
   return res.data as RepoStatus[];
 }
 
@@ -104,12 +104,12 @@ export function useRepoStatus() {
 }
 
 export async function indexRepo(repo?: string | null): Promise<any> {
-  const res = await client().post(`/context/tools/fs/repo/index/call`, { params: { repo: repo ?? null } });
+  const res = await client().post(`/context/tools/fs_repo_index/call`, { params: { repo: repo ?? null } });
   return res.data;
 }
 
 export async function deleteRepo(repo?: string | null): Promise<any> {
-  const res = await client().post(`/context/tools/fs/repo/delete/call`, { params: { repo: repo ?? null } });
+  const res = await client().post(`/context/tools/fs_repo_delete/call`, { params: { repo: repo ?? null } });
   return res.data;
 }
 
@@ -193,7 +193,7 @@ export function useDiagnostics() {
   return useQuery<Diagnostics>({
     queryKey: ['hub', 'diagnostics'],
     queryFn: async () => {
-      const res = await client().post('/context/tools/fs/repo/diagnostics/call', { params: {} });
+      const res = await client().post('/context/tools/fs_repo_diagnostics/call', { params: {} });
       return res.data as Diagnostics;
     },
     retry: 0
