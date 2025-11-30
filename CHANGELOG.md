@@ -12,16 +12,16 @@ Semantic Versioning where practical. Dates are in YYYY-MM-DD.
 - Multi-repo filtering in FTS; search results now include `repo`.
 - Context FS repo indexer surface:
   - CLI: `bin/context_repo_indexer` (`index|delete|status`).
-  - MCP tools: `fs/repo/index`, `fs/repo/delete`, `fs/repo/status`.
+  - MCP tools: `fs_repo_index`, `fs_repo_delete`, `fs_repo_status`.
 - Namespaced Context tools:
-  - `fts/search` — general code/docs FTS.
-  - `memory/search` — FTS over memory bank only.
-  - `memory/resources/list`, `memory/resources/read` — memory bank resource helpers.
+  - `fts_search` — general code/docs FTS.
+  - `memory_search` — FTS over memory bank only.
+  - `memory_resources_list`, `memory_resources_read` — memory bank resource helpers.
 - Memory Bank class rename: `Savant::Context::MemoryBank::Search` (formerly `Indexer`).
 
 ### Changed
 - Context Engine now owns a shared DB handle and injects it into Ops/FTS and FS RepoIndexer.
-- `memory/resources/list` is DB-backed; `resources/read` resolves repo roots via DB before reading from disk.
+- `memory_resources_list` is DB-backed; `resources/read` resolves repo roots via DB before reading from disk.
 - Makefile targets consolidated under `repo-*` (e.g., `repo-index-all`).
 - Updated README, AGENTS.md, and PRDs to reflect new tool names and flows.
 
@@ -35,9 +35,9 @@ Semantic Versioning where practical. Dates are in YYYY-MM-DD.
   - Run migrations and ensure FTS: `make migrate && make fts`.
   - Re-index recommended: `make repo-index-all`.
 - MCP clients:
-  - Replace `search` with `fts/search` and `search_memory` with `memory/search`.
-  - Replace `resources/list` and `resources/read` with `memory/resources/*`.
-  - Update any indexer calls to use `fs/repo/*`.
+- Replace `search` with `fts_search` and `search_memory` with `memory_search`.
+- Replace `resources/list` and `resources/read` with `memory_resources_*`.
+- Update any indexer calls to use `fs_repo_*`.
 - Make targets:
   - Use `repo-index-all`, `repo-index-repo`, `repo-delete-all`, `repo-delete-repo`, `repo-status`.
 - Behavior:
