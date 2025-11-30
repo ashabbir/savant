@@ -398,6 +398,71 @@ Tests for:
 
 ------------------------------------------------------------------------
 
+## Agent Implementation Plan — Executable Architecture
+
+This section captures the concrete, code-oriented plan the agent will implement.
+
+Architecture
+- Core modules under `lib/savant/engines/workflow/`:
+  - `engine.rb`: public API, server_info, run/list/read/delete, delegates to Executor, exposes MCP tools.
+  - `executor.rb`: linear step runner, resolves inputs, calls tool/agent adapters, captures outputs, emits telemetry.
+  - `loader.rb`: loads YAML workflows from `workflows/` (root), validates shape, returns a normalized model.
+  - `interpolator.rb`: `{{ path.to.value }}` templating across Strings/Arrays/Hashes; supports `params.*` and prior step names.
+  - `context.rb`: runtime context holding `params`, `steps` outputs, and utility getters.
+- Integrations:
+  - Tool steps via Multiplexer (`context.<tool>` etc.); robust errors when multiplexer is unavailable.
+  - Agent steps via `Savant::Agent::Runtime` (goal provided via `with.goal` or auto-composed from inputs).
+  - Telemetry using `Savant::Logging::EventRecorder.global` and a dedicated file log `logs/workflow_trace.log`.
+
+Workflow YAML (MVP)
+```yaml
+steps:
+  - name: diff
+    tool: git.diff
+
+  - name: cross_repo
+    tool: context.fts/search
+    with:
+      q: "{{ diff.files }}"
+
+  - name: review
+    agent: mr_review
+    with:
+      goal: "Review MR using supplied diff and context"
+      diff: "{{ diff }}"
+      cross_repo: "{{ cross_repo }}"
+
+  - name: summarize
+    agent: summarizer
+    with:
+      goal: "Summarize the review for humans"
+      review: "{{ review }}"
+
+  - name: output
+    tool: output.write
+    with:
+      content: "{{ summarize }}"
+```
+
+CLI
+- Implement `savant workflow run <name> --params='{}'` invoking `Savant::Workflow::Engine.run(workflow:, params:)`.
+- Pretty-print final artifact and write per-step telemetry.
+
+Telemetry & Diagnostics
+- Emit events per step: `workflow_step_started|completed|error` with `step`, `type`, `duration_ms`, and `*_summary`.
+- Persist JSONL to `logs/workflow_trace.log` in addition to the global recorder.
+- Add Hub diagnostics endpoints: `/diagnostics/workflows` (recent summary) and `/diagnostics/workflows/trace` (download log).
+- UI: add a Diagnostics page section to visualize recent workflow events (reusing Hub aggregated logs).
+
+Tests
+- Loader + Interpolator unit specs (no external engines required).
+- Executor dry-run spec for tool steps when Multiplexer is disabled.
+- CLI smoke test path existence and argument parsing.
+
+Non-goals (MVP)
+- No loops/branching/parallelism.
+- No remote dependencies beyond existing local MCP engines.
+
 # Phase 7 --- Final Docs & Cleanup (Day 11)
 
 -   README\
