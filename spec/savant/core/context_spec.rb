@@ -1,17 +1,17 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
-require 'savant/core/context'
+require 'savant/framework/engine/context'
 
-RSpec.describe Savant::Core::Context do
+RSpec.describe Savant::Framework::Engine::Context do
   it 'exposes logger and config with sensible defaults' do
     ctx = described_class.new
-    expect(ctx.logger).to be_a(Savant::Logger)
+    expect(ctx.logger).to be_a(Savant::Logging::Logger)
     expect(ctx.config).to be_a(Hash)
   end
 
   it 'allows overriding logger/config/db and does not require DB by default' do
-    fake_logger = Savant::Logger.new(io: $stdout, json: true, service: 'test')
+    fake_logger = Savant::Logging::Logger.new(io: $stdout, json: true, service: 'test')
     cfg = { 'env' => 'test' }
     ctx = described_class.new(logger: fake_logger, config: cfg)
     expect(ctx.logger).to eq(fake_logger)

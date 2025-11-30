@@ -4,16 +4,16 @@
 require 'spec_helper'
 require 'fileutils'
 require 'tmpdir'
-require_relative '../../lib/savant/boot'
+require_relative '../../lib/savant/framework/boot'
 
 RSpec.describe Savant::Boot do
   let(:test_base_path) { Dir.mktmpdir('savant-boot-test') }
 
   before do
     # Create required directory structure
-    FileUtils.mkdir_p(File.join(test_base_path, 'lib', 'savant', 'personas'))
-    FileUtils.mkdir_p(File.join(test_base_path, 'lib', 'savant', 'think', 'prompts'))
-    FileUtils.mkdir_p(File.join(test_base_path, 'lib', 'savant', 'amr'))
+    FileUtils.mkdir_p(File.join(test_base_path, 'lib', 'savant', 'engines', 'personas'))
+    FileUtils.mkdir_p(File.join(test_base_path, 'lib', 'savant', 'engines', 'think', 'prompts'))
+    FileUtils.mkdir_p(File.join(test_base_path, 'lib', 'savant', 'engines', 'amr'))
     FileUtils.mkdir_p(File.join(test_base_path, 'logs'))
 
     # Create test personas.yml
@@ -26,17 +26,17 @@ RSpec.describe Savant::Boot do
         tags:
           - test
     YAML
-    File.write(File.join(test_base_path, 'lib', 'savant', 'personas', 'personas.yml'), personas_yml)
+    File.write(File.join(test_base_path, 'lib', 'savant', 'engines', 'personas', 'personas.yml'), personas_yml)
 
     # Create test prompts.yml
     prompts_yml = <<~YAML
       versions:
         test-v1: prompts/test.md
     YAML
-    File.write(File.join(test_base_path, 'lib', 'savant', 'think', 'prompts.yml'), prompts_yml)
+    File.write(File.join(test_base_path, 'lib', 'savant', 'engines', 'think', 'prompts.yml'), prompts_yml)
 
     # Create test driver prompt
-    File.write(File.join(test_base_path, 'lib', 'savant', 'think', 'prompts', 'test.md'), 'Test driver prompt')
+    File.write(File.join(test_base_path, 'lib', 'savant', 'engines', 'think', 'prompts', 'test.md'), 'Test driver prompt')
 
     # Create test AMR rules
     amr_yml = <<~YAML
@@ -48,15 +48,15 @@ RSpec.describe Savant::Boot do
           action: test_action
           priority: high
     YAML
-    File.write(File.join(test_base_path, 'lib', 'savant', 'amr', 'rules.yml'), amr_yml)
+    File.write(File.join(test_base_path, 'lib', 'savant', 'engines', 'amr', 'rules.yml'), amr_yml)
 
     # Reset global runtime
-    Savant::Runtime.current = nil
+    Savant::Framework::Runtime.current = nil
   end
 
   after do
     FileUtils.rm_rf(test_base_path)
-    Savant::Runtime.current = nil
+    Savant::Framework::Runtime.current = nil
   end
 
   describe '.initialize!' do
@@ -92,7 +92,7 @@ RSpec.describe Savant::Boot do
       expect(context.memory[:persistent_path]).to include('.savant/runtime.json')
 
       # Check logger exists
-      expect(context.logger).to be_a(Savant::Logger)
+      expect(context.logger).to be_a(Savant::Logging::Logger)
 
       # Check repo is nil when skip_git is true
       expect(context.repo).to be_nil
@@ -105,7 +105,7 @@ RSpec.describe Savant::Boot do
         skip_git: true
       )
 
-      expect(Savant::Runtime.current).to eq(context)
+      expect(Savant::Framework::Runtime.current).to eq(context)
     end
 
     it 'creates .savant directory and runtime.json' do
@@ -156,7 +156,7 @@ RSpec.describe Savant::Boot do
     end
 
     it 'raises BootError when AMR rules file missing' do
-      FileUtils.rm(File.join(test_base_path, 'lib', 'savant', 'amr', 'rules.yml'))
+      FileUtils.rm(File.join(test_base_path, 'lib', 'savant', 'engines', 'amr', 'rules.yml'))
 
       expect do
         described_class.initialize!(
@@ -168,7 +168,7 @@ RSpec.describe Savant::Boot do
     end
 
     it 'raises BootError when AMR rules YAML is invalid' do
-      File.write(File.join(test_base_path, 'lib', 'savant', 'amr', 'rules.yml'), 'invalid: [yaml')
+      File.write(File.join(test_base_path, 'lib', 'savant', 'engines', 'amr', 'rules.yml'), 'invalid: [yaml')
 
       expect do
         described_class.initialize!(
@@ -223,7 +223,7 @@ RSpec.describe Savant::Boot do
       sleep 0.1
 
       # Reset runtime
-      Savant::Runtime.current = nil
+      Savant::Framework::Runtime.current = nil
 
       context2 = described_class.initialize!(
         base_path: test_base_path,
@@ -248,7 +248,7 @@ RSpec.describe Savant::Boot do
       first_data = JSON.parse(File.read(runtime_file))
 
       # Reset runtime
-      Savant::Runtime.current = nil
+      Savant::Framework::Runtime.current = nil
       sleep 0.1
 
       # Second boot

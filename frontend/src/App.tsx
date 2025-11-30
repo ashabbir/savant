@@ -9,6 +9,7 @@ import Diagnostics from './pages/Diagnostics';
 import DiagnosticsOverview from './pages/diagnostics/Overview';
 import DiagnosticsRequests from './pages/diagnostics/Requests';
 import DiagnosticsLogs from './pages/diagnostics/Logs';
+import DiagnosticsRoutes from './pages/diagnostics/Routes';
 import Dashboard from './pages/Dashboard';
 import ThinkWorkflows from './pages/think/Workflows';
 import ThinkWorkflowEditor from './pages/think/WorkflowEditor';
@@ -99,6 +100,7 @@ function defaultEngineRoute(name: string): string {
 
 function useDiagnosticsSubIndex() {
   const { pathname } = useLocation();
+  if (pathname.includes('/diagnostics/routes')) return 3;
   if (pathname.includes('/diagnostics/logs')) return 2;
   if (pathname.includes('/diagnostics/requests')) return 1;
   return 0; // overview default
@@ -116,7 +118,12 @@ function formatUptime(seconds: number): string {
 export default function App() {
   const [open, setOpen] = useState(false);
   const [themeMode, setThemeMode] = useState<'light' | 'dark'>(() => loadConfig().themeMode || 'light');
-  const theme = useMemo(() => createTheme({
+  const theme = useMemo(() => {
+    const darkHover = 'rgba(144,202,249,0.12)';
+    const lightHover = 'rgba(40,53,147,0.08)';
+    const hoverBg = themeMode === 'dark' ? darkHover : lightHover;
+
+    return createTheme({
     palette: {
       mode: themeMode,
       primary: {
@@ -176,9 +183,42 @@ export default function App() {
         styleOverrides: {
           input: { fontSize: 12, paddingTop: 6, paddingBottom: 6 }
         }
+      },
+      MuiTab: {
+        styleOverrides: {
+          root: {
+            '&:hover': {
+              backgroundColor: hoverBg
+            }
+          }
+        }
+      },
+      MuiTableRow: {
+        styleOverrides: {
+          root: {
+            '&:hover': {
+              backgroundColor: hoverBg,
+              transition: 'background-color 120ms ease-in-out'
+            }
+          }
+        }
+      },
+      MuiListItemButton: {
+        styleOverrides: {
+          root: {
+            borderRadius: 6,
+            '&:hover': {
+              backgroundColor: hoverBg
+            },
+            '&.Mui-selected, &.Mui-selected:hover': {
+              backgroundColor: themeMode === 'dark' ? 'rgba(144,202,249,0.2)' : 'rgba(40,53,147,0.15)'
+            }
+          }
+        }
       }
     }
-  }), [themeMode]);
+  });
+  }, [themeMode]);
   const mainIdx = useMainTabIndex();
   const ctxIdx = useContextSubIndex();
   const thinkIdx = useThinkSubIndex();
@@ -290,6 +330,7 @@ export default function App() {
             if (v === 0) navigate('/diagnostics/overview');
             else if (v === 1) navigate('/diagnostics/requests');
             else if (v === 2) navigate('/diagnostics/logs');
+            else if (v === 3) navigate('/diagnostics/routes');
           }}
           centered
           sx={{ '& .MuiTab-root': { fontSize: 12, minHeight: 36, py: 0.5, textTransform: 'none' }, '& .MuiTabs-indicator': { height: 2 } }}
@@ -297,6 +338,7 @@ export default function App() {
           <Tab label="Overview" component={Link} to="/diagnostics/overview" />
           <Tab label="Requests" component={Link} to="/diagnostics/requests" />
           <Tab label="Logs" component={Link} to="/diagnostics/logs" />
+          <Tab label="Routes" component={Link} to="/diagnostics/routes" />
         </Tabs>
       )}
       {mainIdx === 1 && selEngine === 'context' && (
@@ -407,6 +449,7 @@ export default function App() {
           <Route path="/diagnostics/overview" element={<DiagnosticsOverview />} />
           <Route path="/diagnostics/requests" element={<DiagnosticsRequests />} />
           <Route path="/diagnostics/logs" element={<DiagnosticsLogs />} />
+          <Route path="/diagnostics/routes" element={<DiagnosticsRoutes />} />
         </Routes>
       </Container>
       {/* Footer banner (always blue like header; DEV shows icon + text) */}

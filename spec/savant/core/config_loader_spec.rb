@@ -1,9 +1,9 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
-require 'savant/core/config/loader'
+require 'savant/framework/engine/config/loader'
 
-RSpec.describe Savant::Core::Config::Loader do
+RSpec.describe Savant::Framework::Engine::Config::Loader do
   let(:tmp_path) { File.join('tmp', 'test_savant.yml') }
 
   before do

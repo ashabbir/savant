@@ -5,32 +5,32 @@ require 'tmpdir'
 require 'json'
 require 'fileutils'
 
-require 'savant/middleware/trace'
-require 'savant/telemetry/metrics'
-require 'savant/audit/policy'
-require 'savant/audit/store'
+require 'savant/framework/middleware/trace'
+require 'savant/logging/metrics'
+require 'savant/logging/audit/policy'
+require 'savant/logging/audit/store'
 
-RSpec.describe Savant::Middleware::Trace do
+RSpec.describe Savant::Framework::Middleware::Trace do
   let(:io) { StringIO.new }
-  let(:logger) { Savant::Logger.new(io: io, level: :trace, json: true, service: 'context') }
+  let(:logger) { Savant::Logging::Logger.new(io: io, level: :trace, json: true, service: 'context') }
   let(:audit_dir) { Dir.mktmpdir }
   let(:audit_path) { File.join(audit_dir, 'audit.json') }
   let(:policy) do
-    Savant::Audit::Policy.new('sandbox' => false,
+    Savant::Logging::Audit::Policy.new('sandbox' => false,
                               'audit' => { 'enabled' => true, 'store' => audit_path },
                               'replay' => { 'limit' => 2 })
   end
-  let(:store) { Savant::Audit::Store.new(policy.audit_store_path) }
+  let(:store) { Savant::Logging::Audit::Store.new(policy.audit_store_path) }
 
   after do
     FileUtils.rm_f(audit_path)
     FileUtils.remove_dir(audit_dir) if Dir.exist?(audit_dir)
-    Savant::Telemetry::Metrics.reset!
+    Savant::Logging::Metrics.reset!
   end
 
   it 'assigns trace IDs, records audit entries, and updates metrics' do
     middleware = described_class.new(logger_factory: ->(ctx) { ctx[:logger] || logger },
-                                     metrics: Savant::Telemetry::Metrics,
+                                     metrics: Savant::Logging::Metrics,
                                      audit_store: store,
                                      policy: policy)
 
@@ -42,7 +42,7 @@ RSpec.describe Savant::Middleware::Trace do
     expect(result).to eq(ok: true)
     expect(ctx[:trace_id]).to be_a(String)
 
-    snapshot = Savant::Telemetry::Metrics.snapshot
+    snapshot = Savant::Logging::Metrics.snapshot
     counter = snapshot['tool_invocations_total'].find { |entry| entry[:labels][:tool] == 'context/search' }
     expect(counter[:value]).to eq(1)
 
@@ -53,7 +53,7 @@ RSpec.describe Savant::Middleware::Trace do
 
   it 'records errors and increments error metrics' do
     middleware = described_class.new(logger_factory: ->(_ctx) { logger },
-                                     metrics: Savant::Telemetry::Metrics,
+                                     metrics: Savant::Logging::Metrics,
                                      audit_store: store,
                                      policy: policy)
 
@@ -63,20 +63,20 @@ RSpec.describe Savant::Middleware::Trace do
       end
     end.to raise_error(RuntimeError)
 
-    snapshot = Savant::Telemetry::Metrics.snapshot
+    snapshot = Savant::Logging::Metrics.snapshot
     counter = snapshot['tool_errors_total'].find { |entry| entry[:labels][:tool] == 'context/search' }
     expect(counter[:value]).to eq(1)
   end
 
   it 'raises when sandbox policy forbids system operations' do
-    sandbox_policy = Savant::Audit::Policy.new('sandbox' => true)
+    sandbox_policy = Savant::Logging::Audit::Policy.new('sandbox' => true)
     middleware = described_class.new(logger_factory: ->(_ctx) { logger },
-                                     metrics: Savant::Telemetry::Metrics,
+                                     metrics: Savant::Logging::Metrics,
                                      audit_store: nil,
                                      policy: sandbox_policy)
 
     expect do
       middleware.call({ service: 'context', requires_system: true }, 'fs/run', {}) { 'ok' }
-    end.to raise_error(Savant::Audit::Policy::SandboxViolation)
+    end.to raise_error(Savant::Logging::Audit::Policy::SandboxViolation)
   end
 end

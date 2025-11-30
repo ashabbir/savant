@@ -2,10 +2,10 @@
 
 require 'spec_helper'
 
-require 'savant/telemetry/metrics'
-require 'savant/telemetry/exporter'
+require 'savant/logging/metrics'
+require 'savant/logging/exporter'
 
-RSpec.describe Savant::Telemetry::Metrics do
+RSpec.describe Savant::Logging::Metrics do
   before { described_class.reset! }
 
   it 'tracks counters per label set' do
@@ -33,7 +33,7 @@ RSpec.describe Savant::Telemetry::Metrics do
     expect(entry[:sum]).to be_within(0.0001).of(0.25)
     expect(entry[:max]).to be > 0.14
 
-    text = Savant::Telemetry::Exporter.prometheus(snapshot)
+    text = Savant::Logging::Exporter.prometheus(snapshot)
     expect(text).to include('tool_invocations_total{tool="fts/search",service="context"} 1')
   end
 end

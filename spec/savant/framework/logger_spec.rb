@@ -2,7 +2,7 @@
 
 require 'spec_helper'
 
-RSpec.describe Savant::Logger do
+RSpec.describe Savant::Logging::Logger do
   let(:io) { StringIO.new }
   let(:logger) { described_class.new(io: io, level: :trace, json: true, service: 'test', tool: 'unit') }
 

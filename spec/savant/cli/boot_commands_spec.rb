@@ -16,16 +16,16 @@ RSpec.describe 'CLI Boot Commands', type: :integration do
     ENV['SAVANT_PATH'] = test_dir
 
     # Create required directory structure
-    FileUtils.mkdir_p(File.join(test_dir, 'lib', 'savant', 'personas'))
-    FileUtils.mkdir_p(File.join(test_dir, 'lib', 'savant', 'think', 'prompts'))
-    FileUtils.mkdir_p(File.join(test_dir, 'lib', 'savant', 'amr'))
+    FileUtils.mkdir_p(File.join(test_dir, 'lib', 'savant', 'engines', 'personas'))
+    FileUtils.mkdir_p(File.join(test_dir, 'lib', 'savant', 'engines', 'think', 'prompts'))
+    FileUtils.mkdir_p(File.join(test_dir, 'lib', 'savant', 'engines', 'amr'))
     FileUtils.mkdir_p(File.join(test_dir, 'logs'))
 
     # Create test personas.yml (using actual project location for now)
     project_root = File.expand_path('../../..', __dir__)
-    personas_source = File.join(project_root, 'lib', 'savant', 'personas', 'personas.yml')
+    personas_source = File.join(project_root, 'lib', 'savant', 'engines', 'personas', 'personas.yml')
     if File.exist?(personas_source)
-      FileUtils.cp(personas_source, File.join(test_dir, 'lib', 'savant', 'personas', 'personas.yml'))
+      FileUtils.cp(personas_source, File.join(test_dir, 'lib', 'savant', 'engines', 'personas', 'personas.yml'))
     else
       # Fallback: create minimal personas.yml
       personas_yml = <<~YAML
@@ -35,7 +35,7 @@ RSpec.describe 'CLI Boot Commands', type: :integration do
           summary: Test engineer persona
           prompt_md: Test prompt
       YAML
-      File.write(File.join(test_dir, 'lib', 'savant', 'personas', 'personas.yml'), personas_yml)
+      File.write(File.join(test_dir, 'lib', 'savant', 'engines', 'personas', 'personas.yml'), personas_yml)
     end
 
     # Create test prompts.yml and prompt file
@@ -43,8 +43,8 @@ RSpec.describe 'CLI Boot Commands', type: :integration do
       versions:
         stable-2025-11: prompts/stable.md
     YAML
-    File.write(File.join(test_dir, 'lib', 'savant', 'think', 'prompts.yml'), prompts_yml)
-    File.write(File.join(test_dir, 'lib', 'savant', 'think', 'prompts', 'stable.md'), 'Test driver prompt')
+    File.write(File.join(test_dir, 'lib', 'savant', 'engines', 'think', 'prompts.yml'), prompts_yml)
+    File.write(File.join(test_dir, 'lib', 'savant', 'engines', 'think', 'prompts', 'stable.md'), 'Test driver prompt')
 
     # Create test AMR rules
     amr_yml = <<~YAML
@@ -56,7 +56,7 @@ RSpec.describe 'CLI Boot Commands', type: :integration do
           action: test_action
           priority: high
     YAML
-    File.write(File.join(test_dir, 'lib', 'savant', 'amr', 'rules.yml'), amr_yml)
+    File.write(File.join(test_dir, 'lib', 'savant', 'engines', 'amr', 'rules.yml'), amr_yml)
   end
 
   after do

@@ -2,7 +2,7 @@
 
 ## Overview
 - Entry point: `MCP_SERVICE=context ruby ./bin/mcp_server`
-- Files: `lib/savant/context/{engine.rb,ops.rb,tools.rb,fts.rb}`
+- Files: `lib/savant/engines/context/{engine.rb,ops.rb,tools.rb,fts.rb}` plus `fs/` + `memory_bank/`
 - Purpose: fast private code/markdown search over Postgres FTS and helpers for memory resources and repo admin.
 
 ## Call Flow

@@ -3,7 +3,7 @@
 require 'json'
 require 'rack/mock'
 
-require_relative '../../../lib/savant/transports/http/rack_app'
+require_relative '../../../lib/savant/framework/transports/http/rack_app'
 
 NullLogger = Class.new do
   def info(*) = nil
