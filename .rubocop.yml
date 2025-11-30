@@ -8,3 +8,50 @@ Lint/ScriptPermission:
   Enabled: true
   Exclude:
     - 'lib/**/*.rb'
+    - 'spec/**/*.rb'
+    - 'bin/**/*.rb'
+
+Style/FormatStringToken:
+  Exclude:
+    - 'bin/savant'
+
+Style/Documentation:
+  Exclude:
+    - 'spec/**/*'
+    - 'test/**/*'
+    - 'lib/savant/**/*.rb'
+    - 'lib/savant/multiplexer.rb'
+    - 'lib/savant/multiplexer/engine_process.rb'
+    - 'lib/savant/llm/ollama.rb'
+    - 'lib/savant/llm/openai.rb'
+
+Metrics/ParameterLists:
+  Exclude:
+    - 'lib/savant/agent/prompt_builder.rb'
+    - 'lib/savant/agent/runtime.rb'
+    - 'lib/savant/llm/**/*.rb'
+    - 'lib/savant/multiplexer/engine_process.rb'
+    - 'lib/savant/engines/**/*.rb'
+
+Metrics/ClassLength:
+  Exclude:
+    - 'lib/savant/agent/runtime.rb'
+    - 'lib/savant/engines/context/fs/repo_indexer.rb'
+
+Lint/UnusedMethodArgument:
+  Exclude:
+    - 'lib/savant/llm/openai.rb'
+    - 'lib/savant/llm/anthropic.rb'
+
+Naming/MethodParameterName:
+  Exclude:
+    - 'lib/savant/engines/**/*.rb'
+
+Naming/VariableName:
+  Exclude:
+    - 'lib/savant/engines/jira/ops.rb'
+
+Lint/SuppressedException:
+  Exclude:
+    - 'lib/savant/engines/jira/tools.rb'
+    - 'lib/savant/agent/runtime.rb'

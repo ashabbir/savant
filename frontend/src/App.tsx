@@ -22,6 +22,7 @@ import PersonaEditor from './pages/personas/PersonaEditor';
 import RulesPage from './pages/rules/Rules';
 import RuleEditor from './pages/rules/RuleEditor';
 import JiraTools from './pages/jira/Tools';
+import GitTools from './pages/git/Tools';
 import ContextTools from './pages/context/Tools';
 import ContextResources from './pages/context/Resources';
 import MemorySearch from './pages/context/MemorySearch';
@@ -58,10 +59,23 @@ function useThinkSubIndex() {
   return 0;
 }
 
+function sortEngines(engines: string[]): string[] {
+  const order = ['context', 'think', 'personas', 'rules', 'jira', 'git'];
+  return engines.sort((a, b) => {
+    const aIdx = order.indexOf(a);
+    const bIdx = order.indexOf(b);
+    if (aIdx === -1 && bIdx === -1) return a.localeCompare(b);
+    if (aIdx === -1) return 1;
+    if (bIdx === -1) return -1;
+    return aIdx - bIdx;
+  });
+}
+
 function useSelectedEngine(hub: ReturnType<typeof useHubInfo>['data']) {
   const { pathname } = useLocation();
   const seg = pathname.split('/').filter(Boolean);
-  const engines = (hub?.engines || []).map((e) => e.name);
+  const rawEngines = (hub?.engines || []).map((e) => e.name);
+  const engines = sortEngines(rawEngines);
   const idx = seg[0] === 'engines' && seg[1] ? engines.indexOf(seg[1]) : -1;
   return {
     engines,
@@ -86,7 +100,7 @@ function useEngineSubIndex(engineName: string | undefined) {
     if (pathname.includes('/runs')) return 2;
     return 0;
   }
-  // personas/jira default single or first tab
+  // personas/jira/git default single or first tab
   return 0;
 }
 
@@ -96,6 +110,7 @@ function defaultEngineRoute(name: string): string {
   if (name === 'jira') return '/engines/jira/tools';
   if (name === 'personas') return '/engines/personas';
   if (name === 'rules') return '/engines/rules';
+  if (name === 'git') return '/engines/git/tools';
   return `/engines/${name}`;
 }
 
@@ -338,6 +353,7 @@ export default function App() {
           else if (tgt === 'personas') navigate('/engines/personas');
           else if (tgt === 'rules') navigate('/engines/rules');
           else if (tgt === 'jira') navigate('/engines/jira/tools');
+          else if (tgt === 'git') navigate('/engines/git/tools');
           else navigate(`/engines/${tgt}`);
           }
         }} centered sx={{
@@ -428,6 +444,15 @@ export default function App() {
           <Tab label="Tools" component={Link} to="/engines/jira/tools" />
         </Tabs>
       )}
+      {mainIdx === 1 && selEngine === 'git' && (
+        <Tabs value={0} centered sx={{
+          '& .MuiTab-root': { fontSize: 12, minHeight: 36, py: 0.5, textTransform: 'none', color: 'text.secondary' },
+          '& .Mui-selected': { color: 'primary.main !important' },
+          '& .MuiTabs-indicator': { height: 2, backgroundColor: 'primary.light' }
+        }}>
+          <Tab label="Tools" component={Link} to="/engines/git/tools" />
+        </Tabs>
+      )}
       <Container maxWidth="lg" sx={{ mt: 3, mb: 4, flex: 1, color: 'text.primary' }}>
         <Routes>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
@@ -468,6 +493,7 @@ export default function App() {
           {/* Legacy shortcuts */}
           <Route path="/rules" element={<RulesPage />} />
           <Route path="/engines/jira/tools" element={<JiraTools />} />
+          <Route path="/engines/git/tools" element={<GitTools />} />
           <Route path="/ctx/tools" element={<ContextTools />} />
           <Route path="/ctx/resources" element={<ContextResources />} />
           <Route path="/ctx/memory-search" element={<MemorySearch />} />

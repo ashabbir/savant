@@ -16,6 +16,7 @@
 - **Indexer (`lib/savant/engines/indexer/*`):** Runner orchestrates repo scans, merges ignore files, skips hidden/binary/unchanged files (tracked in `.cache/indexer.json`), dedupes blobs via SHA256, chunks code vs. markdown differently, and maintains file↔blob associations plus cleanup for deleted files.
 - **Database Layer (`lib/savant/framework/db.rb`):** Wraps `pg` with helpers to migrate schema, ensure FTS, upsert repos/files/blobs, replace chunks, and drop data for deleted repos.
 - **Context MCP Engine:** Uses chunk search via `lib/savant/engines/context/fts.rb`, operations defined in `ops.rb`, tools registered in `tools.rb`, and orchestrated by `engine.rb`.
+- **Git MCP Engine:** Local, read‑only Git intelligence. Provides `repo_status`, `changed_files`, `diff`, `hunks`, `read_file`, and `file_context`. Implementation under `lib/savant/engines/git/{engine,ops,tools,repo_detector,diff_parser,hunk_parser,file_context}.rb`.
 - **Jira MCP Engine:** REST v3 client in `lib/savant/engines/jira/client.rb`, operations + engine orchestrate ticket queries/actions exposed via `jira/tools.rb`.
 - **MCP Server (`lib/savant/framework/mcp/server.rb`):** Transport-agnostic launcher selecting stdio or websocket via `Savant::Transports::MCP::*` based on `MCP_SERVICE` and config, exposing JSON-RPC 2.0 `tools/list` and `tools/call`.
 

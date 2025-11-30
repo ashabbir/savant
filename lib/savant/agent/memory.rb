@@ -56,13 +56,12 @@ module Savant
         return if json.length <= 16_000
 
         # Summarize older steps to keep size small
-        if @data[:steps].size > 5
-          keep = @data[:steps].last(5)
-          summarized = { index: 'summary', note: "Summarized #{(@data[:steps].size - 5)} earlier steps" }
-          @data[:steps] = [summarized] + keep
-        end
+        return unless @data[:steps].size > 5
+
+        keep = @data[:steps].last(5)
+        summarized = { index: 'summary', note: "Summarized #{@data[:steps].size - 5} earlier steps" }
+        @data[:steps] = [summarized] + keep
       end
     end
   end
 end
-

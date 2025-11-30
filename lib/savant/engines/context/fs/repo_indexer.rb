@@ -238,10 +238,19 @@ module Savant
             base = Dir.pwd
             runtime_path = File.join(base, '.savant', 'runtime.json')
             if File.file?(runtime_path)
-              raw = JSON.parse(File.read(runtime_path)) rescue {}
+              raw = begin
+                JSON.parse(File.read(runtime_path))
+              rescue StandardError
+                {}
+              end
               slm = (raw['slm_model'] || ENV['SLM_MODEL'] || Savant::LLM::DEFAULT_SLM).to_s
               llm = (raw['llm_model'] || ENV['LLM_MODEL'] || Savant::LLM::DEFAULT_LLM).to_s
-              provider = (raw['provider'] || Savant::LLM.default_provider_for(llm)).to_s
+              prov_val = raw['provider']
+              provider = if prov_val.nil? || prov_val.to_s.strip.empty?
+                           Savant::LLM.default_provider_for(llm)
+                         else
+                           prov_val.to_s.strip.to_sym
+                         end
               return { slm_model: slm, llm_model: llm, provider: provider }
             end
           rescue StandardError
@@ -263,6 +272,7 @@ module Savant
         def llm_model_running?(model, state_key)
           running_flag = model['running']
           return true if running_flag == true || running_flag.to_s.downcase == 'true'
+
           state_key.to_s == 'running'
         end
 

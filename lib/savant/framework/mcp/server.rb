@@ -37,9 +37,7 @@ module Savant
       @ws_host = host || ws_cfg['host'] || '127.0.0.1'
       @ws_port = Integer(port || ws_cfg['port'] || 8765)
       @ws_path = path || ws_cfg['path'] || '/mcp'
-      @multiplexer = if @service == 'multiplexer' || @service == 'all'
-                       Savant::Multiplexer.ensure!(base_path: @base_path, settings_path: settings_path)
-                     end
+      @multiplexer = (Savant::Multiplexer.ensure!(base_path: @base_path, settings_path: settings_path) if @service == 'multiplexer' || @service == 'all')
     end
 
     def start
