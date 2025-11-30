@@ -59,6 +59,8 @@ module Savant
         list << { module: 'hub', method: 'GET', path: '/diagnostics/agent', description: 'Agent runtime: memory + telemetry' }
         list << { module: 'hub', method: 'GET', path: '/diagnostics/agent/trace', description: 'Download agent trace log' }
         list << { module: 'hub', method: 'GET', path: '/diagnostics/agent/session', description: 'Download agent session memory JSON' }
+        list << { module: 'hub', method: 'GET', path: '/diagnostics/workflows', description: 'Workflow engine telemetry (recent events)' }
+        list << { module: 'hub', method: 'GET', path: '/diagnostics/workflows/trace', description: 'Download workflow trace JSONL' }
         list << { module: 'hub', method: 'GET', path: '/diagnostics/mcp/:name', description: 'Per-engine diagnostics' }
         list << { module: 'hub', method: 'GET', path: '/routes', description: 'Routes list (add ?expand=1 to include tool calls)' }
         list << { module: 'hub', method: 'GET', path: '/logs', description: 'Aggregated recent events (?n=100,&mcp=,&type=)' }
@@ -199,6 +201,8 @@ module Savant
         return diagnostics_agent_session(req) if req.get? && req.path_info == '/diagnostics/agent/session'
         return diagnostics_connections(req) if req.get? && req.path_info == '/diagnostics/connections'
         return diagnostics_mcp(req) if req.get? && req.path_info.start_with?('/diagnostics/mcp/')
+        return diagnostics_workflows(req) if req.get? && req.path_info == '/diagnostics/workflows'
+        return diagnostics_workflows_trace(req) if req.get? && req.path_info == '/diagnostics/workflows/trace'
         return logs_index(req) if req.get? && req.path_info == '/logs'
 
         if req.get? && req.path_info.start_with?('/logs/')
@@ -289,6 +293,26 @@ module Savant
         type = req.params['type']
         events = @recorder.last(n, mcp: (mcp unless mcp.to_s.empty?), type: (type unless type.to_s.empty?))
         respond(200, { count: events.length, events: events })
+      end
+
+      # GET /diagnostics/workflows -> recent workflow events
+      def diagnostics_workflows(req)
+        n = (req.params['n'] || '100').to_i
+        events = @recorder.last(n, type: 'workflow_step')
+        respond(200, { count: events.length, events: events })
+      end
+
+      # GET /diagnostics/workflows/trace -> download JSONL trace file
+      def diagnostics_workflows_trace(_req)
+        base = if ENV['SAVANT_PATH'] && !ENV['SAVANT_PATH'].empty?
+                 ENV['SAVANT_PATH']
+               else
+                 File.expand_path('../../..', __dir__)
+               end
+        path = File.join(base, 'logs', 'workflow_trace.log')
+        return respond(404, { error: 'trace_not_found', path: path }) unless File.file?(path)
+        data = File.read(path)
+        [200, { 'Content-Type' => 'text/plain' }.merge(cors_headers), [data]]
       end
 
       # GET /logs/stream -> SSE unified stream of events

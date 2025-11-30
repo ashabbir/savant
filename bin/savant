@@ -152,6 +152,7 @@ when 'review'
 when 'workflow'
   ensure_savant_path!
   require_relative '../lib/savant/framework/boot'
+  require_relative '../lib/savant/engines/workflow/engine'
 
   workflow_name = ARGV.shift
   usage! if workflow_name.nil? || workflow_name.strip.empty?
@@ -172,9 +173,18 @@ when 'workflow'
     puts "  Workflow:        #{workflow_name}"
     puts "  Persona:         #{context.persona[:name]} (v#{context.persona[:version]})"
     puts "  Driver:          #{context.driver_prompt[:version]}"
+    params = begin
+      JSON.parse(options[:params] || '{}')
+    rescue JSON::ParserError
+      warn 'Invalid JSON for --params (falling back to {})'
+      {}
+    end
 
-    puts "\n⚠️  Workflow execution logic not yet implemented (coming in next iteration)."
-    puts 'Engine initialized and ready.'
+    engine = Savant::Workflow::Engine.new(base_path: ENV['SAVANT_PATH'])
+    puts "\n▶️  Running workflow..."
+    res = engine.run(workflow: workflow_name, params: params)
+    puts "\n✅ Workflow finished (status=#{res[:status]} run_id=#{res[:run_id]})"
+    puts JSON.pretty_generate(res)
   rescue Savant::Boot::BootError => e
     warn "\n❌ Boot failed: #{e.message}"
     exit 1
