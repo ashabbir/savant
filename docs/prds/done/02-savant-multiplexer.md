@@ -1,5 +1,26 @@
 # PRD --- Savant MCP Multiplexer (MVP-Critical)
 
+## Agent Implementation Plan
+
+1. **Boot Integration & Config**
+   - Extend runtime boot to instantiate `Savant::Multiplexer` and expose it via `Savant::Runtime.current.multiplexer`.
+   - Add `mcp.multiplexer.engines` schema + defaults so the multiplexer knows which engines to launch.
+2. **Engine Process Management**
+   - Implement `lib/savant/multiplexer/engine_process.rb` handling lifecycle of each `bin/mcp_server --service=<name>` child (boot, heartbeat, restart, stdout logging).
+   - Surface `list_tools`, `call_tool`, and crash detection APIs so the multiplexer can react when an engine dies.
+3. **Routing & Registry**
+   - Implement `lib/savant/multiplexer/router.rb` to namespace tools (`<engine>.<tool>`) and resolve calls to the correct engine process.
+   - Provide helpers to list merged tool specs and to remove tools when their engine goes offline.
+4. **Multiplexer Orchestrator**
+   - Implement `lib/savant/multiplexer.rb` that boots engine processes, maintains router state, logs to `logs/multiplexer.log`, and provides `tools`, `call`, and `engines` APIs.
+   - Update `lib/savant/mcp_server.rb` so `tools/list` and `tools/call` delegate to the multiplexer instead of a single registrar.
+5. **CLI + Docs + Memory Bank**
+   - Add `savant tools` and `savant engines` commands that read multiplexer status.
+   - Update README and memory bank entries with architecture overview, config instructions, and tool naming conventions.
+6. **Validation**
+   - Add specs for engine processes/router/multiplexer plus an integration test for MCP server routing.
+   - Manually verify `savant serve --transport=stdio` exposes merged tools and that killing an engine removes its namespace.
+
 **Owner:** Amd\
 **Status:** ACTIVE\
 **Priority:** P0\

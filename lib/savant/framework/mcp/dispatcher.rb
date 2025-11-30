@@ -3,6 +3,7 @@
 
 require 'json'
 require_relative '../../logging/logger'
+require_relative '../../multiplexer'
 
 module Savant
   module Framework
@@ -12,10 +13,11 @@ module Savant
       # - Validates and handles core MCP methods.
       # - Returns JSON strings (no direct IO) so transports can decide how to send.
       class Dispatcher
-      def initialize(service:, log: Savant::Logging::Logger.new(io: $stdout, json: true, service: 'savant'))
+      def initialize(service:, log: Savant::Logging::Logger.new(io: $stdout, json: true, service: 'savant'), multiplexer: nil)
         @service = service.to_s
         @log = log
         @services = {}
+        @multiplexer = multiplexer
       end
 
       # Parse and minimally validate a JSON-RPC 2.0 message string.
@@ -41,6 +43,8 @@ module Savant
         id = req['id']
         method = req['method']
         params = req['params'] || {}
+
+        return handle_multiplexer(req) if @multiplexer
 
         case method
         when 'initialize'
@@ -98,6 +102,32 @@ module Savant
       end
 
       private
+
+      def handle_multiplexer(req)
+        id = req['id']
+        method = req['method']
+        params = req['params'] || {}
+
+        case method
+        when 'initialize'
+          json(response_ok(id, @multiplexer.server_info))
+        when 'tools/list'
+          json(response_ok(id, { tools: @multiplexer.tools }))
+        when 'tools/call'
+          name = params['name']
+          args = params['arguments'] || {}
+          result = @multiplexer.call(name, args)
+          json(response_ok(id, result))
+        else
+          json(response_error(id, :method_not_found))
+        end
+      rescue Savant::Multiplexer::ToolNotFound => e
+        json(response_error(id, :method_not_found, message: e.message))
+      rescue Savant::Multiplexer::EngineOffline => e
+        json(response_error(id, :internal_error, message: e.message))
+      rescue StandardError => e
+        json(response_error(id, :internal_error, message: e.message))
+      end
 
       def json(obj) = JSON.generate(obj)
 

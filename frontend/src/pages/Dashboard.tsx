@@ -10,6 +10,7 @@ import Alert from '@mui/material/Alert';
 import LinearProgress from '@mui/material/LinearProgress';
 import { useHubInfo } from '../api';
 import EngineCard from '../components/EngineCard';
+import MultiplexerCard from '../components/MultiplexerCard';
 
 export default function Dashboard() {
   const hub = useHubInfo();
@@ -54,6 +55,16 @@ export default function Dashboard() {
             </Box>
           </Stack>
         </Paper>
+      )}
+
+      {hub.data?.multiplexer && (
+        <Box sx={{ mb: 3 }}>
+          <Typography variant="h6" sx={{ mb: 1, fontWeight: 500 }}>
+            Multiplexer
+          </Typography>
+          <Divider sx={{ mb: 2 }} />
+          <MultiplexerCard info={hub.data.multiplexer} />
+        </Box>
       )}
 
       {/* Engines Section */}

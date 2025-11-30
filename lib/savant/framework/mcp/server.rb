@@ -10,17 +10,19 @@
 require_relative '../transports/mcp/stdio'
 require_relative '../transports/mcp/websocket'
 require_relative '../config'
+require_relative '../../multiplexer'
 
 module Savant
   # Launch MCP with selected transport.
   class MCPServer
     def initialize(transport: nil, host: nil, port: nil, path: nil)
-      @service = (ENV['MCP_SERVICE'] || 'context').to_s
+      @service = (ENV['MCP_SERVICE'] || 'multiplexer').to_s
       base = (if ENV['SAVANT_PATH'] && !ENV['SAVANT_PATH'].empty?
                 ENV['SAVANT_PATH']
               else
                 File.expand_path('../../../..', __dir__)
               end)
+      @base_path = base
       settings_path = File.join(base, 'config', 'settings.json')
 
       cfg = begin
@@ -35,14 +37,18 @@ module Savant
       @ws_host = host || ws_cfg['host'] || '127.0.0.1'
       @ws_port = Integer(port || ws_cfg['port'] || 8765)
       @ws_path = path || ws_cfg['path'] || '/mcp'
+      @multiplexer = if @service == 'multiplexer' || @service == 'all'
+                       Savant::Multiplexer.ensure!(base_path: @base_path, settings_path: settings_path)
+                     end
     end
 
     def start
       case @transport_mode
       when 'websocket'
-        Savant::Transports::MCP::WebSocket.new(service: @service, host: @ws_host, port: @ws_port, path: @ws_path).start
+        Savant::Transports::MCP::WebSocket.new(service: @service, host: @ws_host, port: @ws_port, path: @ws_path,
+                                               multiplexer: @multiplexer).start
       else
-        Savant::Transports::MCP::Stdio.new(service: @service).start
+        Savant::Transports::MCP::Stdio.new(service: @service, base_path: @base_path, multiplexer: @multiplexer).start
       end
     end
   end
