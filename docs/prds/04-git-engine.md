@@ -274,3 +274,41 @@ This powers the MR Review Agent.
 ------------------------------------------------------------------------
 
 # END OF PRD
+
+------------------------------------------------------------------------
+
+Agent Implementation Plan (by Codex)
+
+1. Create `lib/savant/engines/git/` with:
+   - `engine.rb` (façade orchestrator)
+   - `ops.rb` (business logic wrapper)
+   - `tools.rb` (MCP registrar via DSL)
+   - `repo_detector.rb` (root/branch/HEAD/tracked files)
+   - `diff_parser.rb` (unified diff → files/hunks/lines)
+   - `hunk_parser.rb` (added/removed line numbers per hunk)
+   - `file_context.rb` (before/after/hunk context + readers)
+
+2. Expose MCP tools (namespaced by multiplexer as `git.*`):
+   - `repo_status` (optional `path`)
+   - `changed_files` (optional `staged`, `path`)
+   - `diff` (optional `staged`, `paths[]`)
+   - `hunks` (optional `staged`, `paths[]`)
+   - `file_context` (`path`, optional `line`, `before`, `after`, `at`)
+   - `read_file` (`path`, optional `at`=`worktree|HEAD`)
+
+3. Integration:
+   - Add `git` to multiplexer default engines so it autostarts.
+   - Ensure engine `server_info` and logging use `logs/git.log` via standard transport settings.
+
+4. Tests (RSpec):
+   - Create `spec/savant/engines/git/engine_spec.rb` with a temp git repo:
+     - Asserts `repo_status` returns root/branch/HEAD
+     - Modifies a file; asserts `changed_files`, `diff`, `hunks` are structured and correct
+     - Validates `read_file`/`file_context` basics
+
+5. Lint & CI:
+   - Run RuboCop auto-correct, ensure style passes
+   - Run RSpec suite; iterate to green
+
+6. Docs/UX:
+   - Basic README mention: `savant tools` shows `git.*` routes; call via `./bin/savant call git.diff --input='{}'` through multiplexer.
