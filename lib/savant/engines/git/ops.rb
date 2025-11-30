@@ -27,6 +27,7 @@ module Savant
         cmd = %(git -C #{Shellwords.escape(root)} status #{porcelain})
         out, err, st = Open3.capture3(cmd)
         raise err.strip unless st.success?
+
         parse_status_porcelain(out)
       end
 
@@ -99,4 +100,3 @@ module Savant
     end
   end
 end
-

@@ -5,7 +5,7 @@ module Savant
   module Git
     # Parses unified diff text for a single file into hunks and lines.
     class DiffParser
-      HUNK_HEADER = /@@\s*-(\d+)(?:,(\d+))?\s*\+(\d+)(?:,(\d+))?\s*@@(.*)$/.freeze
+      HUNK_HEADER = /@@\s*-(\d+)(?:,(\d+))?\s*\+(\d+)(?:,(\d+))?\s*@@(.*)$/
 
       def parse_file_diff(text)
         hunks = []
@@ -36,4 +36,3 @@ module Savant
     end
   end
 end
-
