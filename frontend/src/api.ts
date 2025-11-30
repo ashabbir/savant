@@ -151,6 +151,32 @@ export function getErrorMessage(err: any): string {
   }
 }
 
+export type LLMModelInfo = {
+  name?: string;
+  model?: string;
+  state?: string;
+  status?: string;
+  running?: boolean;
+  progress?: number;
+  progress_percent?: number;
+  [key: string]: any;
+};
+
+export type LLMDiagnostics = {
+  total?: number;
+  running?: number;
+  states?: Record<string, number>;
+  models?: LLMModelInfo[];
+  error?: string;
+};
+
+export type LLMDiagnosticRuntime = {
+  slm_model?: string;
+  llm_model?: string;
+  provider?: string;
+  error?: string;
+};
+
 export type Diagnostics = {
   base_path: string;
   settings_path: string;
@@ -159,6 +185,8 @@ export type Diagnostics = {
   db: { connected: boolean; counts?: { repos: number; files: number; chunks: number }; error?: string; counts_error?: string };
   mounts: { [k: string]: boolean };
   secrets?: { path: string; exists: boolean; users?: number; services?: string[]; error?: string };
+  llm_models?: LLMDiagnostics;
+  llm_runtime?: LLMDiagnosticRuntime;
 };
 
 export function useDiagnostics() {

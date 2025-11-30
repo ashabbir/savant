@@ -20,7 +20,7 @@ module Savant
 
     # Options: io:, file_path:, level:, json:, service:, tool:
     # rubocop:disable Metrics/ParameterLists
-    def initialize(io: $stdout, file_path: nil, level: :info, json: true, service: nil, tool: nil)
+    def initialize(io: $stdout, file_path: nil, level: :error, json: true, service: nil, tool: nil)
       @io = io
       @file_path = file_path
       @json = json

@@ -25,7 +25,7 @@ module Savant
           # Prefer per-engine file path if provided; else default to logs/<service>.log
           engine_file = resolve_engine_file(cfg, @service)
           file_path = engine_file || core_file || File.join(@base_path, 'logs', "#{@service}.log")
-          level = (cfg.dig('logging', 'level') || ENV['LOG_LEVEL'] || 'info').to_s
+          level = (cfg.dig('logging', 'level') || ENV['LOG_LEVEL'] || 'error').to_s
           fmt = (cfg.dig('logging', 'format') || ENV['LOG_FORMAT'] || 'json').to_s
 
           log = prepare_logger(@service, @base_path, file_path: file_path, level: level, format: fmt)
@@ -65,7 +65,7 @@ module Savant
           end
         rescue Interrupt
           log = Savant::Logging::Logger.new(io: $stdout, file_path: File.join(@base_path, 'logs', "#{@service}.log"),
-                                   level: :info, json: true, service: @service)
+                                   level: :error, json: true, service: @service)
           log.info(event: 'shutdown', reason: 'Interrupt')
         ensure
           Savant::Hub::Connections.global.disconnect(conn_id) if defined?(conn_id) && conn_id
@@ -81,7 +81,7 @@ module Savant
            end)
         end
 
-        def prepare_logger(service, _base_path, file_path: nil, level: 'info', format: 'json')
+        def prepare_logger(service, _base_path, file_path: nil, level: 'error', format: 'json')
           json = format.to_s.downcase != 'text'
           Savant::Logging::Logger.new(io: $stdout, file_path: file_path, level: level, json: json, service: service)
         end

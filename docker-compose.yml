@@ -60,6 +60,7 @@ services:
       SAVANT_LOG_PATH: /tmp/savant
       SAVANT_SECRETS_PATH: /app/secrets.yml
       DATABASE_URL: postgres://context:contextpw@postgres:5432/contextdb
+      OLLAMA_HOST: ${OLLAMA_HOST:-http://host.docker.internal:11434}
     volumes:
       - ./:/app:rw
       - ../:/host:ro

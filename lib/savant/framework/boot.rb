@@ -10,6 +10,7 @@ require_relative '../logging/logger'
 require_relative '../engines/personas/ops'
 require_relative '../engines/think/engine'
 require_relative '../multiplexer'
+require_relative '../llm/adapter'
 
 module Savant
   # Boot Runtime: Initializes the Savant Engine
@@ -94,7 +95,7 @@ module Savant
         Savant::Logging::Logger.new(
           io: $stdout,
           file_path: log_file,
-          level: ENV['LOG_LEVEL'] || 'info',
+          level: ENV['LOG_LEVEL'] || 'error',
           json: true,
           service: 'boot'
         )
@@ -282,6 +283,10 @@ module Savant
             rule_count: context.amr_rules[:rules].size
           },
           repo: context.repo,
+          # Hub-visible LLM runtime defaults (overridable by env or later runtime)
+          slm_model: (ENV['SLM_MODEL'] || Savant::LLM::DEFAULT_SLM),
+          llm_model: (ENV['LLM_MODEL'] || Savant::LLM::DEFAULT_LLM),
+          provider: Savant::LLM.default_provider_for(ENV['LLM_MODEL'] || Savant::LLM::DEFAULT_LLM),
           created_at: context.memory[:created_at],
           updated_at: Time.now.utc.iso8601
         }
