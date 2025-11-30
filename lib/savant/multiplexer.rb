@@ -28,7 +28,10 @@ module Savant
       @base_path = base_path || default_base_path
       @settings_path = settings_path || File.join(@base_path, 'config', 'settings.json')
       FileUtils.mkdir_p(File.join(@base_path, 'logs'))
-      @logger = logger || Savant::Logging::Logger.new(io: $stdout, file_path: File.join(@base_path, 'logs', 'multiplexer.log'), json: true, service: 'multiplexer')
+      level = (ENV['LOG_LEVEL'] || 'error')
+      stdout_enabled = ENV['SAVANT_QUIET'] == '1' ? false : true
+      io = stdout_enabled ? $stdout : nil
+      @logger = logger || Savant::Logging::Logger.new(io: io, file_path: File.join(@base_path, 'logs', 'multiplexer.log'), json: true, service: 'multiplexer', level: level)
       @router = Savant::Multiplexer::Router.new
       @engines = {}
       @mutex = Mutex.new

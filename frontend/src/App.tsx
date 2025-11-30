@@ -6,6 +6,7 @@ import { createTheme, ThemeProvider } from '@mui/material/styles';
 import Search from './pages/Search';
 import Repos from './pages/Repos';
 import Diagnostics from './pages/Diagnostics';
+import DiagnosticsAgent from './pages/diagnostics/Agent';
 import DiagnosticsOverview from './pages/diagnostics/Overview';
 import DiagnosticsRequests from './pages/diagnostics/Requests';
 import DiagnosticsLogs from './pages/diagnostics/Logs';
@@ -109,8 +110,10 @@ function multiplexerChipColor(status?: string): 'default' | 'success' | 'warning
 
 function useDiagnosticsSubIndex() {
   const { pathname } = useLocation();
-  if (pathname.includes('/diagnostics/routes')) return 3;
-  if (pathname.includes('/diagnostics/logs')) return 2;
+  if (pathname.includes('/diagnostics/routes')) return 4;
+  if (pathname.includes('/diagnostics/logs')) return 3;
+  if (pathname.includes('/diagnostics/agent')) return 2;
+  if (pathname.includes('/diagnostics/agents')) return 2;
   if (pathname.includes('/diagnostics/requests')) return 1;
   return 0; // overview default
 }
@@ -246,6 +249,12 @@ export default function App() {
       if (tgt) navigate(defaultEngineRoute(tgt), { replace: true });
     }
   }, [mainIdx, loc.pathname, engines]);
+  // Normalize Diagnostics root to a concrete sub-route so tabs highlight consistently
+  React.useEffect(() => {
+    if (mainIdx === 2 && (loc.pathname === '/diagnostics' || loc.pathname === '/diagnostics/')) {
+      navigate('/diagnostics/overview', { replace: true });
+    }
+  }, [mainIdx, loc.pathname]);
   const errMsg = getErrorMessage(error as any);
   const [snackOpen, setSnackOpen] = useState(false);
   const [snackMsg, setSnackMsg] = useState('');
@@ -346,14 +355,16 @@ export default function App() {
           onChange={(_, v) => {
             if (v === 0) navigate('/diagnostics/overview');
             else if (v === 1) navigate('/diagnostics/requests');
-            else if (v === 2) navigate('/diagnostics/logs');
-            else if (v === 3) navigate('/diagnostics/routes');
+            else if (v === 2) navigate('/diagnostics/agents');
+            else if (v === 3) navigate('/diagnostics/logs');
+            else if (v === 4) navigate('/diagnostics/routes');
           }}
           centered
           sx={{ '& .MuiTab-root': { fontSize: 12, minHeight: 36, py: 0.5, textTransform: 'none' }, '& .MuiTabs-indicator': { height: 2 } }}
         >
           <Tab label="Overview" component={Link} to="/diagnostics/overview" />
           <Tab label="Requests" component={Link} to="/diagnostics/requests" />
+          <Tab label="Agents" component={Link} to="/diagnostics/agents" />
           <Tab label="Logs" component={Link} to="/diagnostics/logs" />
           <Tab label="Routes" component={Link} to="/diagnostics/routes" />
         </Tabs>
@@ -466,6 +477,8 @@ export default function App() {
           <Route path="/diagnostics/overview" element={<DiagnosticsOverview />} />
           <Route path="/diagnostics/requests" element={<DiagnosticsRequests />} />
           <Route path="/diagnostics/logs" element={<DiagnosticsLogs />} />
+          <Route path="/diagnostics/agent" element={<DiagnosticsAgent />} />
+          <Route path="/diagnostics/agents" element={<DiagnosticsAgent />} />
           <Route path="/diagnostics/routes" element={<DiagnosticsRoutes />} />
         </Routes>
       </Container>

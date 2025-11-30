@@ -308,7 +308,7 @@ module Savant
     # Suppress Postgres NOTICE messages (e.g., long word warnings) unless running in debug/trace mode.
     # Controlled by LOG_LEVEL environment variable.
     def configure_client_min_messages
-      lvl = (ENV['LOG_LEVEL'] || 'info').to_s.downcase
+      lvl = (ENV['LOG_LEVEL'] || 'error').to_s.downcase
       min = %w[trace debug].include?(lvl) ? 'NOTICE' : 'WARNING'
       exec("SET client_min_messages TO #{min}")
     rescue StandardError
