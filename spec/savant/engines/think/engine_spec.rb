@@ -6,8 +6,8 @@ require 'fileutils'
 
 RSpec.describe 'Savant Think MCP' do
   let(:tmp_root) { Dir.mktmpdir('savant_think_spec') }
-  let(:workflows_dir) { File.join(tmp_root, 'lib', 'savant', 'think', 'workflows') }
-  let(:prompts_dir) { File.join(tmp_root, 'lib', 'savant', 'think', 'prompts') }
+  let(:workflows_dir) { File.join(tmp_root, 'lib', 'savant', 'engines', 'think', 'workflows') }
+  let(:prompts_dir) { File.join(tmp_root, 'lib', 'savant', 'engines', 'think', 'prompts') }
 
   before do
     # Prepare isolated SAVANT_PATH with workflows and prompts
@@ -33,7 +33,7 @@ RSpec.describe 'Savant Think MCP' do
     YAML
 
     # Prompts registry and a single prompt version
-    File.write(File.join(tmp_root, 'lib', 'savant', 'think', 'prompts.yml'), <<~YAML)
+    File.write(File.join(tmp_root, 'lib', 'savant', 'engines', 'think', 'prompts.yml'), <<~YAML)
       versions:
         stable-2025-11: prompts/stable-2025-11.md
     YAML
@@ -51,7 +51,7 @@ RSpec.describe 'Savant Think MCP' do
 
   it 'lists think tools via registrar and serves driver prompt' do
     expect do
-      require_relative '../../../lib/savant/engines/think/tools'
+      require_relative '../../../../lib/savant/engines/think/tools'
     end.to_not raise_error
 
     registrar = Savant::Think::Tools.build_registrar(nil)
@@ -67,7 +67,7 @@ RSpec.describe 'Savant Think MCP' do
   end
 
   it 'plans first instruction and advances deterministically' do
-    require_relative '../../../lib/savant/engines/think/tools'
+    require_relative '../../../../lib/savant/engines/think/tools'
     registrar = Savant::Think::Tools.build_registrar(nil)
 
     # Plan the workflow
@@ -123,7 +123,7 @@ RSpec.describe 'Savant Think MCP' do
   end
 
   it 'lists and reads workflows' do
-    require_relative '../../../lib/savant/engines/think/tools'
+    require_relative '../../../../lib/savant/engines/think/tools'
     registrar = Savant::Think::Tools.build_registrar(nil)
 
     list = registrar.call('think.workflows.list', { 'filter' => 'review' }, ctx: {})

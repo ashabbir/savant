@@ -240,7 +240,18 @@ export default function DiagnosticsRequests() {
               {selected.query && (
                 <Box>
                   <Typography variant="caption" color="text.secondary">Query String</Typography>
-                  <Typography variant="body2" sx={{ fontFamily: 'monospace', bgcolor: 'grey.100', p: 1, borderRadius: 1 }}>
+                  <Typography
+                    variant="body2"
+                    sx={{
+                      fontFamily: 'monospace',
+                      bgcolor: 'action.hover',
+                      color: 'text.primary',
+                      p: 1,
+                      borderRadius: 1,
+                      border: '1px solid',
+                      borderColor: 'divider'
+                    }}
+                  >
                     {selected.query}
                   </Typography>
                 </Box>

@@ -1,13 +1,13 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
-require_relative '../../../lib/savant/framework/db'
-require_relative '../../../lib/savant/engines/context/ops'
+require_relative '../../../../lib/savant/framework/db'
+require_relative '../../../../lib/savant/engines/context/ops'
 
 RSpec.describe Savant::Context::Ops do
   describe '#repos_readme_list' do
     it 'returns truncated README snippets and forwards filter' do
-      db = instance_double(Savant::DB)
+      db = instance_double(Savant::Framework::DB)
       allow(db).to receive(:list_repos_with_readme).and_return([
                                                                  { name: 'repo-a', readme_text: 'Hello World' },
                                                                  { name: 'repo-b', readme_text: nil }

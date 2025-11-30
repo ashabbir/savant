@@ -6,6 +6,7 @@
 
 require_relative '../../indexer'
 require_relative '../../../framework/db'
+require_relative '../../../framework/config'
 require_relative '../../../logging/logger'
 
 module Savant
@@ -67,7 +68,7 @@ module Savant
           repos = []
           cfg_err = nil
           begin
-            require_relative '../../framework/config'
+            require_relative '../../../framework/config'
             if File.file?(info[:settings_path])
               cfg = Savant::Framework::Config.load(info[:settings_path])
               (cfg.dig('indexer', 'repos') || []).each do |r|
@@ -143,12 +144,59 @@ module Savant
             '/host-crawler' => File.directory?('/host-crawler')
           }
 
+          info[:secrets] = secrets_info(base)
+
           info
         end
 
         public :diagnostics
 
         private
+
+        def secrets_info(base_path)
+          secrets_path = if ENV['SAVANT_SECRETS_PATH'] && !ENV['SAVANT_SECRETS_PATH'].empty?
+                           ENV['SAVANT_SECRETS_PATH']
+                         else
+                           root_candidate = File.join(base_path, 'secrets.yml')
+                           cfg_candidate = File.join(base_path, 'config', 'secrets.yml')
+                           File.file?(root_candidate) ? root_candidate : cfg_candidate
+                         end
+
+          info = {
+            path: secrets_path,
+            exists: File.file?(secrets_path)
+          }
+
+          return info unless info[:exists]
+
+          begin
+            require_relative '../../../framework/secret_store'
+            raw = Savant::Framework::SecretStore.yaml_safe_read(secrets_path)
+            users_hash = if raw.is_a?(Hash) && raw['users'].is_a?(Hash)
+                           raw['users']
+                         else
+                           raw.is_a?(Hash) ? raw : {}
+                         end
+            user_keys = users_hash.is_a?(Hash) ? users_hash.keys.map(&:to_s) : []
+            info[:users] = user_keys.length if user_keys.any?
+            service_names = []
+            if users_hash.is_a?(Hash)
+              users_hash.each_value do |services|
+                next unless services.is_a?(Hash)
+
+                services.each_key do |svc|
+                  service_names << svc.to_s
+                end
+              end
+            end
+            service_names.uniq!
+            info[:services] = service_names.sort if service_names.any?
+          rescue StandardError => e
+            info[:error] = e.message
+          end
+
+          info
+        end
 
         def build_cache
           cfg = Savant::Indexer::Config.new(Savant::Framework::Config.load(@settings_path))

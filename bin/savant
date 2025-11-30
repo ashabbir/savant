@@ -52,7 +52,7 @@ when 'run'
 
   begin
     puts '🚀 Booting Savant Engine...'
-    context = Savant::Framework::Boot.initialize!(options)
+    context = Savant::Boot.initialize!(options)
 
     puts "\n✓ Boot successful!"
     puts "\n📊 Runtime Status:"
@@ -67,7 +67,7 @@ when 'run'
     end
     puts "  Runtime State:   #{context.memory[:persistent_path]}"
     puts "\nEngine ready for agent execution."
-  rescue Savant::Framework::Boot::BootError => e
+  rescue Savant::Boot::BootError => e
     warn "\n❌ Boot failed: #{e.message}"
     exit 1
   end
@@ -83,7 +83,7 @@ when 'review'
 
   begin
     puts '🚀 Booting Savant Engine for MR Review...'
-    context = Savant::Framework::Boot.initialize!(options)
+    context = Savant::Boot.initialize!(options)
 
     puts "\n✓ Boot successful!"
     puts "\n📊 Runtime Status:"
@@ -94,7 +94,7 @@ when 'review'
     puts "    Branch:        #{context.repo[:branch]}" if context.repo
     puts "\n⚠️  MR Review logic not yet implemented (coming in next iteration)."
     puts 'Engine initialized and ready.'
-  rescue Savant::Framework::Boot::BootError => e
+  rescue Savant::Boot::BootError => e
     warn "\n❌ Boot failed: #{e.message}"
     exit 1
   end
@@ -114,7 +114,7 @@ when 'workflow'
 
   begin
     puts '🚀 Booting Savant Engine for Workflow Execution...'
-    context = Savant::Framework::Boot.initialize!(options)
+    context = Savant::Boot.initialize!(options)
 
     puts "\n✓ Boot successful!"
     puts "\n📊 Runtime Status:"
@@ -125,7 +125,7 @@ when 'workflow'
 
     puts "\n⚠️  Workflow execution logic not yet implemented (coming in next iteration)."
     puts 'Engine initialized and ready.'
-  rescue Savant::Framework::Boot::BootError => e
+  rescue Savant::Boot::BootError => e
     warn "\n❌ Boot failed: #{e.message}"
     exit 1
   end

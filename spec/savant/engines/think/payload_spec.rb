@@ -6,8 +6,8 @@ require 'fileutils'
 
 RSpec.describe 'Savant Think payload handling' do
   let(:tmp_root) { Dir.mktmpdir('savant_think_payload_spec') }
-  let(:workflows_dir) { File.join(tmp_root, 'lib', 'savant', 'think', 'workflows') }
-  let(:prompts_dir) { File.join(tmp_root, 'lib', 'savant', 'think', 'prompts') }
+  let(:workflows_dir) { File.join(tmp_root, 'lib', 'savant', 'engines', 'think', 'workflows') }
+  let(:prompts_dir) { File.join(tmp_root, 'lib', 'savant', 'engines', 'think', 'prompts') }
   let(:config_dir) { File.join(tmp_root, 'config') }
 
   before do
@@ -30,7 +30,7 @@ RSpec.describe 'Savant Think payload handling' do
     YAML
 
     # Prompts registry and a single prompt version
-    File.write(File.join(tmp_root, 'lib', 'savant', 'think', 'prompts.yml'), <<~YAML)
+    File.write(File.join(tmp_root, 'lib', 'savant', 'engines', 'think', 'prompts.yml'), <<~YAML)
       versions:
         stable-2025-11: prompts/stable-2025-11.md
     YAML
@@ -46,7 +46,7 @@ RSpec.describe 'Savant Think payload handling' do
   end
 
   it 'sanitizes non-UTF8 snapshots and writes UTF-8 state' do
-    require_relative '../../../lib/savant/engines/think/tools'
+    require_relative '../../../../lib/savant/engines/think/tools'
     registrar = Savant::Think::Tools.build_registrar(nil)
 
     # Plan -> driver bootstrap
@@ -96,7 +96,7 @@ RSpec.describe 'Savant Think payload handling' do
         warn_threshold_bytes: 40
     YAML
 
-    require_relative '../../../lib/savant/engines/think/tools'
+    require_relative '../../../../lib/savant/engines/think/tools'
     registrar = Savant::Think::Tools.build_registrar(nil)
 
     plan = registrar.call('think.plan', { 'workflow' => 'review_v1', 'params' => {}, 'run_id' => 'test-run', 'start_fresh' => true }, ctx: {})

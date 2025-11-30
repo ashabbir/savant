@@ -198,7 +198,7 @@ module Savant
         savant = ENV['SAVANT_PATH'].to_s
         return savant unless savant.empty?
 
-        File.expand_path('../../..', __dir__)
+        File.expand_path('../../../..', __dir__)
       end
 
       def load_catalog

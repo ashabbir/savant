@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
-require_relative '../../../lib/savant/engines/personas/tools'
-require_relative '../../../lib/savant/engines/personas/engine'
+require_relative '../../../../lib/savant/engines/personas/tools'
+require_relative '../../../../lib/savant/engines/personas/engine'
 
 RSpec.describe Savant::Personas::Tools do
   it 'exposes personas.list and personas.get tools' do

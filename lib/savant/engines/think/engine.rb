@@ -391,7 +391,7 @@ module Savant
         base = @env['SAVANT_PATH']
         return base unless base.nil? || base.strip.empty?
 
-        File.expand_path('../../..', __dir__)
+        File.expand_path('../../../..', __dir__)
       end
 
       def safe_yaml(str)

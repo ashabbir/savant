@@ -4,18 +4,19 @@
 require_relative '../../logging/logger'
 
 module Savant
-  module Core
-    # Base engine with lifecycle hook DSL and shared context handle.
-    #
-    # Usage:
-    #   class MyEngine < Savant::Framework::Engine::Base
-    #     before_call :authenticate
-    #     after_call  :audit
-    #     # ...
-    #   end
-    #
-    # Hooks receive (ctx, payload) and run around each tool call.
-    class Engine
+  module Framework
+    module Engine
+      # Base engine with lifecycle hook DSL and shared context handle.
+      #
+      # Usage:
+      #   class MyEngine < Savant::Framework::Engine::Base
+      #     before_call :authenticate
+      #     after_call  :audit
+      #     # ...
+      #   end
+      #
+      # Hooks receive (ctx, payload) and run around each tool call.
+      class Base
       class << self
         def before_call(method)
           (@before_hooks ||= []) << method.to_sym
@@ -62,6 +63,7 @@ module Savant
         hooks.each do |m|
           send(m, ctx, payload) if respond_to?(m, true)
         end
+      end
       end
     end
   end

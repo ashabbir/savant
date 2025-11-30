@@ -158,6 +158,7 @@ export type Diagnostics = {
   repos: { name: string; path: string; exists: boolean; directory: boolean; readable: boolean; has_files?: boolean; sampled_count?: number; sample_files?: string[]; error?: string }[];
   db: { connected: boolean; counts?: { repos: number; files: number; chunks: number }; error?: string; counts_error?: string };
   mounts: { [k: string]: boolean };
+  secrets?: { path: string; exists: boolean; users?: number; services?: string[]; error?: string };
 };
 
 export function useDiagnostics() {
