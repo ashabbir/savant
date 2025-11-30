@@ -99,12 +99,27 @@ function useEngineSubIndex(engineName: string | undefined) {
     if (pathname.includes('/search') || pathname.includes('/fts')) return 1;
     if (pathname.includes('/memory')) return 2;
     if (pathname.includes('/repos')) return 3;
+    if (pathname.includes('/tools')) return 4;
     return 0;
   }
   if (engineName === 'think') {
     if (pathname.includes('/workflows')) return 0;
     if (pathname.includes('/prompts')) return 1;
     if (pathname.includes('/runs')) return 2;
+    if (pathname.includes('/think/tools')) return 3;
+    return 0;
+  }
+  if (engineName === 'personas') {
+    if (pathname.includes('/tools')) return 1;
+    return 0;
+  }
+  if (engineName === 'rules') {
+    if (pathname.includes('/tools')) return 1;
+    return 0;
+  }
+  if (engineName === 'workflow') {
+    if (pathname.includes('/tools')) return 1;
+    if (pathname.includes('/runs')) return 0;
     return 0;
   }
   // personas/jira/git default single or first tab
@@ -329,7 +344,10 @@ export default function App() {
         </Tabs>
       )}
       {mainIdx === 1 && selEngine === 'personas' && (
-        <Tabs value={0} centered sx={{
+        <Tabs value={engSubIdx} onChange={(_, v) => {
+          if (v === 0) navigate('/engines/personas');
+          else if (v === 1) navigate('/engines/personas/tools');
+        }} centered sx={{
           '& .MuiTab-root': { fontSize: 12, minHeight: 36, py: 0.5, textTransform: 'none', color: 'text.secondary' },
           '& .Mui-selected': { color: 'primary.main !important' },
           '& .MuiTabs-indicator': { height: 2, backgroundColor: 'primary.light' }
@@ -339,7 +357,10 @@ export default function App() {
         </Tabs>
       )}
       {mainIdx === 1 && selEngine === 'rules' && (
-        <Tabs value={0} centered sx={{
+        <Tabs value={engSubIdx} onChange={(_, v) => {
+          if (v === 0) navigate('/engines/rules');
+          else if (v === 1) navigate('/engines/rules/tools');
+        }} centered sx={{
           '& .MuiTab-root': { fontSize: 12, minHeight: 36, py: 0.5, textTransform: 'none', color: 'text.secondary' },
           '& .Mui-selected': { color: 'primary.main !important' },
           '& .MuiTabs-indicator': { height: 2, backgroundColor: 'primary.light' }
@@ -349,7 +370,10 @@ export default function App() {
         </Tabs>
       )}
       {mainIdx === 1 && selEngine === 'workflow' && (
-        <Tabs value={0} centered sx={{
+        <Tabs value={engSubIdx} onChange={(_, v) => {
+          if (v === 0) navigate('/engines/workflow/runs');
+          else if (v === 1) navigate('/engines/workflow/tools');
+        }} centered sx={{
           '& .MuiTab-root': { fontSize: 12, minHeight: 36, py: 0.5, textTransform: 'none', color: 'text.secondary' },
           '& .Mui-selected': { color: 'primary.main !important' },
           '& .MuiTabs-indicator': { height: 2, backgroundColor: 'primary.light' }
