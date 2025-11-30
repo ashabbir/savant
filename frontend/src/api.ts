@@ -235,7 +235,7 @@ export function useMemoryResources(repo: string | null) {
   return useQuery<MemoryResource[]>({
     queryKey: ['context', 'memory', 'list', repo || null],
     queryFn: async () => {
-      const res = await client().post('/context/tools/memory/resources/list/call', { params: { repo: repo || null } });
+      const res = await client().post('/context/tools/memory_resources_list/call', { params: { repo: repo || null } });
       return res.data as MemoryResource[];
     }
   });
@@ -245,7 +245,7 @@ export function useMemoryResource(uri: string | null) {
   return useQuery<string>({
     queryKey: ['context', 'memory', 'read', uri],
     queryFn: async () => {
-      const res = await client().post('/context/tools/memory/resources/read/call', { params: { uri } });
+      const res = await client().post('/context/tools/memory_resources_read/call', { params: { uri } });
       return res.data as string;
     },
     enabled: !!uri
