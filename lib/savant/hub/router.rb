@@ -407,9 +407,18 @@ module Savant
           hub: { pid: Process.pid, uptime_seconds: uptime_seconds },
           engines: engines
         }
-        if (mux = Savant::Multiplexer.global)
-          payload[:multiplexer] = mux.snapshot
+        # Attach multiplexer snapshot if available; lazily start if not yet running
+        mux = Savant::Multiplexer.global
+        unless mux
+          begin
+            settings_path = File.join(base_path, 'config', 'settings.json')
+            Savant::Multiplexer.ensure!(base_path: base_path, settings_path: settings_path)
+            mux = Savant::Multiplexer.global
+          rescue StandardError
+            mux = nil
+          end
         end
+        payload[:multiplexer] = mux.snapshot if mux
         respond(200, payload)
       end
 
