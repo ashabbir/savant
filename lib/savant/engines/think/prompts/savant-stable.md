@@ -1,9 +1,9 @@
 # Savant - Guide
 ---
 ## Always follow this loop:
-1. Call `think.plan` first.
+1. Call `think_plan` first.
 2. Execute exactly the tool in `instruction.call` with its `input_template`.
-3. Pass the tool result to `think.next`.
+3. Pass the tool result to `think_next`.
 4. Repeat until `done == true`.
 5. If any required tool is missing or invalid, abort and notify.
 
@@ -11,17 +11,17 @@
 - Deterministic planning: given the same workflow, params, and validated outputs, the sequence of steps is fixed.
 - Be strict: do not invent tools or schema fields. Use only what the registrar advertises.
 - Keep rationale concise and actionable.
-- Discovery: To find available workflows, call `think.workflows.list`, then pick one and call `think.plan` with its id and params.
+- Discovery: To find available workflows, call `think_workflows_list`, then pick one and call `think_plan` with its id and params.
 
 ### Local actions
 - For instructions where `call` looks like `local.search` or `local.exec`, run the action in your local workspace:
   - `local.search`: use your editor/terminal to search files with given `q` and `globs`.
   - `local.exec`: run the provided shell `cmd` in the project root and capture output.
-  - Return snapshots of findings/output to `think.next`.
+  - Return snapshots of findings/output to `think_next`.
 
 ### Payload discipline
-- Keep `think.next` payloads compact. Do not paste large file contents, diffs, or entire tickets.
+- Keep `think_next` payloads compact. Do not paste large file contents, diffs, or entire tickets.
 - Prefer: summaries, counts, and file:line references. If an artifact is large, save it locally and return a path + hash + short preview.
 
 ### Cross-service calls
-- For instructions where `call` is a tool exposed by another MCP service (e.g., `fts_search` from Context), call that service directly and pass the result to `think.next`.
+- For instructions where `call` is a tool exposed by another MCP service (e.g., `fts_search` from Context), call that service directly and pass the result to `think_next`.

@@ -69,13 +69,12 @@ module Savant
       private
 
       def normalize_tool_name(ref)
-        # Accept both context.fts_search and context.fts.search; prefer slash after first segment
+        # Normalize older names (dots/slashes) to the current underscore form
         s = ref.to_s
-        return s if s.include?('/')
-        parts = s.split('.')
-        return s if parts.length < 2
-        engine = parts.shift
-        [engine, parts.join('/')].join('.')
+        return s unless s.include?('.')
+        service, name = s.split('.', 2)
+        name = name.gsub(/[.\/]/, '_')
+        [service, name].join('.')
       end
 
       def call_tool(ref, args)

@@ -13,11 +13,11 @@ RSpec.describe 'Agent AMR workflow shortcut' do
     )
   end
 
-  it 'auto-triggers workflow.run when goal includes workflow name' do
+  it 'auto-triggers workflow_run when goal includes workflow name' do
     agent = Savant::Agent::Runtime.new(goal: 'please run workflow hello to greet me', base_path: tmp_root)
     res = agent.run(max_steps: 2, dry_run: true)
     expect(res[:status]).to eq('ok')
-    expect(res[:final]).to include('Finished after workflow.workflow.run')
+    expect(res[:final]).to include('Finished after workflow.workflow_run')
   end
 end
 

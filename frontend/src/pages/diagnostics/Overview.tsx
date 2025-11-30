@@ -334,7 +334,7 @@ export default function DiagnosticsOverview() {
                       try {
                         const counts: Record<string, number> = {};
                         for (const r of stats.data.recent) {
-                          if (!r.path?.includes('/personas/tools/personas.get/call')) continue;
+                          if (!r.path?.includes('/personas/tools/personas_get/call')) continue;
                           const body = r.request_body || '';
                           try {
                             const json = JSON.parse(body);
@@ -373,7 +373,7 @@ export default function DiagnosticsOverview() {
                       try {
                         const counts: Record<string, number> = {};
                         for (const r of stats.data.recent) {
-                          if (!r.path?.includes('/rules/tools/rules.get/call')) continue;
+                          if (!r.path?.includes('/rules/tools/rules_get/call')) continue;
                           const body = r.request_body || '';
                           try {
                             const json = JSON.parse(body);

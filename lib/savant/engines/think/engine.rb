@@ -389,7 +389,7 @@ module Savant
         {
           name: 'savant-think',
           version: '1.0.0',
-          description: 'Think MCP: plan/next/driver_prompt/workflows/* — Hint: call think.workflows.list to discover workflows, then use think.plan to start a run.'
+          description: 'Think MCP: plan/next/driver_prompt/workflows/* — Hint: call think_workflows_list to discover workflows, then use think_plan to start a run.'
         }
       end
 
@@ -477,7 +477,7 @@ module Savant
       def inject_driver_step(workflow_hash, version)
         driver_step = {
           'id' => '__driver_bootstrap',
-          'call' => 'think.driver_prompt',
+          'call' => 'think_driver_prompt',
           'deps' => [],
           'input_template' => { 'version' => version },
           'capture_as' => '__driver'
@@ -485,7 +485,7 @@ module Savant
 
         announce_step = {
           'id' => '__driver_announce',
-          'call' => 'prompt.say',
+          'call' => 'prompt_say',
           'deps' => ['__driver_bootstrap'],
           'input_template' => {
             'text' => "📓 Think Driver: {{__driver.version}}\n\n{{__driver.prompt_md}}\n\n---\nFollow the driver for orchestration & payload discipline."
@@ -503,7 +503,7 @@ module Savant
       end
 
       def driver_step?(workflow_hash)
-        (workflow_hash['steps'] || []).any? { |s| s['call'] == 'think.driver_prompt' }
+        (workflow_hash['steps'] || []).any? { |s| s['call'] == 'think_driver_prompt' }
       end
 
       # Build adjacency list graph id => deps

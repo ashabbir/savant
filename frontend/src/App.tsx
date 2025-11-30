@@ -2,7 +2,8 @@ import React, { useMemo, useState } from 'react';
 import { Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { AppBar, Toolbar, Typography, Tabs, Tab, IconButton, Container, Alert, Snackbar, Chip, Box, Tooltip, Stack } from '@mui/material';
 import SettingsIcon from '@mui/icons-material/Settings';
-import { createTheme, ThemeProvider } from '@mui/material/styles';
+import { ThemeProvider } from '@mui/material/styles';
+import { createCompactTheme } from './theme/compact';
 import Search from './pages/Search';
 import Repos from './pages/Repos';
 import Diagnostics from './pages/Diagnostics';
@@ -151,107 +152,7 @@ function formatUptime(seconds: number): string {
 export default function App() {
   const [open, setOpen] = useState(false);
   const [themeMode, setThemeMode] = useState<'light' | 'dark'>(() => loadConfig().themeMode || 'light');
-  const theme = useMemo(() => {
-    const darkHover = 'rgba(144,202,249,0.12)';
-    const lightHover = 'rgba(40,53,147,0.08)';
-    const hoverBg = themeMode === 'dark' ? darkHover : lightHover;
-
-    return createTheme({
-    palette: {
-      mode: themeMode,
-      primary: {
-        main: themeMode === 'dark' ? '#90caf9' : '#283593'
-      },
-      background: {
-        default: themeMode === 'dark' ? '#0b1220' : '#f5f7fb',
-        paper: themeMode === 'dark' ? '#111827' : '#ffffff'
-      },
-      text: {
-        primary: themeMode === 'dark' ? '#f8fafc' : '#111827',
-        secondary: themeMode === 'dark' ? 'rgba(248,250,252,0.7)' : 'rgba(17,24,39,0.7)'
-      }
-    },
-    components: {
-      MuiButton: {
-        defaultProps: { size: 'small' },
-        styleOverrides: {
-          root: { fontSize: 12, textTransform: 'none', paddingTop: 6, paddingBottom: 6, paddingLeft: 12, paddingRight: 12, minHeight: 30 }
-        }
-      },
-      MuiIconButton: {
-        defaultProps: { size: 'small' },
-        styleOverrides: { root: { padding: 4 } }
-      },
-      MuiChip: {
-        defaultProps: { size: 'small' },
-        styleOverrides: {
-          root: { height: 22 },
-          label: { fontSize: 12, paddingLeft: 6, paddingRight: 6 }
-        }
-      },
-      MuiTextField: {
-        defaultProps: { size: 'small' }
-      },
-      MuiFormControl: {
-        defaultProps: { size: 'small' }
-      },
-      MuiSelect: {
-        defaultProps: { size: 'small' },
-        styleOverrides: {
-          select: { fontSize: 12, paddingTop: 6, paddingBottom: 6 }
-        }
-      },
-      MuiInputLabel: {
-        styleOverrides: { root: { fontSize: 12 } }
-      },
-      MuiMenuItem: {
-        styleOverrides: { root: { fontSize: 12, minHeight: 28 } }
-      },
-      MuiInputBase: {
-        styleOverrides: {
-          input: { fontSize: 12, paddingTop: 6, paddingBottom: 6 }
-        }
-      },
-      MuiOutlinedInput: {
-        styleOverrides: {
-          input: { fontSize: 12, paddingTop: 6, paddingBottom: 6 }
-        }
-      },
-      MuiTab: {
-        styleOverrides: {
-          root: {
-            '&:hover': {
-              backgroundColor: hoverBg
-            }
-          }
-        }
-      },
-      MuiTableRow: {
-        styleOverrides: {
-          root: {
-            '&:hover': {
-              backgroundColor: hoverBg,
-              transition: 'background-color 120ms ease-in-out'
-            }
-          }
-        }
-      },
-      MuiListItemButton: {
-        styleOverrides: {
-          root: {
-            borderRadius: 6,
-            '&:hover': {
-              backgroundColor: hoverBg
-            },
-            '&.Mui-selected, &.Mui-selected:hover': {
-              backgroundColor: themeMode === 'dark' ? 'rgba(144,202,249,0.2)' : 'rgba(40,53,147,0.15)'
-            }
-          }
-        }
-      }
-    }
-  });
-  }, [themeMode]);
+  const theme = useMemo(() => createCompactTheme(themeMode), [themeMode]);
   const mainIdx = useMainTabIndex();
   const ctxIdx = useContextSubIndex();
   const thinkIdx = useThinkSubIndex();

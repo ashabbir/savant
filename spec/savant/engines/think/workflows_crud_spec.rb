@@ -17,7 +17,7 @@ RSpec.describe 'Think workflows CRUD (graph)' do
     g = {
       'nodes' => [
         { 'id' => 'get_user', 'call' => 'users/find', 'deps' => [] },
-        { 'id' => 'merge', 'call' => 'prompt.say', 'deps' => ['get_user'], 'input_template' => { 'text' => 'done' } }
+        { 'id' => 'merge', 'call' => 'prompt_say', 'deps' => ['get_user'], 'input_template' => { 'text' => 'done' } }
       ],
       'edges' => [{ 'source' => 'get_user', 'target' => 'merge' }]
     }

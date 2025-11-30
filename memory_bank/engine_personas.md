@@ -27,8 +27,8 @@ flowchart LR
 
 ## Usage
 - Stdio: `MCP_SERVICE=personas SAVANT_PATH=$(pwd) ruby ./bin/mcp_server`
-- List: `tools/list` → `personas.list` and `personas.get`
-- Get: `tools/call` name=`personas.get` arguments=`{"name":"savant-engineer"}`
+- List: `tools/list` → `personas_list` and `personas_get`
+- Get: `tools/call` name=`personas_get` arguments=`{"name":"savant-engineer"}`
 
 ## Notes
 - Logs at `/tmp/savant/personas.log` (Hub) or `logs/personas.log` (stdio).

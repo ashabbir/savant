@@ -13,13 +13,13 @@ module Savant
       def build_registrar(engine = nil)
         eng = engine || Savant::Personas::Engine.new
         Savant::Framework::MCP::Core::DSL.build do
-          # personas.list
+          # personas_list
           tool 'personas_list', description: 'List available personas',
                                 schema: { type: 'object', properties: { filter: { type: 'string' } } } do |_ctx, a|
             eng.list(filter: a['filter'])
           end
 
-          # personas.get
+          # personas_get
           tool 'personas_get', description: 'Fetch a persona by name',
                                schema: { type: 'object', properties: { name: { type: 'string' } }, required: ['name'] } do |_ctx, a|
             eng.get(name: a['name'])

@@ -3,7 +3,7 @@ steps:
     tool: git.diff
 
   - name: cross_repo
-    tool: context.fts/search
+    tool: context.fts_search
     with:
       q: "{{ diff.files }}"
 
