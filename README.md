@@ -1,6 +1,39 @@
 # Savant
 
-Savant is a lightweight Ruby framework for building and running local MCP services. The core now includes a multiplexer that boots every engine inside dedicated child processes, merges their tool registries, and exposes a single unified MCP surface. Engines remain discoverable by the Hub and rendered in a compact React UI.
+Savant is a lightweight Ruby framework for building and running local MCP services with autonomous agent capabilities.
+
+**Key Features:**
+- **Multiplexer**: Unified MCP surface merging tools from all engines (Context, Think, Jira, Personas, Rules)
+- **Agent Runtime**: Autonomous reasoning loops with SLM-first execution and LLM escalation
+- **Boot System**: RuntimeContext with persona loading, AMR rules, and repo detection
+- **React UI**: Real-time diagnostics with agent monitoring, logs, and route exploration
+
+**System Overview:**
+```
+┌──────────────────────────────────────────────────────────────┐
+│                         SAVANT                               │
+├──────────────────────────────────────────────────────────────┤
+│                                                              │
+│  ┌────────────┐     ┌──────────────┐     ┌──────────────┐  │
+│  │  React UI  │────►│  Hub (HTTP)  │────►│ Multiplexer  │  │
+│  └────────────┘     └──────────────┘     └──────┬───────┘  │
+│                                                   │           │
+│  ┌────────────┐                          ┌───────▼───────┐  │
+│  │   Agent    │◄────────────────────────►│   Engines     │  │
+│  │  Runtime   │  (routes via mux)        │ Context Think │  │
+│  │            │                          │ Jira Personas │  │
+│  │ SLM ◄─► LLM│                          │     Rules     │  │
+│  └────────────┘                          └───────────────┘  │
+│        │                                                     │
+│        ▼                                                     │
+│  ┌────────────────────────────────────────────────────────┐ │
+│  │         Logs + Telemetry + Memory Bank                 │ │
+│  │  • agent_runtime.log    • session.json                 │ │
+│  │  • agent_trace.log      • multiplexer.log              │ │
+│  └────────────────────────────────────────────────────────┘ │
+│                                                              │
+└──────────────────────────────────────────────────────────────┘
+```
 
 ## Multiplexer Overview
 
@@ -319,6 +352,7 @@ flowchart LR
 - Aggregated logs (JSON events): `GET /logs?n=100[&mcp=context][&type=http_request]`
 - Live event stream (SSE): `GET /logs/stream[?mcp=context][&type=tool_call_started]`
 - Per-engine logs (file tail): `GET /:engine/logs?n=100` or stream with `?stream=1`
+- **Agent diagnostics**: `GET /diagnostics/agent` (events + memory), `GET /diagnostics/agent/trace`, `GET /diagnostics/agent/session`
 - Hub request stats: `GET /hub/stats`
 - Connections list: `GET /diagnostics/connections`
 - Per-engine diagnostics: `GET /diagnostics/mcp/:name`
