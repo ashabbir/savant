@@ -495,6 +495,12 @@ export function useEngineTools(engine: string) {
   });
 }
 
+// Generic tool caller for any engine (used by diagnostics/health).
+export async function callEngineTool(engine: string, name: string, params: any): Promise<any> {
+  const res = await client().post(`/${engine}/tools/${name}/call`, { params });
+  return res.data;
+}
+
 // PERSONAS engine API
 export type PersonaSummary = { name: string; version: number; summary: string; tags?: string[] };
 export type PersonasList = { personas: PersonaSummary[] };
