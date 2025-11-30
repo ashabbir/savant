@@ -42,7 +42,7 @@ erDiagram
 ## Tools (Selected)
 - `fts_search` – ranked snippet search (code + markdown)
 - `memory/resources/*` – list/read memory_bank markdown stored in DB
-- `fs/repo/*` – index/delete/status helpers
+- `fs_repo_*` – index/delete/status helpers
 
 ## Notes
 - Ensure DB is migrated and FTS created (`make migrate && make fts`).
