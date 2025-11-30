@@ -3,7 +3,7 @@
 Savant is a lightweight Ruby framework for building and running local MCP services with autonomous agent capabilities.
 
 **Key Features:**
-- **Multiplexer**: Unified MCP surface merging tools from all engines (Context, Think, Jira, Personas, Rules)
+- **Multiplexer**: Unified MCP surface merging tools from all engines (Context, Git, Think, Jira, Personas, Rules)
 - **Agent Runtime**: Autonomous reasoning loops with SLM-first execution and LLM escalation
 - **Boot System**: RuntimeContext with persona loading, AMR rules, and repo detection
 - **React UI**: Real-time diagnostics with agent monitoring, logs, and route exploration
@@ -37,7 +37,7 @@ Savant is a lightweight Ruby framework for building and running local MCP servic
 
 ## Multiplexer Overview
 
-- `bin/mcp_server` defaults to the multiplexer. It spawns one stdio MCP process per engine (`context`, `think`, `personas`, `rules`, `jira` by default), namespaces their tools (`context.fts/search`, `jira.issue.get`, etc.), and serves them to connected editors.
+- `bin/mcp_server` defaults to the multiplexer. It spawns one stdio MCP process per engine (`context`, `git`, `think`, `personas`, `rules`, `jira` by default), namespaces their tools (`context.fts/search`, `git.diff`, `jira.issue.get`, etc.), and serves them to connected editors.
 - Each engine failure is isolated—if a child dies the multiplexer removes its tools, logs the event, and restarts it in the background.
 - Metrics and status are written to `logs/multiplexer.log` and surfaced via the Hub (`curl /` now includes a `multiplexer` object) and CLI helpers (`savant engines`, `savant tools`).
 
@@ -60,6 +60,7 @@ This README is intentionally concise. Full, detailed docs (with diagrams) live i
 | [Context Engine](memory_bank/engine_context.md) | FTS search flow, cache/indexer coordination, and tool APIs. |
 | [Think Engine](memory_bank/engine_think.md) | Plan/next workflow orchestration and prompt drivers. |
 | [Jira Engine](memory_bank/engine_jira.md) | Jira integration details, auth requirements, and tool contracts. |
+| [Git Engine](memory_bank/engine_git.md) | Local, read‑only Git intelligence (diffs, hunks, file context, changed files). |
 | [Personas Engine](memory_bank/engine_personas.md) | Persona catalog shape, YAML schema, and exposed tools. |
 | [Engine Rules](memory_bank/engine_rules.md) | Shared guardrails, telemetry hooks, and best-practice playbooks. |
 
@@ -181,6 +182,7 @@ SAVANT_PATH=$(pwd) bundle exec ruby ./bin/mcp_server
 
 # Run a single engine (optional override)
 MCP_SERVICE=context  SAVANT_PATH=$(pwd) bundle exec ruby ./bin/mcp_server
+MCP_SERVICE=git      SAVANT_PATH=$(pwd) bundle exec ruby ./bin/mcp_server
 MCP_SERVICE=jira     SAVANT_PATH=$(pwd) bundle exec ruby ./bin/mcp_server
 ```
 
