@@ -23,6 +23,7 @@ This README is intentionally concise. Full, detailed docs (with diagrams) live i
 | [Framework](memory_bank/framework.md) | Core concepts, lifecycle, and configuration surface. |
 | [Architecture](memory_bank/architecture.md) | System topology, data model, and component responsibilities. |
 | [Boot Runtime](memory_bank/engine_boot.md) | Boot initialization, RuntimeContext, AMR system, and CLI commands. |
+| **[Agent Runtime](memory_bank/agent_runtime.md)** | **Autonomous reasoning loop, LLM adapters, memory system, and telemetry.** |
 | [Context Engine](memory_bank/engine_context.md) | FTS search flow, cache/indexer coordination, and tool APIs. |
 | [Think Engine](memory_bank/engine_think.md) | Plan/next workflow orchestration and prompt drivers. |
 | [Jira Engine](memory_bank/engine_jira.md) | Jira integration details, auth requirements, and tool contracts. |
@@ -57,13 +58,43 @@ See [Boot Runtime docs](memory_bank/engine_boot.md) for complete reference.
 
 ### Agent Runtime (Local-first)
 
-Run a one-off agent session after booting:
+The Agent Runtime orchestrates autonomous reasoning loops with SLM-first execution and LLM escalation for complex tasks.
 
-```bash
-./bin/savant run --skip-git --agent-input="Summarize recent changes and list relevant files"
+**Architecture Overview:**
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    AGENT RUNTIME LOOP                       │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  Prompt Builder  ──► LLM Adapter  ──► Output Parser        │
+│       │               (SLM/LLM)            │                │
+│       │                                    │                │
+│       ▼                                    ▼                │
+│  Memory System ◄────── Multiplexer ◄── Tool Router         │
+│  (Ephemeral +           (Context,                           │
+│   Persistent)           Think, Jira)                        │
+│                                                             │
+│  Artifacts:                                                 │
+│  • logs/agent_runtime.log  (execution logs + timings)       │
+│  • logs/agent_trace.log    (telemetry per step)            │
+│  • .savant/session.json    (persistent memory)             │
+│                                                             │
+│  Models:  SLM=phi3.5:latest  LLM=llama3:latest             │
+│  Budget:  8k tokens (SLM)    32k tokens (LLM)              │
+└─────────────────────────────────────────────────────────────┘
 ```
 
-Options:
+**Quick Start:**
+```bash
+# Install Ollama + models
+ollama pull phi3.5:latest
+ollama pull llama3:latest
+
+# Run agent session
+./bin/savant run --skip-git --agent-input="Summarize recent changes"
+```
+
+**CLI Options:**
 - `--agent-input=TEXT` or `--agent-file=PATH` for goal input
 - `--slm=MODEL` and `--llm=MODEL` to override defaults
 - `--max-steps=N` to cap the loop (default 25)
@@ -73,18 +104,21 @@ Options:
 - `--force-finish` to immediately finish after the forced tool (or finish at step 1 if no forced tool), optionally with `--force-final="text"`
 - `--force-finish-only` to finish immediately without executing any tool (ignores `--force-tool`)
 
-Artifacts:
+**Artifacts:**
 - `logs/agent_runtime.log` – runtime logs with timings and decisions
 - `logs/agent_trace.log` – telemetry events (one per reasoning step)
 - `.savant/session.json` – per-step memory snapshot
 
-Single-model quick test (Ollama):
+**Web UI Diagnostics:**
 ```
-ollama pull phi3.5:latest
-./bin/savant run --skip-git --agent-input="Hello" --slm=phi3.5:latest --llm=phi3.5:latest
+http://localhost:9999/diagnostics/agents
+  ├─ Timeline View    (chronological event stream)
+  ├─ Grouped View     (events grouped by step)
+  ├─ Live Streaming   (real-time updates)
+  └─ Export           (download traces + session)
 ```
 
-Note on tool names: Use the fully qualified names from the multiplexer. For Context FTS the name is `context.fts/search` (slash), not `context.fts.search`.
+**See [Agent Runtime docs](memory_bank/agent_runtime.md) for detailed architecture, memory system, and telemetry.**
 
 ### Full Stack Setup
 
@@ -119,14 +153,16 @@ MCP_SERVICE=jira     SAVANT_PATH=$(pwd) bundle exec ruby ./bin/mcp_server
 
 ## Architecture
 
-Savant is organized into four main backend modules plus a separate frontend:
+Savant is organized into six main backend modules plus a separate frontend:
 
 ```
 lib/savant/
 ├── hub/              # MODULE 1: Hub API (HTTP routing, SSE, service management)
 ├── logging/          # MODULE 2: Logging & Observability (structured logging, metrics, audit)
 ├── framework/        # MODULE 3: Framework (MCP core, middleware, transports, config)
-└── engines/          # MODULE 4: Engines (context, think, jira, personas, rules, etc.)
+├── engines/          # MODULE 4: Engines (context, think, jira, personas, rules, etc.)
+├── agent/            # MODULE 5: Agent Runtime (reasoning loop, prompt builder, parser, memory)
+└── llm/              # MODULE 6: LLM Adapters (Ollama, Anthropic, OpenAI)
 ```
 
 ### Module 1: Hub API (`lib/savant/hub/`)
@@ -198,6 +234,46 @@ lib/savant/
 
 **Engine Pattern**: Each engine has `engine.rb` (extends `Framework::Engine::Base`), `tools.rb` (uses `Framework::MCP::Core::DSL`), and `ops.rb` (business logic).
 
+### Module 5: Agent Runtime (`lib/savant/agent/`)
+
+**Purpose**: Autonomous reasoning loop orchestrating LLM-driven tool execution
+
+**Key Files**:
+- `runtime.rb` - Core reasoning loop with step limits and retry logic
+- `prompt_builder.rb` - Token budget management and deterministic prompt assembly
+- `output_parser.rb` - JSON extraction, schema validation, auto-correction
+- `memory.rb` - Ephemeral state + `.savant/session.json` persistence
+
+**Key Concepts**:
+- **SLM-first strategy**: Fast decisions with `phi3.5:latest` (default)
+- **LLM escalation**: Heavy analysis with `llama3:latest` for complex tasks
+- **Token budgets**: 8k SLM, 32k LLM with LRU trimming
+- **Memory persistence**: Session snapshots with summarization
+
+**Key APIs**: `Runtime.new(goal:, slm_model:, llm_model:).run(max_steps:, dry_run:)`
+
+**See [memory_bank/agent_runtime.md](memory_bank/agent_runtime.md) for full architecture with visual diagrams.**
+
+### Module 6: LLM Adapters (`lib/savant/llm/`)
+
+**Purpose**: Pluggable LLM provider abstraction layer
+
+**Key Files**:
+- `adapter.rb` - Provider delegation based on ENV config
+- `ollama.rb` - Ollama implementation (default, local-first)
+- `anthropic.rb` - Anthropic API stub (Claude models)
+- `openai.rb` - OpenAI API stub (GPT models)
+
+**Configuration**:
+```ruby
+ENV['LLM_PROVIDER']  # ollama|anthropic|openai
+ENV['SLM_MODEL']     # phi3.5:latest (default)
+ENV['LLM_MODEL']     # llama3:latest (default)
+ENV['OLLAMA_HOST']   # http://127.0.0.1:11434 (default)
+```
+
+**Key APIs**: `LLM::Adapter.generate(model:, prompt:, temperature:, max_tokens:)`
+
 ## Generators
 
 Scaffold a new engine in seconds:
@@ -230,9 +306,10 @@ flowchart LR
 - React UI under `/ui` (or dev at 5173) with three main sections:
   - **Dashboard**: Overview of all engines and system status
   - **Engines**: Per-engine tabs for tool execution and testing
-  - **Diagnostics**: Four tabs for system monitoring
-    - Overview: System configuration, DB connectivity, repos, personas, rules
+  - **Diagnostics**: Five tabs for system monitoring
+    - Overview: System configuration, DB connectivity, repos, personas, rules, LLM models
     - Requests: HTTP request logs and traffic statistics
+    - **Agents**: Real-time agent runtime monitoring with timeline/grouped views, live streaming, trace export
     - Logs: Live event streaming with log-level filtering (All/Debug/Info/Warn/Error)
     - Routes: API route browser with filtering by module, method, and path
 - Footer shows Dev-Mode/Build-Mode indicator
@@ -248,10 +325,11 @@ flowchart LR
 
 ## Memory Bank (Detailed Docs)
 
-All detailed docs (with Mermaid diagrams) live under `memory_bank/`. Use the table above (and the direct links below) to jump into the source of truth:
+All detailed docs (with visual diagrams) live under `memory_bank/`. Use the table above (and the direct links below) to jump into the source of truth:
 
 - Framework + architecture: [`framework.md`](memory_bank/framework.md), [`architecture.md`](memory_bank/architecture.md)
 - Boot Runtime: [`engine_boot.md`](memory_bank/engine_boot.md) - RuntimeContext, boot sequence, AMR system, CLI reference
+- **Agent Runtime: [`agent_runtime.md`](memory_bank/agent_runtime.md) - Reasoning loop, LLM adapters, memory system, token budgets, telemetry**
 - Engines: [`engine_context.md`](memory_bank/engine_context.md), [`engine_think.md`](memory_bank/engine_think.md), [`engine_jira.md`](memory_bank/engine_jira.md), [`engine_personas.md`](memory_bank/engine_personas.md)
 - Guardrails + patterns: [`engine_rules.md`](memory_bank/engine_rules.md)
 
