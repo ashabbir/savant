@@ -44,8 +44,8 @@ module Savant
       File.write(path, content)
     end
 
-    def camelize(s)
-      s.split(/[^a-zA-Z0-9]/).map { |p| p.empty? ? '' : p[0].upcase + p[1..] }.join
+    def camelize(str)
+      str.split(/[^a-zA-Z0-9]/).map { |p| p.empty? ? '' : p[0].upcase + p[1..] }.join
     end
 
     def engine_template(mod, with_db: false)

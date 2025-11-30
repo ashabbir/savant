@@ -65,7 +65,7 @@ module Savant
           end
         rescue Interrupt
           log = Savant::Logging::Logger.new(io: $stdout, file_path: File.join(@base_path, 'logs', "#{@service}.log"),
-                                   level: :error, json: true, service: @service)
+                                            level: :error, json: true, service: @service)
           log.info(event: 'shutdown', reason: 'Interrupt')
         ensure
           Savant::Hub::Connections.global.disconnect(conn_id) if defined?(conn_id) && conn_id

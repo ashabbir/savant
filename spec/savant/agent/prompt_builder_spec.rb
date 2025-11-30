@@ -28,4 +28,3 @@ RSpec.describe Savant::Agent::PromptBuilder do
     expect(prompt).to include('## Action Schema')
   end
 end
-

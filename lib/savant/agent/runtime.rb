@@ -20,8 +20,8 @@ module Savant
         @goal = goal.to_s
         @context = Savant::Framework::Runtime.current
         @base_path = base_path || default_base_path
-        lvl = (ENV['LOG_LEVEL'] || 'error')
-        io = (ENV['SAVANT_QUIET'] == '1') ? nil : $stdout
+        lvl = ENV['LOG_LEVEL'] || 'error'
+        io = ENV['SAVANT_QUIET'] == '1' ? nil : $stdout
         @logger = logger || Savant::Logging::Logger.new(io: io, file_path: File.join(@base_path, 'logs', 'agent_runtime.log'), json: true, service: 'agent', level: lvl)
         # Use global recorder so Diagnostics/Logs (events) can display agent telemetry.
         @trace = Savant::Logging::EventRecorder.global
@@ -60,7 +60,7 @@ module Savant
             if @forced_finish
               # Append a finish step and return
               finish_index = steps + 1
-              final_text = @forced_final && !@forced_final.empty? ? @forced_final : ("Finished after #{@forced_tool}.")
+              final_text = @forced_final && !@forced_final.empty? ? @forced_final : "Finished after #{@forced_tool}."
               finish_action = { 'action' => 'finish', 'tool_name' => '', 'args' => {}, 'final' => final_text, 'reasoning' => 'forced' }
               @memory.append_step(index: finish_index, action: finish_action, final: final_text)
               @memory.snapshot!
@@ -81,7 +81,7 @@ module Savant
           end
 
           tool_specs = begin
-            (@context&.multiplexer&.tools || [])
+            @context&.multiplexer&.tools || []
           rescue StandardError
             []
           end
@@ -91,6 +91,7 @@ module Savant
             n = (s[:name] || s['name']).to_s
             d = (s[:description] || s['description'] || '').to_s
             next nil if n.empty?
+
             "- #{n} — #{d}"
           end.compact
           prompt = @prompt_builder.build(goal: @goal, memory: @memory.data, last_output: @last_output, tools_hint: tools_hint, tools_catalog: catalog)
@@ -189,16 +190,15 @@ module Savant
       def ensure_valid_action(action, valid_tools)
         return action unless action.is_a?(Hash)
         return action unless action['action'] == 'tool'
+
         name = (action['tool_name'] || '').to_s
         return action if valid_tools.include?(name)
 
         # Try normalizing separators
         norm1 = name.gsub('.', '/')
-        norm2 = name.gsub('/', '.')
+        name.gsub('/', '.')
         # Only accept corrected canonical name with '/'
-        if valid_tools.include?(norm1)
-          return action.merge('tool_name' => norm1)
-        end
+        return action.merge('tool_name' => norm1) if valid_tools.include?(norm1)
 
         # Ask model to correct tool_name given the allowed list
         correction_prompt = <<~MD
@@ -213,9 +213,8 @@ module Savant
           # fall through
         end
         # Heuristic fallback: if goal clearly asks for search/fts, use context.fts/search when available
-        if @goal =~ /\b(search|fts|find|lookup|README)\b/i && valid_tools.include?('context.fts/search')
-          return action.merge('tool_name' => 'context.fts/search')
-        end
+        return action.merge('tool_name' => 'context.fts/search') if @goal =~ /\b(search|fts|find|lookup|README)\b/i && valid_tools.include?('context.fts/search')
+
         # Could not correct; convert to error so loop can finish or try again
         { 'action' => 'error', 'final' => "invalid tool: #{name}", 'tool_name' => name, 'args' => {}, 'reasoning' => '' }
       end
@@ -226,7 +225,7 @@ module Savant
         nil
       end
 
-      def retry_fix_json(model:, prompt:, raw:)
+      def retry_fix_json(model:, _prompt:, raw:)
         fix_prompt = <<~MD
           The previous output did not match the required JSON schema. Only return a single valid JSON object matching the schema. No prose.
           Previous output:
@@ -278,7 +277,7 @@ module Savant
           Savant::LLM.call(prompt: prompt, model: model, temperature: 0.0)
         end
         @logger.info(event: 'llm_call', model: model, duration_ms: dur)
-        usage = (result[:usage] || {})
+        usage = result[:usage] || {}
         llm_ev = { type: 'llm_call', mcp: 'agent', run: @run_id, step: step, model: model, duration_ms: dur, prompt_tokens: usage[:prompt_tokens], output_tokens: usage[:output_tokens], ts: Time.now.utc.iso8601, timestamp: Time.now.to_i }
         @trace.record(llm_ev)
         append_trace_file(llm_ev)
@@ -310,10 +309,10 @@ module Savant
         # tolerate telemetry failures
       end
 
-      def append_trace_file(ev)
+      def append_trace_file(event)
         dir = File.dirname(@trace_file_path)
         FileUtils.mkdir_p(dir) unless Dir.exist?(dir)
-        File.open(@trace_file_path, 'a') { |f| f.puts(JSON.generate(ev)) }
+        File.open(@trace_file_path, 'a') { |f| f.puts(JSON.generate(event)) }
       rescue StandardError
         # ignore file write errors
       end

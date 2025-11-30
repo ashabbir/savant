@@ -49,25 +49,23 @@ module Savant
           last_error = nil
 
           endpoints.each do |path|
-            begin
-              uri = URI.parse(File.join(host, path))
-              res = http_get(uri)
-              parsed = JSON.parse(res.body)
-              if parsed.is_a?(Array)
-                return parsed
-              elsif parsed.is_a?(Hash)
-                arr = parsed['models'] || parsed['data']
-                return (arr.is_a?(Array) ? arr : [])
-              else
-                return []
-              end
-            rescue JSON::ParserError => e
-              last_error = StandardError.new("Invalid response from Ollama (#{path}): #{e.message}")
-            rescue Errno::ECONNREFUSED, SocketError => e
-              last_error = StandardError.new("Ollama not reachable at #{host}: #{e.message}")
-            rescue StandardError => e
-              last_error = e
+            uri = URI.parse(File.join(host, path))
+            res = http_get(uri)
+            parsed = JSON.parse(res.body)
+            if parsed.is_a?(Array)
+              return parsed
+            elsif parsed.is_a?(Hash)
+              arr = parsed['models'] || parsed['data']
+              return (arr.is_a?(Array) ? arr : [])
+            else
+              return []
             end
+          rescue JSON::ParserError => e
+            last_error = StandardError.new("Invalid response from Ollama (#{path}): #{e.message}")
+          rescue Errno::ECONNREFUSED, SocketError => e
+            last_error = StandardError.new("Ollama not reachable at #{host}: #{e.message}")
+          rescue StandardError => e
+            last_error = e
           end
 
           raise last_error || StandardError.new('Failed to query Ollama models')
@@ -100,6 +98,7 @@ module Savant
           res = http_get(uri)
           parsed = JSON.parse(res.body)
           return [] unless parsed.is_a?(Hash)
+
           arr = parsed['models'] || parsed['data'] || []
           arr.is_a?(Array) ? arr : []
         rescue Errno::ECONNREFUSED, SocketError => e

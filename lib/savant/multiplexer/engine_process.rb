@@ -4,7 +4,6 @@ require 'json'
 require 'open3'
 require 'rbconfig'
 require 'securerandom'
-require 'thread'
 require 'timeout'
 
 module Savant
@@ -16,7 +15,7 @@ module Savant
 
       attr_reader :name, :status, :pid, :started_at, :last_error, :last_heartbeat, :tools
 
-      def initialize(name:, base_path:, command: nil, env: {}, logger:, on_status_change: nil)
+      def initialize(name:, base_path:, logger:, command: nil, env: {}, on_status_change: nil)
         @name = name
         @base_path = base_path
         @command = command || default_command
@@ -62,11 +61,9 @@ module Savant
           # ignore
         end
         [@stdout, @stderr].each do |io|
-          begin
-            io.close unless io.closed?
-          rescue StandardError
-            # ignore
-          end
+          io.close unless io.closed?
+        rescue StandardError
+          # ignore
         end
         if @wait_thr&.alive?
           begin
@@ -96,7 +93,7 @@ module Savant
       end
 
       def running?
-        @wait_thr && @wait_thr.alive?
+        @wait_thr&.alive?
       end
 
       def refresh_tools!
@@ -110,9 +107,7 @@ module Savant
 
         payload = { 'name' => tool, 'arguments' => args || {} }
         resp = rpc_call('tools/call', payload)
-        if resp['error']
-          raise RPCError, resp['error']['message']
-        end
+        raise RPCError, resp['error']['message'] if resp['error']
 
         resp['result']
       end
@@ -147,6 +142,7 @@ module Savant
         while (line = @stdout.gets)
           line = line.strip
           next if line.empty?
+
           handle_response(line)
         end
       rescue StandardError => e
@@ -174,11 +170,11 @@ module Savant
 
       def handle_response(line)
         data = JSON.parse(line)
-        id = data['id']
-        return unless id
+        # Accept only JSON-RPC responses, not engine log lines.
+        return unless data.is_a?(Hash) && data['jsonrpc'] == '2.0' && data['id']
 
         @pending_lock.synchronize do
-          waiter = @pending.delete(id)
+          waiter = @pending.delete(data['id'])
           waiter << data if waiter
         end
       rescue JSON::ParserError => e

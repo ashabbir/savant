@@ -1,5 +1,6 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
+
 require 'digest'
 
 module Savant
@@ -48,11 +49,10 @@ module Savant
         sections << section('Last Tool Output', last_output) if last_output && !last_output.to_s.empty?
         if tools_hint&.any?
           sections << section('Tools Available', tools_hint.take(150).join("\n"))
-          sections << section('Tool Selection Rules', "When action='tool', tool_name MUST be one of the 'Tools Available' list. Use the fully qualified name exactly (slashes '/'). If the goal says 'context.fts.search', choose 'context.fts/search'. NEVER invent or use external tools like 'GitHub CLI', 'curl', 'bash', or 'npm'.")
+          sections << section('Tool Selection Rules',
+                              "When action='tool', tool_name MUST be one of the 'Tools Available' list. Use the fully qualified name exactly (slashes '/'). If the goal says 'context.fts.search', choose 'context.fts/search'. NEVER invent or use external tools like 'GitHub CLI', 'curl', 'bash', or 'npm'.")
         end
-        if tools_catalog&.any?
-          sections << section('Tools Catalog', tools_catalog.take(150).join("\n"))
-        end
+        sections << section('Tools Catalog', tools_catalog.take(150).join("\n")) if tools_catalog&.any?
         sections << section('System Instructions', system) if system
         sections << section('Action Schema', ACTION_SCHEMA_MD)
 
@@ -65,7 +65,7 @@ module Savant
       private
 
       def header_section
-        "You are Savant Agent Runtime. Plan tool calls to accomplish the goal. Always return the required JSON envelope."
+        'You are Savant Agent Runtime. Plan tool calls to accomplish the goal. Always return the required JSON envelope.'
       end
 
       def section(title, body)
@@ -88,8 +88,9 @@ module Savant
 
       def summarize_memory(memory)
         return 'empty' unless memory.is_a?(Hash)
-        steps = memory.dig(:steps) || []
-        errs = memory.dig(:errors) || []
+
+        steps = memory[:steps] || []
+        errs = memory[:errors] || []
         [
           "steps: #{steps.size}",
           (errs.any? ? "errors: #{errs.size}" : nil)
@@ -110,9 +111,11 @@ module Savant
         return trimmed if (trimmed.length / 4.0) <= @slm_budget
 
         # As a last resort, keep only goal + schema
-        minimized = text[/## Goal[\s\S]*?(?=##|\z)/] && text[/## Action Schema[\s\S]*\z/] ?
-          [text[/## Goal[\s\S]*?(?=##|\z)/].to_s, text[/## Action Schema[\s\S]*\z/].to_s].join("\n\n---\n\n") : text
-        minimized
+        if text[/## Goal[\s\S]*?(?=##|\z)/] && text[/## Action Schema[\s\S]*\z/]
+          [text[/## Goal[\s\S]*?(?=##|\z)/].to_s, text[/## Action Schema[\s\S]*\z/].to_s].join("\n\n---\n\n")
+        else
+          text
+        end
       end
 
       def trace_prompt(prompt)

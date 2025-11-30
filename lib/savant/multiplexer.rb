@@ -14,8 +14,8 @@ module Savant
 
     attr_reader :logger
 
-    def self.global
-      @global
+    class << self
+      attr_reader :global
     end
 
     def self.ensure!(**opts)
@@ -28,8 +28,8 @@ module Savant
       @base_path = base_path || default_base_path
       @settings_path = settings_path || File.join(@base_path, 'config', 'settings.json')
       FileUtils.mkdir_p(File.join(@base_path, 'logs'))
-      level = (ENV['LOG_LEVEL'] || 'error')
-      stdout_enabled = ENV['SAVANT_QUIET'] == '1' ? false : true
+      level = ENV['LOG_LEVEL'] || 'error'
+      stdout_enabled = ENV['SAVANT_QUIET'] != '1'
       io = stdout_enabled ? $stdout : nil
       @logger = logger || Savant::Logging::Logger.new(io: io, file_path: File.join(@base_path, 'logs', 'multiplexer.log'), json: true, service: 'multiplexer', level: level)
       @router = Savant::Multiplexer::Router.new
@@ -90,7 +90,11 @@ module Savant
       offline = total - online
       tool_count = tools.count
       {
-        status: online.zero? ? 'offline' : offline.positive? ? 'degraded' : 'online',
+        status: if online.zero?
+                  'offline'
+                else
+                  offline.positive? ? 'degraded' : 'online'
+                end,
         engines: total,
         online: online,
         offline: offline,
@@ -145,6 +149,7 @@ module Savant
     def spawn_engine(cfg)
       name = cfg[:name]
       return if name.to_s.empty?
+
       command = normalize_command(cfg[:command])
       env = cfg[:env] || {}
       process = Savant::Multiplexer::EngineProcess.new(
@@ -195,7 +200,7 @@ module Savant
     end
 
     def default_engines
-      %w[context think personas rules jira].map { |name| { name: name, autostart: true } }
+      %w[context git think personas rules jira].map { |name| { name: name, autostart: true } }
     end
 
     def load_settings
@@ -223,7 +228,7 @@ module Savant
     def uptime_seconds
       return 0 unless @started
 
-      (@started_at ||= Time.now)
+      @started_at ||= Time.now
       (Time.now - @started_at).to_i
     end
 
