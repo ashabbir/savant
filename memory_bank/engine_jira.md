@@ -2,7 +2,7 @@
 
 ## Overview
 - Activation: `MCP_SERVICE=jira ruby ./bin/mcp_server`
-- Files: `lib/savant/jira/{engine.rb,ops.rb,client.rb,tools.rb}`
+- Files: `lib/savant/engines/jira/{engine.rb,ops.rb,client.rb,tools.rb}`
 - Purpose: Jira REST v3 tools (search, read) with guarded writes (create/comment/transition).
 
 ## Call Flow

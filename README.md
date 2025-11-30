@@ -141,8 +141,7 @@ lib/savant/
 
 **Purpose**: All MCP engine implementations
 
-**Engines**:
-- **Boot Runtime** (`boot`): P0 foundation that initializes all core components. CLI: `savant run|review|workflow`. See [memory_bank/engine_boot.md](memory_bank/engine_boot.md)
+**Engines** (under `lib/savant/engines/`):
 - **Context** (`context/`): DB-backed FTS over repo chunks; memory bank helpers. See [memory_bank/engine_context.md](memory_bank/engine_context.md)
 - **Think** (`think/`): Workflow orchestration (`plan/next`) with driver prompts. See [memory_bank/engine_think.md](memory_bank/engine_think.md)
 - **Jira** (`jira/`): Jira REST v3 integration. See [memory_bank/engine_jira.md](memory_bank/engine_jira.md)
@@ -151,6 +150,8 @@ lib/savant/
 - **Indexer** (`indexer/`): Repository indexing and chunking
 - **AI** (`ai/`): Agent orchestration
 - **AMR** (`amr/`): Asset management rules
+
+> ℹ️  The Boot Runtime (`lib/savant/framework/boot.rb`) lives in the Framework module because it wires config, personas, prompts, AMR rules, and runtime state before engines run. See [memory_bank/engine_boot.md](memory_bank/engine_boot.md) for full details.
 
 **Engine Pattern**: Each engine has `engine.rb` (extends `Framework::Engine::Base`), `tools.rb` (uses `Framework::MCP::Core::DSL`), and `ops.rb` (business logic).
 

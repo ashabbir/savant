@@ -1,7 +1,7 @@
 # Memory: Personas Engine
 
 - Purpose: Provide versioned Savant personas as prompts.
-- Data file: `lib/savant/personas/personas.yml` (YAML list of entries)
+- Data file: `lib/savant/engines/personas/personas.yml` (YAML list of entries)
 - Schema: `name`, `title`, `version`, `summary`, `tags?`, `prompt_md`, `notes?`
 - Typical usage: client fetches a persona then injects `prompt_md` as the system prompt.
 

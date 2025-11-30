@@ -46,16 +46,16 @@ sequenceDiagram
 
 Savant uses a clean dual-transport architecture:
 
-- **HTTP Transport** (`lib/savant/transports/http/rack_app.rb`): JSON-RPC over HTTP for Hub and UI access
+- **HTTP Transport** (`lib/savant/framework/transports/http/rack_app.rb`): JSON-RPC over HTTP for Hub and UI access
   - Accessed via `Savant::Transports::HTTP::RackApp`
-  - Used by Hub (`lib/savant/hub.rb`) and HTTP Runner (`lib/savant/server/http_runner.rb`)
+  - Used by Hub router/builder (`lib/savant/hub/router.rb`, `lib/savant/hub/builder.rb`) and HTTP runner (`lib/savant/hub/server/http_runner.rb`)
 
-- **MCP Transport** (`lib/savant/transports/mcp/`): JSON-RPC 2.0 over stdio/websocket for editor integrations
+- **MCP Transport** (`lib/savant/framework/transports/mcp/`): JSON-RPC 2.0 over stdio/websocket for editor integrations
   - Stdio: `Savant::Transports::MCP::Stdio` for Claude Desktop, VSCode
   - WebSocket: `Savant::Transports::MCP::WebSocket` for WS connections
-  - Launcher: `lib/savant/mcp_server.rb` selects transport based on config
+  - Launcher: `lib/savant/framework/mcp/server.rb` (via `bin/mcp_server`) selects transport based on config
 
-- **ServiceManager** (`lib/savant/service_manager.rb`): Transport-agnostic engine loader shared by all transports
+- **ServiceManager** (`lib/savant/hub/service_manager.rb`): Transport-agnostic engine loader shared by all transports
   - Loads engines dynamically based on service name
   - Manages tool registries and middleware
   - Provides consistent tool call interface regardless of transport

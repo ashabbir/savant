@@ -4,8 +4,8 @@ Deterministic workflow orchestration for LLM clients. Think validates YAML-defin
 
 ## Core Ideas
 - **Instruction Loop:** Every run starts with `think.plan`, executes external/local tools, and advances via `think.next` until `done: true`.
-- **Driver Prompt:** `think.driver_prompt` surfaces the canonical orchestration rules (see `lib/savant/think/prompts/*.md`). Workflows typically inject this as the first instruction to ensure consistent guard rails.
-- **Workflow Sources:** YAML files in `lib/savant/think/workflows/` define step DAGs, templates, and captures. No database is required; run state persists under `.savant/state/`.
+- **Driver Prompt:** `think.driver_prompt` surfaces the canonical orchestration rules (see `lib/savant/engines/think/prompts/*.md`). Workflows typically inject this as the first instruction to ensure consistent guard rails.
+- **Workflow Sources:** YAML files in `lib/savant/engines/think/workflows/` define step DAGs, templates, and captures. No database is required; run state persists under `.savant/state/`.
 
 ## Tool Surface
 - `think.workflows.list` / `think.workflows.read` – discover workflow metadata or YAML.
@@ -33,9 +33,9 @@ sequenceDiagram
 ## Creating a Workflow (Example)
 Example below shows a minimal triage flow you can adapt.
 
-1. **Write YAML under `lib/savant/think/workflows/`**
+1. **Write YAML under `lib/savant/engines/think/workflows/`**
    ```yaml
-   # lib/savant/think/workflows/triage_ticket.yml
+   # lib/savant/engines/think/workflows/triage_ticket.yml
    workflow: triage_ticket
    version: 1.0.0
    steps:
@@ -64,7 +64,7 @@ Example below shows a minimal triage flow you can adapt.
 4. **Follow driver prompt** – clients MUST display `__driver.prompt_md` before executing subsequent steps, matching the `think-code-review-fix` PRD requirement.
 
 ### Template File
-- Start from `lib/savant/think/workflows/_template.yml` for consistent metadata, params, and driver bootstrap.
+- Start from `lib/savant/engines/think/workflows/_template.yml` for consistent metadata, params, and driver bootstrap.
 - Rename the file, update `workflow`, `version`, `summary`, and flesh out the `steps` list. The template already includes a driver prompt step and a placeholder `prompt.say` step.
 
 ```mermaid
@@ -83,5 +83,5 @@ flowchart TD
 - **Evolution:** Update YAML to change behavior; no Ruby changes required unless you add new helper tools. The done PRDs show how workflows evolved (e.g., forcing the driver prompt bootstrap) to accommodate new guard rails.
 
 ## References
-- Workflows: `lib/savant/think/workflows/*.yml`
-- Prompts: `lib/savant/think/prompts/`
+- Workflows: `lib/savant/engines/think/workflows/*.yml`
+- Prompts: `lib/savant/engines/think/prompts/`
