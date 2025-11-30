@@ -31,4 +31,3 @@ RSpec.describe Savant::Agent::Runtime do
     expect(res[:final]).to eq('ok')
   end
 end
-

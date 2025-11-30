@@ -143,9 +143,7 @@ module Savant
           begin
             @store.cleanup_missing(repo_id, kept)
           rescue StandardError => e
-            if verbose
-              @log.info("skip: repo=#{repo['name']} reason=cleanup_error class=#{e.class} msg=#{e.message.inspect}")
-            end
+            @log.info("skip: repo=#{repo['name']} reason=cleanup_error class=#{e.class} msg=#{e.message.inspect}") if verbose
           end
         end
 

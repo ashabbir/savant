@@ -20,9 +20,8 @@ module Savant
       def self.extract_json(text)
         s = text.to_s.strip
         # Prefer fenced JSON
-        if s =~ /```json\s*([\s\S]*?)```/i
-          return Regexp.last_match(1)
-        end
+        return Regexp.last_match(1) if s =~ /```json\s*([\s\S]*?)```/i
+
         # Find first JSON object
         idx = s.index('{')
         raise JSON::ParserError, 'no JSON found' unless idx
@@ -33,9 +32,7 @@ module Savant
           ch = s[i]
           depth += 1 if ch == '{'
           depth -= 1 if ch == '}'
-          if depth.zero?
-            return s[idx..i]
-          end
+          return s[idx..i] if depth.zero?
         end
         raise JSON::ParserError, 'unterminated JSON object'
       end
@@ -44,9 +41,9 @@ module Savant
         out = {
           'action' => (data['action'] || data[:action]).to_s,
           'tool_name' => (data['tool_name'] || data[:tool_name] || data['tool'] || data[:tool]).to_s,
-          'args' => (data['args'] || data[:args] || {}),
-          'final' => (data['final'] || data[:final] || ''),
-          'reasoning' => (data['reasoning'] || data[:reasoning] || '')
+          'args' => data['args'] || data[:args] || {},
+          'final' => data['final'] || data[:final] || '',
+          'reasoning' => data['reasoning'] || data[:reasoning] || ''
         }
         unless ACTIONS.include?(out['action'])
           out['action'] = 'error'
@@ -58,4 +55,3 @@ module Savant
     end
   end
 end
-

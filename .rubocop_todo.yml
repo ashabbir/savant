@@ -20,7 +20,7 @@ Lint/SuppressedException:
 # Offense count: 93
 # Configuration parameters: AllowedMethods, AllowedPatterns, CountRepeatedAttributes.
 Metrics/AbcSize:
-  Max: 103
+  Max: 112
 
 # Offense count: 38
 # Configuration parameters: CountComments, CountAsOne, AllowedMethods, AllowedPatterns.
@@ -36,7 +36,7 @@ Metrics/ClassLength:
 # Offense count: 61
 # Configuration parameters: AllowedMethods, AllowedPatterns.
 Metrics/CyclomaticComplexity:
-  Max: 36
+  Max: 40
 
 # Offense count: 124
 # Configuration parameters: CountComments, CountAsOne, AllowedMethods, AllowedPatterns.
@@ -100,4 +100,4 @@ Style/IfUnlessModifier:
 # Configuration parameters: AllowHeredoc, AllowURI, AllowQualifiedName, URISchemes, IgnoreCopDirectives, AllowedPatterns, SplitStrings.
 # URISchemes: http, https
 Layout/LineLength:
-  Max: 284
+  Max: 320

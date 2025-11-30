@@ -95,7 +95,8 @@ module Savant
         Savant::Logging::Logger.new(
           io: $stdout,
           file_path: log_file,
-          level: ENV['LOG_LEVEL'] || 'error',
+          # Boot logs must be visible for tests and diagnostics; default to info
+          level: ENV['LOG_LEVEL'] || 'info',
           json: true,
           service: 'boot'
         )
@@ -284,8 +285,8 @@ module Savant
           },
           repo: context.repo,
           # Hub-visible LLM runtime defaults (overridable by env or later runtime)
-          slm_model: (ENV['SLM_MODEL'] || Savant::LLM::DEFAULT_SLM),
-          llm_model: (ENV['LLM_MODEL'] || Savant::LLM::DEFAULT_LLM),
+          slm_model: ENV['SLM_MODEL'] || Savant::LLM::DEFAULT_SLM,
+          llm_model: ENV['LLM_MODEL'] || Savant::LLM::DEFAULT_LLM,
           provider: Savant::LLM.default_provider_for(ENV['LLM_MODEL'] || Savant::LLM::DEFAULT_LLM),
           created_at: context.memory[:created_at],
           updated_at: Time.now.utc.iso8601

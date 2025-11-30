@@ -30,4 +30,3 @@ RSpec.describe Savant::Agent::OutputParser do
     end.to raise_error(StandardError, 'malformed_json')
   end
 end
-

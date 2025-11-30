@@ -17,8 +17,8 @@ RSpec.describe Savant::Framework::Middleware::Trace do
   let(:audit_path) { File.join(audit_dir, 'audit.json') }
   let(:policy) do
     Savant::Logging::Audit::Policy.new('sandbox' => false,
-                              'audit' => { 'enabled' => true, 'store' => audit_path },
-                              'replay' => { 'limit' => 2 })
+                                       'audit' => { 'enabled' => true, 'store' => audit_path },
+                                       'replay' => { 'limit' => 2 })
   end
   let(:store) { Savant::Logging::Audit::Store.new(policy.audit_store_path) }
 
