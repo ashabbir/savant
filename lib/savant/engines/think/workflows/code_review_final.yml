@@ -112,7 +112,7 @@ steps:
       }
   capture_as: impact_analysis
 - id: '11'
-  call: fts/search
+  call: fts_search
   deps:
   - '10'
   input_template:
@@ -120,7 +120,7 @@ steps:
     limit: 50
   capture_as: cross_repo_hits
 - id: '12'
-  call: memory/search
+  call: memory_search
   deps:
   - '10'
   input_template:

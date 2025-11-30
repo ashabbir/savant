@@ -26,6 +26,21 @@ module Savant
         }
       end
 
+      # List available workflows under workflows/*.yaml
+      def workflows_list(filter: nil)
+        dir = File.join(@base_path, 'workflows')
+        rows = []
+        if Dir.exist?(dir)
+          Dir.glob(File.join(dir, '*.y{a,}ml')).each do |path|
+            id = File.basename(path).sub(/\.(yaml|yml)$/i, '')
+            next if filter && !id.include?(filter.to_s)
+
+            rows << { id: id, path: path }
+          end
+        end
+        { workflows: rows.sort_by { |r| r[:id] } }
+      end
+
       # Run a workflow to completion.
       # Returns { run_id:, final:, steps:, status: 'ok'|'error', error?: }
       def run(workflow:, params: {})

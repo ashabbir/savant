@@ -27,6 +27,8 @@ import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
 import Button from '@mui/material/Button';
+import Autocomplete from '@mui/material/Autocomplete';
+import { useWorkflowList } from '../../api';
 import List from '@mui/material/List';
 import ListItem from '@mui/material/ListItem';
 import ListItemText from '@mui/material/ListItemText';
@@ -79,6 +81,9 @@ export default function WorkflowRuns() {
       alert('Invalid JSON for params');
     }
   }
+
+  const wfList = useWorkflowList('');
+  const options = (wfList.data?.workflows || []).map((w) => w.id);
 
   return (
     <Grid container spacing={2}>
@@ -238,7 +243,15 @@ export default function WorkflowRuns() {
         <DialogTitle>Start Workflow</DialogTitle>
         <DialogContent>
           <Stack spacing={1} sx={{ mt: 1 }}>
-            <TextField label="Workflow name" value={startWf} onChange={e=>setStartWf(e.target.value)} size="small" />
+            <Autocomplete
+              options={options}
+              freeSolo
+              value={startWf}
+              onChange={(_, v) => setStartWf(v || '')}
+              renderInput={(params) => (
+                <TextField {...params} label="Workflow name" size="small" value={startWf} onChange={(e)=>setStartWf(e.target.value)} />
+              )}
+            />
             <TextField label="Params (JSON)" value={startParams} onChange={e=>setStartParams(e.target.value)} size="small" multiline minRows={4} />
           </Stack>
         </DialogContent>

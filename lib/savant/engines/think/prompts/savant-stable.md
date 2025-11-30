@@ -24,4 +24,4 @@
 - Prefer: summaries, counts, and file:line references. If an artifact is large, save it locally and return a path + hash + short preview.
 
 ### Cross-service calls
-- For instructions where `call` is a tool exposed by another MCP service (e.g., `fts/search` from Context), call that service directly and pass the result to `think.next`.
+- For instructions where `call` is a tool exposed by another MCP service (e.g., `fts_search` from Context), call that service directly and pass the result to `think.next`.

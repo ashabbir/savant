@@ -19,7 +19,7 @@ export function useThinkWorkflowGraph(id: string | null) {
   return useQuery<{ nodes: any[]; order: string[] }>({
     queryKey: ['think', 'workflow', 'graph', id],
     queryFn: async () => {
-      const res = await client().post('/think/tools/think.workflows.graph/call', { params: { workflow: id } });
+      const res = await client().post('/think/tools/think_workflows_graph/call', { params: { workflow: id } });
       return res.data as { nodes: any[]; order: string[] };
     },
     enabled: !!id
@@ -27,22 +27,22 @@ export function useThinkWorkflowGraph(id: string | null) {
 }
 
 export async function thinkWorkflowValidateGraph(graph: ThinkWorkflowGraph) {
-  const res = await client().post('/think/tools/think.workflows.validate/call', { params: { graph } });
+  const res = await client().post('/think/tools/think_workflows_validate/call', { params: { graph } });
   return res.data as { ok: boolean; errors: string[] };
 }
 
 export async function thinkWorkflowCreateGraph(id: string, graph: ThinkWorkflowGraph) {
-  const res = await client().post('/think/tools/think.workflows.create/call', { params: { workflow: id, graph } });
+  const res = await client().post('/think/tools/think_workflows_create/call', { params: { workflow: id, graph } });
   return res.data as { ok: boolean; id: string };
 }
 
 export async function thinkWorkflowUpdateGraph(id: string, graph: ThinkWorkflowGraph) {
-  const res = await client().post('/think/tools/think.workflows.update/call', { params: { workflow: id, graph } });
+  const res = await client().post('/think/tools/think_workflows_update/call', { params: { workflow: id, graph } });
   return res.data as { ok: boolean; id: string };
 }
 
 export async function thinkWorkflowDelete(id: string) {
-  const res = await client().post('/think/tools/think.workflows.delete/call', { params: { workflow: id } });
+  const res = await client().post('/think/tools/think_workflows_delete/call', { params: { workflow: id } });
   return res.data as { ok: boolean; deleted: boolean };
 }
 

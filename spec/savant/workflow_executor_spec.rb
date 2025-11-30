@@ -9,7 +9,7 @@ RSpec.describe 'Workflow executor end-to-end' do
       case name
       when 'git.diff'
         { files: ['a.rb', 'b.rb'], hunks: [], args: args }
-      when 'context.fts/search'
+      when 'context.fts_search'
         { hits: [{ path: 'README.md', score: 1.0 }], query: args['q'] }
       else
         { ok: true, tool: name, args: args }
@@ -33,7 +33,7 @@ RSpec.describe 'Workflow executor end-to-end' do
         - name: diff
           tool: git.diff
         - name: cross
-          tool: context.fts/search
+          tool: context.fts_search
           with:
             q: "{{ diff.files }}"
         - name: summarize

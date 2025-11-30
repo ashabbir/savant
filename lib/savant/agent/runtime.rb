@@ -254,8 +254,8 @@ module Savant
         rescue StandardError
           # fall through
         end
-        # Heuristic fallback: if goal clearly asks for search/fts, use context.fts/search when available
-        return action.merge('tool_name' => 'context.fts/search') if @goal =~ /\b(search|fts|find|lookup|README)\b/i && valid_tools.include?('context.fts/search')
+        # Heuristic fallback: if goal clearly asks for search/fts, use context.fts_search when available
+        return action.merge('tool_name' => 'context.fts_search') if @goal =~ /\b(search|fts|find|lookup|README)\b/i && valid_tools.include?('context.fts_search')
 
         # Could not correct; convert to error so loop can finish or try again
         { 'action' => 'error', 'final' => "invalid tool: #{name}", 'tool_name' => name, 'args' => {}, 'reasoning' => '' }

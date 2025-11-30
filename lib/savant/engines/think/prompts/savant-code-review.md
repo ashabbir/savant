@@ -82,8 +82,8 @@ For instructions where `call` looks like `local.exec`, `local.read`, `local.writ
 
 For instructions where `call` is a tool exposed by another MCP service:
 - `gitlab.*` -> GitLab MCP (e.g., `gitlab.get_merge_request_changes`)
-- `fts/search` -> Context MCP full-text search
-- `memory/search` -> Context MCP memory search
+- `fts_search` -> Context MCP full-text search
+- `memory_search` -> Context MCP memory search
 - `jira_get_issue` -> Jira MCP
 
 Call that service directly and pass the result to `think.next`.

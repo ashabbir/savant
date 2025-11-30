@@ -69,7 +69,7 @@ module Savant
       private
 
       def normalize_tool_name(ref)
-        # Accept both context.fts/search and context.fts.search; prefer slash after first segment
+        # Accept both context.fts_search and context.fts.search; prefer slash after first segment
         s = ref.to_s
         return s if s.include?('/')
         parts = s.split('.')

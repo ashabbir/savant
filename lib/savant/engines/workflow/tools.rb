@@ -34,28 +34,33 @@ module Savant
             nxt.call(ctx, nm, a2)
           end
 
-          tool 'workflow_run', description: 'Run a YAML workflow by name (workflows/<name>.yaml)',
+          tool 'workflow.run', description: 'Run a YAML workflow by name (workflows/<name>.yaml)',
                                schema: { type: 'object', properties: { workflow: { type: 'string' }, params: { type: 'object' } }, required: ['workflow'] } do |_ctx, a|
             eng.run(workflow: a['workflow'].to_s, params: a['params'] || {})
           end
 
-          tool 'workflow_runs_list', description: 'List saved workflow runs',
+          tool 'workflow.runs.list', description: 'List saved workflow runs',
                                      schema: { type: 'object', properties: {} } do |_ctx, _a|
             eng.runs_list
           end
 
-          tool 'workflow_runs_read', description: 'Read a saved workflow run state',
+          tool 'workflow.runs.read', description: 'Read a saved workflow run state',
                                      schema: { type: 'object', properties: { workflow: { type: 'string' }, run_id: { type: 'string' } }, required: %w[workflow run_id] } do |_ctx, a|
             eng.run_read(workflow: a['workflow'], run_id: a['run_id'])
           end
 
-          tool 'workflow_runs_delete', description: 'Delete a saved workflow run state',
+          tool 'workflow.runs.delete', description: 'Delete a saved workflow run state',
                                        schema: { type: 'object', properties: { workflow: { type: 'string' }, run_id: { type: 'string' } }, required: %w[workflow run_id] } do |_ctx, a|
             eng.run_delete(workflow: a['workflow'], run_id: a['run_id'])
           end
 
           tool 'server_info', description: 'Workflow engine info', schema: { type: 'object', properties: {} } do |_ctx, _a|
             eng.server_info
+          end
+
+          tool 'workflow.list', description: 'List available YAML workflows',
+                                schema: { type: 'object', properties: { filter: { type: 'string' } } } do |_ctx, a|
+            eng.workflows_list(filter: a['filter'])
           end
         end
       end

@@ -7,6 +7,6 @@ RSpec.describe 'savant CLI' do
     cmd = %(ruby bin/savant list tools --service=context)
     out = `#{cmd}`
     expect($CHILD_STATUS.success?).to be(true)
-    expect(out).to include('fts/search')
+    expect(out).to include('fts_search')
   end
 end
