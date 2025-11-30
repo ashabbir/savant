@@ -51,17 +51,7 @@
     },
     "mcp": {
       "type": "object",
-      "required": ["listenHost", "listenPort"],
-      "additionalProperties": false,
-      "properties": {
-        "listenHost": { "type": "string" },
-        "listenPort": { "type": "integer", "minimum": 1, "maximum": 65535 },
-        "allowOrigins": {
-          "type": "array",
-          "items": { "type": "string" },
-          "default": ["*"]
-        }
-      }
+      "additionalProperties": true
     },
     "database": {
       "type": "object",

@@ -7,6 +7,7 @@ require_relative '../framework/middleware/user_header'
 require_relative 'sse'
 require_relative '../logging/event_recorder'
 require_relative 'connections'
+require_relative '../multiplexer'
 
 module Savant
   module Hub
@@ -218,6 +219,12 @@ module Savant
           return not_found
         end
 
+        if engine_name == 'multiplexer'
+          return handle_multiplexer_get(req, segments[1..]) if req.request_method == 'GET'
+
+          return not_found
+        end
+
         manager = mounts[engine_name]
         return not_found unless manager
 
@@ -356,6 +363,27 @@ module Savant
         end
       end
 
+      def handle_multiplexer_get(req, rest)
+        case rest
+        when ['logs']
+          if req.params['stream']
+            return sse_logs(req, 'multiplexer', log_file: multiplexer_log_path)
+          end
+
+          n = (req.params['n'] || '100').to_i
+          path = multiplexer_log_path
+          unless File.file?(path)
+            return respond(200, { engine: 'multiplexer', count: 0, path: path, lines: [], note: 'log file not found' })
+          end
+
+          level = req.params['level']
+          lines = filter_log_lines(read_last_lines(path, n), level)
+          respond(200, { engine: 'multiplexer', count: lines.length, path: path, lines: lines, level: level })
+        else
+          not_found
+        end
+      end
+
       def handle_post(req, engine_name, manager, rest)
         if rest.size >= 3 && rest[0] == 'tools' && rest[-1] == 'call'
           tool = rest[1..-2].join('/')
@@ -377,6 +405,9 @@ module Savant
           hub: { pid: Process.pid, uptime_seconds: uptime_seconds },
           engines: engines
         }
+        if (mux = Savant::Multiplexer.global)
+          payload[:multiplexer] = mux.snapshot
+        end
         respond(200, payload)
       end
 
@@ -519,6 +550,16 @@ module Savant
         File.join(logs_dir, "#{engine_name}.log")
       end
 
+      def multiplexer_log_path
+        mux = Savant::Multiplexer.global
+        path = mux&.snapshot&.[](:log_path)
+        return path if path && !path.to_s.empty?
+
+        log_path('multiplexer')
+      rescue StandardError
+        log_path('multiplexer')
+      end
+
       def cors_headers
         allow_origin = ENV['SAVANT_CORS_ORIGIN'] || '*'
         {
@@ -653,12 +694,12 @@ module Savant
           "data: #{JSON.generate(data)}\n\n"
       end
 
-      def sse_logs(req, engine_name)
+      def sse_logs(req, engine_name, log_file: nil)
         n = (req.params['n'] || '100').to_i
         once = req.params.key?('once') && req.params['once'] != '0'
         level = req.params['level']
         level_pattern = log_level_pattern(level)
-        path = log_path(engine_name)
+        path = log_file || log_path(engine_name)
         unless File.file?(path)
           body = Enumerator.new do |y|
             y << format_sse_event('log', { line: 'log file not found' })

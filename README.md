@@ -1,6 +1,20 @@
 # Savant
 
-Savant is a lightweight Ruby framework for building and running local MCP services. The core boots a single MCP server, loads one engine, and handles transport, logging, config, and dependency wiring. Engines are discoverable by the Hub and rendered in a compact React UI.
+Savant is a lightweight Ruby framework for building and running local MCP services. The core now includes a multiplexer that boots every engine inside dedicated child processes, merges their tool registries, and exposes a single unified MCP surface. Engines remain discoverable by the Hub and rendered in a compact React UI.
+
+## Multiplexer Overview
+
+- `bin/mcp_server` defaults to the multiplexer. It spawns one stdio MCP process per engine (`context`, `think`, `personas`, `rules`, `jira` by default), namespaces their tools (`context.fts/search`, `jira.issue.get`, etc.), and serves them to connected editors.
+- Each engine failure is isolated—if a child dies the multiplexer removes its tools, logs the event, and restarts it in the background.
+- Metrics and status are written to `logs/multiplexer.log` and surfaced via the Hub (`curl /` now includes a `multiplexer` object) and CLI helpers (`savant engines`, `savant tools`).
+
+```
+# Inspect engines + status
+SAVANT_PATH=$(pwd) bundle exec ruby ./bin/savant engines
+
+# List namespaced tools
+SAVANT_PATH=$(pwd) bundle exec ruby ./bin/savant tools
+```
 
 This README is intentionally concise. Full, detailed docs (with diagrams) live in the Memory Bank:
 
@@ -62,16 +76,14 @@ make repo-index-all
 - Static: `make ui-build` then open http://localhost:9999/ui
 - Dev: `make dev-ui` then open http://localhost:5173 (Hub at http://localhost:9999)
 
-5) Engines (stdio)
+5) MCP Multiplexer (stdio)
 ```
-# Context
-MCP_SERVICE=context SAVANT_PATH=$(pwd) bundle exec ruby ./bin/mcp_server
-# Jira
-MCP_SERVICE=jira    SAVANT_PATH=$(pwd) bundle exec ruby ./bin/mcp_server
-# Think
-MCP_SERVICE=think   SAVANT_PATH=$(pwd) bundle exec ruby ./bin/mcp_server
-# Personas
-MCP_SERVICE=personas SAVANT_PATH=$(pwd) bundle exec ruby ./bin/mcp_server
+# Unified multiplexer (default)
+SAVANT_PATH=$(pwd) bundle exec ruby ./bin/mcp_server
+
+# Run a single engine (optional override)
+MCP_SERVICE=context  SAVANT_PATH=$(pwd) bundle exec ruby ./bin/mcp_server
+MCP_SERVICE=jira     SAVANT_PATH=$(pwd) bundle exec ruby ./bin/mcp_server
 ```
 
 ## Architecture
