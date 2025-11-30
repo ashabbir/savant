@@ -223,6 +223,16 @@ export default function EngineCard({ name, mount, toolCount }: EngineCardProps) 
         >
           {expanded ? 'Hide' : 'Show'} Tools
         </Button>
+        {name === 'workflow' && (
+          <Button
+            size="small"
+            onClick={() => {
+              window.open('/engines/workflow/runs', '_blank');
+            }}
+          >
+            Runs
+          </Button>
+        )}
         {/* Open raw JSON diagnostics for this engine */}
         <Button
           size="small"
