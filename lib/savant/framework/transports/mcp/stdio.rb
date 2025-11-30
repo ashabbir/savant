@@ -1,12 +1,12 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
-require_relative '../../logging/logger'
-require_relative '../../logging/event_recorder'
-require_relative '../../hub/connections'
-require_relative '../../mcp_dispatcher'
+require_relative '../../../logging/logger'
+require_relative '../../../logging/event_recorder'
+require_relative '../../../hub/connections'
+require_relative '../../mcp/dispatcher'
 require 'fileutils'
-require_relative '../../framework/config'
+require_relative '../../config'
 
 module Savant
   module Transports
@@ -76,7 +76,7 @@ module Savant
           (if ENV['SAVANT_PATH'] && !ENV['SAVANT_PATH'].empty?
              ENV['SAVANT_PATH']
            else
-             File.expand_path('../../../..', __dir__)
+             File.expand_path('../../../../..', __dir__)
            end)
         end
 
