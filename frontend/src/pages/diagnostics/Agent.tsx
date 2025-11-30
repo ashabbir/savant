@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Box, Paper, Stack, Typography, Divider, List, ListItemButton, ListItemText, Chip, IconButton, FormGroup, FormControlLabel, Checkbox, Tooltip } from '@mui/material';
+import { Box, Paper, Stack, Typography, Divider, List, ListItemButton, ListItemText, Chip, IconButton, FormGroup, FormControlLabel, Checkbox, Tooltip, ListSubheader } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import GetAppIcon from '@mui/icons-material/GetApp';
 import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile';
@@ -98,6 +98,13 @@ export default function DiagnosticsAgent() {
       return { step: stepNum, events: arr, rs, llm, prompt, toolStart, toolDone, toolErr };
     });
   }, [events]);
+
+  const runs = React.useMemo(() => {
+    // For now, group all events into a single run
+    // Can be enhanced later to detect multiple runs based on event patterns
+    return events.length > 0 ? [{ run: 1, events }] : [];
+  }, [events]);
+
   const selEv = view === 'timeline' ? (events[selected] || null) : (groupList[selected]?.rs || groupList[selected]?.events?.[0] || null);
 
   function summarize(): string {
