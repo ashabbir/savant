@@ -1,4 +1,6 @@
 /logs/
+lib/logs/
+lib/logs/*
 config/settings.json
 .env
 .cache

@@ -7,9 +7,9 @@
 # Selects the active service via `MCP_SERVICE` (e.g., 'context' or 'jira'), and
 # starts either stdio or websocket transport based on config/flags.
 
-require_relative 'framework/transports/mcp/stdio'
-require_relative 'framework/transports/mcp/websocket'
-require_relative 'framework/config'
+require_relative '../transports/mcp/stdio'
+require_relative '../transports/mcp/websocket'
+require_relative '../config'
 
 module Savant
   # Launch MCP with selected transport.
@@ -19,7 +19,7 @@ module Savant
       base = (if ENV['SAVANT_PATH'] && !ENV['SAVANT_PATH'].empty?
                 ENV['SAVANT_PATH']
               else
-                File.expand_path('../../..', __dir__)
+                File.expand_path('../../../..', __dir__)
               end)
       settings_path = File.join(base, 'config', 'settings.json')
 
