@@ -43,12 +43,35 @@ function statusColor(status?: string): 'default' | 'success' | 'warning' | 'erro
   return 'default';
 }
 
+function normalizeModelProgress(model: any): number | null {
+  const keys = ['progress', 'progress_percent', 'progress_pct', 'loading_progress', 'download_progress'];
+  for (const key of keys) {
+    const raw = model?.[key];
+    if (raw == null) continue;
+    const value = typeof raw === 'string' ? Number(raw) : raw;
+    if (Number.isNaN(value)) continue;
+    if (value <= 1) {
+      return Math.min(Math.max(value * 100, 0), 100);
+    }
+    if (value <= 100) {
+      return Math.min(Math.max(value, 0), 100);
+    }
+  }
+  return null;
+}
+
 export default function DiagnosticsOverview() {
   const hub = useHubInfo();
   const diag = useDiagnostics();
   const stats = useHubStats();
   const personasList = usePersonas('');
   const rulesList = useRules('');
+  const llmModels = diag.data?.llm_models;
+  const runningModels = llmModels?.running ?? 0;
+  const totalModels = llmModels?.total ?? (llmModels?.models?.length ?? 0);
+  const llmStates = Object.entries(llmModels?.states || {}).filter(([state]) => state && state.toLowerCase() !== 'unknown');
+  const llmModelList = llmModels?.models || [];
+  const llmRuntime = diag.data?.llm_runtime;
   // Removed FTS Query Test state
 
   return (
@@ -410,6 +433,96 @@ export default function DiagnosticsOverview() {
         {/* Right Column - Database, Mounts & Config (scrollable) */}
         <Grid size={{ xs: 12, md: 4 }}>
           <Stack spacing={1.5} sx={{ height: '100%', overflow: 'auto' }}>
+            {/* LLM Models */}
+            <Paper sx={{ p: 1.5 }}>
+              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>LLM Models</Typography>
+              {diag.isLoading && <LinearProgress sx={{ mb: 1 }} />}
+              {llmModels ? (
+                <Stack spacing={1}>
+                  <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+                    <Chip
+                      size="small"
+                      label={`Running: ${runningModels}`}
+                      color={runningModels > 0 ? 'success' : 'default'}
+                      variant="outlined"
+                    />
+                    <Chip
+                      size="small"
+                      label={`Total: ${totalModels}`}
+                      variant="outlined"
+                    />
+                  </Stack>
+                  {llmStates.length > 0 && (
+                    <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+                      {llmStates.slice(0, 5).map(([state, count], idx) => (
+                        <Chip
+                          key={`${state}-${idx}`}
+                          size="small"
+                          label={`${state.charAt(0).toUpperCase() + state.slice(1)}: ${count}`}
+                          variant="outlined"
+                          color={statusColor(state)}
+                        />
+                      ))}
+                    </Stack>
+                  )}
+                  {llmModelList.length > 0 ? (
+                    <Stack spacing={1}>
+                      {llmModelList.slice(0, 4).map((model, index) => {
+                        const name = model.name || model.model || 'Unknown';
+                        const stateLabel = (model.state || model.status || 'unknown').toString();
+                        const progress = normalizeModelProgress(model);
+                        return (
+                          <Box key={`${name}-${index}`} sx={{ p: 1, borderRadius: 1, bgcolor: 'action.hover' }}>
+                            <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1}>
+                              <Typography variant="body2" sx={{ fontWeight: 600 }}>{name}</Typography>
+                              <Chip
+                                label={stateLabel}
+                                size="small"
+                                color={statusColor(stateLabel)}
+                                variant="outlined"
+                                sx={{ height: 20, '& .MuiChip-label': { px: 0.5, fontSize: 10 } }}
+                              />
+                            </Stack>
+                            {progress !== null && (
+                              <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.5 }}>
+                                <Typography variant="caption" color="text.secondary">{`${Math.round(progress)}%`}</Typography>
+                                <LinearProgress variant="determinate" value={progress} sx={{ flex: 1, height: 6, borderRadius: 1 }} />
+                              </Stack>
+                            )}
+                          </Box>
+                        );
+                      })}
+                      {llmModelList.length > 4 && (
+                        <Typography variant="caption" color="text.secondary">
+                          +{llmModelList.length - 4} more models
+                        </Typography>
+                      )}
+                    </Stack>
+                  ) : (
+                    <Typography variant="caption" color="text.secondary">No models available</Typography>
+                  )}
+                  {llmRuntime && (
+                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 0.5 }}>
+                      <Typography variant="caption" sx={{ fontFamily: 'monospace' }}>
+                        SLM: {llmRuntime.slm_model || 'n/a'}
+                      </Typography>
+                      <Typography variant="caption" sx={{ fontFamily: 'monospace' }}>
+                        LLM: {llmRuntime.llm_model || 'n/a'}
+                      </Typography>
+                      <Typography variant="caption" sx={{ fontFamily: 'monospace' }}>
+                        Provider: {llmRuntime.provider || 'ollama'}
+                      </Typography>
+                    </Stack>
+                  )}
+                  {llmModels.error && (
+                    <Alert severity="warning" sx={{ mt: 1 }}>{llmModels.error}</Alert>
+                  )}
+                </Stack>
+              ) : !diag.isLoading ? (
+                <Typography variant="caption" color="text.secondary">Model status not available</Typography>
+              ) : null}
+            </Paper>
+
             {/* Database */}
             <Paper sx={{ p: 1.5 }}>
               <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>Database</Typography>

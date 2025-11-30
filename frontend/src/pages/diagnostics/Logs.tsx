@@ -250,6 +250,7 @@ export default function DiagnosticsLogs() {
                 {[
                   { value: 'all', label: 'All events' },
                   { value: 'http_request', label: 'HTTP requests' },
+                  { value: 'reasoning_step', label: 'Agent reasoning steps' },
                   { value: 'tool_call_started', label: 'Tool call started' },
                   { value: 'tool_call_completed', label: 'Tool call completed' },
                   { value: 'tool_call_error', label: 'Tool call errors' },

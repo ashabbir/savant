@@ -56,6 +56,9 @@ module Savant
         list << { module: 'hub', method: 'GET', path: '/', description: 'Hub dashboard' }
         list << { module: 'hub', method: 'GET', path: '/diagnostics', description: 'Env, mounts, repos visibility, DB checks' }
         list << { module: 'hub', method: 'GET', path: '/diagnostics/connections', description: 'Active SSE/stdio connections' }
+        list << { module: 'hub', method: 'GET', path: '/diagnostics/agent', description: 'Agent runtime: memory + telemetry' }
+        list << { module: 'hub', method: 'GET', path: '/diagnostics/agent/trace', description: 'Download agent trace log' }
+        list << { module: 'hub', method: 'GET', path: '/diagnostics/agent/session', description: 'Download agent session memory JSON' }
         list << { module: 'hub', method: 'GET', path: '/diagnostics/mcp/:name', description: 'Per-engine diagnostics' }
         list << { module: 'hub', method: 'GET', path: '/routes', description: 'Routes list (add ?expand=1 to include tool calls)' }
         list << { module: 'hub', method: 'GET', path: '/logs', description: 'Aggregated recent events (?n=100,&mcp=,&type=)' }
@@ -191,6 +194,9 @@ module Savant
         return hub_root(req) if req.get? && req.path_info == '/'
         return hub_routes(req) if req.get? && req.path_info == '/routes'
         return diagnostics(req) if req.get? && req.path_info == '/diagnostics'
+        return diagnostics_agent(req) if req.get? && %w[/diagnostics/agent /diagnostics/agents].include?(req.path_info)
+        return diagnostics_agent_trace(req) if req.get? && req.path_info == '/diagnostics/agent/trace'
+        return diagnostics_agent_session(req) if req.get? && req.path_info == '/diagnostics/agent/session'
         return diagnostics_connections(req) if req.get? && req.path_info == '/diagnostics/connections'
         return diagnostics_mcp(req) if req.get? && req.path_info.start_with?('/diagnostics/mcp/')
         return logs_index(req) if req.get? && req.path_info == '/logs'
@@ -789,6 +795,86 @@ module Savant
         calls = { total_tool_calls: (manager.respond_to?(:total_tool_calls) ? manager.total_tool_calls : nil), last_seen: (manager.respond_to?(:last_seen) ? manager.last_seen : nil) }
         events = @recorder.last(50, mcp: name)
         respond(200, { engine: name, info: info, connections: conns, calls: calls, stats: engine_stats, recent_events: events })
+      end
+
+      # GET /diagnostics/agent(s) -> memory snapshot + recent reasoning events
+      def diagnostics_agent(_req)
+        base = base_path
+        # Memory snapshot
+        mem_path = File.join(base, '.savant', 'session.json')
+        mem = if File.file?(mem_path)
+                begin
+                  JSON.parse(File.read(mem_path))
+                rescue StandardError
+                  nil
+                end
+              end
+
+        # Telemetry: prefer recorder, but also merge from file so CLI sessions appear
+        file_steps = []
+        trace_path = File.join(base, 'logs', 'agent_trace.log')
+        if File.file?(trace_path)
+          begin
+            lines = read_last_lines(trace_path, 1000)
+            file_events = lines.map { |ln| JSON.parse(ln) rescue nil }.compact
+            file_steps = file_events.select { |e| (e['type'] || e[:type]) == 'reasoning_step' }
+          rescue StandardError
+            file_steps = []
+          end
+        end
+
+        rec_steps = @recorder.last(200, type: 'reasoning_step')
+        # Merge and de-dup by step+timestamp hash if available
+        merged = (rec_steps + file_steps).uniq do |e|
+          k = e.is_a?(Hash) ? e : (e.respond_to?(:to_h) ? e.to_h : {})
+          "#{k['timestamp'] || k[:timestamp]}:#{k['step'] || k[:step]}"
+        end
+
+        # Fallback: synthesize reasoning events from memory steps if no telemetry was captured
+        if (merged.nil? || merged.empty?) && mem && mem['steps'].is_a?(Array) && mem['steps'].any?
+          begin
+            merged = mem['steps'].map do |s|
+              a = s['action'] || {}
+              {
+                'type' => 'reasoning_step',
+                'step' => s['index'] || s['idx'] || 0,
+                'model' => nil,
+                'prompt_tokens' => nil,
+                'output_tokens' => nil,
+                'action' => a['action'] || a[:action] || 'unknown',
+                'tool_name' => a['tool_name'] || a[:tool_name] || '',
+                'metadata' => { 'decision_summary' => a['reasoning'] || a[:reasoning] || '' },
+                'timestamp' => Time.now.to_i
+              }
+            end
+          rescue StandardError
+            # ignore synthesis errors
+          end
+        end
+
+        respond(200, { memory_path: mem_path, memory: mem, events_count: merged.length, events: merged, trace_path: trace_path })
+      end
+
+      # GET /diagnostics/agent/trace -> return agent trace log (plain text)
+      def diagnostics_agent_trace(_req)
+        path = File.join(base_path, 'logs', 'agent_trace.log')
+        return respond(404, { error: 'trace_not_found', path: path }) unless File.file?(path)
+
+        body = read_last_lines(path, 5000).join("\n")
+        [200, { 'Content-Type' => 'text/plain' }.merge(cors_headers), [body]]
+      end
+
+      # GET /diagnostics/agent/session -> return session.json (application/json)
+      def diagnostics_agent_session(_req)
+        path = File.join(base_path, '.savant', 'session.json')
+        return respond(404, { error: 'session_not_found', path: path }) unless File.file?(path)
+
+        begin
+          js = JSON.parse(File.read(path))
+        rescue StandardError => e
+          return respond(500, { error: 'session_parse_error', message: e.message })
+        end
+        [200, { 'Content-Type' => 'application/json' }.merge(cors_headers), [JSON.generate(js)]]
       end
 
       def normalize_tool_spec(spec)
