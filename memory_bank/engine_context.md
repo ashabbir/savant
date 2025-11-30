@@ -41,7 +41,7 @@ erDiagram
 
 ## Tools (Selected)
 - `fts_search` – ranked snippet search (code + markdown)
-- `memory/resources/*` – list/read memory_bank markdown stored in DB
+- `memory_resources_*` – list/read memory_bank markdown stored in DB
 - `fs_repo_*` – index/delete/status helpers
 
 ## Notes

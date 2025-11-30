@@ -39,17 +39,17 @@ module Savant
             eng.run(workflow: a['workflow'].to_s, params: a['params'] || {})
           end
 
-          tool 'workflow_runs.list', description: 'List saved workflow runs',
+          tool 'workflow_runs_list', description: 'List saved workflow runs',
                                      schema: { type: 'object', properties: {} } do |_ctx, _a|
             eng.runs_list
           end
 
-          tool 'workflow_runs.read', description: 'Read a saved workflow run state',
+          tool 'workflow_runs_read', description: 'Read a saved workflow run state',
                                      schema: { type: 'object', properties: { workflow: { type: 'string' }, run_id: { type: 'string' } }, required: %w[workflow run_id] } do |_ctx, a|
             eng.run_read(workflow: a['workflow'], run_id: a['run_id'])
           end
 
-          tool 'workflow_runs.delete', description: 'Delete a saved workflow run state',
+          tool 'workflow_runs_delete', description: 'Delete a saved workflow run state',
                                        schema: { type: 'object', properties: { workflow: { type: 'string' }, run_id: { type: 'string' } }, required: %w[workflow run_id] } do |_ctx, a|
             eng.run_delete(workflow: a['workflow'], run_id: a['run_id'])
           end
@@ -58,7 +58,7 @@ module Savant
             eng.server_info
           end
 
-          tool 'workflow.list', description: 'List available YAML workflows',
+          tool 'workflow_list', description: 'List available YAML workflows',
                                 schema: { type: 'object', properties: { filter: { type: 'string' } } } do |_ctx, a|
             eng.workflows_list(filter: a['filter'])
           end
