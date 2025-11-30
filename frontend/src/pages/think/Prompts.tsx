@@ -43,11 +43,13 @@ export default function ThinkPrompts() {
   const nav = useNavigate();
 
   const rows = data?.versions || [];
-  const usedBySelected = React.useMemo(() => {
-    if (!sel) return 0;
-    const ws = workflows.data?.workflows || [];
-    return ws.filter((w: any) => (w.driver_version || 'stable') === sel).length;
-  }, [workflows.data?.workflows, sel]);
+  const workflowRows = workflows.data?.workflows || [];
+  const usedBy = React.useMemo(() => {
+    if (!sel) return [] as { id: string; label: string }[];
+    return workflowRows
+      .filter((w) => (w.driver_version || 'stable') === sel)
+      .map((w) => ({ id: w.id, label: w.name || w.id }));
+  }, [workflowRows, sel]);
   const filtered = useMemo(() => {
     const q = filter.trim().toLowerCase();
     if (!q) return rows;
@@ -73,9 +75,9 @@ export default function ThinkPrompts() {
                   </IconButton>
                 </span>
               </Tooltip>
-              <Tooltip title={sel ? (usedBySelected > 0 ? 'Cannot delete: prompt in use by workflows' : 'Delete Prompt') : 'Select a prompt'}>
+              <Tooltip title={sel ? (usedBy.length > 0 ? 'Cannot delete: prompt in use by workflows' : 'Delete Prompt') : 'Select a prompt'}>
                 <span>
-                  <IconButton size="small" color="error" disabled={!sel || usedBySelected > 0} onClick={() => setConfirmOpen(true)}>
+                  <IconButton size="small" color="error" disabled={!sel || usedBy.length > 0} onClick={() => setConfirmOpen(true)}>
                     <DeleteOutlineIcon fontSize="small" />
                   </IconButton>
                 </span>
@@ -112,10 +114,34 @@ export default function ThinkPrompts() {
             <Stack spacing={0.5}>
               <Typography variant="subtitle1" sx={{ fontSize: 12 }}>Prompt Details</Typography>
               {sel && (
-                <Stack direction="row" spacing={1} alignItems="center">
+                <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
                   <Chip size="small" label={`ID: ${sel}`} />
                   {(() => { const row = rows.find(r => r.version === sel); return row?.path ? <Chip size="small" color="primary" label={(row.path.split('/').pop() || '')} /> : null; })()}
                 </Stack>
+              )}
+              {sel && (
+                <Box sx={{ mt: 1 }}>
+                  <Typography variant="caption" sx={{ fontWeight: 600 }}>Used by</Typography>
+                  {workflows.isLoading && <Typography variant="caption" sx={{ ml: 1 }}>Loading…</Typography>}
+                  {!workflows.isLoading && (
+                    usedBy.length > 0 ? (
+                      <Stack direction="row" spacing={1} sx={{ mt: 0.5, flexWrap: 'wrap' }}>
+                        {usedBy.map((wf) => (
+                          <Chip
+                            key={wf.id}
+                            size="small"
+                            label={wf.label}
+                            clickable
+                            onClick={() => nav(`/engines/think/workflows/edit/${wf.id}`)}
+                            sx={{ mb: 0.5 }}
+                          />
+                        ))}
+                      </Stack>
+                    ) : (
+                      <Typography variant="caption" sx={{ display: 'block', mt: 0.5 }}>No workflows reference this prompt.</Typography>
+                    )
+                  )}
+                </Box>
               )}
             </Stack>
             <Tooltip title={pr.data?.prompt_md ? 'Copy Prompt' : 'Select a prompt to copy'}>
@@ -140,16 +166,16 @@ export default function ThinkPrompts() {
         <Dialog open={confirmOpen} onClose={() => setConfirmOpen(false)}>
           <DialogTitle>Delete Prompt</DialogTitle>
           <DialogContent>
-            {usedBySelected > 0 && (
+            {usedBy.length > 0 && (
               <Alert severity="warning" sx={{ mb: 1 }}>
-                Cannot delete: this prompt is used by {usedBySelected} workflow{usedBySelected === 1 ? '' : 's'}.
+                Cannot delete: this prompt is used by {usedBy.length} workflow{usedBy.length === 1 ? '' : 's'}.
               </Alert>
             )}
             Are you sure you want to delete "{sel}"?
           </DialogContent>
           <DialogActions>
             <Button onClick={()=>setConfirmOpen(false)}>Cancel</Button>
-            <Button color="error" disabled={!sel || busy || usedBySelected > 0} onClick={async ()=>{ if (!sel) return; try { setBusy(true); await thinkPromptsDelete(sel); setConfirmOpen(false); setSel(null); } finally { setBusy(false); } }}>Delete</Button>
+            <Button color="error" disabled={!sel || busy || usedBy.length > 0} onClick={async ()=>{ if (!sel) return; try { setBusy(true); await thinkPromptsDelete(sel); setConfirmOpen(false); setSel(null); } finally { setBusy(false); } }}>Delete</Button>
           </DialogActions>
         </Dialog>
       </Grid>
