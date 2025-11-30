@@ -13,6 +13,7 @@ import DiagnosticsRequests from './pages/diagnostics/Requests';
 import DiagnosticsLogs from './pages/diagnostics/Logs';
 import DiagnosticsRoutes from './pages/diagnostics/Routes';
 import DiagnosticsWorkflows from './pages/diagnostics/Workflows';
+import APIHealth from './pages/diagnostics/APIHealth';
 import Dashboard from './pages/Dashboard';
 import ThinkWorkflows from './pages/think/Workflows';
 import ThinkTools from './pages/think/Tools';
@@ -459,6 +460,7 @@ export default function App() {
           <Route path="/diagnostics/agent" element={<DiagnosticsAgent />} />
           <Route path="/diagnostics/agents" element={<DiagnosticsAgent />} />
           <Route path="/diagnostics/workflows" element={<DiagnosticsWorkflows />} />
+          <Route path="/diagnostics/api" element={<APIHealth />} />
           <Route path="/diagnostics/routes" element={<DiagnosticsRoutes />} />
         </Routes>
       </Container>

@@ -4,10 +4,10 @@ name: Code Review Final
 description: 'Phase 2 of code review: Impact analysis, cross-repo search, visual diagrams,
   and final safety decision. Reads intermediate state from code_review_initial. All
   operations are non-blocking (no local git/shell commands).'
-driver_version: code_review
+driver_version: stable
 rules:
 - code-review-rules
-version: 3
+version: 4
 steps:
 - id: '1'
   call: prompt_say

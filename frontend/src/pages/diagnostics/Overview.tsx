@@ -317,6 +317,17 @@ export default function DiagnosticsOverview() {
                 <a href="/diagnostics/workflows" target="_blank" rel="noreferrer">Open Workflow Telemetry</a>
               </Box>
             </Paper>
+
+            {/* API Health */}
+            <Paper sx={{ p: 1.5 }}>
+              <Typography variant="subtitle2" sx={{ mb: 0.5, fontWeight: 600 }}>API Health</Typography>
+              <Typography variant="body2" color="text.secondary">
+                Scan engine tool routes and detect mismatches or non‑JSON responses. Useful after changes to tool names.
+              </Typography>
+              <Box sx={{ mt: 1 }}>
+                <a href="/diagnostics/api" target="_blank" rel="noreferrer">Open API Health</a>
+              </Box>
+            </Paper>
             {/* Personas */}
             <Paper sx={{ p: 1.5 }}>
               <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>Personas</Typography>
