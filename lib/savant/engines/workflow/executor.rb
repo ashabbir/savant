@@ -3,8 +3,10 @@
 
 require 'json'
 require 'time'
+require 'fileutils'
 require_relative 'context'
 require_relative 'interpolator'
+require_relative 'agents'
 
 module Savant
   module Workflow
@@ -84,15 +86,7 @@ module Savant
       end
 
       def call_agent(name, with)
-        goal = (with.is_a?(Hash) && with['goal'].is_a?(String) ? with['goal'] : nil)
-        # Deterministic/local-first: default to dry_run unless explicitly enabled
-        dry = ENV['WORKFLOW_AGENT_REAL'] != '1'
-        require_relative '../../agent/runtime'
-        require_relative '../../framework/engine/runtime_context'
-        composed_goal = goal || "Run agent '#{name}' with inputs: #{JSON.generate(with)}"
-        agent = Savant::Agent::Runtime.new(goal: composed_goal)
-        res = agent.run(max_steps: 5, dry_run: dry)
-        res
+        Savant::Workflow::Agents.run(name, with || {})
       end
 
       def summarize(obj)
@@ -144,4 +138,3 @@ module Savant
     end
   end
 end
-

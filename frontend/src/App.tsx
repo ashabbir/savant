@@ -18,6 +18,7 @@ import ThinkWorkflowEditor from './pages/think/WorkflowEditor';
 import ThinkPrompts from './pages/think/Prompts';
 import PromptEditor from './pages/think/PromptEditor';
 import ThinkRuns from './pages/think/Runs';
+import WorkflowRuns from './pages/workflow/Runs';
 import Personas from './pages/personas/Personas';
 import PersonaEditor from './pages/personas/PersonaEditor';
 import RulesPage from './pages/rules/Rules';
@@ -483,6 +484,7 @@ export default function App() {
           <Route path="/engines/think/prompts/new" element={<PromptEditor />} />
           <Route path="/engines/think/prompts/edit/:version" element={<PromptEditor />} />
           <Route path="/engines/think/runs" element={<ThinkRuns />} />
+          <Route path="/engines/workflow/runs" element={<WorkflowRuns />} />
 
           <Route path="/engines/personas" element={<Personas />} />
           <Route path="/engines/personas/new" element={<PersonaEditor />} />

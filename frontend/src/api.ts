@@ -362,6 +362,38 @@ export function useThinkLimits() {
   });
 }
 
+// WORKFLOW engine API
+export function useWorkflowRuns() {
+  return useQuery<{ runs: { workflow: string; run_id: string; steps: number; status: string; path: string; updated_at: string }[] }>({
+    queryKey: ['workflow', 'runs'],
+    queryFn: async () => {
+      const res = await client().post('/workflow/tools/workflow.runs.list/call', { params: {} });
+      return res.data;
+    }
+  });
+}
+
+export function useWorkflowRun(workflow: string | null, runId: string | null) {
+  return useQuery<{ state: any }>({
+    queryKey: ['workflow', 'run', workflow, runId],
+    queryFn: async () => {
+      const res = await client().post('/workflow/tools/workflow.runs.read/call', { params: { workflow, run_id: runId } });
+      return res.data;
+    },
+    enabled: !!workflow && !!runId
+  });
+}
+
+export async function workflowRunDelete(workflow: string, runId: string) {
+  const res = await client().post('/workflow/tools/workflow.runs.delete/call', { params: { workflow, run_id: runId } });
+  return res.data as { ok: boolean; deleted: boolean };
+}
+
+export async function workflowRunStart(workflow: string, params: any) {
+  const res = await client().post('/workflow/tools/workflow.run/call', { params: { workflow, params } });
+  return res.data as { run_id: string; final: any; steps: number; status: string; error?: string };
+}
+
 // Database query test
 export type DbQueryTest = {
   query: string;
