@@ -14,45 +14,45 @@ module Savant
         eng = engine || Savant::Personas::Engine.new
         Savant::Framework::MCP::Core::DSL.build do
           # personas.list
-          tool 'personas.list', description: 'List available personas',
+          tool 'personas_list', description: 'List available personas',
                                 schema: { type: 'object', properties: { filter: { type: 'string' } } } do |_ctx, a|
             eng.list(filter: a['filter'])
           end
 
           # personas.get
-          tool 'personas.get', description: 'Fetch a persona by name',
+          tool 'personas_get', description: 'Fetch a persona by name',
                                schema: { type: 'object', properties: { name: { type: 'string' } }, required: ['name'] } do |_ctx, a|
             eng.get(name: a['name'])
           end
 
           # Single persona raw YAML read/write
-          tool 'personas.read',
+          tool 'personas_read',
                description: 'Read a single persona YAML by name',
                schema: { type: 'object', properties: { name: { type: 'string' } }, required: ['name'] } do |_ctx, a|
             eng.read_yaml(name: a['name'])
           end
 
-          tool 'personas.write',
+          tool 'personas_write',
                description: 'Overwrite a single persona YAML by name',
                schema: { type: 'object', properties: { name: { type: 'string' }, yaml: { type: 'string' } }, required: %w[name yaml] } do |_ctx, a|
             eng.write_yaml(name: a['name'], yaml: a['yaml'] || '')
           end
 
           # Catalog read/write
-          tool 'personas.catalog.read',
+          tool 'personas_catalog_read',
                description: 'Read the full personas catalog YAML',
                schema: { type: 'object', properties: {} } do |_ctx, _a|
             eng.catalog_read
           end
 
-          tool 'personas.catalog.write',
+          tool 'personas_catalog_write',
                description: 'Overwrite the full personas catalog YAML',
                schema: { type: 'object', properties: { yaml: { type: 'string' } }, required: ['yaml'] } do |_ctx, a|
             eng.catalog_write(yaml: a['yaml'] || '')
           end
 
           # CRUD for personas
-          tool 'personas.create',
+          tool 'personas_create',
                description: 'Create a persona entry (version starts at 1)',
                schema: {
                  type: 'object',
@@ -68,7 +68,7 @@ module Savant
             eng.create(name: a['name'], summary: a['summary'], prompt_md: a['prompt_md'], tags: a['tags'], notes: a['notes'])
           end
 
-          tool 'personas.update',
+          tool 'personas_update',
                description: 'Update a persona entry (bumps version by +1)',
                schema: {
                  type: 'object',
@@ -84,7 +84,7 @@ module Savant
             eng.update(name: a['name'], summary: a['summary'], prompt_md: a['prompt_md'], tags: a['tags'], notes: a['notes'])
           end
 
-          tool 'personas.delete',
+          tool 'personas_delete',
                description: 'Delete a persona entry by name',
                schema: { type: 'object', properties: { name: { type: 'string' } }, required: ['name'] } do |_ctx, a|
             eng.delete(name: a['name'])

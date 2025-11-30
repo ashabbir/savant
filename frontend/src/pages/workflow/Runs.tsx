@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useWorkflowRuns, useWorkflowRun, workflowRunDelete, workflowRunStart } from '../../api';
 import Grid from '@mui/material/Grid2';
 import Paper from '@mui/material/Paper';
@@ -27,6 +27,11 @@ import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
 import Button from '@mui/material/Button';
+import List from '@mui/material/List';
+import ListItem from '@mui/material/ListItem';
+import ListItemText from '@mui/material/ListItemText';
+import Divider from '@mui/material/Divider';
+import { useLocation, useSearchParams } from 'react-router-dom';
 
 const PANEL_HEIGHT = 'calc(100vh - 260px)';
 
@@ -42,6 +47,16 @@ export default function WorkflowRuns() {
   const [startOpen, setStartOpen] = useState(false);
   const [startWf, setStartWf] = useState('hello');
   const [startParams, setStartParams] = useState('{}');
+  const [search, setSearch] = useSearchParams();
+  useEffect(() => {
+    if (search.get('start') === '1') {
+      const wf = search.get('wf');
+      const p = search.get('params');
+      if (wf) setStartWf(wf);
+      if (p) setStartParams(p);
+      setStartOpen(true);
+    }
+  }, [search]);
 
   function copyJson(txt: string) {
     try { navigator.clipboard.writeText(txt); setCopiedOpen(true); } catch { setCopiedOpen(true); }
@@ -128,10 +143,80 @@ export default function WorkflowRuns() {
                   const agentName = (out && (out.agent || out['agent'])) || null;
                   if (agentName === 'mr_review') {
                     const finalText = out.final || out['final'] || '';
+                    // Extract structured sections from output if present
+                    const toList = (v: any): string[] => {
+                      if (!v) return [];
+                      if (Array.isArray(v)) {
+                        return v.map((x) => {
+                          if (typeof x === 'string') return x;
+                          if (x && typeof x === 'object') return x.text || x.msg || x.title || JSON.stringify(x);
+                          return String(x);
+                        });
+                      }
+                      if (typeof v === 'string') return [v];
+                      if (typeof v === 'object') return Object.values(v).map((x:any)=> (typeof x === 'string' ? x : JSON.stringify(x)));
+                      return [String(v)];
+                    };
+                    const findings = toList(out.findings || out.issues || out.observations);
+                    const risks = toList(out.risks || out.red_flags || out.concerns);
+                    const checklist = toList(out.checklist || out.todo || out.actions || out.action_items);
+                    const tests = toList(out.tests || out.test_impact || (out.testing && out.testing.affected));
                     return (
                       <Box sx={{ mb: 2, p: 1, border: '1px solid #eee', borderRadius: 1 }}>
                         <Typography variant="subtitle2" sx={{ mb: 1 }}>MR Review Summary</Typography>
                         <Viewer content={finalText || '*No final text provided.*'} contentType="markdown" height={'auto'} />
+                        {(findings.length || risks.length || checklist.length || tests.length) > 0 && (
+                          <Box sx={{ mt: 1 }}>
+                            {findings.length > 0 && (
+                              <Box sx={{ mb: 1 }}>
+                                <Typography variant="subtitle2">Findings</Typography>
+                                <List dense>
+                                  {findings.map((t, i) => (
+                                    <ListItem key={`f-${i}`} sx={{ py: 0 }}>
+                                      <ListItemText primary={t} />
+                                    </ListItem>
+                                  ))}
+                                </List>
+                              </Box>
+                            )}
+                            {risks.length > 0 && (
+                              <Box sx={{ mb: 1 }}>
+                                <Typography variant="subtitle2">Risks</Typography>
+                                <List dense>
+                                  {risks.map((t, i) => (
+                                    <ListItem key={`r-${i}`} sx={{ py: 0 }}>
+                                      <ListItemText primary={t} />
+                                    </ListItem>
+                                  ))}
+                                </List>
+                              </Box>
+                            )}
+                            {tests.length > 0 && (
+                              <Box sx={{ mb: 1 }}>
+                                <Typography variant="subtitle2">Tests Affected</Typography>
+                                <List dense>
+                                  {tests.map((t, i) => (
+                                    <ListItem key={`t-${i}`} sx={{ py: 0 }}>
+                                      <ListItemText primary={t} />
+                                    </ListItem>
+                                  ))}
+                                </List>
+                              </Box>
+                            )}
+                            {checklist.length > 0 && (
+                              <Box sx={{ mb: 1 }}>
+                                <Typography variant="subtitle2">Checklist</Typography>
+                                <List dense>
+                                  {checklist.map((t, i) => (
+                                    <ListItem key={`c-${i}`} sx={{ py: 0 }}>
+                                      <ListItemText primary={t} />
+                                    </ListItem>
+                                  ))}
+                                </List>
+                              </Box>
+                            )}
+                          </Box>
+                        )}
                       </Box>
                     );
                   }

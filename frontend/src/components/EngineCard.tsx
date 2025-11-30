@@ -233,6 +233,17 @@ export default function EngineCard({ name, mount, toolCount }: EngineCardProps) 
             Runs
           </Button>
         )}
+        {name === 'workflow' && (
+          <Button
+            size="small"
+            onClick={() => {
+              const p = encodeURIComponent('{}');
+              window.open(`/engines/workflow/runs?start=1&wf=hello&params=${p}`, '_blank');
+            }}
+          >
+            Start
+          </Button>
+        )}
         {/* Open raw JSON diagnostics for this engine */}
         <Button
           size="small"

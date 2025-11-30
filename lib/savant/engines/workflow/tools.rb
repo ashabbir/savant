@@ -34,22 +34,22 @@ module Savant
             nxt.call(ctx, nm, a2)
           end
 
-          tool 'workflow.run', description: 'Run a YAML workflow by name (workflows/<name>.yaml)',
+          tool 'workflow_run', description: 'Run a YAML workflow by name (workflows/<name>.yaml)',
                                schema: { type: 'object', properties: { workflow: { type: 'string' }, params: { type: 'object' } }, required: ['workflow'] } do |_ctx, a|
             eng.run(workflow: a['workflow'].to_s, params: a['params'] || {})
           end
 
-          tool 'workflow.runs.list', description: 'List saved workflow runs',
+          tool 'workflow_runs_list', description: 'List saved workflow runs',
                                      schema: { type: 'object', properties: {} } do |_ctx, _a|
             eng.runs_list
           end
 
-          tool 'workflow.runs.read', description: 'Read a saved workflow run state',
+          tool 'workflow_runs_read', description: 'Read a saved workflow run state',
                                      schema: { type: 'object', properties: { workflow: { type: 'string' }, run_id: { type: 'string' } }, required: %w[workflow run_id] } do |_ctx, a|
             eng.run_read(workflow: a['workflow'], run_id: a['run_id'])
           end
 
-          tool 'workflow.runs.delete', description: 'Delete a saved workflow run state',
+          tool 'workflow_runs_delete', description: 'Delete a saved workflow run state',
                                        schema: { type: 'object', properties: { workflow: { type: 'string' }, run_id: { type: 'string' } }, required: %w[workflow run_id] } do |_ctx, a|
             eng.run_delete(workflow: a['workflow'], run_id: a['run_id'])
           end
@@ -62,4 +62,3 @@ module Savant
     end
   end
 end
-
