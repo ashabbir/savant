@@ -14,7 +14,7 @@ steps:
   capture_as: ticket
 - id: 2
   name: scan_repo_context
-  call: fts/search
+  call: fts_search
   deps:
   - 1
   input_template:
@@ -22,7 +22,7 @@ steps:
   capture_as: similar_code
 - id: 3
   name: enumerate_resources
-  call: memory/resources/list
+  call: memory_resources_list
   deps:
   - 1
   input_template:
@@ -30,7 +30,7 @@ steps:
   capture_as: resources
 - id: 4
   name: planning_guides
-  call: fts/search
+  call: fts_search
   deps:
   - 3
   input_template:

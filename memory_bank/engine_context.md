@@ -14,8 +14,8 @@ sequenceDiagram
   participant Ops as Context Ops
   participant DB as Postgres
 
-  UI->>Hub: POST /context/tools/fts/search/call {q, repo?, limit}
-  Hub->>Ctx: call "fts/search" (ctx={user_id})
+  UI->>Hub: POST /context/tools/fts_search/call {q, repo?, limit}
+  Hub->>Ctx: call "fts_search" (ctx={user_id})
   Ctx->>Ops: search(q, repo, limit)
   Ops->>DB: SELECT ts_rank_cd(...) FROM chunks WHERE ...
   DB-->>Ops: rows [rel_path, chunk, lang, score]
@@ -40,7 +40,7 @@ erDiagram
 ```
 
 ## Tools (Selected)
-- `fts/search` – ranked snippet search (code + markdown)
+- `fts_search` – ranked snippet search (code + markdown)
 - `memory/resources/*` – list/read memory_bank markdown stored in DB
 - `fs/repo/*` – index/delete/status helpers
 

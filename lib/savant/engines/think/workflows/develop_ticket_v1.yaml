@@ -30,7 +30,7 @@ steps:
     name: "{{params.feature_branch}}"
 - id: 4
   name: context_search
-  call: fts/search
+  call: fts_search
   deps:
   - 3
   input_template:
