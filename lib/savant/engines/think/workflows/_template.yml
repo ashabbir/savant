@@ -1,7 +1,7 @@
 ---
 id: example_workflow
 name: example_workflow
-description: One-line description so think.workflows.list can display helpful text.
+description: One-line description so think_workflows_list can display helpful text.
 driver_version: stable
 rules: []
 version: 1
@@ -11,14 +11,14 @@ params:
     required: true
 steps:
 - id: bootstrap_driver
-  call: think.driver_prompt
+  call: think_driver_prompt
   input_template:
     version: stable
   capture_as: __driver
 - id: example_task
   deps:
   - bootstrap_driver
-  call: prompt.say
+  call: prompt_say
   input_template:
     text: 'Example workflow running for {{params.ticket_key}}
 
@@ -26,6 +26,6 @@ steps:
 - id: conclude
   deps:
   - example_task
-  call: prompt.say
+  call: prompt_say
   input_template:
     text: "✅ Finished {{workflow}} for {{params.ticket_key}}\n"

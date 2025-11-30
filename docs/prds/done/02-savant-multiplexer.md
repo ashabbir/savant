@@ -89,11 +89,11 @@ If engine fails → mark offline.
 
 Namespace tools per engine:
 
-    context.fts.search
+    context.fts_search
     jira.issue.get
-    rules.get
-    personas.get
-    think.plan
+    rules_get
+    personas_get
+    think_plan
 
 ## 5.3 Routing Layer
 

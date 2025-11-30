@@ -56,10 +56,10 @@ RSpec.describe 'Savant Think MCP' do
 
     registrar = Savant::Think::Tools.build_registrar(nil)
     tools = registrar.specs.map { |t| t[:name] || t['name'] }
-    expect(tools).to include('think.driver_prompt', 'think.plan', 'think.next')
+    expect(tools).to include('think_driver_prompt', 'think_plan', 'think_next')
 
     # Call driver prompt and verify version/hash and content
-    out = registrar.call('think.driver_prompt', { 'version' => 'stable-2025-11' }, ctx: {})
+    out = registrar.call('think_driver_prompt', { 'version' => 'stable-2025-11' }, ctx: {})
     expect(out).to include(:version, :hash, :prompt_md)
     expect(out[:version]).to eq('stable-2025-11')
     expect(out[:hash]).to start_with('sha256:')
@@ -71,25 +71,25 @@ RSpec.describe 'Savant Think MCP' do
     registrar = Savant::Think::Tools.build_registrar(nil)
 
     # Plan the workflow
-    plan = registrar.call('think.plan', { 'workflow' => 'review_v1', 'params' => { 'branch' => 'main' }, 'run_id' => 't-run', 'start_fresh' => true }, ctx: {})
+    plan = registrar.call('think_plan', { 'workflow' => 'review_v1', 'params' => { 'branch' => 'main' }, 'run_id' => 't-run', 'start_fresh' => true }, ctx: {})
     expect(plan).to include(:instruction, :state, :done)
     expect(plan[:done]).to eq(false)
     # With driver injection, first instruction is driver bootstrap
     expect(plan[:instruction][:step_id]).to eq('__driver_bootstrap')
-    expect(plan[:instruction][:call]).to eq('think.driver_prompt')
+    expect(plan[:instruction][:call]).to eq('think_driver_prompt')
 
     # Advance driver bootstrap
-    nxt1 = registrar.call('think.next', {
+    nxt1 = registrar.call('think_next', {
                             'workflow' => 'review_v1', 'run_id' => 't-run',
                             'step_id' => '__driver_bootstrap',
                             'result_snapshot' => { 'version' => 'stable-2025-11', 'prompt_md' => '...' }
                           }, ctx: {})
     expect(nxt1[:done]).to eq(false)
     expect(nxt1[:instruction][:step_id]).to eq('__driver_announce')
-    expect(nxt1[:instruction][:call]).to eq('prompt.say')
+    expect(nxt1[:instruction][:call]).to eq('prompt_say')
 
     # Advance driver announce; expect actual first workflow step 'lint'
-    nxt2 = registrar.call('think.next', {
+    nxt2 = registrar.call('think_next', {
                             'workflow' => 'review_v1', 'run_id' => 't-run',
                             'step_id' => '__driver_announce',
                             'result_snapshot' => { 'ok' => true }
@@ -99,7 +99,7 @@ RSpec.describe 'Savant Think MCP' do
     expect(nxt2[:instruction][:call]).to eq('context.search')
 
     # Next: complete lint, expect tests
-    nxt = registrar.call('think.next', {
+    nxt = registrar.call('think_next', {
                            'workflow' => 'review_v1', 'run_id' => 't-run',
                            'step_id' => 'lint',
                            'result_snapshot' => { 'rows' => [] }
@@ -109,7 +109,7 @@ RSpec.describe 'Savant Think MCP' do
     expect(nxt[:instruction][:call]).to eq('ci.run_tests')
 
     # Next: complete tests, expect done summary
-    fin = registrar.call('think.next', {
+    fin = registrar.call('think_next', {
                            'workflow' => 'review_v1', 'run_id' => 't-run',
                            'step_id' => 'tests',
                            'result_snapshot' => { 'ok' => true }
@@ -126,11 +126,11 @@ RSpec.describe 'Savant Think MCP' do
     require_relative '../../../../lib/savant/engines/think/tools'
     registrar = Savant::Think::Tools.build_registrar(nil)
 
-    list = registrar.call('think.workflows.list', { 'filter' => 'review' }, ctx: {})
+    list = registrar.call('think_workflows_list', { 'filter' => 'review' }, ctx: {})
     ids = list[:workflows].map { |w| w[:id] }
     expect(ids).to include('review_v1')
 
-    read = registrar.call('think.workflows.read', { 'workflow' => 'review_v1' }, ctx: {})
+    read = registrar.call('think_workflows_read', { 'workflow' => 'review_v1' }, ctx: {})
     expect(read[:workflow_yaml]).to include('name: review_v1')
   end
 end

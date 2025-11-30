@@ -21,7 +21,7 @@ RSpec.describe 'Savant Think workflows listing' do
       description: "Valid YAML workflow using .yml extension"
       steps:
         - id: one
-          call: prompt.say
+          call: prompt_say
           input_template:
             text: "hello"
     YAML
@@ -33,7 +33,7 @@ RSpec.describe 'Savant Think workflows listing' do
       description: "Valid YAML workflow using .yaml extension"
       steps:
         - id: a
-          call: prompt.say
+          call: prompt_say
           input_template:
             text: "a"
     YAML
@@ -60,7 +60,7 @@ RSpec.describe 'Savant Think workflows listing' do
     require_relative '../../../../lib/savant/engines/think/tools'
     registrar = Savant::Think::Tools.build_registrar(nil)
 
-    list = registrar.call('think.workflows.list', { 'filter' => '' }, ctx: {})
+    list = registrar.call('think_workflows_list', { 'filter' => '' }, ctx: {})
     ids = list[:workflows].map { |w| w[:id] }
     expect(ids).to include('valid_wf', 'another')
     expect(ids).not_to include('broken')
@@ -70,10 +70,10 @@ RSpec.describe 'Savant Think workflows listing' do
     require_relative '../../../../lib/savant/engines/think/tools'
     registrar = Savant::Think::Tools.build_registrar(nil)
 
-    read = registrar.call('think.workflows.read', { 'workflow' => 'valid_wf' }, ctx: {})
+    read = registrar.call('think_workflows_read', { 'workflow' => 'valid_wf' }, ctx: {})
     expect(read[:workflow_yaml]).to include('name: valid_wf')
 
-    plan = registrar.call('think.plan', { 'workflow' => 'valid_wf', 'params' => {}, 'run_id' => 'r1', 'start_fresh' => true }, ctx: {})
+    plan = registrar.call('think_plan', { 'workflow' => 'valid_wf', 'params' => {}, 'run_id' => 'r1', 'start_fresh' => true }, ctx: {})
     expect(plan[:instruction][:step_id]).to eq('__driver_bootstrap')
   end
 end

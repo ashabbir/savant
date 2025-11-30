@@ -38,7 +38,7 @@ steps:
   capture_as: guidelines
 - id: 5
   name: list_diffs
-  call: prompt.say
+  call: prompt_say
   deps:
   - 2
   input_template:

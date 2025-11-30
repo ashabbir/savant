@@ -121,7 +121,7 @@ steps:
     tool: git.diff
 
   - name: cross_repo
-    tool: context.fts.search
+    tool: context.fts_search
     with:
       query: "{{ diff.files }}"
 
@@ -155,7 +155,7 @@ steps:
 Runs through the Multiplexer:
 
     tool: git.diff
-    tool: context.fts.search
+    tool: context.fts_search
 
 ### B. Agent Step
 

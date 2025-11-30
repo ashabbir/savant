@@ -42,12 +42,12 @@ module Savant
       def run(max_steps: @max_steps, dry_run: false)
         steps = 0
         model = @slm_model
-        # AMR shortcut: if goal clearly requests a workflow, auto-trigger workflow.run once.
+        # AMR shortcut: if goal clearly requests a workflow, auto-trigger workflow_run once.
         if !@forced_tool
           begin
             auto = detect_workflow_intent(@goal)
             if auto
-              @forced_tool = 'workflow.workflow.run'
+              @forced_tool = 'workflow.workflow_run'
               @forced_args = { 'workflow' => auto[:workflow], 'params' => auto[:params] || {} }
               # Finish after first step to hand results back deterministically.
               @forced_finish = true if @forced_final.nil?

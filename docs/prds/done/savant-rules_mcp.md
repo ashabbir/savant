@@ -9,8 +9,8 @@
 ## In Scope (MVP)
 - Engine: `rules` with stdio/HTTP MCP support via Hub.
 - Tools:
-  - `rules.list` — returns all rule sets (names, titles, versions, brief summaries/tags).
-  - `rules.get` — returns a single ruleset by name with full markdown text and metadata.
+  - `rules_list` — returns all rule sets (names, titles, versions, brief summaries/tags).
+  - `rules_get` — returns a single ruleset by name with full markdown text and metadata.
 - Data: File‑backed catalog in repo (YAML), versioned entries; no DB required.
 - Hub: Auto‑mount under `/rules` (default) and appear in Hub engines listing.
 - React UI: Show as a mounted engine card (like context/think/jira/personas). MVP requires a Rules tab with list + YAML viewer + markdown dialog (copy button), mirroring Personas UX.
@@ -63,13 +63,13 @@ Example snippet:
 - Transport: stdio (default) or HTTP (test mode) via `bin/mcp_server` flags.
 
 ## MCP Tools (Contracts)
-1) `rules.list`
+1) `rules_list`
    - Purpose: discover available rule sets.
    - Input: `{ filter?: string }` (substring on `name|title|tags|summary`).
    - Output: `{ rules: [{ name, title, version, summary, tags? }] }`.
    - Errors: `invalid_input`, `load_error`.
 
-2) `rules.get`
+2) `rules_get`
    - Purpose: fetch one ruleset by `name`.
    - Input: `{ name: string }`.
    - Output: `{ name, title, version, summary, tags?, rules_md, notes? }`.
@@ -86,11 +86,11 @@ sequenceDiagram
 
   UI->>Hub: GET /rules/tools
   Hub->>Reg: specs
-  Reg-->>Hub: [{ name: rules.list }, { name: rules.get }]
+  Reg-->>Hub: [{ name: rules_list }, { name: rules_get }]
   Hub-->>UI: tools
 
-  UI->>Hub: POST /rules/tools/rules.get/call { params: { name } }
-  Hub->>Reg: call("rules.get", {name})
+  UI->>Hub: POST /rules/tools/rules_get/call { params: { name } }
+  Hub->>Reg: call("rules_get", {name})
   Reg->>Eng: get(name)
   Eng->>OPS: read YAML + validate
   OPS-->>Eng: { name, title, version, rules_md, ... }
@@ -102,7 +102,7 @@ sequenceDiagram
 ## React UI Integration (MVP)
 - Dashboard: engine card titled “Rules” with tool count `2`.
 - Rules page: list + filter left; right has YAML viewer; “View Rules” opens markdown dialog; “Copy YAML/Rules” icons.
-- Diagnostics: show catalog size and recent `rules.get` counts per name (use Hub recent requests like Personas Diagnostics).
+- Diagnostics: show catalog size and recent `rules_get` counts per name (use Hub recent requests like Personas Diagnostics).
 
 ## Hub Mounting
 - Default path: `/rules`.
@@ -124,7 +124,7 @@ sequenceDiagram
 - Env: `LOG_LEVEL` honored; no secrets required.
 
 ## Acceptance Criteria
-- MCP engine exposes exactly two tools: `rules.list` and `rules.get`.
+- MCP engine exposes exactly two tools: `rules_list` and `rules_get`.
 - Rules YAML supports at least `code-review-rules` and `backend-rules` with complete markdown.
 - Hub lists the engine and mounts it under `/rules`.
 - React dashboard shows the Rules engine card.
@@ -135,14 +135,14 @@ sequenceDiagram
 1) Scaffold engine: `ruby ./bin/savant generate engine rules --force`
 2) Add files:
    - `lib/savant/rules/ops.rb` (YAML loader, list/get)
-   - `lib/savant/rules/tools.rb` (DSL registrar: rules.list/get)
+   - `lib/savant/rules/tools.rb` (DSL registrar: rules_list/get)
    - `lib/savant/rules/rules.yml` (seed two rulesets)
 3) Wire Hub: add to `config/mounts.yml` if not auto‑discovered
 4) UI:
    - Engine card icon/color mapping
    - Add Routes + Page `/engines/rules`
    - List + YAML viewer + markdown dialog; copy icons
-   - Diagnostics section: catalog size + recent rules.get per name
+   - Diagnostics section: catalog size + recent rules_get per name
 5) Docs:
    - `memory_bank/engine_rules.md` (usage + examples + diagrams)
    - README stays short and points to Memory Bank

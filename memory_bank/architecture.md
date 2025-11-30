@@ -173,10 +173,10 @@ sequenceDiagram
 ### Personas / Rules Data Flow (YAML)
 ```mermaid
 flowchart LR
-  UI -->|personas.list/get| Hub --> RegP[Personas Registrar] --> EngP[Personas Engine] --> OpsP
+  UI -->|personas_list/get| Hub --> RegP[Personas Registrar] --> EngP[Personas Engine] --> OpsP
   OpsP --> YAML1[(lib/savant/engines/personas/personas.yml)]
 
-  UI -->|rules.list/get| Hub --> RegR[Rules Registrar] --> EngR[Rules Engine] --> OpsR
+  UI -->|rules_list/get| Hub --> RegR[Rules Registrar] --> EngR[Rules Engine] --> OpsR
   OpsR --> YAML2[(lib/savant/engines/rules/rules.yml)]
 
   classDef yaml fill:#ecfccb,stroke:#65a30d

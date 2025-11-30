@@ -296,7 +296,7 @@ Real-time agent monitoring UI at `/diagnostics/agents`:
 │  │ Step #1  tool  context.fts_search                      │ │
 │  │   events=4  model=phi3.5  tokens=1234/89               │ │
 │  ├────────────────────────────────────────────────────────┤ │
-│  │ Step #2  tool  think.prompts.list                      │ │
+│  │ Step #2  tool  think_prompts_list                      │ │
 │  │   events=3  model=phi3.5  tokens=1456/102              │ │
 │  ├────────────────────────────────────────────────────────┤ │
 │  │ Step #3  finish                                         │ │
