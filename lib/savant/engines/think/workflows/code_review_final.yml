@@ -5,10 +5,11 @@ description: 'Phase 2 of code review: Impact analysis, cross-repo search, visual
   and final safety decision. Reads intermediate state from code_review_initial. All
   operations are non-blocking (no local git/shell commands).'
 driver_version: code_review
-rules: []
-version: 1
+rules:
+- code-review-rules
+version: 3
 steps:
-- id: announce_start
+- id: '1'
   call: prompt.say
   input_template:
     text: |
@@ -16,45 +17,45 @@ steps:
 
       Loading state -> Impact analysis -> Visual diagrams -> Final verdict
       Reading from: .savant/code-review/{{params.ticket}}-*-state.json
-- id: find_state_file
+- id: '2'
   call: local.exec
   deps:
-  - announce_start
+  - '1'
   input_template:
     cmd: 'ls -t .savant/code-review/{{params.ticket}}-*-state.json 2>/dev/null | head
       -1 || echo "NOT_FOUND"
 
-'
+      '
     note: Find most recent state file for ticket
   capture_as: state_file_path_raw
-- id: parse_state_file_path
+- id: '3'
   call: analysis.parse_first_line
   deps:
-  - find_state_file
+  - '2'
   input_template:
     text: "{{state_file_path_raw}}"
     note: Extract file path from command output
   capture_as: state_file_path
-- id: load_state
+- id: '4'
   call: local.read
   deps:
-  - parse_state_file_path
+  - '3'
   input_template:
     files:
     - "{{state_file_path}}"
   capture_as: state_json_raw
-- id: parse_state
+- id: '5'
   call: analysis.parse_json
   deps:
-  - load_state
+  - '4'
   input_template:
     json: "{{state_json_raw}}"
     note: Parse intermediate state JSON
   capture_as: state
-- id: validate_state
+- id: '6'
   call: analysis.validate_code_review_state
   deps:
-  - parse_state
+  - '5'
   input_template:
     state: "{{state}}"
     note: |
@@ -65,10 +66,10 @@ steps:
         "error": "..." or null
       }
   capture_as: state_validation
-- id: prompt_state_loaded
+- id: '7'
   call: prompt.say
   deps:
-  - validate_state
+  - '6'
   input_template:
     text: |
       State Loaded: {{state.ticket}}
@@ -77,25 +78,25 @@ steps:
       Date: {{state.date}}
       Commit: {{state.commit_sha}}
       Quality: {{state.quality_summary.overall_status}}
-- id: discussions
+- id: '8'
   call: gitlab.get_merge_request_discussions
   deps:
-  - prompt_state_loaded
+  - '7'
   input_template:
     project: "{{state.project.project_gitlab}}"
     mr_iid: "{{state.mr_iid}}"
   capture_as: discussion_list
-- id: outstanding
+- id: '9'
   call: analysis.outstanding_items
   deps:
-  - discussions
+  - '8'
   input_template:
     discussions: "{{discussion_list}}"
   capture_as: outstanding
-- id: analyze_code_impact
+- id: '10'
   call: analysis.find_impacted_areas
   deps:
-  - prompt_state_loaded
+  - '7'
   input_template:
     changes: "{{state.changes_classified}}"
     requirements: "{{state.requirements}}"
@@ -110,27 +111,27 @@ steps:
         "risk_areas": [...]
       }
   capture_as: impact_analysis
-- id: search_cross_repo_fts
+- id: '11'
   call: fts/search
   deps:
-  - analyze_code_impact
+  - '10'
   input_template:
     q: "{{impact_analysis.changed_symbols}}"
     limit: 50
   capture_as: cross_repo_hits
-- id: search_memory
+- id: '12'
   call: memory/search
   deps:
-  - analyze_code_impact
+  - '10'
   input_template:
     q: "{{impact_analysis.changed_symbols}}"
     limit: 50
   capture_as: memory_hits
-- id: analyze_cross_repo_impact
+- id: '13'
   call: analysis.parse_cross_repo_results
   deps:
-  - search_cross_repo_fts
-  - search_memory
+  - '11'
+  - '12'
   input_template:
     fts_hits: "{{cross_repo_hits}}"
     memory_hits: "{{memory_hits}}"
@@ -143,10 +144,10 @@ steps:
         "communication_plan": "..."
       }
   capture_as: cross_repo_impact
-- id: analyze_requirements_gap
+- id: '14'
   call: analysis.find_requirements_gaps
   deps:
-  - analyze_cross_repo_impact
+  - '13'
   input_template:
     requirements: "{{state.requirements}}"
     requirements_map: "{{state.requirements_map}}"
@@ -162,10 +163,10 @@ steps:
         "coverage_percent": N
       }
   capture_as: requirements_gap
-- id: load_rules
+- id: '15'
   call: local.read
   deps:
-  - analyze_requirements_gap
+  - '14'
   input_template:
     files:
     - ".cline/rules/code_review_rules.md"
@@ -180,10 +181,10 @@ steps:
     - ".cline/rules/savant-rules.md"
     - ".clinerules/INDEX.md"
   capture_as: rules_text
-- id: apply_rules
+- id: '16'
   call: analysis.apply_rules
   deps:
-  - load_rules
+  - '15'
   input_template:
     rule_files:
     - ".cline/rules/code_review_rules.md"
@@ -199,17 +200,17 @@ steps:
     note: 'Summarize findings using rule sets and state-provided quality signals;
       prefer references over large blobs.
 
-'
+      '
     context:
       rubocop: "{{state.rubocop_result}}"
       rspec: "{{state.rspec_final_result}}"
       security: "{{state.security_results}}"
       quality_summary: "{{state.quality_summary}}"
   capture_as: rules_assessment
-- id: issues_documentation
+- id: '17'
   call: analysis.issues_table
   deps:
-  - apply_rules
+  - '16'
   input_template:
     sources:
     - "{{rules_assessment}}"
@@ -220,10 +221,10 @@ steps:
       Return a compact table of issues with columns: issue, type, category, location(s), fix_required.
       Keep payload size modest; prefer references to full text.
   capture_as: issues
-- id: generate_impact_graph
+- id: '18'
   call: analysis.create_impact_graph
   deps:
-  - analyze_cross_repo_impact
+  - '13'
   input_template:
     impact: "{{impact_analysis}}"
     cross_repo: "{{cross_repo_impact}}"
@@ -235,10 +236,10 @@ steps:
       - Dependencies (edges)
       Returns: { "mermaid": "graph TD\n...", "node_count": N }
   capture_as: impact_graph
-- id: generate_sequence_diagram
+- id: '19'
   call: analysis.create_sequence_diagram
   deps:
-  - generate_impact_graph
+  - '18'
   input_template:
     impact: "{{impact_analysis}}"
     changes: "{{state.changes_classified}}"
@@ -249,11 +250,11 @@ steps:
       - Where changes occur
       Returns: { "mermaid": "sequenceDiagram\n...", "actors": [...] }
   capture_as: sequence_diagram
-- id: make_safety_decision
+- id: '20'
   call: analysis.evaluate_safety
   deps:
-  - generate_sequence_diagram
-  - analyze_requirements_gap
+  - '19'
+  - '14'
   input_template:
     quality: "{{state.quality_summary}}"
     impact: "{{impact_analysis}}"
@@ -284,10 +285,10 @@ steps:
         "rationale": "..."
       }
   capture_as: safety_decision
-- id: write_final_report
+- id: '21'
   call: local.write
   deps:
-  - make_safety_decision
+  - '20'
   input_template:
     path: code-reviews/{{state.ticket}}/{{state.date}}/code_review_final.md
     content_template: |
@@ -466,10 +467,10 @@ steps:
       *Phase 1*: code_review_initial v1.0
       *Phase 2*: code_review_final v1.0
   capture_as: report_write_result
-- id: announce_completion
+- id: '22'
   call: prompt.say
   deps:
-  - write_final_report
+  - '21'
   input_template:
     text: |
       Code Review Complete!

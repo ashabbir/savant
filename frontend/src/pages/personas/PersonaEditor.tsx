@@ -54,16 +54,18 @@ export default function PersonaEditor() {
   // Personas use `name` as the backend key; on create, derive id from typed name like Rules
   const existingSlugs = React.useMemo(() => new Set((list.data?.personas || []).map(p => p.name)), [list.data?.personas]);
 
+  const targetId = React.useMemo(() => (isNew ? generateIdFromName(name) : (routeName || name || '')), [isNew, name, routeName]);
+
   const canSave = React.useMemo(() => {
-    const slug = generateIdFromName(name);
+    const slug = targetId;
     if (!slug || !summary.trim() || !promptMd.trim()) return false;
     if (isNew && existingSlugs.has(slug)) return false;
     return true;
-  }, [name, summary, promptMd, isNew, existingSlugs]);
+  }, [targetId, summary, promptMd, isNew, existingSlugs]);
 
   const onSave = async () => {
     if (!canSave) return;
-    const slug = generateIdFromName(name);
+    const slug = targetId;
     const payload = { name: slug, summary: summary.trim(), prompt_md: promptMd, tags, notes } as any;
     if (isNew) await create.mutateAsync(payload);
     else await update.mutateAsync(payload);

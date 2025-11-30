@@ -8,7 +8,7 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import CloseIcon from '@mui/icons-material/Close';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Rule, useRule, useRules, useRulesCreate, useRulesDelete, useRulesUpdate } from '../../api';
+import { Rule, useRule, useRules, useRulesCreate, useRulesDelete, useRulesUpdate, useThinkWorkflows } from '../../api';
 import Viewer from '../../components/Viewer';
 
 const PANEL_HEIGHT = 'calc(100vh - 260px)';
@@ -28,6 +28,7 @@ export default function RuleEditor() {
   const nav = useNavigate();
   const list = useRules('');
   const details = useRule(isNew ? null : routeName || null);
+  const thinkWorkflows = useThinkWorkflows();
   const create = useRulesCreate();
   const update = useRulesUpdate();
   const del = useRulesDelete();
@@ -58,6 +59,19 @@ export default function RuleEditor() {
   }, [name]);
 
   const existingIds = React.useMemo(() => new Set((list.data?.rules || []).map(r => (r as any).id || generateIdFromName(r.name))), [list.data?.rules]);
+  const workflowRows = thinkWorkflows.data?.workflows || [];
+  const ruleUsageMap = React.useMemo(() => {
+    const map = new Map<string, { id: string; label: string }[]>();
+    workflowRows.forEach((wf) => {
+      const rules = Array.isArray(wf.rules) ? wf.rules : [];
+      rules.forEach((rule) => {
+        if (!map.has(rule)) map.set(rule, []);
+        map.get(rule)!.push({ id: wf.id, label: wf.name || wf.id });
+      });
+    });
+    return map;
+  }, [workflowRows]);
+  const usedBy = !isNew && routeName ? ruleUsageMap.get(routeName) || [] : [];
 
   const canSave = React.useMemo(() => {
     const nm = (name || '').trim();
@@ -79,7 +93,7 @@ export default function RuleEditor() {
   };
 
   const onDelete = async () => {
-    if (!routeName) return;
+    if (!routeName || usedBy.length > 0) return;
     await del.mutateAsync(routeName);
     setSnack('Deleted');
     setConfirmOpen(false);
@@ -94,9 +108,9 @@ export default function RuleEditor() {
             <Typography variant="subtitle1" sx={{ fontSize: 12 }}>{isNew ? 'Create Rule' : `Edit Rule (${routeName})`}{!isNew && details.data?.version ? ` • v${details.data.version}` : ''}</Typography>
             <Stack direction="row" spacing={1}>
               {!isNew && (
-                <Tooltip title="Delete">
+                <Tooltip title={usedBy.length ? `Used by ${usedBy.length} workflow${usedBy.length === 1 ? '' : 's'}` : 'Delete'}>
                   <span>
-                    <IconButton onClick={() => setConfirmOpen(true)} color="error">
+                    <IconButton onClick={() => setConfirmOpen(true)} color="error" disabled={usedBy.length > 0}>
                       <DeleteOutlineIcon fontSize="small" />
                     </IconButton>
                   </span>
@@ -132,6 +146,30 @@ export default function RuleEditor() {
                 )}
               />
               <TextField label="notes" value={notes} onChange={(e)=>setNotes(e.target.value)} multiline minRows={2} />
+              {!isNew && (
+                <Box>
+                  <Typography variant="caption" sx={{ fontWeight: 600 }}>Used by</Typography>
+                  {thinkWorkflows.isLoading && <Typography variant="caption" sx={{ ml: 1 }}>Loading…</Typography>}
+                  {!thinkWorkflows.isLoading && (
+                    usedBy.length > 0 ? (
+                      <Stack direction="row" spacing={1} sx={{ mt: 0.5, flexWrap: 'wrap' }}>
+                        {usedBy.map((wf) => (
+                          <Chip
+                            key={wf.id}
+                            size="small"
+                            label={wf.label}
+                            onClick={() => nav(`/engines/think/workflows/edit/${wf.id}`)}
+                            clickable
+                            sx={{ mb: 0.5 }}
+                          />
+                        ))}
+                      </Stack>
+                    ) : (
+                      <Typography variant="caption" sx={{ display: 'block', mt: 0.5 }}>No workflows reference this rule.</Typography>
+                    )
+                  )}
+                </Box>
+              )}
             </Stack>
           </Box>
         </Paper>
@@ -172,10 +210,16 @@ export default function RuleEditor() {
             <CloseIcon fontSize="small" />
           </IconButton>
         </DialogTitle>
-        <DialogContent>Are you sure you want to delete "{routeName}"?</DialogContent>
+        <DialogContent>
+          {usedBy.length > 0 ? (
+            `Cannot delete "${routeName}" because it is used by ${usedBy.length} workflow${usedBy.length === 1 ? '' : 's'}.`
+          ) : (
+            <>Are you sure you want to delete "{routeName}"?</>
+          )}
+        </DialogContent>
         <DialogActions>
           <Button onClick={() => setConfirmOpen(false)}>Cancel</Button>
-          <Button color="error" onClick={onDelete}>Delete</Button>
+          <Button color="error" onClick={onDelete} disabled={usedBy.length > 0}>Delete</Button>
         </DialogActions>
       </Dialog>
       <Dialog open={previewOpen} onClose={() => setPreviewOpen(false)} fullWidth maxWidth="md">
