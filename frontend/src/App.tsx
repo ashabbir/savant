@@ -14,20 +14,24 @@ import DiagnosticsRoutes from './pages/diagnostics/Routes';
 import DiagnosticsWorkflows from './pages/diagnostics/Workflows';
 import Dashboard from './pages/Dashboard';
 import ThinkWorkflows from './pages/think/Workflows';
+import ThinkTools from './pages/think/Tools';
 import ThinkWorkflowEditor from './pages/think/WorkflowEditor';
 import ThinkPrompts from './pages/think/Prompts';
 import PromptEditor from './pages/think/PromptEditor';
 import ThinkRuns from './pages/think/Runs';
 import WorkflowRuns from './pages/workflow/Runs';
 import Personas from './pages/personas/Personas';
+import PersonasTools from './pages/personas/Tools';
 import PersonaEditor from './pages/personas/PersonaEditor';
 import RulesPage from './pages/rules/Rules';
+import RulesTools from './pages/rules/Tools';
 import RuleEditor from './pages/rules/RuleEditor';
 import JiraTools from './pages/jira/Tools';
 import GitTools from './pages/git/Tools';
 import ContextTools from './pages/context/Tools';
 import ContextResources from './pages/context/Resources';
 import MemorySearch from './pages/context/MemorySearch';
+import WorkflowTools from './pages/workflow/Tools';
 import { getErrorMessage, loadConfig, useHubHealth, useHubInfo } from './api';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import HubIcon from '@mui/icons-material/Hub';
@@ -437,6 +441,61 @@ export default function App() {
           <Tab label="Browse" component={Link} to="/engines/rules" />
         </Tabs>
       )}
+      {mainIdx === 1 && selEngine === 'context' && (
+        <Tabs value={engSubIdx} centered sx={{
+          '& .MuiTab-root': { fontSize: 12, minHeight: 36, py: 0.5, textTransform: 'none', color: 'text.secondary' },
+          '& .Mui-selected': { color: 'primary.main !important' },
+          '& .MuiTabs-indicator': { height: 2, backgroundColor: 'primary.light' }
+        }}>
+          <Tab label="Resources" component={Link} to="/engines/context/resources" />
+          <Tab label="Search" component={Link} to="/engines/context/search" />
+          <Tab label="Memory" component={Link} to="/engines/context/memory-search" />
+          <Tab label="Repos" component={Link} to="/engines/context/repos" />
+          <Tab label="Tools" component={Link} to="/engines/context/tools" />
+        </Tabs>
+      )}
+      {mainIdx === 1 && selEngine === 'think' && (
+        <Tabs value={engSubIdx} centered sx={{
+          '& .MuiTab-root': { fontSize: 12, minHeight: 36, py: 0.5, textTransform: 'none', color: 'text.secondary' },
+          '& .Mui-selected': { color: 'primary.main !important' },
+          '& .MuiTabs-indicator': { height: 2, backgroundColor: 'primary.light' }
+        }}>
+          <Tab label="Workflows" component={Link} to="/engines/think/workflows" />
+          <Tab label="Prompts" component={Link} to="/engines/think/prompts" />
+          <Tab label="Runs" component={Link} to="/engines/think/runs" />
+          <Tab label="Tools" component={Link} to="/engines/think/tools" />
+        </Tabs>
+      )}
+      {mainIdx === 1 && selEngine === 'rules' && (
+        <Tabs value={0} centered sx={{
+          '& .MuiTab-root': { fontSize: 12, minHeight: 36, py: 0.5, textTransform: 'none', color: 'text.secondary' },
+          '& .Mui-selected': { color: 'primary.main !important' },
+          '& .MuiTabs-indicator': { height: 2, backgroundColor: 'primary.light' }
+        }}>
+          <Tab label="Browse" component={Link} to="/engines/rules" />
+          <Tab label="Tools" component={Link} to="/engines/rules/tools" />
+        </Tabs>
+      )}
+      {mainIdx === 1 && selEngine === 'personas' && (
+        <Tabs value={0} centered sx={{
+          '& .MuiTab-root': { fontSize: 12, minHeight: 36, py: 0.5, textTransform: 'none', color: 'text.secondary' },
+          '& .Mui-selected': { color: 'primary.main !important' },
+          '& .MuiTabs-indicator': { height: 2, backgroundColor: 'primary.light' }
+        }}>
+          <Tab label="Browse" component={Link} to="/engines/personas" />
+          <Tab label="Tools" component={Link} to="/engines/personas/tools" />
+        </Tabs>
+      )}
+      {mainIdx === 1 && selEngine === 'workflow' && (
+        <Tabs value={0} centered sx={{
+          '& .MuiTab-root': { fontSize: 12, minHeight: 36, py: 0.5, textTransform: 'none', color: 'text.secondary' },
+          '& .Mui-selected': { color: 'primary.main !important' },
+          '& .MuiTabs-indicator': { height: 2, backgroundColor: 'primary.light' }
+        }}>
+          <Tab label="Runs" component={Link} to="/engines/workflow/runs" />
+          <Tab label="Tools" component={Link} to="/engines/workflow/tools" />
+        </Tabs>
+      )}
       {mainIdx === 1 && selEngine === 'jira' && (
         <Tabs value={0} centered sx={{
           '& .MuiTab-root': { fontSize: 12, minHeight: 36, py: 0.5, textTransform: 'none', color: 'text.secondary' },
@@ -476,6 +535,7 @@ export default function App() {
           <Route path="/engines/context/search" element={<Search />} />
           <Route path="/engines/context/memory-search" element={<MemorySearch />} />
           <Route path="/engines/context/repos" element={<Repos />} />
+          <Route path="/engines/context/tools" element={<ContextTools />} />
 
           <Route path="/engines/think/workflows" element={<ThinkWorkflows />} />
           <Route path="/engines/think/workflows/new" element={<ThinkWorkflowEditor />} />
@@ -484,12 +544,16 @@ export default function App() {
           <Route path="/engines/think/prompts/new" element={<PromptEditor />} />
           <Route path="/engines/think/prompts/edit/:version" element={<PromptEditor />} />
           <Route path="/engines/think/runs" element={<ThinkRuns />} />
+          <Route path="/engines/think/tools" element={<ThinkTools />} />
           <Route path="/engines/workflow/runs" element={<WorkflowRuns />} />
+          <Route path="/engines/workflow/tools" element={<WorkflowTools />} />
 
           <Route path="/engines/personas" element={<Personas />} />
+          <Route path="/engines/personas/tools" element={<PersonasTools />} />
           <Route path="/engines/personas/new" element={<PersonaEditor />} />
           <Route path="/engines/personas/edit/:name" element={<PersonaEditor />} />
           <Route path="/engines/rules" element={<RulesPage />} />
+          <Route path="/engines/rules/tools" element={<RulesTools />} />
           <Route path="/engines/rules/new" element={<RuleEditor />} />
           <Route path="/engines/rules/edit/:name" element={<RuleEditor />} />
           {/* Workflows editor moved under Think engine */}
