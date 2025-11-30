@@ -4,9 +4,9 @@
 require 'socket'
 require 'digest/sha1'
 require 'base64'
-require_relative '../../logging/logger'
+require_relative '../../../logging/logger'
 require 'fileutils'
-require_relative '../../mcp_dispatcher'
+require_relative '../../mcp/dispatcher'
 
 module Savant
   module Transports
@@ -181,7 +181,7 @@ module Savant
           (if ENV['SAVANT_PATH'] && !ENV['SAVANT_PATH'].empty?
              ENV['SAVANT_PATH']
            else
-             File.expand_path('../../../..', __dir__)
+             File.expand_path('../../../../..', __dir__)
            end)
         end
 
