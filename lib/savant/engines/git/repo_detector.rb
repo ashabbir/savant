@@ -25,11 +25,12 @@ module Savant
         r = root(path: path)
         return { is_repo: false, path: path || Dir.pwd } unless r
 
+        display_path = path && !path.to_s.strip.empty? ? File.expand_path(path) : r
         branch = capture('git', '-C', r, 'rev-parse', '--abbrev-ref', 'HEAD')&.strip
         head = capture('git', '-C', r, 'rev-parse', 'HEAD')&.strip
         files = capture('git', '-C', r, 'ls-files', '-z')
         tracked = files ? files.split("\x0").reject(&:empty?) : []
-        { is_repo: true, path: r, branch: branch, head: head, tracked_files: tracked.size, languages: summarize_languages(tracked) }
+        { is_repo: true, path: display_path, branch: branch, head: head, tracked_files: tracked.size, languages: summarize_languages(tracked) }
       end
 
       private

@@ -1,8 +1,10 @@
 # frozen_string_literal: true
 
 require 'spec_helper'
+require 'rack/mock'
 require_relative '../../../../lib/savant/engines/personas/tools'
 require_relative '../../../../lib/savant/engines/personas/engine'
+require_relative '../../../../lib/savant/hub/router'
 
 RSpec.describe Savant::Personas::Tools do
   it 'exposes personas_list and personas_get tools' do
