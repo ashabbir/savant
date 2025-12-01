@@ -82,17 +82,17 @@ export function useHubHealth() {
 }
 
 export async function search(q: string, repo?: string | null, limit: number = 20): Promise<SearchResult[]> {
-  const res = await client().post(`/context/tools/fts/search/call`, { params: { q, repo: repo ?? null, limit } });
+  const res = await client().post(`/context/tools/fts_search/call`, { params: { q, repo: repo ?? null, limit } });
   return res.data as SearchResult[];
 }
 
 export async function searchMemory(q: string, repo?: string | null, limit: number = 20): Promise<SearchResult[]> {
-  const res = await client().post(`/context/tools/memory/search/call`, { params: { q, repo: repo ?? null, limit } });
+  const res = await client().post(`/context/tools/memory_search/call`, { params: { q, repo: repo ?? null, limit } });
   return res.data as SearchResult[];
 }
 
 export async function repoStatus(): Promise<RepoStatus[]> {
-  const res = await client().post(`/context/tools/fs/repo/status/call`, { params: {} });
+  const res = await client().post(`/context/tools/fs_repo_status/call`, { params: {} });
   return res.data as RepoStatus[];
 }
 
@@ -104,12 +104,12 @@ export function useRepoStatus() {
 }
 
 export async function indexRepo(repo?: string | null): Promise<any> {
-  const res = await client().post(`/context/tools/fs/repo/index/call`, { params: { repo: repo ?? null } });
+  const res = await client().post(`/context/tools/fs_repo_index/call`, { params: { repo: repo ?? null } });
   return res.data;
 }
 
 export async function deleteRepo(repo?: string | null): Promise<any> {
-  const res = await client().post(`/context/tools/fs/repo/delete/call`, { params: { repo: repo ?? null } });
+  const res = await client().post(`/context/tools/fs_repo_delete/call`, { params: { repo: repo ?? null } });
   return res.data;
 }
 
@@ -416,7 +416,7 @@ export type DbQueryTest = {
 export async function testDbQuery(query: string = 'test'): Promise<DbQueryTest> {
   const start = performance.now();
   try {
-    const res = await client().post('/context/tools/fts/search/call', { params: { q: query, limit: 5 } });
+    const res = await client().post('/context/tools/fts_search/call', { params: { q: query, limit: 5 } });
     const duration = Math.round(performance.now() - start);
     const results = Array.isArray(res.data) ? res.data.length : 0;
     return { query, results, duration_ms: duration, success: true };
