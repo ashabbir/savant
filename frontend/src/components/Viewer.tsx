@@ -173,7 +173,7 @@ export default function Viewer({ content, contentType, filename, language, heigh
     const origCode = renderer.code?.bind(renderer);
     renderer.code = (code: string, info: string | undefined) => {
       const lang = (info || '').split(/\s+/)[0]?.toLowerCase();
-      if (lang && (lang.includes('mermaid') || lang === 'sequence' || lang === 'sequencediagram')) {
+      if (lang === 'mermaid') {
         return `<div class="mermaid">${escapeHtml(code)}</div>`;
       }
       if (lang === 'ruby' || lang === 'rb') {
@@ -212,10 +212,24 @@ export default function Viewer({ content, contentType, filename, language, heigh
     const nodes = root.querySelectorAll<HTMLElement>('.mermaid');
     if (!nodes.length) return;
     ensureMermaidConfigured();
-    mermaid
-      .run({ nodes })
-      // eslint-disable-next-line no-console
-      .catch((err) => console.warn('Mermaid render failed', err));
+    nodes.forEach((el) => {
+      const src = el.textContent || '';
+      try {
+        // @ts-ignore
+        if (typeof mermaid.parse === 'function') mermaid.parse(src);
+      } catch {
+        const pre = document.createElement('pre');
+        pre.className = 'code';
+        const codeEl = document.createElement('code');
+        codeEl.innerHTML = escapeHtml(src);
+        pre.appendChild(codeEl);
+        el.replaceWith(pre);
+      }
+    });
+    const remain = root.querySelectorAll<HTMLElement>('.mermaid');
+    if (!remain.length) return;
+    // eslint-disable-next-line @typescript-eslint/no-floating-promises
+    mermaid.run({ nodes: remain }).catch(() => {});
   }, [kind, markdownHtml]);
 
   const codeHtml = useMemo(() => {

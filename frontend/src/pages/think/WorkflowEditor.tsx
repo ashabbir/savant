@@ -512,11 +512,17 @@ export default function ThinkWorkflowEditor() {
   };
 
   // Lazy mermaid loader (shared pattern from Workflows page)
+  const MERMAID_CDN = 'https://cdn.jsdelivr.net/npm/mermaid@11.4.0/dist/mermaid.esm.min.mjs';
   let mermaidInstance: any = (window as any).__savantMermaid || null;
   async function getMermaid() {
     if (mermaidInstance) return mermaidInstance;
-    const m = await import('mermaid');
-    mermaidInstance = m.default;
+    let m: any;
+    try {
+      m = await import('mermaid');
+    } catch (err) {
+      m = await import(MERMAID_CDN);
+    }
+    mermaidInstance = (m && (m.default || m)) as any;
     mermaidInstance.initialize({ startOnLoad: false, theme: 'default', flowchart: { useMaxWidth: true, htmlLabels: true, curve: 'basis' }, securityLevel: 'loose' });
     (window as any).__savantMermaid = mermaidInstance;
     return mermaidInstance;
