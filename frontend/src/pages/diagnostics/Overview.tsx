@@ -339,27 +339,7 @@ export default function DiagnosticsOverview() {
               </Stack>
             </Paper>
 
-            {/* Workflows Telemetry */}
-            <Paper sx={{ p: 1.5, cursor: 'pointer' }} onClick={() => navigate('/diagnostics/workflows')}>
-              <Typography variant="subtitle2" sx={{ mb: 0.5, fontWeight: 600 }}>Workflows</Typography>
-              <Typography variant="body2" color="text.secondary">
-                View recent workflow execution events and download the full trace.
-              </Typography>
-              <Box sx={{ mt: 1 }}>
-                <Link to="/diagnostics/workflows">Open Workflow Telemetry</Link>
-              </Box>
-            </Paper>
-
-            {/* API Health */}
-            <Paper sx={{ p: 1.5, cursor: 'pointer' }} onClick={() => navigate('/diagnostics/api')}>
-              <Typography variant="subtitle2" sx={{ mb: 0.5, fontWeight: 600 }}>API Health</Typography>
-              <Typography variant="body2" color="text.secondary">
-                Scan engine tool routes and detect mismatches or non‑JSON responses. Useful after changes to tool names.
-              </Typography>
-              <Box sx={{ mt: 1 }}>
-                <Link to="/diagnostics/api">Open API Health</Link>
-              </Box>
-            </Paper>
+            
             {/* Personas */}
             <Paper sx={{ p: 1.5 }}>
               <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>Personas</Typography>
