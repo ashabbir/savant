@@ -288,26 +288,7 @@ export default function App() {
           ))}
         </Tabs>
       )}
-      {mainIdx === 2 && (
-        <Tabs
-          value={diagSubIdx}
-          onChange={(_, v) => {
-            if (v === 0) navigate('/diagnostics/overview');
-            else if (v === 1) navigate('/diagnostics/requests');
-            else if (v === 2) navigate('/diagnostics/agents');
-            else if (v === 3) navigate('/diagnostics/logs');
-            else if (v === 4) navigate('/diagnostics/routes');
-          }}
-          centered
-          sx={{ '& .MuiTab-root': { fontSize: 12, minHeight: 36, py: 0.5, textTransform: 'none' }, '& .MuiTabs-indicator': { height: 2 } }}
-        >
-          <Tab label="Overview" component={Link} to="/diagnostics/overview" />
-          <Tab label="Requests" component={Link} to="/diagnostics/requests" />
-          <Tab label="Agents" component={Link} to="/diagnostics/agents" />
-          <Tab label="Logs" component={Link} to="/diagnostics/logs" />
-          <Tab label="Routes" component={Link} to="/diagnostics/routes" />
-        </Tabs>
-      )}
+      
       {mainIdx === 1 && selEngine === 'context' && (
         <Tabs value={engSubIdx} onChange={(_, v) => {
           if (v === 0) navigate('/engines/context/resources');
@@ -474,7 +455,6 @@ export default function App() {
           <Route path="/diagnostics/requests" element={<DiagnosticsRequests />} />
           <Route path="/diagnostics/logs" element={<DiagnosticsLogs />} />
           <Route path="/diagnostics/agent" element={<DiagnosticsAgent />} />
-          <Route path="/diagnostics/agents" element={<DiagnosticsAgent />} />
           <Route path="/diagnostics/workflows" element={<DiagnosticsWorkflows />} />
           <Route path="/diagnostics/api" element={<APIHealth />} />
           <Route path="/diagnostics/routes" element={<DiagnosticsRoutes />} />
