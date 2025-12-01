@@ -196,7 +196,7 @@ All LLM responses must conform to this JSON schema:
 ```json
 {
   "action": "tool|finish|error",
-  "tool_name": "context.fts/search",
+  "tool_name": "context.fts_search",
   "args": {
     "query": "authentication logic",
     "limit": 10
@@ -224,7 +224,7 @@ All LLM responses must conform to this JSON schema:
 │  │ [INFO] Step 1: build_prompt → 1.2ms                    │ │
 │  │ [INFO] Step 1: llm_call(phi3.5) → 450ms                │ │
 │  │ [INFO] Step 1: parse_output → 2.1ms                    │ │
-│  │ [INFO] Step 1: tool_call(context.fts/search) → 89ms    │ │
+│  │ [INFO] Step 1: tool_call(context.fts_search) → 89ms    │ │
 │  │ [INFO] Step 1: update_memory → 3.4ms                   │ │
 │  │ [INFO] Step 2: ...                                      │ │
 │  │ [INFO] Session complete: 8 steps, 2 tools, 1 finish    │ │
@@ -235,7 +235,7 @@ All LLM responses must conform to this JSON schema:
 │  │ {"type":"reasoning_step","step":1,"ts":"2025-11-30",  │ │
 │  │  "model":"phi3.5:latest","prompt_tokens":1234,         │ │
 │  │  "output_tokens":89,"duration_ms":450,"action":"tool", │ │
-│  │  "tool_name":"context.fts/search",                     │ │
+│  │  "tool_name":"context.fts_search",                     │ │
 │  │  "metadata":{"decision_summary":"Search for auth"}}    │ │
 │  └────────────────────────────────────────────────────────┘ │
 │                                                             │
@@ -268,7 +268,7 @@ Extended `bin/savant run` with agent execution:
 
 # Force specific tool (testing)
 ./bin/savant run --agent-input="..." \
-  --force-tool=context.fts/search \
+  --force-tool=context.fts_search \
   --force-args='{"query":"auth","limit":5}' \
   --force-finish
 
@@ -293,10 +293,10 @@ Real-time agent monitoring UI at `/diagnostics/agents`:
 │  ☑ tool_call_started  ☑ tool_call_completed                │
 │                                                              │
 │  ┌────────────────────────────────────────────────────────┐ │
-│  │ Step #1  tool  context.fts/search                      │ │
+│  │ Step #1  tool  context.fts_search                      │ │
 │  │   events=4  model=phi3.5  tokens=1234/89               │ │
 │  ├────────────────────────────────────────────────────────┤ │
-│  │ Step #2  tool  think.prompts.list                      │ │
+│  │ Step #2  tool  think_prompts_list                      │ │
 │  │   events=3  model=phi3.5  tokens=1456/102              │ │
 │  ├────────────────────────────────────────────────────────┤ │
 │  │ Step #3  finish                                         │ │
@@ -307,7 +307,7 @@ Real-time agent monitoring UI at `/diagnostics/agents`:
 │  ┌────────────────────────────────────────────────────────┐ │
 │  │ Step: 1                                                 │ │
 │  │ Action: tool                                            │ │
-│  │ Tool: context.fts/search                               │ │
+│  │ Tool: context.fts_search                               │ │
 │  │ Args: {"query":"auth","limit":10}                      │ │
 │  │ Output: [23 results]                                    │ │
 │  │ Reasoning: "Need to find authentication logic..."      │ │

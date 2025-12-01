@@ -26,8 +26,8 @@ type RFNode = Node<{ id: number; name: string; call: string; input_template?: an
 
 function defaultGraph(): { nodes: RFNode[]; edges: Edge[] } {
   const nodes: RFNode[] = [
-    { id: '1', position: { x: 120, y: 120 }, data: { id: 1, name: 'start', call: 'prompt.say', input_template: { text: 'Start' }, label: '1 start' }, type: 'default' },
-    { id: '2', position: { x: 120, y: 240 }, data: { id: 2, name: 'done', call: 'prompt.say', input_template: { text: 'Done' }, label: '2 done' }, type: 'default' }
+    { id: '1', position: { x: 120, y: 120 }, data: { id: 1, name: 'start', call: 'prompt_say', input_template: { text: 'Start' }, label: '1 start' }, type: 'default' },
+    { id: '2', position: { x: 120, y: 240 }, data: { id: 2, name: 'done', call: 'prompt_say', input_template: { text: 'Done' }, label: '2 done' }, type: 'default' }
   ];
   const edges: Edge[] = [{ id: 'e1-2', source: '1', target: '2' }];
   return { nodes, edges };
@@ -362,7 +362,7 @@ export default function ThinkWorkflowEditor() {
       data: {
         id: newId,
         name: newName,
-        call: 'prompt.say',
+        call: 'prompt_say',
         input_template: { text: '...' },
         label: `${newId} ${newName}`
       },
@@ -512,11 +512,17 @@ export default function ThinkWorkflowEditor() {
   };
 
   // Lazy mermaid loader (shared pattern from Workflows page)
+  const MERMAID_CDN = 'https://cdn.jsdelivr.net/npm/mermaid@11.4.0/dist/mermaid.esm.min.mjs';
   let mermaidInstance: any = (window as any).__savantMermaid || null;
   async function getMermaid() {
     if (mermaidInstance) return mermaidInstance;
-    const m = await import('mermaid');
-    mermaidInstance = m.default;
+    let m: any;
+    try {
+      m = await import('mermaid');
+    } catch (err) {
+      m = await import(MERMAID_CDN);
+    }
+    mermaidInstance = (m && (m.default || m)) as any;
     mermaidInstance.initialize({ startOnLoad: false, theme: 'default', flowchart: { useMaxWidth: true, htmlLabels: true, curve: 'basis' }, securityLevel: 'loose' });
     (window as any).__savantMermaid = mermaidInstance;
     return mermaidInstance;

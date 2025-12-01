@@ -59,6 +59,8 @@ module Savant
         list << { module: 'hub', method: 'GET', path: '/diagnostics/agent', description: 'Agent runtime: memory + telemetry' }
         list << { module: 'hub', method: 'GET', path: '/diagnostics/agent/trace', description: 'Download agent trace log' }
         list << { module: 'hub', method: 'GET', path: '/diagnostics/agent/session', description: 'Download agent session memory JSON' }
+        list << { module: 'hub', method: 'GET', path: '/diagnostics/workflows', description: 'Workflow engine telemetry (recent events)' }
+        list << { module: 'hub', method: 'GET', path: '/diagnostics/workflows/trace', description: 'Download workflow trace JSONL' }
         list << { module: 'hub', method: 'GET', path: '/diagnostics/mcp/:name', description: 'Per-engine diagnostics' }
         list << { module: 'hub', method: 'GET', path: '/routes', description: 'Routes list (add ?expand=1 to include tool calls)' }
         list << { module: 'hub', method: 'GET', path: '/logs', description: 'Aggregated recent events (?n=100,&mcp=,&type=)' }
@@ -199,6 +201,8 @@ module Savant
         return diagnostics_agent_session(req) if req.get? && req.path_info == '/diagnostics/agent/session'
         return diagnostics_connections(req) if req.get? && req.path_info == '/diagnostics/connections'
         return diagnostics_mcp(req) if req.get? && req.path_info.start_with?('/diagnostics/mcp/')
+        return diagnostics_workflows(req) if req.get? && req.path_info == '/diagnostics/workflows'
+        return diagnostics_workflows_trace(req) if req.get? && req.path_info == '/diagnostics/workflows/trace'
         return logs_index(req) if req.get? && req.path_info == '/logs'
 
         if req.get? && req.path_info.start_with?('/logs/')
@@ -289,6 +293,26 @@ module Savant
         type = req.params['type']
         events = @recorder.last(n, mcp: (mcp unless mcp.to_s.empty?), type: (type unless type.to_s.empty?))
         respond(200, { count: events.length, events: events })
+      end
+
+      # GET /diagnostics/workflows -> recent workflow events
+      def diagnostics_workflows(req)
+        n = (req.params['n'] || '100').to_i
+        events = @recorder.last(n, type: 'workflow_step')
+        respond(200, { count: events.length, events: events })
+      end
+
+      # GET /diagnostics/workflows/trace -> download JSONL trace file
+      def diagnostics_workflows_trace(_req)
+        base = if ENV['SAVANT_PATH'] && !ENV['SAVANT_PATH'].empty?
+                 ENV['SAVANT_PATH']
+               else
+                 File.expand_path('../../..', __dir__)
+               end
+        path = File.join(base, 'logs', 'workflow_trace.log')
+        return respond(404, { error: 'trace_not_found', path: path }) unless File.file?(path)
+        data = File.read(path)
+        [200, { 'Content-Type' => 'text/plain' }.merge(cors_headers), [data]]
       end
 
       # GET /logs/stream -> SSE unified stream of events
@@ -616,6 +640,23 @@ module Savant
       end
 
       def call_with_user_context(manager, engine_name, tool, params, user_id)
+        tool_candidates = [tool]
+        # Generate common alias variants to improve robustness across engines
+        begin
+          t = tool.to_s
+          tool_candidates << t.tr('/', '_') if t.include?('/')
+          tool_candidates << t.tr('_', '/') if t.include?('_')
+          tool_candidates << t.tr('.', '/') if t.include?('.')
+          tool_candidates << t.tr('.', '_') if t.include?('.')
+          # Context engine historically uses snake_case; prefer underscore variant
+          if engine_name.to_s == 'context'
+            tool_candidates << t.tr('/', '_')
+          end
+        rescue StandardError
+          # ignore
+        end
+        tool_candidates = tool_candidates.uniq
+
         # Prefer registrar to pass user_id in ctx (enables per-user creds middleware)
         # Also log per-engine tool calls so /:engine/logs has content.
         logger = nil
@@ -627,57 +668,60 @@ module Savant
           logger = nil
         end
 
-        started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
-        logger&.info(event: 'tool.call start', name: tool, user: user_id)
-        begin
-          manager.specs # ensure service is loaded when ServiceManager
-          reg = manager.send(:registrar)
-          result = reg.call(tool, params, ctx: { engine: engine_name, user_id: user_id })
-          dur = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round
-          logger&.info(event: 'tool.call finish', name: tool, duration_ms: dur)
-          return result
-        rescue StandardError
-          # Fall through to other strategies
-        end
-
-        if manager.respond_to?(:registrar)
+        tool_candidates.each do |name_variant|
+          started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+          logger&.info(event: 'tool.call start', name: name_variant, user: user_id)
+          # Try registrar via specs (ensures load)
           begin
-            result = manager.registrar.call(tool, params, ctx: { engine: engine_name, user_id: user_id })
+            manager.specs
+            reg = manager.send(:registrar)
+            result = reg.call(name_variant, params, ctx: { engine: engine_name, user_id: user_id })
             dur = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round
-            logger&.info(event: 'tool.call finish', name: tool, duration_ms: dur)
+            logger&.info(event: 'tool.call finish', name: name_variant, duration_ms: dur)
             return result
           rescue StandardError
-            # Try a hot-reload fallback: load fresh engine/tools and dispatch
+            # try next strategy
+          end
+
+          # Try public registrar accessor
+          if manager.respond_to?(:registrar)
             begin
-              result = hot_reload_and_call(engine_name, tool, params, user_id)
+              result = manager.registrar.call(name_variant, params, ctx: { engine: engine_name, user_id: user_id })
               dur = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round
-              logger&.info(event: 'tool.call finish', name: tool, duration_ms: dur)
+              logger&.info(event: 'tool.call finish', name: name_variant, duration_ms: dur)
               return result
-            rescue StandardError => e2
-              logger&.error(event: 'tool.call error', name: tool, message: e2.message)
-              raise
+            rescue StandardError
+              # Hot reload fallback
+              begin
+                result = hot_reload_and_call(engine_name, name_variant, params, user_id)
+                dur = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round
+                logger&.info(event: 'tool.call finish', name: name_variant, duration_ms: dur)
+                return result
+              rescue StandardError
+                # try next candidate
+              end
+            end
+          end
+
+          # Last resort: use manager.call_tool
+          begin
+            result = manager.call_tool(name_variant, params)
+            dur = ((Process.clock_gettime(Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round rescue 0)
+            logger&.info(event: 'tool.call finish', name: name_variant, duration_ms: dur)
+            return result
+          rescue StandardError
+            begin
+              result = hot_reload_and_call(engine_name, name_variant, params, user_id)
+              dur = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round
+              logger&.info(event: 'tool.call finish', name: name_variant, duration_ms: dur)
+              return result
+            rescue StandardError
+              # continue loop
             end
           end
         end
-
-        # Last resort: use public API (no user context)
-        begin
-          result = manager.call_tool(tool, params)
-          dur = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round
-          logger&.info(event: 'tool.call finish', name: tool, duration_ms: dur)
-          result
-        rescue StandardError
-          # Final attempt: hot-reload and call
-          begin
-            result = hot_reload_and_call(engine_name, tool, params, user_id)
-            dur = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round
-            logger&.info(event: 'tool.call finish', name: tool, duration_ms: dur)
-            result
-          rescue StandardError => e2
-            logger&.error(event: 'tool.call error', name: tool, message: e2.message)
-            raise
-          end
-        end
+        # All variants failed; re-raise using original name
+        raise StandardError, 'Unknown tool'
       end
 
       # Load fresh engine + tools for the given engine and dispatch the tool call.

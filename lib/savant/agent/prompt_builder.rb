@@ -50,7 +50,7 @@ module Savant
         if tools_hint&.any?
           sections << section('Tools Available', tools_hint.take(150).join("\n"))
           sections << section('Tool Selection Rules',
-                              "When action='tool', tool_name MUST be one of the 'Tools Available' list. Use the fully qualified name exactly (slashes '/'). If the goal says 'context.fts.search', choose 'context.fts/search'. NEVER invent or use external tools like 'GitHub CLI', 'curl', 'bash', or 'npm'.")
+                              "When action='tool', tool_name MUST be one of the 'Tools Available' list. Use the fully qualified name exactly (e.g., 'context.fts_search'). NEVER invent or use external tools like 'GitHub CLI', 'curl', 'bash', or 'npm'.")
         end
         sections << section('Tools Catalog', tools_catalog.take(150).join("\n")) if tools_catalog&.any?
         sections << section('System Instructions', system) if system

@@ -50,16 +50,16 @@ RSpec.describe 'Savant Think payload handling' do
     registrar = Savant::Think::Tools.build_registrar(nil)
 
     # Plan -> driver bootstrap
-    plan = registrar.call('think.plan', { 'workflow' => 'review_v1', 'params' => {}, 'run_id' => 'test-run', 'start_fresh' => true }, ctx: {})
+    plan = registrar.call('think_plan', { 'workflow' => 'review_v1', 'params' => {}, 'run_id' => 'test-run', 'start_fresh' => true }, ctx: {})
     expect(plan[:instruction][:step_id]).to eq('__driver_bootstrap')
 
     # Advance driver steps
-    registrar.call('think.next', {
+    registrar.call('think_next', {
                      'workflow' => 'review_v1', 'run_id' => 'test-run',
                      'step_id' => '__driver_bootstrap',
                      'result_snapshot' => { 'version' => 'stable-2025-11', 'prompt_md' => '...' }
                    }, ctx: {})
-    nxt2 = registrar.call('think.next', {
+    nxt2 = registrar.call('think_next', {
                             'workflow' => 'review_v1', 'run_id' => 'test-run',
                             'step_id' => '__driver_announce',
                             'result_snapshot' => { 'ok' => true }
@@ -71,7 +71,7 @@ RSpec.describe 'Savant Think payload handling' do
     snapshot = { 'text' => bad, 'list' => [bad] }
 
     # Submit snapshot; engine should sanitize and persist
-    registrar.call('think.next', {
+    registrar.call('think_next', {
                      'workflow' => 'review_v1', 'run_id' => 'test-run',
                      'step_id' => 'lint',
                      'result_snapshot' => snapshot
@@ -99,13 +99,13 @@ RSpec.describe 'Savant Think payload handling' do
     require_relative '../../../../lib/savant/engines/think/tools'
     registrar = Savant::Think::Tools.build_registrar(nil)
 
-    plan = registrar.call('think.plan', { 'workflow' => 'review_v1', 'params' => {}, 'run_id' => 'test-run', 'start_fresh' => true }, ctx: {})
+    plan = registrar.call('think_plan', { 'workflow' => 'review_v1', 'params' => {}, 'run_id' => 'test-run', 'start_fresh' => true }, ctx: {})
     expect(plan[:instruction][:step_id]).to eq('__driver_bootstrap')
-    registrar.call('think.next', { 'workflow' => 'review_v1', 'run_id' => 'test-run', 'step_id' => '__driver_bootstrap', 'result_snapshot' => { 'version' => 'v', 'prompt_md' => '...' } }, ctx: {})
-    registrar.call('think.next', { 'workflow' => 'review_v1', 'run_id' => 'test-run', 'step_id' => '__driver_announce', 'result_snapshot' => { 'ok' => true } }, ctx: {})
+    registrar.call('think_next', { 'workflow' => 'review_v1', 'run_id' => 'test-run', 'step_id' => '__driver_bootstrap', 'result_snapshot' => { 'version' => 'v', 'prompt_md' => '...' } }, ctx: {})
+    registrar.call('think_next', { 'workflow' => 'review_v1', 'run_id' => 'test-run', 'step_id' => '__driver_announce', 'result_snapshot' => { 'ok' => true } }, ctx: {})
 
     big = 'X' * 10_000
-    registrar.call('think.next', { 'workflow' => 'review_v1', 'run_id' => 'test-run', 'step_id' => 'lint', 'result_snapshot' => { 'big' => big } }, ctx: {})
+    registrar.call('think_next', { 'workflow' => 'review_v1', 'run_id' => 'test-run', 'step_id' => 'lint', 'result_snapshot' => { 'big' => big } }, ctx: {})
 
     state_path = File.join(tmp_root, '.savant', 'state', 'review_v1__test-run.json')
     data = JSON.parse(File.read(state_path))

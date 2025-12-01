@@ -37,7 +37,7 @@ Savant is a lightweight Ruby framework for building and running local MCP servic
 
 ## Multiplexer Overview
 
-- `bin/mcp_server` defaults to the multiplexer. It spawns one stdio MCP process per engine (`context`, `git`, `think`, `personas`, `rules`, `jira` by default), namespaces their tools (`context.fts/search`, `git.diff`, `jira.issue.get`, etc.), and serves them to connected editors.
+- `bin/mcp_server` defaults to the multiplexer. It spawns one stdio MCP process per engine (`context`, `git`, `think`, `personas`, `rules`, `jira` by default), namespaces their tools (`context.fts_search`, `git.diff`, `jira.issue.get`, etc.), and serves them to connected editors.
 - Each engine failure is isolated—if a child dies the multiplexer removes its tools, logs the event, and restarts it in the background.
 - Metrics and status are written to `logs/multiplexer.log` and surfaced via the Hub (`curl /` now includes a `multiplexer` object) and CLI helpers (`savant engines`, `savant tools`).
 
@@ -134,7 +134,7 @@ ollama pull llama3:latest
 - `--max-steps=N` to cap the loop (default 25)
 - `--dry-run` to simulate tool calls without executing them
 - `--quiet` to suppress JSON logs to console (logs still written to files)
-- `--force-tool=NAME` and `--force-args=JSON` to force the first step to call a specific tool (use fully-qualified name like `think.prompts.list` or `context.fts/search`)
+- `--force-tool=NAME` and `--force-args=JSON` to force the first step to call a specific tool (use fully-qualified name like `think_prompts_list` or `context.fts_search`)
 - `--force-finish` to immediately finish after the forced tool (or finish at step 1 if no forced tool), optionally with `--force-final="text"`
 - `--force-finish-only` to finish immediately without executing any tool (ignores `--force-tool`)
 

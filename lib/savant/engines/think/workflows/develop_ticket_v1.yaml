@@ -6,48 +6,42 @@ driver_version: stable
 rules:
 - backend-rules
 - development-rules
-version: 2
+version: 3
 steps:
-- id: 1
-  name: fetch_ticket
+- id: '1'
   call: jira_get_issue
   input_template:
     key: "{{params.issueKey}}"
   capture_as: ticket
-- id: 2
-  name: checkout
+- id: '2'
   call: ci.checkout
   deps:
-  - 1
+  - '1'
   input_template:
     ref: "{{params.base_branch}}"
-- id: 3
-  name: feature_branch
+- id: '3'
   call: ci.create_branch
   deps:
-  - 2
+  - '2'
   input_template:
     name: "{{params.feature_branch}}"
-- id: 4
-  name: context_search
-  call: fts/search
+- id: '4'
+  call: fts_search
   deps:
-  - 3
+  - '3'
   input_template:
     q: "{{params.issueKey}}"
   capture_as: code_refs
-- id: 5
-  name: run_tests
+- id: '5'
   call: ci.run_tests
   deps:
-  - 4
+  - '4'
   input_template:
     ref: "{{params.feature_branch}}"
-- id: 6
-  name: open_pr
+- id: '6'
   call: ci.open_pr
   deps:
-  - 5
+  - '5'
   input_template:
     title: "[{{params.issueKey}}] {{params.title}}"
     base: "{{params.base_branch}}"

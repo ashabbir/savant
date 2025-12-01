@@ -114,7 +114,7 @@ module Savant
         {
           name: 'savant-context',
           version: '1.1.0',
-          description: 'Context MCP: fts/search, repos/list, memory/*, fs/repo/*'
+          description: 'Context MCP: fts_search, repos_list, memory_search/memory_resources_*, fs_repo_*'
         }
       end
     end

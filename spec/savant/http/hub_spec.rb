@@ -40,7 +40,7 @@ module HubSpec
 
   def self.build_app
     mounts = {
-      'context' => FakeServiceManager.new(service: 'context', tools: %w[fts/search fts/stats]),
+      'context' => FakeServiceManager.new(service: 'context', tools: %w[fts_search fts/stats]),
       'jira' => FakeServiceManager.new(service: 'jira', tools: %w[jira_search jira_self])
     }
     Savant::Hub::Router.build(mounts: mounts, transport: 'sse')
@@ -66,17 +66,17 @@ RSpec.describe 'Savant HTTP Hub Router' do
     expect(res.status).to eq(200)
     body = JSON.parse(res.body)
     expect(body['tools']).to be_a(Array)
-    expect(body['tools'].map { |t| t['name'] }).to include('fts/search')
+    expect(body['tools'].map { |t| t['name'] }).to include('fts_search')
   end
 
   it 'executes tool via POST /:engine/tools/:name/call' do
     payload = { 'params' => { 'q' => 'hello' } }
-    res = request.post('/context/tools/fts/search/call', 'CONTENT_TYPE' => 'application/json',
+    res = request.post('/context/tools/fts_search/call', 'CONTENT_TYPE' => 'application/json',
                                                          'HTTP_X_SAVANT_USER_ID' => 'amd', input: JSON.generate(payload))
     expect(res.status).to eq(200)
     out = JSON.parse(res.body)
     expect(out['ok']).to eq(true)
-    expect(out['tool']).to eq('fts/search')
+    expect(out['tool']).to eq('fts_search')
     expect(out['input']).to eq({ 'q' => 'hello' })
     expect(out['user']).to eq('amd')
   end

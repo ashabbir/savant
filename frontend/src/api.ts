@@ -82,17 +82,17 @@ export function useHubHealth() {
 }
 
 export async function search(q: string, repo?: string | null, limit: number = 20): Promise<SearchResult[]> {
-  const res = await client().post(`/context/tools/fts/search/call`, { params: { q, repo: repo ?? null, limit } });
+  const res = await client().post(`/context/tools/fts_search/call`, { params: { q, repo: repo ?? null, limit } });
   return res.data as SearchResult[];
 }
 
 export async function searchMemory(q: string, repo?: string | null, limit: number = 20): Promise<SearchResult[]> {
-  const res = await client().post(`/context/tools/memory/search/call`, { params: { q, repo: repo ?? null, limit } });
+  const res = await client().post(`/context/tools/memory_search/call`, { params: { q, repo: repo ?? null, limit } });
   return res.data as SearchResult[];
 }
 
 export async function repoStatus(): Promise<RepoStatus[]> {
-  const res = await client().post(`/context/tools/fs/repo/status/call`, { params: {} });
+  const res = await client().post(`/context/tools/fs_repo_status/call`, { params: {} });
   return res.data as RepoStatus[];
 }
 
@@ -104,12 +104,12 @@ export function useRepoStatus() {
 }
 
 export async function indexRepo(repo?: string | null): Promise<any> {
-  const res = await client().post(`/context/tools/fs/repo/index/call`, { params: { repo: repo ?? null } });
+  const res = await client().post(`/context/tools/fs_repo_index/call`, { params: { repo: repo ?? null } });
   return res.data;
 }
 
 export async function deleteRepo(repo?: string | null): Promise<any> {
-  const res = await client().post(`/context/tools/fs/repo/delete/call`, { params: { repo: repo ?? null } });
+  const res = await client().post(`/context/tools/fs_repo_delete/call`, { params: { repo: repo ?? null } });
   return res.data;
 }
 
@@ -193,7 +193,7 @@ export function useDiagnostics() {
   return useQuery<Diagnostics>({
     queryKey: ['hub', 'diagnostics'],
     queryFn: async () => {
-      const res = await client().post('/context/tools/fs/repo/diagnostics/call', { params: {} });
+      const res = await client().post('/context/tools/fs_repo_diagnostics/call', { params: {} });
       return res.data as Diagnostics;
     },
     retry: 0
@@ -207,7 +207,7 @@ export function useThinkWorkflows() {
   return useQuery<ThinkWorkflows>({
     queryKey: ['think', 'workflows'],
     queryFn: async () => {
-      const res = await client().post('/think/tools/think.workflows.list/call', { params: {} });
+    const res = await client().post('/think/tools/think_workflows_list/call', { params: {} });
       return res.data as ThinkWorkflows;
     }
   });
@@ -235,7 +235,7 @@ export function useMemoryResources(repo: string | null) {
   return useQuery<MemoryResource[]>({
     queryKey: ['context', 'memory', 'list', repo || null],
     queryFn: async () => {
-      const res = await client().post('/context/tools/memory/resources/list/call', { params: { repo: repo || null } });
+      const res = await client().post('/context/tools/memory_resources_list/call', { params: { repo: repo || null } });
       return res.data as MemoryResource[];
     }
   });
@@ -245,7 +245,7 @@ export function useMemoryResource(uri: string | null) {
   return useQuery<string>({
     queryKey: ['context', 'memory', 'read', uri],
     queryFn: async () => {
-      const res = await client().post('/context/tools/memory/resources/read/call', { params: { uri } });
+      const res = await client().post('/context/tools/memory_resources_read/call', { params: { uri } });
       return res.data as string;
     },
     enabled: !!uri
@@ -260,7 +260,7 @@ export function useThinkWorkflowRead(id: string | null) {
   return useQuery<{ workflow_yaml: string }>({
     queryKey: ['think', 'workflow', id],
     queryFn: async () => {
-      const res = await client().post('/think/tools/think.workflows.read/call', { params: { workflow: id } });
+      const res = await client().post('/think/tools/think_workflows_read/call', { params: { workflow: id } });
       return res.data as { workflow_yaml: string };
     },
     enabled: !!id
@@ -273,7 +273,7 @@ export function useThinkPrompts() {
   return useQuery<ThinkPrompts>({
     queryKey: ['think', 'prompts'],
     queryFn: async () => {
-      const res = await client().post('/think/tools/think.prompts.list/call', { params: {} });
+      const res = await client().post('/think/tools/think_prompts_list/call', { params: {} });
       return res.data as ThinkPrompts;
     }
   });
@@ -283,7 +283,7 @@ export function useThinkPrompt(version: string | null) {
   return useQuery<{ version: string; hash: string; prompt_md: string }>({
     queryKey: ['think', 'prompt', version],
     queryFn: async () => {
-      const res = await client().post('/think/tools/think.prompts.read/call', { params: { version } });
+  const res = await client().post('/think/tools/think_prompts_read/call', { params: { version } });
       return res.data as { version: string; hash: string; prompt_md: string };
     },
     enabled: !!version
@@ -292,27 +292,27 @@ export function useThinkPrompt(version: string | null) {
 
 // THINK prompts mutations and catalog ops
 export async function thinkPromptsCreate(payload: { version: string; prompt_md: string; path?: string }) {
-  const res = await client().post('/think/tools/think.prompts.create/call', { params: payload });
+  const res = await client().post('/think/tools/think_prompts_create/call', { params: payload });
   return res.data as { ok: boolean; version: string; path: string };
 }
 
 export async function thinkPromptsUpdate(payload: { version: string; prompt_md?: string; new_version?: string }) {
-  const res = await client().post('/think/tools/think.prompts.update/call', { params: payload });
+  const res = await client().post('/think/tools/think_prompts_update/call', { params: payload });
   return res.data as { ok: boolean; version: string; path: string };
 }
 
 export async function thinkPromptsDelete(version: string) {
-  const res = await client().post('/think/tools/think.prompts.delete/call', { params: { version } });
+  const res = await client().post('/think/tools/think_prompts_delete/call', { params: { version } });
   return res.data as { ok: boolean; deleted: boolean };
 }
 
 export async function thinkPromptsCatalogRead() {
-  const res = await client().post('/think/tools/think.prompts.catalog.read/call', { params: {} });
+  const res = await client().post('/think/tools/think_prompts_catalog_read/call', { params: {} });
   return res.data as { catalog_yaml: string };
 }
 
 export async function thinkPromptsCatalogWrite(yaml: string) {
-  const res = await client().post('/think/tools/think.prompts.catalog.write/call', { params: { yaml } });
+  const res = await client().post('/think/tools/think_prompts_catalog_write/call', { params: { yaml } });
   return res.data as { ok: boolean; count: number };
 }
 
@@ -320,7 +320,7 @@ export function useThinkRuns() {
   return useQuery<{ runs: { workflow: string; run_id: string; completed: number; next_step_id?: string; path: string; updated_at: string }[] }>({
     queryKey: ['think', 'runs'],
     queryFn: async () => {
-      const res = await client().post('/think/tools/think.runs.list/call', { params: {} });
+      const res = await client().post('/think/tools/think_runs_list/call', { params: {} });
       return res.data;
     }
   });
@@ -330,7 +330,7 @@ export function useThinkRun(workflow: string | null, runId: string | null) {
   return useQuery<{ state: any }>({
     queryKey: ['think', 'run', workflow, runId],
     queryFn: async () => {
-      const res = await client().post('/think/tools/think.runs.read/call', { params: { workflow, run_id: runId } });
+      const res = await client().post('/think/tools/think_runs_read/call', { params: { workflow, run_id: runId } });
       return res.data;
     },
     enabled: !!workflow && !!runId
@@ -338,17 +338,17 @@ export function useThinkRun(workflow: string | null, runId: string | null) {
 }
 
 export async function thinkRunDelete(workflow: string, runId: string) {
-  const res = await client().post('/think/tools/think.runs.delete/call', { params: { workflow, run_id: runId } });
+  const res = await client().post('/think/tools/think_runs_delete/call', { params: { workflow, run_id: runId } });
   return res.data;
 }
 
 export async function thinkPlan(workflow: string, params: any, runId?: string | null, startFresh: boolean = true) {
-  const res = await client().post('/think/tools/think.plan/call', { params: { workflow, params, run_id: runId || undefined, start_fresh: startFresh } });
+  const res = await client().post('/think/tools/think_plan/call', { params: { workflow, params, run_id: runId || undefined, start_fresh: startFresh } });
   return res.data as { instruction: any; state: any; run_id: string; done: boolean };
 }
 
 export async function thinkNext(workflow: string, runId: string, stepId: string, resultSnapshot: any) {
-  const res = await client().post('/think/tools/think.next/call', { params: { workflow, run_id: runId, step_id: stepId, result_snapshot: resultSnapshot } });
+  const res = await client().post('/think/tools/think_next/call', { params: { workflow, run_id: runId, step_id: stepId, result_snapshot: resultSnapshot } });
   return res.data as { instruction?: any; done: boolean; summary?: string };
 }
 
@@ -356,8 +356,50 @@ export function useThinkLimits() {
   return useQuery<{ max_snapshot_bytes: number; max_string_bytes: number; truncation_strategy: string; log_payload_sizes: boolean; warn_threshold_bytes: number }>({
     queryKey: ['think', 'limits'],
     queryFn: async () => {
-      const res = await client().post('/think/tools/think.limits.read/call', { params: {} });
+      const res = await client().post('/think/tools/think_limits_read/call', { params: {} });
       return res.data;
+    }
+  });
+}
+
+// WORKFLOW engine API
+export function useWorkflowRuns() {
+  return useQuery<{ runs: { workflow: string; run_id: string; steps: number; status: string; path: string; updated_at: string }[] }>({
+    queryKey: ['workflow', 'runs'],
+    queryFn: async () => {
+      const res = await client().post('/workflow/tools/workflow_runs_list/call', { params: {} });
+      return res.data;
+    }
+  });
+}
+
+export function useWorkflowRun(workflow: string | null, runId: string | null) {
+  return useQuery<{ state: any }>({
+    queryKey: ['workflow', 'run', workflow, runId],
+    queryFn: async () => {
+      const res = await client().post('/workflow/tools/workflow.runs.read/call', { params: { workflow, run_id: runId } });
+      return res.data;
+    },
+    enabled: !!workflow && !!runId
+  });
+}
+
+export async function workflowRunDelete(workflow: string, runId: string) {
+  const res = await client().post('/workflow/tools/workflow.runs.delete/call', { params: { workflow, run_id: runId } });
+  return res.data as { ok: boolean; deleted: boolean };
+}
+
+export async function workflowRunStart(workflow: string, params: any) {
+  const res = await client().post('/workflow/tools/workflow.run/call', { params: { workflow, params } });
+  return res.data as { run_id: string; final: any; steps: number; status: string; error?: string };
+}
+
+export function useWorkflowList(filter: string = '') {
+  return useQuery<{ workflows: { id: string; path: string }[] }>({
+    queryKey: ['workflow', 'list', filter],
+    queryFn: async () => {
+      const res = await client().post('/workflow/tools/workflow.list/call', { params: { filter: filter || undefined } });
+      return res.data as { workflows: { id: string; path: string }[] };
     }
   });
 }
@@ -374,7 +416,7 @@ export type DbQueryTest = {
 export async function testDbQuery(query: string = 'test'): Promise<DbQueryTest> {
   const start = performance.now();
   try {
-    const res = await client().post('/context/tools/fts/search/call', { params: { q: query, limit: 5 } });
+    const res = await client().post('/context/tools/fts_search/call', { params: { q: query, limit: 5 } });
     const duration = Math.round(performance.now() - start);
     const results = Array.isArray(res.data) ? res.data.length : 0;
     return { query, results, duration_ms: duration, success: true };
@@ -453,6 +495,12 @@ export function useEngineTools(engine: string) {
   });
 }
 
+// Generic tool caller for any engine (used by diagnostics/health).
+export async function callEngineTool(engine: string, name: string, params: any): Promise<any> {
+  const res = await client().post(`/${engine}/tools/${name}/call`, { params });
+  return res.data;
+}
+
 // PERSONAS engine API
 export type PersonaSummary = { name: string; version: number; summary: string; tags?: string[] };
 export type PersonasList = { personas: PersonaSummary[] };
@@ -460,7 +508,7 @@ export function usePersonas(filter: string = '') {
   return useQuery<PersonasList>({
     queryKey: ['personas', 'list', filter],
     queryFn: async () => {
-      const res = await client().post('/personas/tools/personas.list/call', { params: { filter: filter || undefined } });
+      const res = await client().post('/personas/tools/personas_list/call', { params: { filter: filter || undefined } });
       return res.data as PersonasList;
     }
   });
@@ -471,7 +519,7 @@ export function usePersona(name: string | null) {
   return useQuery<Persona>({
     queryKey: ['personas', 'get', name],
     queryFn: async () => {
-      const res = await client().post('/personas/tools/personas.get/call', { params: { name } });
+      const res = await client().post('/personas/tools/personas_get/call', { params: { name } });
       return res.data as Persona;
     },
     enabled: !!name
@@ -480,17 +528,17 @@ export function usePersona(name: string | null) {
 
 // PERSONAS engine mutations and catalog ops
 export async function personasCreate(payload: { name: string; summary: string; prompt_md: string; tags?: string[]; notes?: string | null }) {
-  const res = await client().post('/personas/tools/personas.create/call', { params: payload });
+  const res = await client().post('/personas/tools/personas_create/call', { params: payload });
   return res.data as { ok: boolean; name: string };
 }
 
 export async function personasUpdate(payload: { name: string; summary?: string; prompt_md?: string; tags?: string[]; notes?: string | null }) {
-  const res = await client().post('/personas/tools/personas.update/call', { params: payload });
+  const res = await client().post('/personas/tools/personas_update/call', { params: payload });
   return res.data as { ok: boolean; name: string };
 }
 
 export async function personasDelete(name: string) {
-  const res = await client().post('/personas/tools/personas.delete/call', { params: { name } });
+  const res = await client().post('/personas/tools/personas_delete/call', { params: { name } });
   return res.data as { ok: boolean; deleted: boolean };
 }
 
@@ -499,12 +547,12 @@ export function usePersonasUpdate() { return useMutation({ mutationFn: personasU
 export function usePersonasDelete() { return useMutation({ mutationFn: personasDelete }); }
 
 export async function personasCatalogRead() {
-  const res = await client().post('/personas/tools/personas.catalog.read/call', { params: {} });
+  const res = await client().post('/personas/tools/personas_catalog_read/call', { params: {} });
   return res.data as { catalog_yaml: string };
 }
 
 export async function personasCatalogWrite(yaml: string) {
-  const res = await client().post('/personas/tools/personas.catalog.write/call', { params: { yaml } });
+  const res = await client().post('/personas/tools/personas_catalog_write/call', { params: { yaml } });
   return res.data as { ok: boolean; count: number };
 }
 
@@ -515,7 +563,7 @@ export function useRules(filter: string = '') {
   return useQuery<RulesList>({
     queryKey: ['rules', 'list', filter],
     queryFn: async () => {
-      const res = await client().post('/rules/tools/rules.list/call', { params: { filter: filter || undefined } });
+      const res = await client().post('/rules/tools/rules_list/call', { params: { filter: filter || undefined } });
       return res.data as RulesList;
     }
   });
@@ -526,7 +574,7 @@ export function useRule(name: string | null) {
   return useQuery<Rule>({
     queryKey: ['rules', 'get', name],
     queryFn: async () => {
-      const res = await client().post('/rules/tools/rules.get/call', { params: { name } });
+      const res = await client().post('/rules/tools/rules_get/call', { params: { name } });
       return res.data as Rule;
     },
     enabled: !!name
@@ -535,17 +583,17 @@ export function useRule(name: string | null) {
 
 // RULES engine mutations (create/update/delete + catalog rw)
 export async function rulesCreate(payload: { name: string; summary: string; rules_md: string; tags?: string[]; notes?: string | null }) {
-  const res = await client().post('/rules/tools/rules.create/call', { params: payload });
+  const res = await client().post('/rules/tools/rules_create/call', { params: payload });
   return res.data as { ok: boolean; name: string };
 }
 
 export async function rulesUpdate(payload: { name: string; summary?: string; rules_md?: string; tags?: string[]; notes?: string | null }) {
-  const res = await client().post('/rules/tools/rules.update/call', { params: payload });
+  const res = await client().post('/rules/tools/rules_update/call', { params: payload });
   return res.data as { ok: boolean; name: string };
 }
 
 export async function rulesDelete(name: string) {
-  const res = await client().post('/rules/tools/rules.delete/call', { params: { name } });
+  const res = await client().post('/rules/tools/rules_delete/call', { params: { name } });
   return res.data as { ok: boolean; deleted: boolean };
 }
 
@@ -562,12 +610,12 @@ export function useRulesDelete() {
 }
 
 export async function rulesCatalogRead() {
-  const res = await client().post('/rules/tools/rules.catalog.read/call', { params: {} });
+  const res = await client().post('/rules/tools/rules_catalog_read/call', { params: {} });
   return res.data as { catalog_yaml: string };
 }
 
 export async function rulesCatalogWrite(yaml: string) {
-  const res = await client().post('/rules/tools/rules.catalog.write/call', { params: { yaml } });
+  const res = await client().post('/rules/tools/rules_catalog_write/call', { params: { yaml } });
   return res.data as { ok: boolean; count: number };
 }
 

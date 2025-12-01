@@ -1,0 +1,5 @@
+steps:
+  - name: greet
+    agent: summarizer
+    with:
+      goal: "Say hello in one sentence."

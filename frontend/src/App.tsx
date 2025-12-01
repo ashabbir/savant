@@ -2,30 +2,37 @@ import React, { useMemo, useState } from 'react';
 import { Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { AppBar, Toolbar, Typography, Tabs, Tab, IconButton, Container, Alert, Snackbar, Chip, Box, Tooltip, Stack } from '@mui/material';
 import SettingsIcon from '@mui/icons-material/Settings';
-import { createTheme, ThemeProvider } from '@mui/material/styles';
+import { ThemeProvider } from '@mui/material/styles';
+import { createCompactTheme } from './theme/compact';
 import Search from './pages/Search';
 import Repos from './pages/Repos';
-import Diagnostics from './pages/Diagnostics';
 import DiagnosticsAgent from './pages/diagnostics/Agent';
 import DiagnosticsOverview from './pages/diagnostics/Overview';
 import DiagnosticsRequests from './pages/diagnostics/Requests';
 import DiagnosticsLogs from './pages/diagnostics/Logs';
 import DiagnosticsRoutes from './pages/diagnostics/Routes';
+import DiagnosticsWorkflows from './pages/diagnostics/Workflows';
+import APIHealth from './pages/diagnostics/APIHealth';
 import Dashboard from './pages/Dashboard';
 import ThinkWorkflows from './pages/think/Workflows';
+import ThinkTools from './pages/think/Tools';
 import ThinkWorkflowEditor from './pages/think/WorkflowEditor';
 import ThinkPrompts from './pages/think/Prompts';
 import PromptEditor from './pages/think/PromptEditor';
 import ThinkRuns from './pages/think/Runs';
+import WorkflowRuns from './pages/workflow/Runs';
 import Personas from './pages/personas/Personas';
+import PersonasTools from './pages/personas/Tools';
 import PersonaEditor from './pages/personas/PersonaEditor';
 import RulesPage from './pages/rules/Rules';
+import RulesTools from './pages/rules/Tools';
 import RuleEditor from './pages/rules/RuleEditor';
 import JiraTools from './pages/jira/Tools';
 import GitTools from './pages/git/Tools';
 import ContextTools from './pages/context/Tools';
 import ContextResources from './pages/context/Resources';
 import MemorySearch from './pages/context/MemorySearch';
+import WorkflowTools from './pages/workflow/Tools';
 import { getErrorMessage, loadConfig, useHubHealth, useHubInfo } from './api';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import HubIcon from '@mui/icons-material/Hub';
@@ -92,12 +99,27 @@ function useEngineSubIndex(engineName: string | undefined) {
     if (pathname.includes('/search') || pathname.includes('/fts')) return 1;
     if (pathname.includes('/memory')) return 2;
     if (pathname.includes('/repos')) return 3;
+    if (pathname.includes('/tools')) return 4;
     return 0;
   }
   if (engineName === 'think') {
     if (pathname.includes('/workflows')) return 0;
     if (pathname.includes('/prompts')) return 1;
     if (pathname.includes('/runs')) return 2;
+    if (pathname.includes('/think/tools')) return 3;
+    return 0;
+  }
+  if (engineName === 'personas') {
+    if (pathname.includes('/tools')) return 1;
+    return 0;
+  }
+  if (engineName === 'rules') {
+    if (pathname.includes('/tools')) return 1;
+    return 0;
+  }
+  if (engineName === 'workflow') {
+    if (pathname.includes('/tools')) return 1;
+    if (pathname.includes('/runs')) return 0;
     return 0;
   }
   // personas/jira/git default single or first tab
@@ -125,12 +147,13 @@ function multiplexerChipColor(status?: string): 'default' | 'success' | 'warning
 
 function useDiagnosticsSubIndex() {
   const { pathname } = useLocation();
-  if (pathname.includes('/diagnostics/routes')) return 4;
-  if (pathname.includes('/diagnostics/logs')) return 3;
-  if (pathname.includes('/diagnostics/agent')) return 2;
-  if (pathname.includes('/diagnostics/agents')) return 2;
+  if (pathname.includes('/diagnostics/overview') || pathname === '/diagnostics') return 0;
   if (pathname.includes('/diagnostics/requests')) return 1;
-  return 0; // overview default
+  if (pathname.includes('/diagnostics/logs')) return 2;
+  if (pathname.includes('/diagnostics/workflows')) return 3;
+  if (pathname.includes('/diagnostics/routes')) return 4;
+  if (pathname.includes('/diagnostics/api')) return 5;
+  return 0;
 }
 
 function formatUptime(seconds: number): string {
@@ -145,107 +168,7 @@ function formatUptime(seconds: number): string {
 export default function App() {
   const [open, setOpen] = useState(false);
   const [themeMode, setThemeMode] = useState<'light' | 'dark'>(() => loadConfig().themeMode || 'light');
-  const theme = useMemo(() => {
-    const darkHover = 'rgba(144,202,249,0.12)';
-    const lightHover = 'rgba(40,53,147,0.08)';
-    const hoverBg = themeMode === 'dark' ? darkHover : lightHover;
-
-    return createTheme({
-    palette: {
-      mode: themeMode,
-      primary: {
-        main: themeMode === 'dark' ? '#90caf9' : '#283593'
-      },
-      background: {
-        default: themeMode === 'dark' ? '#0b1220' : '#f5f7fb',
-        paper: themeMode === 'dark' ? '#111827' : '#ffffff'
-      },
-      text: {
-        primary: themeMode === 'dark' ? '#f8fafc' : '#111827',
-        secondary: themeMode === 'dark' ? 'rgba(248,250,252,0.7)' : 'rgba(17,24,39,0.7)'
-      }
-    },
-    components: {
-      MuiButton: {
-        defaultProps: { size: 'small' },
-        styleOverrides: {
-          root: { fontSize: 12, textTransform: 'none', paddingTop: 6, paddingBottom: 6, paddingLeft: 12, paddingRight: 12, minHeight: 30 }
-        }
-      },
-      MuiIconButton: {
-        defaultProps: { size: 'small' },
-        styleOverrides: { root: { padding: 4 } }
-      },
-      MuiChip: {
-        defaultProps: { size: 'small' },
-        styleOverrides: {
-          root: { height: 22 },
-          label: { fontSize: 12, paddingLeft: 6, paddingRight: 6 }
-        }
-      },
-      MuiTextField: {
-        defaultProps: { size: 'small' }
-      },
-      MuiFormControl: {
-        defaultProps: { size: 'small' }
-      },
-      MuiSelect: {
-        defaultProps: { size: 'small' },
-        styleOverrides: {
-          select: { fontSize: 12, paddingTop: 6, paddingBottom: 6 }
-        }
-      },
-      MuiInputLabel: {
-        styleOverrides: { root: { fontSize: 12 } }
-      },
-      MuiMenuItem: {
-        styleOverrides: { root: { fontSize: 12, minHeight: 28 } }
-      },
-      MuiInputBase: {
-        styleOverrides: {
-          input: { fontSize: 12, paddingTop: 6, paddingBottom: 6 }
-        }
-      },
-      MuiOutlinedInput: {
-        styleOverrides: {
-          input: { fontSize: 12, paddingTop: 6, paddingBottom: 6 }
-        }
-      },
-      MuiTab: {
-        styleOverrides: {
-          root: {
-            '&:hover': {
-              backgroundColor: hoverBg
-            }
-          }
-        }
-      },
-      MuiTableRow: {
-        styleOverrides: {
-          root: {
-            '&:hover': {
-              backgroundColor: hoverBg,
-              transition: 'background-color 120ms ease-in-out'
-            }
-          }
-        }
-      },
-      MuiListItemButton: {
-        styleOverrides: {
-          root: {
-            borderRadius: 6,
-            '&:hover': {
-              backgroundColor: hoverBg
-            },
-            '&.Mui-selected, &.Mui-selected:hover': {
-              backgroundColor: themeMode === 'dark' ? 'rgba(144,202,249,0.2)' : 'rgba(40,53,147,0.15)'
-            }
-          }
-        }
-      }
-    }
-  });
-  }, [themeMode]);
+  const theme = useMemo(() => createCompactTheme(themeMode), [themeMode]);
   const mainIdx = useMainTabIndex();
   const ctxIdx = useContextSubIndex();
   const thinkIdx = useThinkSubIndex();
@@ -365,32 +288,14 @@ export default function App() {
           ))}
         </Tabs>
       )}
-      {mainIdx === 2 && (
-        <Tabs
-          value={diagSubIdx}
-          onChange={(_, v) => {
-            if (v === 0) navigate('/diagnostics/overview');
-            else if (v === 1) navigate('/diagnostics/requests');
-            else if (v === 2) navigate('/diagnostics/agents');
-            else if (v === 3) navigate('/diagnostics/logs');
-            else if (v === 4) navigate('/diagnostics/routes');
-          }}
-          centered
-          sx={{ '& .MuiTab-root': { fontSize: 12, minHeight: 36, py: 0.5, textTransform: 'none' }, '& .MuiTabs-indicator': { height: 2 } }}
-        >
-          <Tab label="Overview" component={Link} to="/diagnostics/overview" />
-          <Tab label="Requests" component={Link} to="/diagnostics/requests" />
-          <Tab label="Agents" component={Link} to="/diagnostics/agents" />
-          <Tab label="Logs" component={Link} to="/diagnostics/logs" />
-          <Tab label="Routes" component={Link} to="/diagnostics/routes" />
-        </Tabs>
-      )}
+      
       {mainIdx === 1 && selEngine === 'context' && (
         <Tabs value={engSubIdx} onChange={(_, v) => {
           if (v === 0) navigate('/engines/context/resources');
           else if (v === 1) navigate('/engines/context/search');
           else if (v === 2) navigate('/engines/context/memory-search');
           else if (v === 3) navigate('/engines/context/repos');
+          else if (v === 4) navigate('/engines/context/tools');
         }} centered sx={{
           '& .MuiTab-root': { fontSize: 12, minHeight: 36, py: 0.5, textTransform: 'none', color: 'text.secondary' },
           '& .Mui-selected': { color: 'primary.main !important' },
@@ -400,6 +305,7 @@ export default function App() {
           <Tab label="FTS" component={Link} to="/engines/context/search" />
           <Tab label="Memory Search" component={Link} to="/engines/context/memory-search" />
           <Tab label="Repos" component={Link} to="/engines/context/repos" />
+          <Tab label="Tools" component={Link} to="/engines/context/tools" />
         </Tabs>
       )}
       {mainIdx === 1 && selEngine === 'think' && (
@@ -407,6 +313,7 @@ export default function App() {
           if (v === 0) navigate('/engines/think/workflows');
           else if (v === 1) navigate('/engines/think/prompts');
           else if (v === 2) navigate('/engines/think/runs');
+          else if (v === 3) navigate('/engines/think/tools');
         }} centered sx={{
           '& .MuiTab-root': { fontSize: 12, minHeight: 36, py: 0.5, textTransform: 'none', color: 'text.secondary' },
           '& .Mui-selected': { color: 'primary.main !important' },
@@ -415,24 +322,46 @@ export default function App() {
           <Tab label="Workflows" component={Link} to="/engines/think/workflows" />
           <Tab label="Prompts" component={Link} to="/engines/think/prompts" />
           <Tab label="Runs" component={Link} to="/engines/think/runs" />
+          <Tab label="Tools" component={Link} to="/engines/think/tools" />
         </Tabs>
       )}
       {mainIdx === 1 && selEngine === 'personas' && (
-        <Tabs value={0} centered sx={{
+        <Tabs value={engSubIdx} onChange={(_, v) => {
+          if (v === 0) navigate('/engines/personas');
+          else if (v === 1) navigate('/engines/personas/tools');
+        }} centered sx={{
           '& .MuiTab-root': { fontSize: 12, minHeight: 36, py: 0.5, textTransform: 'none', color: 'text.secondary' },
           '& .Mui-selected': { color: 'primary.main !important' },
           '& .MuiTabs-indicator': { height: 2, backgroundColor: 'primary.light' }
         }}>
           <Tab label="Browse" component={Link} to="/engines/personas" />
+          <Tab label="Tools" component={Link} to="/engines/personas/tools" />
         </Tabs>
       )}
       {mainIdx === 1 && selEngine === 'rules' && (
-        <Tabs value={0} centered sx={{
+        <Tabs value={engSubIdx} onChange={(_, v) => {
+          if (v === 0) navigate('/engines/rules');
+          else if (v === 1) navigate('/engines/rules/tools');
+        }} centered sx={{
           '& .MuiTab-root': { fontSize: 12, minHeight: 36, py: 0.5, textTransform: 'none', color: 'text.secondary' },
           '& .Mui-selected': { color: 'primary.main !important' },
           '& .MuiTabs-indicator': { height: 2, backgroundColor: 'primary.light' }
         }}>
           <Tab label="Browse" component={Link} to="/engines/rules" />
+          <Tab label="Tools" component={Link} to="/engines/rules/tools" />
+        </Tabs>
+      )}
+      {mainIdx === 1 && selEngine === 'workflow' && (
+        <Tabs value={engSubIdx} onChange={(_, v) => {
+          if (v === 0) navigate('/engines/workflow/runs');
+          else if (v === 1) navigate('/engines/workflow/tools');
+        }} centered sx={{
+          '& .MuiTab-root': { fontSize: 12, minHeight: 36, py: 0.5, textTransform: 'none', color: 'text.secondary' },
+          '& .Mui-selected': { color: 'primary.main !important' },
+          '& .MuiTabs-indicator': { height: 2, backgroundColor: 'primary.light' }
+        }}>
+          <Tab label="Runs" component={Link} to="/engines/workflow/runs" />
+          <Tab label="Tools" component={Link} to="/engines/workflow/tools" />
         </Tabs>
       )}
       {mainIdx === 1 && selEngine === 'jira' && (
@@ -453,7 +382,23 @@ export default function App() {
           <Tab label="Tools" component={Link} to="/engines/git/tools" />
         </Tabs>
       )}
-      <Container maxWidth="lg" sx={{ mt: 3, mb: 4, flex: 1, color: 'text.primary' }}>
+      {/* Diagnostics subtabs */}
+      {mainIdx === 2 && (
+        <Tabs value={diagSubIdx} centered sx={{
+          '& .MuiTab-root': { fontSize: 12, minHeight: 32, py: 0.5, textTransform: 'none', color: 'text.secondary' },
+          '& .Mui-selected': { color: 'primary.main !important' },
+          '& .MuiTabs-indicator': { height: 2, backgroundColor: 'primary.light' }
+        }}>
+          <Tab label="Overview" component={Link} to="/diagnostics/overview" />
+          <Tab label="Requests" component={Link} to="/diagnostics/requests" />
+          <Tab label="Logs" component={Link} to="/diagnostics/logs" />
+          <Tab label="Workflows" component={Link} to="/diagnostics/workflows" />
+          <Tab label="Routes" component={Link} to="/diagnostics/routes" />
+          <Tab label="API Health" component={Link} to="/diagnostics/api" />
+        </Tabs>
+      )}
+
+      <Container maxWidth="lg" sx={{ mt: 2, mb: 4, flex: 1, color: 'text.primary' }}>
         <Routes>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<Dashboard />} />
@@ -474,6 +419,7 @@ export default function App() {
           <Route path="/engines/context/search" element={<Search />} />
           <Route path="/engines/context/memory-search" element={<MemorySearch />} />
           <Route path="/engines/context/repos" element={<Repos />} />
+          <Route path="/engines/context/tools" element={<ContextTools />} />
 
           <Route path="/engines/think/workflows" element={<ThinkWorkflows />} />
           <Route path="/engines/think/workflows/new" element={<ThinkWorkflowEditor />} />
@@ -482,11 +428,16 @@ export default function App() {
           <Route path="/engines/think/prompts/new" element={<PromptEditor />} />
           <Route path="/engines/think/prompts/edit/:version" element={<PromptEditor />} />
           <Route path="/engines/think/runs" element={<ThinkRuns />} />
+          <Route path="/engines/think/tools" element={<ThinkTools />} />
+          <Route path="/engines/workflow/runs" element={<WorkflowRuns />} />
+          <Route path="/engines/workflow/tools" element={<WorkflowTools />} />
 
           <Route path="/engines/personas" element={<Personas />} />
+          <Route path="/engines/personas/tools" element={<PersonasTools />} />
           <Route path="/engines/personas/new" element={<PersonaEditor />} />
           <Route path="/engines/personas/edit/:name" element={<PersonaEditor />} />
           <Route path="/engines/rules" element={<RulesPage />} />
+          <Route path="/engines/rules/tools" element={<RulesTools />} />
           <Route path="/engines/rules/new" element={<RuleEditor />} />
           <Route path="/engines/rules/edit/:name" element={<RuleEditor />} />
           {/* Workflows editor moved under Think engine */}
@@ -504,7 +455,8 @@ export default function App() {
           <Route path="/diagnostics/requests" element={<DiagnosticsRequests />} />
           <Route path="/diagnostics/logs" element={<DiagnosticsLogs />} />
           <Route path="/diagnostics/agent" element={<DiagnosticsAgent />} />
-          <Route path="/diagnostics/agents" element={<DiagnosticsAgent />} />
+          <Route path="/diagnostics/workflows" element={<DiagnosticsWorkflows />} />
+          <Route path="/diagnostics/api" element={<APIHealth />} />
           <Route path="/diagnostics/routes" element={<DiagnosticsRoutes />} />
         </Routes>
       </Container>
