@@ -51,7 +51,7 @@ Keep the 4/8 panel balance in mind—use a wider log pane to read multiplexer ev
 | --- | --- | --- |
 | Start multiplexer | ``SAVANT_PATH=$(pwd) bundle exec ruby ./bin/mcp_server`` | Boots the unified MCP surface; child processes launch per config. Logs land in `logs/multiplexer.log`. |
 | List engines | ``./bin/savant engines`` | Shows status, PID, tool count, uptime per child process. Useful before calling tools. |
-| List tools | ``./bin/savant tools`` | Reveals full namespace (`context.fts/search`, `git.diff`, `jira.issue.get`, etc.). Use `--json` for automation. |
+| List tools | ``./bin/savant tools`` | Reveals full namespace (`context.fts_search`, `git.diff`, `jira.issue.get`, etc.). Use `--json` for automation. |
 | Call a tool | ``./bin/savant call context.fts.search --input='{"q":"memory"}'`` | Sends request through multiplexer to the correct engine. Pipes straight to JSON. |
 | Call a git tool | ``./bin/savant call git.repo_status --input='{}'`` | Returns `{is_repo, path, branch, head, tracked_files, languages}` for the CWD repository. |
 | Stream logs | ``tail -F logs/multiplexer.log`` | Watch child restarts, tool routing, crash alerts. Keep this running in the log pane. |

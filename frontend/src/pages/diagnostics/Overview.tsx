@@ -1,8 +1,12 @@
 import React, { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import Box from '@mui/material/Box';
 import Grid from '@mui/material/Grid2';
 import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
+import IconButton from '@mui/material/IconButton';
+import Tooltip from '@mui/material/Tooltip';
+import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import Stack from '@mui/material/Stack';
 import Chip from '@mui/material/Chip';
 import LinearProgress from '@mui/material/LinearProgress';
@@ -61,6 +65,7 @@ function normalizeModelProgress(model: any): number | null {
 }
 
 export default function DiagnosticsOverview() {
+  const navigate = useNavigate();
   const hub = useHubInfo();
   const diag = useDiagnostics();
   const stats = useHubStats();
@@ -126,10 +131,37 @@ export default function DiagnosticsOverview() {
 
       {/* Main Grid */}
       <Grid container spacing={1.5} sx={{ flex: 1, minHeight: 0 }}>
-        {/* Left Column - Requests (scrollable) */}
+        {/* Left Column - Quick Cards + Requests (scrollable) */}
         <Grid size={{ xs: 12, md: 4 }}>
           <Stack spacing={1.5} sx={{ height: '100%', overflow: 'auto' }}>
-            
+            {/* Quick Cards: Workflows + API Health */}
+            <Paper sx={{ p: 1.5, cursor: 'pointer' }} onClick={() => navigate('/diagnostics/workflows')}>
+              <Typography variant="subtitle2" sx={{ mb: 0.5, fontWeight: 600 }}>Workflows</Typography>
+              <Typography variant="body2" color="text.secondary">
+                View recent workflow execution events and download the full trace.
+              </Typography>
+              <Box sx={{ mt: 1 }}>
+                <Tooltip title="Open Workflows Telemetry">
+                  <IconButton size="small" onClick={(e)=>{ e.stopPropagation(); navigate('/diagnostics/workflows'); }}>
+                    <OpenInNewIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              </Box>
+            </Paper>
+
+            <Paper sx={{ p: 1.5, cursor: 'pointer' }} onClick={() => navigate('/diagnostics/api')}>
+              <Typography variant="subtitle2" sx={{ mb: 0.5, fontWeight: 600 }}>API Health</Typography>
+              <Typography variant="body2" color="text.secondary">
+                Scan engine tool routes and detect mismatches or non‑JSON responses.
+              </Typography>
+              <Box sx={{ mt: 1 }}>
+                <Tooltip title="Open API Health">
+                  <IconButton size="small" onClick={(e)=>{ e.stopPropagation(); navigate('/diagnostics/api'); }}>
+                    <OpenInNewIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              </Box>
+            </Paper>
 
             {/* Recent Tool Calls */}
             <Paper sx={{ p: 1.5, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -306,6 +338,8 @@ export default function DiagnosticsOverview() {
                 ))}
               </Stack>
             </Paper>
+
+            
             {/* Personas */}
             <Paper sx={{ p: 1.5 }}>
               <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>Personas</Typography>
@@ -323,7 +357,7 @@ export default function DiagnosticsOverview() {
                       try {
                         const counts: Record<string, number> = {};
                         for (const r of stats.data.recent) {
-                          if (!r.path?.includes('/personas/tools/personas.get/call')) continue;
+                          if (!r.path?.includes('/personas/tools/personas_get/call')) continue;
                           const body = r.request_body || '';
                           try {
                             const json = JSON.parse(body);
@@ -362,7 +396,7 @@ export default function DiagnosticsOverview() {
                       try {
                         const counts: Record<string, number> = {};
                         for (const r of stats.data.recent) {
-                          if (!r.path?.includes('/rules/tools/rules.get/call')) continue;
+                          if (!r.path?.includes('/rules/tools/rules_get/call')) continue;
                           const body = r.request_body || '';
                           try {
                             const json = JSON.parse(body);

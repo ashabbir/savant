@@ -4,13 +4,13 @@ name: Code Review Final
 description: 'Phase 2 of code review: Impact analysis, cross-repo search, visual diagrams,
   and final safety decision. Reads intermediate state from code_review_initial. All
   operations are non-blocking (no local git/shell commands).'
-driver_version: code_review
+driver_version: stable
 rules:
 - code-review-rules
-version: 3
+version: 4
 steps:
 - id: '1'
-  call: prompt.say
+  call: prompt_say
   input_template:
     text: |
       Code Review Final (Phase 2/2)
@@ -67,7 +67,7 @@ steps:
       }
   capture_as: state_validation
 - id: '7'
-  call: prompt.say
+  call: prompt_say
   deps:
   - '6'
   input_template:
@@ -112,7 +112,7 @@ steps:
       }
   capture_as: impact_analysis
 - id: '11'
-  call: fts/search
+  call: fts_search
   deps:
   - '10'
   input_template:
@@ -120,7 +120,7 @@ steps:
     limit: 50
   capture_as: cross_repo_hits
 - id: '12'
-  call: memory/search
+  call: memory_search
   deps:
   - '10'
   input_template:
@@ -468,7 +468,7 @@ steps:
       *Phase 2*: code_review_final v1.0
   capture_as: report_write_result
 - id: '22'
-  call: prompt.say
+  call: prompt_say
   deps:
   - '21'
   input_template:

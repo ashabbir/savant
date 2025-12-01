@@ -74,7 +74,7 @@ module Savant
             tools_list = svc[:registrar].specs
             json(response_ok(id, { tools: tools_list }))
           when 'tools/call'
-            name = params['name']
+          name = normalize_tool_name(params['name'])
             args = params['arguments'] || {}
             begin
               svc = load_service(@service)
@@ -87,7 +87,7 @@ module Savant
               rescue TypeError
                 # If ctx is frozen or doesn't accept singleton methods, ignore.
               end
-              data = svc[:registrar].call(name, args, ctx: ctx)
+            data = svc[:registrar].call(name, args, ctx: ctx)
               content = [{ type: 'text', text: JSON.pretty_generate(data) }]
               json(response_ok(id, { content: content }))
             rescue StandardError => e
@@ -151,6 +151,12 @@ module Savant
         end
 
         # Load a service by convention (e.g., context -> Savant::Context::{Engine,Tools})
+        def normalize_tool_name(name)
+          return name unless name.is_a?(String)
+          normalized = name.tr('./', '_')
+          normalized.gsub(/_{2,}/, '_')
+        end
+
         def load_service(name)
           key = name.to_s
           return @services[key] if @services[key]

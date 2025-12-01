@@ -10,15 +10,15 @@ A lightweight MCP engine that exposes curated “Savant” personas as structure
 ## Scope Delivered (MVP)
 - Engine: `personas` with stdio/HTTP via Hub.
 - Tools:
-  - `personas.list` — list personas (names/titles/versions/tags/summary).
-  - `personas.get` — fetch a persona by name with `prompt_md`.
+  - `personas_list` — list personas (names/titles/versions/tags/summary).
+  - `personas_get` — fetch a persona by name with `prompt_md`.
 - Data: file‑backed catalog `lib/savant/personas/personas.yml`.
 - Hub: Auto-mounted at `/personas` (via mounts) and visible in Engine grid.
 - UI: Added Personas engine card + Personas tab with list + YAML viewer and prompt dialog (copy actions).
 - Docs: Added `memory_bank/engine_personas.md`; consolidated README to point to Memory Bank.
 
 ## Acceptance Criteria
-- [x] Exactly two tools: `personas.list` and `personas.get`.
+- [x] Exactly two tools: `personas_list` and `personas_get`.
 - [x] YAML includes at least `savant-engineer` and `savant-architect` with complete `prompt_md`.
 - [x] Hub lists `personas` and mounts it under `/personas`.
 - [x] React dashboard shows the Personas engine in the engines grid.

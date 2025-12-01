@@ -41,10 +41,16 @@ import { thinkWorkflowDelete } from '../../thinkApi';
 
 // Lazy load mermaid and cache it
 let mermaidInstance: any = null;
+const MERMAID_CDN = 'https://cdn.jsdelivr.net/npm/mermaid@11.4.0/dist/mermaid.esm.min.mjs';
 async function getMermaid() {
   if (mermaidInstance) return mermaidInstance;
-  const m = await import('mermaid');
-  mermaidInstance = m.default;
+  let m: any;
+  try {
+    m = await import('mermaid');
+  } catch (err) {
+    m = await import(MERMAID_CDN);
+  }
+  mermaidInstance = (m && (m.default || m)) as any;
   mermaidInstance.initialize({
     startOnLoad: false,
     theme: 'default',

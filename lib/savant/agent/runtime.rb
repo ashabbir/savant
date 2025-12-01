@@ -42,6 +42,20 @@ module Savant
       def run(max_steps: @max_steps, dry_run: false)
         steps = 0
         model = @slm_model
+        # AMR shortcut: if goal clearly requests a workflow, auto-trigger workflow_run once.
+        if !@forced_tool
+          begin
+            auto = detect_workflow_intent(@goal)
+            if auto
+              @forced_tool = 'workflow.workflow_run'
+              @forced_args = { 'workflow' => auto[:workflow], 'params' => auto[:params] || {} }
+              # Finish after first step to hand results back deterministically.
+              @forced_finish = true if @forced_final.nil?
+            end
+          rescue StandardError
+            # ignore AMR shortcut errors
+          end
+        end
         loop do
           steps += 1
           break if steps > max_steps
@@ -149,6 +163,34 @@ module Savant
 
       private
 
+      def detect_workflow_intent(goal)
+        g = (goal || '').to_s
+        return nil if g.empty?
+        # If "workflow <name>" present, extract name token
+        m = g.match(/workflow\s+([A-Za-z0-9_.\-]+)/i)
+        if m && m[1]
+          name = m[1].downcase
+          return { workflow: name } if workflow_exists?(name)
+          # Try underscored and hyphen variants
+          alt = name.tr('-', '_')
+          return { workflow: alt } if workflow_exists?(alt)
+        end
+        # If code review intent, try common names
+        if g =~ /(code\s*review|pull\s*request|mr\b)/i
+          %w[code_review review mr_review].each do |cand|
+            return { workflow: cand } if workflow_exists?(cand)
+          end
+        end
+        # Default example workflow for demonstration
+        return { workflow: 'hello' } if workflow_exists?('hello') && g =~ /(workflow|execute)/i
+        nil
+      end
+
+      def workflow_exists?(name)
+        path = File.join(@base_path, 'workflows', "#{name}.yaml")
+        File.file?(path)
+      end
+
       def decide_and_parse(prompt:, model:, allowed_tools: [], step: nil)
         usage = { prompt_tokens: nil, output_tokens: nil }
         text, usage = with_timing_llm(model: model, prompt: prompt, step: step)
@@ -212,8 +254,8 @@ module Savant
         rescue StandardError
           # fall through
         end
-        # Heuristic fallback: if goal clearly asks for search/fts, use context.fts/search when available
-        return action.merge('tool_name' => 'context.fts/search') if @goal =~ /\b(search|fts|find|lookup|README)\b/i && valid_tools.include?('context.fts/search')
+        # Heuristic fallback: if goal clearly asks for search/fts, use context.fts_search when available
+        return action.merge('tool_name' => 'context.fts_search') if @goal =~ /\b(search|fts|find|lookup|README)\b/i && valid_tools.include?('context.fts_search')
 
         # Could not correct; convert to error so loop can finish or try again
         { 'action' => 'error', 'final' => "invalid tool: #{name}", 'tool_name' => name, 'args' => {}, 'reasoning' => '' }

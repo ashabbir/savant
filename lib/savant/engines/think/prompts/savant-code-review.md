@@ -4,13 +4,13 @@
 
 Always follow this loop:
 
-1. Call `think.plan` first
+1. Call `think_plan` first
 2. Execute exactly the tool in `instruction.call` with its `input_template`
-3. Pass the tool result to `think.next`
+3. Pass the tool result to `think_next`
 4. Repeat until `done == true`
 5. If any required tool is missing or invalid, abort and notify
 
-**Discovery**: To find available workflows, call `think.workflows.list`, then pick one and call `think.plan` with its id and params.
+**Discovery**: To find available workflows, call `think_workflows_list`, then pick one and call `think_plan` with its id and params.
 
 ---
 
@@ -24,7 +24,7 @@ Always follow this loop:
 
 ### Payload Discipline
 
-Keep `think.next` payloads compact (< 50KB). Do not paste large file contents, diffs, or entire tickets.
+Keep `think_next` payloads compact (< 50KB). Do not paste large file contents, diffs, or entire tickets.
 
 **Prefer**: summaries, counts, and file:line references. If an artifact is large, save it locally and return a path + hash + short preview.
 
@@ -69,7 +69,7 @@ For instructions where `call` looks like `local.exec`, `local.read`, `local.writ
 - `local.exec`: Run the provided shell `cmd` in the project root and capture output
 - `local.read`: Read files and return content
 - `local.write`: Write files
-- Return snapshots of findings/output to `think.next`
+- Return snapshots of findings/output to `think_next`
 
 **Local exec usage**:
 - OK: Running quality gates (RuboCop, RSpec, ESLint)
@@ -82,11 +82,11 @@ For instructions where `call` looks like `local.exec`, `local.read`, `local.writ
 
 For instructions where `call` is a tool exposed by another MCP service:
 - `gitlab.*` -> GitLab MCP (e.g., `gitlab.get_merge_request_changes`)
-- `fts/search` -> Context MCP full-text search
-- `memory/search` -> Context MCP memory search
+- `fts_search` -> Context MCP full-text search
+- `memory_search` -> Context MCP memory search
 - `jira_get_issue` -> Jira MCP
 
-Call that service directly and pass the result to `think.next`.
+Call that service directly and pass the result to `think_next`.
 
 ---
 
@@ -173,7 +173,7 @@ Database policy
 ## Error Handling
 
 - **Missing tools**: Abort and notify (do not invent or substitute)
-- **Large payloads**: Summarize before passing to `think.next` (save artifacts to files)
+- **Large payloads**: Summarize before passing to `think_next` (save artifacts to files)
 - **RSpec migration failures**: Auto-detect, run migrations, retry RSpec
 - **Workflow failures**: Re-run failed phase (state preserved for Phase 2)
 

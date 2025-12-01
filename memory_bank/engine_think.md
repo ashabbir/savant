@@ -3,16 +3,16 @@
 Deterministic workflow orchestration for LLM clients. Think validates YAML-defined DAGs, returns explicit tool instructions, and keeps the client inside a predictable `plan → execute → next` loop guided by a versioned driver prompt.
 
 ## Core Ideas
-- **Instruction Loop:** Every run starts with `think.plan`, executes external/local tools, and advances via `think.next` until `done: true`.
-- **Driver Prompt:** `think.driver_prompt` surfaces the canonical orchestration rules (see `lib/savant/engines/think/prompts/*.md`). Workflows typically inject this as the first instruction to ensure consistent guard rails.
+- **Instruction Loop:** Every run starts with `think_plan`, executes external/local tools, and advances via `think_next` until `done: true`.
+- **Driver Prompt:** `think_driver_prompt` surfaces the canonical orchestration rules (see `lib/savant/engines/think/prompts/*.md`). Workflows typically inject this as the first instruction to ensure consistent guard rails.
 - **Workflow Sources:** YAML files in `lib/savant/engines/think/workflows/` define step DAGs, templates, and captures. No database is required; run state persists under `.savant/state/`.
 
 ## Tool Surface
-- `think.workflows.list` / `think.workflows.read` – discover workflow metadata or YAML.
-- `think.plan` – validates inputs, seeds driver prompt, and emits the first instruction.
-- `think.next` – records the previous step’s snapshot and returns the next instruction (or completion summary).
-- `think.driver_prompt` – fetches `{version, hash, prompt_md}` for priming LLM clients.
-- `prompt.say` – utility tool used inside workflows for progress announcements.
+- `think_workflows_list` / `think_workflows_read` – discover workflow metadata or YAML.
+- `think_plan` – validates inputs, seeds driver prompt, and emits the first instruction.
+- `think_next` – records the previous step’s snapshot and returns the next instruction (or completion summary).
+- `think_driver_prompt` – fetches `{version, hash, prompt_md}` for priming LLM clients.
+- `prompt_say` – utility tool used inside workflows for progress announcements.
 
 ```mermaid
 sequenceDiagram
@@ -20,12 +20,12 @@ sequenceDiagram
     participant Think as Savant Think Engine
     participant Tool as External Tool (Context/Jira/local.*)
 
-    Client->>Think: think.plan { workflow, params }
+    Client->>Think: think_plan { workflow, params }
     Think-->>Client: { instruction, run_id }
     loop per instruction
         Client->>Tool: execute instruction.call
         Tool-->>Client: result_snapshot
-        Client->>Think: think.next { workflow, run_id, step_id, result_snapshot }
+        Client->>Think: think_next { workflow, run_id, step_id, result_snapshot }
         Think-->>Client: next instruction | { done: true, summary }
     end
 ```
@@ -40,7 +40,7 @@ Example below shows a minimal triage flow you can adapt.
    version: 1.0.0
    steps:
      - id: bootstrap_driver
-       call: think.driver_prompt
+       call: think_driver_prompt
        input_template:
          version: stable
        capture_as: __driver
@@ -52,20 +52,20 @@ Example below shows a minimal triage flow you can adapt.
        capture_as: ticket
      - id: summarize
        deps: [fetch_ticket]
-       call: prompt.say
+       call: prompt_say
        input_template:
          text: |
            🧠 Ticket Summary
            Key: {{ticket.key}}
            Title: {{ticket.fields.summary}}
    ```
-2. **List it** – `ruby ./bin/savant call think.workflows.list --service=think` shows `triage_ticket v1.0.0`.
-3. **Plan & loop** – run `think.plan`/`think.next` from your MCP client. Each returned instruction references the YAML step IDs. Captured values (e.g., `ticket`, `__driver`) are accessible via Liquid templates in downstream steps.
+2. **List it** – `ruby ./bin/savant call think_workflows_list --service=think` shows `triage_ticket v1.0.0`.
+3. **Plan & loop** – run `think_plan`/`think_next` from your MCP client. Each returned instruction references the YAML step IDs. Captured values (e.g., `ticket`, `__driver`) are accessible via Liquid templates in downstream steps.
 4. **Follow driver prompt** – clients MUST display `__driver.prompt_md` before executing subsequent steps, matching the `think-code-review-fix` PRD requirement.
 
 ### Template File
 - Start from `lib/savant/engines/think/workflows/_template.yml` for consistent metadata, params, and driver bootstrap.
-- Rename the file, update `workflow`, `version`, `summary`, and flesh out the `steps` list. The template already includes a driver prompt step and a placeholder `prompt.say` step.
+- Rename the file, update `workflow`, `version`, `summary`, and flesh out the `steps` list. The template already includes a driver prompt step and a placeholder `prompt_say` step.
 
 ```mermaid
 flowchart TD
