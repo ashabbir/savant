@@ -11,7 +11,7 @@ import Box from '@mui/material/Box';
 import { Checkbox, FormControlLabel } from '@mui/material';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import RefreshIcon from '@mui/icons-material/Refresh';
-import { useHubInfo, callEngineTool } from '../../api';
+import { useHubInfo, callEngineTool, getUserId, loadConfig } from '../../api';
 
 type ToolHealth = {
   engine: string;
@@ -45,8 +45,10 @@ export default function APIHealth() {
     setChecking(true);
     const out: ToolHealth[] = [];
     try {
+      const base = loadConfig().baseUrl || '';
+      const user = getUserId();
       for (const engine of engines) {
-        const res = await fetch(`${(window as any).SAVANT_BASE_URL || ''}/${engine}/tools`, { headers: { 'x-savant-user-id': 'dev' } });
+        const res = await fetch(`${base}/${engine}/tools`, { headers: { 'x-savant-user-id': user } });
         const json = await res.json();
         const tools = (json?.tools || []) as any[];
         for (const spec of tools) {

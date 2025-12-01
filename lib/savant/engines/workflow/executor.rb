@@ -4,6 +4,8 @@
 require 'json'
 require 'time'
 require 'fileutils'
+
+require_relative '../../logging/event_recorder'
 require_relative 'context'
 require_relative 'interpolator'
 require_relative 'agents'

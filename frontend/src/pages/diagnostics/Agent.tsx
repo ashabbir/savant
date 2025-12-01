@@ -60,7 +60,7 @@ export default function DiagnosticsAgent() {
   useEffect(() => {
     if (!follow) return;
     const base = loadConfig().baseUrl || 'http://localhost:9999';
-    const es = new EventSource(`${base}/logs/stream?mcp=agent`);
+    const es = new EventSource(`${base}/logs/stream?mcp=agent&user=${encodeURIComponent(getUserId())}`);
     es.onmessage = (ev) => {
       try {
         const data = JSON.parse(ev.data || '{}');
@@ -179,12 +179,12 @@ export default function DiagnosticsAgent() {
           </FormGroup>
           <Box sx={{ flexGrow: 1 }} />
           <Tooltip title="Download trace log">
-            <IconButton size="small" href={`${(loadConfig().baseUrl || 'http://localhost:9999')}/diagnostics/agent/trace`} target="_blank">
+            <IconButton size="small" href={`${(loadConfig().baseUrl || 'http://localhost:9999')}/diagnostics/agent/trace?user=${encodeURIComponent(getUserId())}`} target="_blank">
               <GetAppIcon fontSize="small" />
             </IconButton>
           </Tooltip>
           <Tooltip title="Download session memory">
-            <IconButton size="small" href={`${(loadConfig().baseUrl || 'http://localhost:9999')}/diagnostics/agent/session`} target="_blank">
+            <IconButton size="small" href={`${(loadConfig().baseUrl || 'http://localhost:9999')}/diagnostics/agent/session?user=${encodeURIComponent(getUserId())}`} target="_blank">
               <InsertDriveFileIcon fontSize="small" />
             </IconButton>
           </Tooltip>

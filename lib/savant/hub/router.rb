@@ -203,6 +203,7 @@ module Savant
         return diagnostics_mcp(req) if req.get? && req.path_info.start_with?('/diagnostics/mcp/')
         return diagnostics_workflows(req) if req.get? && req.path_info == '/diagnostics/workflows'
         return diagnostics_workflows_trace(req) if req.get? && req.path_info == '/diagnostics/workflows/trace'
+        return diagnostics_workflow_runs(req) if req.get? && req.path_info == '/diagnostics/workflow_runs'
         return logs_index(req) if req.get? && req.path_info == '/logs'
 
         if req.get? && req.path_info.start_with?('/logs/')
@@ -302,6 +303,14 @@ module Savant
         respond(200, { count: events.length, events: events })
       end
 
+      # GET /diagnostics/workflow_runs -> saved runs summary
+      def diagnostics_workflow_runs(_req)
+        engine = workflow_engine
+        respond(200, engine.runs_list)
+      rescue StandardError => e
+        respond(500, { error: 'workflow_runs_error', message: e.message })
+      end
+
       # GET /diagnostics/workflows/trace -> download JSONL trace file
       def diagnostics_workflows_trace(_req)
         base = if ENV['SAVANT_PATH'] && !ENV['SAVANT_PATH'].empty?
@@ -313,6 +322,19 @@ module Savant
         return respond(404, { error: 'trace_not_found', path: path }) unless File.file?(path)
         data = File.read(path)
         [200, { 'Content-Type' => 'text/plain' }.merge(cors_headers), [data]]
+      end
+
+      def workflow_base_path
+        if ENV['SAVANT_PATH'] && !ENV['SAVANT_PATH'].empty?
+          ENV['SAVANT_PATH']
+        else
+          File.expand_path('../../..', __dir__)
+        end
+      end
+
+      def workflow_engine
+        require_relative '../engines/workflow/engine'
+        Savant::Workflow::Engine.new(base_path: workflow_base_path)
       end
 
       # GET /logs/stream -> SSE unified stream of events
