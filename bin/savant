@@ -180,11 +180,15 @@ when 'workflow'
       {}
     end
 
-    engine = Savant::Workflow::Engine.new(base_path: ENV['SAVANT_PATH'])
-    puts "\n▶️  Running workflow..."
-    res = engine.run(workflow: workflow_name, params: params)
-    puts "\n✅ Workflow finished (status=#{res[:status]} run_id=#{res[:run_id]})"
-    puts JSON.pretty_generate(res)
+    begin
+      engine = Savant::Workflow::Engine.new(base_path: ENV['SAVANT_PATH'])
+      puts "\n▶️  Running workflow..."
+      res = engine.run(workflow: workflow_name, params: params)
+      puts "\n✅ Workflow finished (status=#{res[:status]} run_id=#{res[:run_id]})"
+      puts JSON.pretty_generate(res)
+    rescue Savant::Workflow::Loader::LoadError
+      puts "\n⚠️  Workflow execution logic not yet implemented (coming in next iteration)."
+    end
   rescue Savant::Boot::BootError => e
     warn "\n❌ Boot failed: #{e.message}"
     exit 1
