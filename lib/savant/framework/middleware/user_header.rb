@@ -8,6 +8,15 @@ module Savant
       # Rack middleware that enforces `x-savant-user-id` and attaches it to env.
       class UserHeader
         HEADER = 'HTTP_X_SAVANT_USER_ID'
+        # Allow unauthenticated GET access for read-only diagnostics endpoints so static links work
+        ALLOWLIST = [
+          %r{^/diagnostics/workflows$},
+          %r{^/diagnostics/workflow_runs$},
+          %r{^/diagnostics/workflows/trace$},
+          %r{^/diagnostics/agent$},
+          %r{^/diagnostics/agent/trace$},
+          %r{^/diagnostics/agent/session$}
+        ].freeze
 
         def initialize(app)
           @app = app
@@ -15,6 +24,7 @@ module Savant
 
         def call(env)
           user = (env[HEADER] || '').to_s
+          req = nil
           if user.strip.empty?
             # Fallback to query param for browser SSE / simple clients
             begin
@@ -25,7 +35,18 @@ module Savant
             end
           end
 
-          return [400, { 'Content-Type' => 'application/json' }, [JSON.generate({ error: 'missing required header x-savant-user-id' })]] if user.strip.empty?
+          if user.strip.empty?
+            begin
+              req ||= Rack::Request.new(env)
+              if req.request_method == 'GET' && ALLOWLIST.any? { |re| re.match?(req.path_info) }
+                env['savant.user_id'] = 'public'
+                return @app.call(env)
+              end
+            rescue StandardError
+              # ignore and fall through to 400
+            end
+            return [400, { 'Content-Type' => 'application/json' }, [JSON.generate({ error: 'missing required header x-savant-user-id' })]]
+          end
 
           env['savant.user_id'] = user
           @app.call(env)

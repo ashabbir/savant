@@ -27,6 +27,7 @@ module Savant
         @base = resolve_base_path
         @root = File.join(@base, 'lib', 'savant', 'engines', 'think')
         @limits = load_think_limits
+        sync_workflows_to_root
       end
 
       # Return prompt markdown for a version from prompts.yml
@@ -413,6 +414,22 @@ module Savant
         data = File.binread(path)
         # Force-convert to UTF-8, replacing invalid/undefined bytes
         data.encode('UTF-8', invalid: :replace, undef: :replace, replace: '')
+      end
+
+      def sync_workflows_to_root
+        src_dir = File.join(@root, 'workflows')
+        dst_dir = File.join(@base, 'workflows')
+        return unless Dir.exist?(src_dir)
+
+        FileUtils.mkdir_p(dst_dir)
+        Dir.glob(File.join(src_dir, '*.{yaml,yml}')).each do |src_path|
+          dst_path = File.join(dst_dir, File.basename(src_path))
+          next if File.exist?(dst_path) && File.mtime(dst_path) >= File.mtime(src_path)
+
+          FileUtils.cp(src_path, dst_path)
+        end
+      rescue StandardError
+        # best effort sync – ignore errors
       end
 
       def load_think_limits

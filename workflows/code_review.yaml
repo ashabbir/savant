@@ -5,7 +5,7 @@ steps:
   - name: cross_repo
     tool: context.fts_search
     with:
-      q: "{{ diff.files }}"
+      q: "{{ diff.content.0.text }}"
 
   - name: review
     agent: mr_review
