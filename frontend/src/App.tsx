@@ -6,7 +6,6 @@ import { ThemeProvider } from '@mui/material/styles';
 import { createCompactTheme } from './theme/compact';
 import Search from './pages/Search';
 import Repos from './pages/Repos';
-import Diagnostics from './pages/Diagnostics';
 import DiagnosticsAgent from './pages/diagnostics/Agent';
 import DiagnosticsOverview from './pages/diagnostics/Overview';
 import DiagnosticsRequests from './pages/diagnostics/Requests';
@@ -148,12 +147,13 @@ function multiplexerChipColor(status?: string): 'default' | 'success' | 'warning
 
 function useDiagnosticsSubIndex() {
   const { pathname } = useLocation();
-  if (pathname.includes('/diagnostics/routes')) return 4;
-  if (pathname.includes('/diagnostics/logs')) return 3;
-  if (pathname.includes('/diagnostics/agent')) return 2;
-  if (pathname.includes('/diagnostics/agents')) return 2;
+  if (pathname.includes('/diagnostics/overview') || pathname === '/diagnostics') return 0;
   if (pathname.includes('/diagnostics/requests')) return 1;
-  return 0; // overview default
+  if (pathname.includes('/diagnostics/logs')) return 2;
+  if (pathname.includes('/diagnostics/workflows')) return 3;
+  if (pathname.includes('/diagnostics/routes')) return 4;
+  if (pathname.includes('/diagnostics/api')) return 5;
+  return 0;
 }
 
 function formatUptime(seconds: number): string {
@@ -401,7 +401,23 @@ export default function App() {
           <Tab label="Tools" component={Link} to="/engines/git/tools" />
         </Tabs>
       )}
-      <Container maxWidth="lg" sx={{ mt: 3, mb: 4, flex: 1, color: 'text.primary' }}>
+      {/* Diagnostics subtabs */}
+      {mainIdx === 2 && (
+        <Tabs value={diagSubIdx} centered sx={{
+          '& .MuiTab-root': { fontSize: 12, minHeight: 32, py: 0.5, textTransform: 'none', color: 'text.secondary' },
+          '& .Mui-selected': { color: 'primary.main !important' },
+          '& .MuiTabs-indicator': { height: 2, backgroundColor: 'primary.light' }
+        }}>
+          <Tab label="Overview" component={Link} to="/diagnostics/overview" />
+          <Tab label="Requests" component={Link} to="/diagnostics/requests" />
+          <Tab label="Logs" component={Link} to="/diagnostics/logs" />
+          <Tab label="Workflows" component={Link} to="/diagnostics/workflows" />
+          <Tab label="Routes" component={Link} to="/diagnostics/routes" />
+          <Tab label="API Health" component={Link} to="/diagnostics/api" />
+        </Tabs>
+      )}
+
+      <Container maxWidth="lg" sx={{ mt: 2, mb: 4, flex: 1, color: 'text.primary' }}>
         <Routes>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<Dashboard />} />
