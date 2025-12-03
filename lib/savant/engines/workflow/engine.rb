@@ -4,6 +4,7 @@
 require 'json'
 require 'yaml'
 require 'fileutils'
+require_relative '../../version'
 require_relative 'executor'
 require_relative 'loader'
 
@@ -21,7 +22,7 @@ module Savant
       def server_info
         {
           name: 'workflow',
-          version: '0.1.0',
+          version: Savant::VERSION,
           description: 'Deterministic YAML workflow executor (tools + agents)'
         }
       end

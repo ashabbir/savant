@@ -93,13 +93,18 @@ module Savant
         log_file = File.join(logs_dir, 'engine_boot.log')
 
         Savant::Logging::Logger.new(
-          io: $stdout,
+          io: boot_stdout_enabled? ? $stdout : nil,
           file_path: log_file,
           # Boot logs must be visible for tests and diagnostics; default to info
           level: ENV['LOG_LEVEL'] || 'info',
           json: true,
           service: 'boot'
         )
+      end
+
+      def boot_stdout_enabled?
+        env = ENV['SAVANT_BOOT_LOG_STDOUT']
+        env && !env.empty? && (env == '1' || env.casecmp('true').zero?)
       end
 
       def generate_session_id

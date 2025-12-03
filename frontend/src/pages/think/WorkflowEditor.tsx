@@ -19,6 +19,7 @@ import YAML from 'js-yaml';
 import Viewer from '../../components/Viewer';
 import WorkflowDiagram from '../../components/WorkflowDiagram';
 import { workflowToMermaid } from '../../utils/workflowToMermaid';
+import { getMermaidInstance, isMermaidDynamicImportError } from '../../utils/mermaidLoader';
 
 const PANEL_HEIGHT = 'calc(100vh - 260px)';
 
@@ -511,36 +512,32 @@ export default function ThinkWorkflowEditor() {
     setPreviewOpen(true);
   };
 
-  // Lazy mermaid loader (shared pattern from Workflows page)
-  const MERMAID_CDN = 'https://cdn.jsdelivr.net/npm/mermaid@11.4.0/dist/mermaid.esm.min.mjs';
-  let mermaidInstance: any = (window as any).__savantMermaid || null;
-  async function getMermaid() {
-    if (mermaidInstance) return mermaidInstance;
-    let m: any;
-    try {
-      m = await import('mermaid');
-    } catch (err) {
-      m = await import(MERMAID_CDN);
-    }
-    mermaidInstance = (m && (m.default || m)) as any;
-    mermaidInstance.initialize({ startOnLoad: false, theme: 'default', flowchart: { useMaxWidth: true, htmlLabels: true, curve: 'basis' }, securityLevel: 'loose' });
-    (window as any).__savantMermaid = mermaidInstance;
-    return mermaidInstance;
-  }
-
   const previewDiagram = async () => {
+    const currId = isNew ? slugifyName(name) || wfId || 'workflow' : wfId || 'workflow';
+    const yaml = toYamlPreview(nodes, edges, currId, description, driverVersion, name || currId, rules, version);
+    const code = workflowToMermaid(yaml);
+    const renderDiagram = async (useCdn: boolean) => {
+      const mm = await getMermaidInstance(useCdn);
+      const { svg } = await mm.render(`wf-${Date.now()}${useCdn ? '-cdn' : ''}`, code);
+      setDiagramSvg(svg);
+      setDiagramOpen(true);
+    };
+
     try {
       setDiagramErr(null);
       setDiagramBusy(true);
-      const currId = isNew ? slugifyName(name) || wfId || 'workflow' : wfId || 'workflow';
-      const yaml = toYamlPreview(nodes, edges, currId, description, driverVersion, name || currId, rules, version);
-      const code = workflowToMermaid(yaml);
-      const mm = await getMermaid();
-      const { svg } = await mm.render(`wf-${Date.now()}`, code);
-      setDiagramSvg(svg);
-      setDiagramOpen(true);
+      await renderDiagram(false);
     } catch (e: any) {
-      setDiagramErr(e?.message || String(e));
+      if (isMermaidDynamicImportError(e)) {
+        try {
+          await renderDiagram(true);
+          return;
+        } catch (inner: any) {
+          setDiagramErr(inner?.message || String(inner));
+        }
+      } else {
+        setDiagramErr(e?.message || String(e));
+      }
       setDiagramSvg('');
       setDiagramOpen(true);
     } finally {

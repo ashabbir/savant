@@ -8,6 +8,7 @@
 # tools. Enforces write permissions via JIRA_ALLOW_WRITES and centralizes
 # default fields and environment lookups.
 
+require_relative '../../version'
 require_relative 'client'
 require_relative 'ops'
 require 'json'
@@ -230,7 +231,7 @@ module Savant
       def server_info
         {
           name: 'savant-jira',
-          version: '1.1.0',
+          version: Savant::VERSION,
           description: 'Jira MCP: jira_* tools (search, issue ops, comments, attachments)'
         }
       end

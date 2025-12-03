@@ -16,6 +16,7 @@
 # - Forward calls to Ops and return results as plain Ruby objects
 #
 require 'json'
+require_relative '../../version'
 require_relative '../../logging/logger'
 require_relative '../../framework/db'
 require_relative 'ops'
@@ -113,7 +114,7 @@ module Savant
       def server_info
         {
           name: 'savant-context',
-          version: '1.1.0',
+          version: Savant::VERSION,
           description: 'Context MCP: fts_search, repos_list, memory_search/memory_resources_*, fs_repo_*'
         }
       end

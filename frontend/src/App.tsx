@@ -150,9 +150,10 @@ function useDiagnosticsSubIndex() {
   if (pathname.includes('/diagnostics/overview') || pathname === '/diagnostics') return 0;
   if (pathname.includes('/diagnostics/requests')) return 1;
   if (pathname.includes('/diagnostics/logs')) return 2;
-  if (pathname.includes('/diagnostics/workflows')) return 3;
-  if (pathname.includes('/diagnostics/routes')) return 4;
-  if (pathname.includes('/diagnostics/api')) return 5;
+  if (pathname.includes('/diagnostics/agent')) return 3;
+  if (pathname.includes('/diagnostics/workflows')) return 4;
+  if (pathname.includes('/diagnostics/routes')) return 5;
+  if (pathname.includes('/diagnostics/api')) return 6;
   return 0;
 }
 
@@ -392,6 +393,7 @@ export default function App() {
           <Tab label="Overview" component={Link} to="/diagnostics/overview" />
           <Tab label="Requests" component={Link} to="/diagnostics/requests" />
           <Tab label="Logs" component={Link} to="/diagnostics/logs" />
+          <Tab label="Agent" component={Link} to="/diagnostics/agent" />
           <Tab label="Workflows" component={Link} to="/diagnostics/workflows" />
           <Tab label="Routes" component={Link} to="/diagnostics/routes" />
           <Tab label="API Health" component={Link} to="/diagnostics/api" />

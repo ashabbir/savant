@@ -2,6 +2,7 @@
 # frozen_string_literal: true
 
 require 'json'
+require_relative '../../version'
 require_relative '../../logging/logger'
 require_relative '../../multiplexer'
 
@@ -53,14 +54,14 @@ module Savant
               info = if svc[:engine].respond_to?(:server_info)
                        svc[:engine].server_info
                      else
-                       { name: 'savant', version: '1.1.0', description: "Savant MCP service=#{@service}" }
+                       { name: 'savant', version: Savant::VERSION, description: "Savant MCP service=#{@service}" }
                      end
               tool_count = svc[:registrar].specs.length
               instructions = info[:description] || "Savant MCP service=#{@service} tools=#{tool_count}"
-              server_info = { name: info[:name] || 'savant', version: info[:version] || '1.1.0' }
+              server_info = { name: info[:name] || 'savant', version: info[:version] || Savant::VERSION }
             rescue StandardError
               instructions = "Savant MCP service=#{@service} (unavailable)"
-              server_info = { name: 'savant', version: '1.1.0' }
+              server_info = { name: 'savant', version: Savant::VERSION }
             end
             result = {
               protocolVersion: '2024-11-05',

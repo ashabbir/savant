@@ -2,6 +2,7 @@
 
 require 'fileutils'
 require 'shellwords'
+require_relative 'version'
 require_relative 'multiplexer/router'
 require_relative 'multiplexer/engine_process'
 require_relative 'framework/config'
@@ -108,7 +109,7 @@ module Savant
     def server_info
       {
         protocolVersion: '2024-11-05',
-        serverInfo: { name: 'savant-multiplexer', version: '1.0.0' },
+        serverInfo: { name: 'savant-multiplexer', version: Savant::VERSION },
         capabilities: { tools: {} },
         instructions: 'Unified Savant MCP multiplexer'
       }
