@@ -1,1 +1,10 @@
---- []
+---
+- id: code-review-guidance
+  name: Code Review Best Practices
+  summary: Provide concise, high-level findings with a focus on risk, tests, and next steps.
+  severity: medium
+  tags:
+    - review
+    - clarity
+  pattern: 'review|code review|mr|pull request'
+  action: 'Highlight high-level risks, call out missing tests, and suggest next steps.'
