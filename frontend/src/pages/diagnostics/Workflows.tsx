@@ -14,6 +14,7 @@ import TableCell from '@mui/material/TableCell';
 import TableContainer from '@mui/material/TableContainer';
 import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
+import TableSortLabel from '@mui/material/TableSortLabel';
 import Chip from '@mui/material/Chip';
 import Tooltip from '@mui/material/Tooltip';
 import Button from '@mui/material/Button';
@@ -113,6 +114,40 @@ export default function DiagnosticsWorkflows() {
   const [detailLoading, setDetailLoading] = React.useState(false);
   const [detailError, setDetailError] = React.useState<string | null>(null);
 
+  // Workflow telemetry table sorting
+  type WfKey = 'time' | 'event' | 'step' | 'type' | 'duration' | 'status';
+  const [wfSortKey, setWfSortKey] = React.useState<WfKey>('time');
+  const [wfSortDir, setWfSortDir] = React.useState<'asc' | 'desc'>('desc');
+  const wfRows = React.useMemo(() => {
+    const list = (events || []).map((e: any) => ({
+      time: e.timestamp || e.ts || '',
+      event: e.event || '',
+      step: e.step ?? '',
+      type: e.type || '',
+      duration: typeof e.duration_ms === 'number' ? e.duration_ms : (Number(e.duration_ms) || 0),
+      status: e.status ?? '',
+    }));
+    const cmp = (a: any, b: any) => {
+      let av = a[wfSortKey];
+      let bv = b[wfSortKey];
+      if (wfSortKey === 'time') {
+        const at = Date.parse(String(av || '')) || 0;
+        const bt = Date.parse(String(bv || '')) || 0;
+        return at - bt;
+      }
+      if (wfSortKey === 'duration') {
+        return (Number(av) || 0) - (Number(bv) || 0);
+      }
+      return String(av || '').localeCompare(String(bv || ''));
+    };
+    const arr = list.slice().sort(cmp);
+    return wfSortDir === 'asc' ? arr : arr.reverse();
+  }, [events, wfSortKey, wfSortDir]);
+  const wfOnSort = (k: WfKey) => {
+    if (wfSortKey === k) setWfSortDir(wfSortDir === 'asc' ? 'desc' : 'asc');
+    else { setWfSortKey(k); setWfSortDir('asc'); }
+  };
+
   const showRunDetails = async (run: any) => {
     setDetailRun(null);
     setDetailError(null);
@@ -142,78 +177,64 @@ export default function DiagnosticsWorkflows() {
           </Stack>
           {ev.isLoading && <LinearProgress sx={{ mt: 1 }} />}
           {ev.error && <Alert severity="error" sx={{ mt: 1 }}>{String(ev.error)}</Alert>}
-          {/* Sortable Workflow Telemetry table */}
-          {(() => {
-            type Key = 'time' | 'event' | 'step' | 'type' | 'duration' | 'status';
-            const [sortKey, setSortKey] = React.useState<Key>('time');
-            const [sortDir, setSortDir] = React.useState<'asc' | 'desc'>('desc');
-            const rows = React.useMemo(() => {
-              const list = (events || []).map((e: any) => ({
-                time: e.timestamp || e.ts || '',
-                event: e.event || '',
-                step: e.step ?? '',
-                type: e.type || '',
-                duration: typeof e.duration_ms === 'number' ? e.duration_ms : (Number(e.duration_ms) || 0),
-                status: e.status ?? '',
-              }));
-              const cmp = (a: any, b: any) => {
-                let av = a[sortKey];
-                let bv = b[sortKey];
-                if (sortKey === 'time') {
-                  const at = Date.parse(String(av || '')) || 0;
-                  const bt = Date.parse(String(bv || '')) || 0;
-                  return at - bt;
-                }
-                if (sortKey === 'duration') {
-                  return (Number(av) || 0) - (Number(bv) || 0);
-                }
-                return String(av || '').localeCompare(String(bv || ''));
-              };
-              const arr = list.slice().sort(cmp);
-              return sortDir === 'asc' ? arr : arr.reverse();
-            }, [events, sortKey, sortDir]);
-
-            const onSort = (k: Key) => {
-              if (sortKey === k) setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
-              else { setSortKey(k); setSortDir('asc'); }
-            };
-
-            return (
-              <TableContainer component={Paper} sx={{ mt: 1, maxHeight: '60vh' }}>
-                <Table stickyHeader size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell onClick={() => onSort('time')} sx={{ cursor: 'pointer', fontWeight: 600 }}>Time</TableCell>
-                      <TableCell onClick={() => onSort('event')} sx={{ cursor: 'pointer', fontWeight: 600 }}>Event</TableCell>
-                      <TableCell onClick={() => onSort('step')} sx={{ cursor: 'pointer', fontWeight: 600 }}>Step</TableCell>
-                      <TableCell onClick={() => onSort('type')} sx={{ cursor: 'pointer', fontWeight: 600 }}>Type</TableCell>
-                      <TableCell onClick={() => onSort('duration')} align="right" sx={{ cursor: 'pointer', fontWeight: 600 }}>ms</TableCell>
-                      <TableCell onClick={() => onSort('status')} sx={{ cursor: 'pointer', fontWeight: 600 }}>Status</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {rows.length === 0 && (
-                      <TableRow>
-                        <TableCell colSpan={6}>
-                          <Typography variant="body2" color="text.secondary">No workflow events yet.</Typography>
-                        </TableCell>
-                      </TableRow>
-                    )}
-                    {rows.map((r, idx) => (
-                      <TableRow key={`${r.time}-${idx}`} hover>
-                        <TableCell sx={{ fontFamily: 'monospace', fontSize: 12 }}>{r.time}</TableCell>
-                        <TableCell sx={{ fontFamily: 'monospace', fontSize: 12 }}>{r.event}</TableCell>
-                        <TableCell sx={{ fontFamily: 'monospace', fontSize: 12 }}>{r.step}</TableCell>
-                        <TableCell sx={{ fontFamily: 'monospace', fontSize: 12 }}>{r.type}</TableCell>
-                        <TableCell align="right" sx={{ fontFamily: 'monospace', fontSize: 12 }}>{r.duration || '-'}</TableCell>
-                        <TableCell sx={{ fontFamily: 'monospace', fontSize: 12 }}>{r.status || ''}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
-            );
-          })()}
+          {/* Sortable Workflow Telemetry table with indicators */}
+          <TableContainer component={Paper} sx={{ mt: 1, maxHeight: '60vh' }}>
+            <Table stickyHeader size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell sx={{ fontWeight: 600 }}>
+                    <TableSortLabel active={wfSortKey === 'time'} direction={wfSortKey === 'time' ? wfSortDir : 'asc'} onClick={() => wfOnSort('time')}>
+                      Time
+                    </TableSortLabel>
+                  </TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>
+                    <TableSortLabel active={wfSortKey === 'event'} direction={wfSortKey === 'event' ? wfSortDir : 'asc'} onClick={() => wfOnSort('event')}>
+                      Event
+                    </TableSortLabel>
+                  </TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>
+                    <TableSortLabel active={wfSortKey === 'step'} direction={wfSortKey === 'step' ? wfSortDir : 'asc'} onClick={() => wfOnSort('step')}>
+                      Step
+                    </TableSortLabel>
+                  </TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>
+                    <TableSortLabel active={wfSortKey === 'type'} direction={wfSortKey === 'type' ? wfSortDir : 'asc'} onClick={() => wfOnSort('type')}>
+                      Type
+                    </TableSortLabel>
+                  </TableCell>
+                  <TableCell align="right" sx={{ fontWeight: 600 }}>
+                    <TableSortLabel active={wfSortKey === 'duration'} direction={wfSortKey === 'duration' ? wfSortDir : 'asc'} onClick={() => wfOnSort('duration')}>
+                      ms
+                    </TableSortLabel>
+                  </TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>
+                    <TableSortLabel active={wfSortKey === 'status'} direction={wfSortKey === 'status' ? wfSortDir : 'asc'} onClick={() => wfOnSort('status')}>
+                      Status
+                    </TableSortLabel>
+                  </TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {wfRows.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={6}>
+                      <Typography variant="body2" color="text.secondary">No workflow events yet.</Typography>
+                    </TableCell>
+                  </TableRow>
+                )}
+                {wfRows.map((r, idx) => (
+                  <TableRow key={`${r.time}-${idx}`} hover>
+                    <TableCell sx={{ fontFamily: 'monospace', fontSize: 12 }}>{r.time}</TableCell>
+                    <TableCell sx={{ fontFamily: 'monospace', fontSize: 12 }}>{r.event}</TableCell>
+                    <TableCell sx={{ fontFamily: 'monospace', fontSize: 12 }}>{r.step}</TableCell>
+                    <TableCell sx={{ fontFamily: 'monospace', fontSize: 12 }}>{r.type}</TableCell>
+                    <TableCell align="right" sx={{ fontFamily: 'monospace', fontSize: 12 }}>{r.duration || '-'}</TableCell>
+                    <TableCell sx={{ fontFamily: 'monospace', fontSize: 12 }}>{r.status || ''}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
           <Typography variant="caption" sx={{ display: 'block', mt: 1 }}>
             Full trace: <a href={`${base}/diagnostics/workflows/trace?user=${encodeURIComponent(getUserId())}`} target="_blank" rel="noreferrer">download JSONL</a>
           </Typography>
