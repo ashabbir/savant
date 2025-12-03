@@ -55,7 +55,7 @@ template = <<~RUBY
     end
 
     def install
-      bin.install Dir["savant*"]
+      bin.install "savant"
     end
 
     test do
@@ -93,4 +93,3 @@ out_dir = File.join(root, 'packaging', 'homebrew')
 FileUtils.mkdir_p(out_dir)
 File.write(File.join(out_dir, 'savant.rb'), template)
 puts "[formula] Wrote #{File.join(out_dir, 'savant.rb')}"
-

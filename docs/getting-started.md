@@ -127,3 +127,25 @@ make mcp-test q='README' limit=5
 - CLI lists: `SAVANT_PATH=$(pwd) bundle exec ruby ./bin/savant tools`.
 - Run an agent session: `./bin/savant run --skip-git --agent-input="Summarize recent changes"`.
 
+## Homebrew (when releases are published)
+
+- Install from tap:
+
+```bash
+brew tap <org/tap>  # e.g., ashabbir/savant
+brew install <org/tap>/savant
+savant version
+```
+
+- Activate and run:
+
+```bash
+savant activate <username>:<key>
+savant status
+```
+
+- Upgrade:
+
+```bash
+brew upgrade savant
+```
