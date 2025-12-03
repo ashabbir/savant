@@ -34,7 +34,7 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import AddCircleIcon from '@mui/icons-material/AddCircle';
 import WorkflowDiagram from '../../components/WorkflowDiagram';
 import { workflowToMermaid } from '../../utils/workflowToMermaid';
-import { getErrorMessage } from '../../api';
+import { getErrorMessage, thinkPlan } from '../../api';
 import Viewer from '../../components/Viewer';
 import YAML from 'js-yaml';
 import { thinkWorkflowDelete } from '../../thinkApi';
@@ -53,6 +53,26 @@ export default function ThinkWorkflows() {
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteErr, setDeleteErr] = useState<string | null>(null);
   const [filter, setFilter] = useState('');
+  // Start dialog state
+  const [startOpen, setStartOpen] = useState(false);
+  const [startBusy, setStartBusy] = useState(false);
+  const [startErr, setStartErr] = useState<string | null>(null);
+  const [startUseForm, setStartUseForm] = useState(false);
+  const [startFormValues, setStartFormValues] = useState<any>({});
+  const [startJson, setStartJson] = useState<string>('{}');
+
+  function deriveParamSchemaFromYaml(yaml: string | undefined): any | null {
+    if (!yaml) return null;
+    try {
+      const parsed = YAML.load(yaml) as any;
+      // Look for params_schema or params.properties
+      const schema = parsed?.params_schema || (parsed?.params && parsed.params.properties ? { properties: parsed.params.properties } : null);
+      if (schema && typeof schema === 'object') return schema;
+    } catch { /* ignore */ }
+    return null;
+  }
+
+  const startSchema = useMemo(() => deriveParamSchemaFromYaml(wfRead.data?.workflow_yaml), [wfRead.data?.workflow_yaml]);
 
   const [mermaidError, setMermaidError] = useState<string | null>(null);
   const [preRenderedSvg, setPreRenderedSvg] = useState<string | null>(null);
@@ -220,7 +240,34 @@ export default function ThinkWorkflows() {
                 </Stack>
               )}
             </Stack>
-            <Stack direction="row" alignItems="center" spacing={1}>
+          <Stack direction="row" alignItems="center" spacing={1}>
+              <Tooltip title={sel ? 'Start Workflow' : 'Select a workflow to start'}>
+                <span>
+                  <Button size="small" variant="contained" disabled={!sel} onClick={() => {
+                    setStartErr(null);
+                    const sch = startSchema;
+                    if (sch && sch.properties && Object.keys(sch.properties).length) {
+                      setStartUseForm(true);
+                      try {
+                        const def: any = {};
+                        Object.keys(sch.properties).forEach((k) => {
+                          const t = sch.properties[k]?.type;
+                          if (t === 'string') def[k] = '';
+                          else if (t === 'integer' || t === 'number') def[k] = 0;
+                          else if (t === 'boolean') def[k] = false;
+                          else if (t === 'array' && sch.properties[k]?.items?.type === 'string') def[k] = [];
+                        });
+                        setStartFormValues(def);
+                        setStartJson(JSON.stringify(def, null, 2));
+                      } catch { setStartJson('{}'); }
+                    } else {
+                      setStartUseForm(false);
+                      setStartJson('{}');
+                    }
+                    setStartOpen(true);
+                  }}>Start</Button>
+                </span>
+              </Tooltip>
               {sel && mermaidCode && (
                 <Tooltip title={isRendering ? 'Rendering diagram...' : preRenderedSvg ? 'View diagram' : 'Diagram not ready'}>
                   <span>
@@ -296,6 +343,59 @@ export default function ThinkWorkflows() {
         </DialogActions>
       </Dialog>
       <Snackbar open={copied} autoHideDuration={2000} onClose={() => setCopied(false)} message="Copied YAML" anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }} />
+
+      {/* Start Dialog */}
+      <Dialog open={startOpen} onClose={() => !startBusy && setStartOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Start Workflow {sel}</DialogTitle>
+        <DialogContent dividers>
+          {startErr && <Alert severity="error" sx={{ mb: 1 }}>{startErr}</Alert>}
+          <Stack direction="row" spacing={1} sx={{ mb: 1 }}>
+            <Button size="small" variant={startUseForm ? 'contained' : 'outlined'} disabled={!startSchema} onClick={()=>setStartUseForm(true)}>Form</Button>
+            <Button size="small" variant={!startUseForm ? 'contained' : 'outlined'} onClick={()=>setStartUseForm(false)}>JSON</Button>
+          </Stack>
+          {startUseForm && startSchema ? (
+            <Stack spacing={1}>
+              {Object.entries((startSchema as any).properties || {}).map(([k, v]: any) => {
+                const t = v?.type;
+                if (t === 'string') return <TextField key={k} label={k} value={startFormValues[k]||''} onChange={(e)=>setStartFormValues({...startFormValues,[k]:e.target.value})} />;
+                if (t === 'integer' || t === 'number') return <TextField key={k} type="number" label={k} value={startFormValues[k]??0} onChange={(e)=>setStartFormValues({...startFormValues,[k]:Number(e.target.value)})} />;
+                if (t === 'boolean') return (
+                  <Stack key={k} direction="row" spacing={1} alignItems="center">
+                    <Typography>{k}</Typography>
+                    <Button size="small" variant={startFormValues[k]? 'contained':'outlined'} onClick={()=>setStartFormValues({...startFormValues,[k]:!startFormValues[k]})}>{String(startFormValues[k]||false)}</Button>
+                  </Stack>
+                );
+                if (t === 'array' && v?.items?.type === 'string') return <TextField key={k} label={`${k} (comma-separated)`} value={(startFormValues[k]||[]).join(',')} onChange={(e)=>setStartFormValues({...startFormValues,[k]:e.target.value.split(',').map((s:string)=>s.trim()).filter(Boolean)})} />;
+                return null;
+              })}
+            </Stack>
+          ) : (
+            <TextField label="Params (JSON)" value={startJson} onChange={(e)=>setStartJson(e.target.value)} multiline minRows={4} />
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={()=>!startBusy && setStartOpen(false)} disabled={startBusy}>Close</Button>
+          <Button variant="contained" onClick={async ()=>{
+            setStartErr(null);
+            if (!sel) return;
+            try {
+              setStartBusy(true);
+              const params = startUseForm ? startFormValues : JSON.parse(startJson || '{}');
+              const res = await thinkPlan(sel, params, null, true);
+              if (res && res.run_id) {
+                setStartOpen(false);
+                navigate('/engines/think/runs');
+              }
+            } catch (e: any) {
+              setStartErr(getErrorMessage(e));
+            } finally {
+              setStartBusy(false);
+            }
+          }} disabled={startBusy}>
+            {startBusy ? 'Starting…' : 'Start'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Grid>
   );
 }

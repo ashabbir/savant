@@ -18,7 +18,10 @@ let cdnInstance: any = null;
 
 async function importMermaid(forceCdn: boolean) {
   if (forceCdn) {
-    return import(MERMAID_CDN);
+    // Vite cannot statically analyze a fully dynamic import path; suppress with @vite-ignore.
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    // @ts-ignore
+    return import(/* @vite-ignore */ MERMAID_CDN);
   }
   return import('mermaid');
 }

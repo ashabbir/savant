@@ -12,11 +12,11 @@ import LinearProgress from '@mui/material/LinearProgress';
 import Alert from '@mui/material/Alert';
 import TextField from '@mui/material/TextField';
 import Box from '@mui/material/Box';
-import Viewer from './Viewer';
+import ToolRunner from './ToolRunner';
 
 const PANEL_HEIGHT = 'calc(100vh - 260px)';
 
-export default function EngineToolsList({ engine, title }: { engine: string; title?: string }) {
+export default function EngineToolsList({ engine, title, readOnly = false }: { engine: string; title?: string; readOnly?: boolean }) {
   const { data, isLoading, isError, error } = useEngineTools(engine);
   const tools = data?.tools || [];
   const [sel, setSel] = useState<ContextToolSpec | null>(null);
@@ -52,16 +52,8 @@ export default function EngineToolsList({ engine, title }: { engine: string; tit
         </Paper>
       </Grid>
       <Grid size={{ xs: 12, md: 8 }}>
-        <Paper sx={{ p: 2, height: PANEL_HEIGHT, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          <Typography variant="subtitle1" sx={{ fontSize: 12 }}>{sel?.name || 'Select a tool'}</Typography>
-          {schema ? (
-            <Viewer content={JSON.stringify(schema, null, 2)} contentType="application/json" height={undefined} style={{ flex: 1 }} />
-          ) : (
-            <Box sx={{ p: 2, color: 'text.secondary', flex: 1, overflowY: 'auto' }}>No input schema available</Box>
-          )}
-        </Paper>
+        <ToolRunner engine={engine} tool={sel} readOnly={readOnly} />
       </Grid>
     </Grid>
   );
 }
-

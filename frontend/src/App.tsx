@@ -33,7 +33,7 @@ import ContextTools from './pages/context/Tools';
 import ContextResources from './pages/context/Resources';
 import MemorySearch from './pages/context/MemorySearch';
 import WorkflowTools from './pages/workflow/Tools';
-import { getErrorMessage, loadConfig, useHubHealth, useHubInfo } from './api';
+import { getErrorMessage, loadConfig, useHubHealth, useHubInfo, useEngineStatus, useRoutes } from './api';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import HubIcon from '@mui/icons-material/Hub';
 import StorageIcon from '@mui/icons-material/Storage';
@@ -177,17 +177,36 @@ export default function App() {
   const navigate = useNavigate();
   const { data, isLoading, isError, error } = useHubHealth();
   const hub = useHubInfo();
+  const hubStatus = useEngineStatus('hub');
+  // Base engines from hub root
   const { engines, name: selEngine, index: engIdx } = useSelectedEngine(hub.data);
+  // Fallback/merge with engines discovered via /routes (helps when hub root omits some MCPs)
+  const routes = useRoutes();
+  const routeEngines = useMemo(() => {
+    try {
+      const mods = (routes.data?.routes || []).map((r) => r.module).filter((m) => m && m !== 'hub' && m !== 'multiplexer');
+      return Array.from(new Set(mods));
+    } catch { return []; }
+  }, [routes.data?.routes]);
+  const uiEngines = useMemo(() => sortEngines(Array.from(new Set([...(engines || []), ...routeEngines]))), [engines, routeEngines]);
+  // Selected engine recomputed against merged list
+  const { pathname } = useLocation();
+  const uiEngIdx = useMemo(() => {
+    const seg = pathname.split('/').filter(Boolean);
+    const idx = seg[0] === 'engines' && seg[1] ? uiEngines.indexOf(seg[1]) : -1;
+    return idx >= 0 ? idx : 0;
+  }, [pathname, uiEngines]);
+  const uiSelEngine = uiEngines[uiEngIdx];
   const engSubIdx = useEngineSubIndex(selEngine);
   const diagSubIdx = useDiagnosticsSubIndex();
 
   const loc = useLocation();
   React.useEffect(() => {
     if (mainIdx === 1 && (loc.pathname === '/engines' || loc.pathname === '/engines/')) {
-      const tgt = engines[0];
+      const tgt = uiEngines[0];
       if (tgt) navigate(defaultEngineRoute(tgt), { replace: true });
     }
-  }, [mainIdx, loc.pathname, engines]);
+  }, [mainIdx, loc.pathname, uiEngines]);
   // Normalize Diagnostics root to a concrete sub-route so tabs highlight consistently
   React.useEffect(() => {
     if (mainIdx === 2 && (loc.pathname === '/diagnostics' || loc.pathname === '/diagnostics/')) {
@@ -230,7 +249,13 @@ export default function App() {
           <Stack direction="row" spacing={1} alignItems="center">
             {hub.data && (
               <>
-                <Chip size="small" label={`v${hub.data.version}`} sx={{ bgcolor: 'rgba(255,255,255,0.15)', color: 'white', height: 22 }} />
+                {(() => {
+                  const raw = (hubStatus.data?.info?.version || hub.data?.version || '0.1.0') as string;
+                  const label = raw?.startsWith('v') ? raw : `v${raw}`;
+                  return (
+                    <Chip size="small" label={label} sx={{ bgcolor: 'rgba(255,255,255,0.15)', color: 'white', height: 22 }} />
+                  );
+                })()}
                 <Chip size="small" label={`Uptime: ${formatUptime(hub.data.hub?.uptime_seconds || 0)}`} sx={{ bgcolor: 'rgba(255,255,255,0.15)', color: 'white', height: 22 }} />
                 <Chip size="small" label={`PID: ${hub.data.hub?.pid}`} sx={{ bgcolor: 'rgba(255,255,255,0.15)', color: 'white', height: 22 }} />
                 {hub.data.multiplexer && (
@@ -264,12 +289,12 @@ export default function App() {
         else if (v === 2) navigate('/diagnostics');
       }} centered>
         <Tab icon={<DashboardIcon />} iconPosition="start" label="Dashboard" component={Link} to="/dashboard" />
-        <Tab icon={<StorageIcon />} iconPosition="start" label="Engines" component={Link} to="/engines" />
+        <Tab icon={<StorageIcon />} iconPosition="start" label="MCPs" component={Link} to="/engines" />
         <Tab icon={<ManageSearchIcon />} iconPosition="start" label="Diagnostics" component={Link} to="/diagnostics" />
       </Tabs>
       {mainIdx === 1 && (
-        <Tabs value={engIdx} onChange={(_, v) => {
-          const tgt = engines[v];
+        <Tabs value={uiEngIdx} onChange={(_, v) => {
+          const tgt = uiEngines[v];
           if (tgt) {
             // Navigate to engine default route
           if (tgt === 'context') navigate('/engines/context/resources');
@@ -284,7 +309,7 @@ export default function App() {
           '& .MuiTab-root': { fontSize: 12, minHeight: 36, py: 0.5, textTransform: 'none' },
           '& .MuiTabs-indicator': { height: 2 }
         }}>
-          {engines.map((e) => (
+          {uiEngines.map((e) => (
             <Tab key={e} label={e.charAt(0).toUpperCase() + e.slice(1)} component={Link} to={defaultEngineRoute(e)} />
           ))}
         </Tabs>
@@ -326,7 +351,7 @@ export default function App() {
           <Tab label="Tools" component={Link} to="/engines/think/tools" />
         </Tabs>
       )}
-      {mainIdx === 1 && selEngine === 'personas' && (
+      {mainIdx === 1 && (uiSelEngine || selEngine) === 'personas' && (
         <Tabs value={engSubIdx} onChange={(_, v) => {
           if (v === 0) navigate('/engines/personas');
           else if (v === 1) navigate('/engines/personas/tools');
@@ -339,7 +364,7 @@ export default function App() {
           <Tab label="Tools" component={Link} to="/engines/personas/tools" />
         </Tabs>
       )}
-      {mainIdx === 1 && selEngine === 'rules' && (
+      {mainIdx === 1 && (uiSelEngine || selEngine) === 'rules' && (
         <Tabs value={engSubIdx} onChange={(_, v) => {
           if (v === 0) navigate('/engines/rules');
           else if (v === 1) navigate('/engines/rules/tools');
