@@ -203,7 +203,7 @@ ollama pull llama3:latest
   - Each Engine card now has quick links: Diagnostics (opens `/diagnostics/mcp/<engine>`) and Logs (opens `/<engine>/logs`).
   - The Agent page is accessible under Diagnostics.
 ```
-http://localhost:9999/diagnostics/agents
+http://localhost:9999/diagnostics/agent
   ├─ Timeline View    (chronological event stream)
   ├─ Grouped View     (events grouped by step)
   ├─ Live Streaming   (real-time updates)
@@ -416,6 +416,28 @@ flowchart LR
     - Logs: Live event streaming with log-level filtering (All/Debug/Info/Warn/Error)
     - Routes: API route browser with filtering by module, method, and path
 - Footer shows Dev-Mode/Build-Mode indicator
+
+### UI Consistency & Testing
+
+The React UI uses a compact design and consistent control sizes across the app.
+
+- Compact theme: 11px base typography; list/table rows 28–32px; tight paddings; 6px radius.
+- Controls: Buttons and IconButtons default to `size="small"`; icons default to small (~18px). Start/end icon spacing is standardized.
+- Tools: All engine Tools pages use a single Tool Runner (schema‑driven forms, JSON input, presets/history, cURL/HTTPie copy).
+- Diagnostics: Live logs/events streaming with filters; Requests inspector supports re‑execute and “Open in Tool Runner”.
+
+Frontend tests are available (Vitest + Testing Library).
+
+```bash
+cd frontend
+npm run test       # run once
+npm run test:watch # watch mode
+```
+
+Key test files:
+- `src/theme/compact.test.ts`: compact scale + button/icon defaults.
+- `src/components/ToolRunner.test.tsx`: form/json modes and tool execution.
+- `src/utils/tools.test.ts`: schema classification, defaults, cURL/CLI helpers.
 
 ## Diagnostics & Logs
 

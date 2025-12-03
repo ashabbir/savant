@@ -4,7 +4,6 @@ import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
 import Stack from '@mui/material/Stack';
 import TextField from '@mui/material/TextField';
-import Button from '@mui/material/Button';
 import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
 import FormControl from '@mui/material/FormControl';
@@ -194,8 +193,9 @@ export default function DiagnosticsLogs() {
   return (
     <Box>
       <Paper sx={{ p: 2, mb: 2 }}>
-        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems="center">
-          <FormControl size="small" sx={{ minWidth: 180 }}>
+        <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between" flexWrap="wrap" useFlexGap>
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems="center" flexWrap="wrap" useFlexGap>
+            <FormControl size="small" sx={{ minWidth: 180 }}>
             <InputLabel>Engine</InputLabel>
             <Select
               value={engine}
@@ -264,7 +264,7 @@ export default function DiagnosticsLogs() {
             </FormControl>
           )}
 
-          <TextField
+            <TextField
             label="Lines"
             type="number"
             value={n}
@@ -272,36 +272,55 @@ export default function DiagnosticsLogs() {
             size="small"
             sx={{ width: 100 }}
           />
+          </Stack>
 
-          <Button variant="outlined" startIcon={<RefreshIcon />} onClick={tailOnce}>
-            Tail
-          </Button>
+          <Stack direction="row" spacing={1} alignItems="center">
+            <Tooltip title="Tail once">
+              <span>
+                <IconButton color="default" onClick={tailOnce} aria-label="Tail once">
+                  <RefreshIcon />
+                </IconButton>
+              </span>
+            </Tooltip>
 
-          {!following ? (
-            <Button variant="contained" color="success" startIcon={<PlayArrowIcon />} onClick={start}>
-              Follow
-            </Button>
-          ) : (
-            <Button variant="contained" color="warning" startIcon={<StopIcon />} onClick={stop}>
-              Stop
-            </Button>
-          )}
+            {!following ? (
+              <Tooltip title="Start following">
+                <span>
+                  <IconButton color="success" onClick={start} aria-label="Follow">
+                    <PlayArrowIcon />
+                  </IconButton>
+                </span>
+              </Tooltip>
+            ) : (
+              <Tooltip title="Stop">
+                <span>
+                  <IconButton color="warning" onClick={stop} aria-label="Stop">
+                    <StopIcon />
+                  </IconButton>
+                </span>
+              </Tooltip>
+            )}
 
-          <Button variant="outlined" color="inherit" startIcon={<DeleteIcon />} onClick={() => setLines([])}>
-            Clear
-          </Button>
+            <Tooltip title="Clear">
+              <span>
+                <IconButton color="default" onClick={() => setLines([])} aria-label="Clear logs">
+                  <DeleteIcon />
+                </IconButton>
+              </span>
+            </Tooltip>
 
-          <Tooltip title={lines.length === 0 ? 'No logs to copy' : 'Copy logs'}>
-            <span>
-              <IconButton color="inherit" onClick={copyLogs} disabled={lines.length === 0}>
-                <ContentCopyIcon />
-              </IconButton>
-            </span>
-          </Tooltip>
+            <Tooltip title={lines.length === 0 ? 'No logs to copy' : 'Copy logs'}>
+              <span>
+                <IconButton color="inherit" onClick={copyLogs} disabled={lines.length === 0}>
+                  <ContentCopyIcon />
+                </IconButton>
+              </span>
+            </Tooltip>
 
-          {following && (
-            <Chip label="LIVE" color="success" size="small" sx={{ animation: 'pulse 1s infinite' }} />
-          )}
+            {following && (
+              <Chip label="LIVE" color="success" size="small" sx={{ animation: 'pulse 1s infinite' }} />
+            )}
+          </Stack>
         </Stack>
       </Paper>
 

@@ -19,15 +19,16 @@ export function createCompactTheme(mode: 'light' | 'dark') {
     },
     shape: { borderRadius: 6 },
     typography: {
-      fontSize: 12,
-      h6: { fontSize: '0.95rem', fontWeight: 600 },
-      subtitle1: { fontSize: '0.9rem' },
-      subtitle2: { fontSize: '0.85rem' },
-      body1: { fontSize: '0.86rem' },
-      body2: { fontSize: '0.8rem' },
-      button: { textTransform: 'none', fontSize: '0.78rem' },
-      caption: { fontSize: '0.72rem' },
-      overline: { fontSize: '0.7rem' }
+      // Compact baseline; keep everything on the small side
+      fontSize: 11,
+      h6: { fontSize: '0.90rem', fontWeight: 600 },
+      subtitle1: { fontSize: '0.86rem' },
+      subtitle2: { fontSize: '0.82rem' },
+      body1: { fontSize: '0.82rem' },
+      body2: { fontSize: '0.78rem' },
+      button: { textTransform: 'none', fontSize: '0.74rem' },
+      caption: { fontSize: '0.68rem' },
+      overline: { fontSize: '0.66rem' }
     },
     components: {
       MuiCssBaseline: {
@@ -36,12 +37,20 @@ export function createCompactTheme(mode: 'light' | 'dark') {
         }
       },
       MuiButton: {
-        defaultProps: { size: 'small' },
-        styleOverrides: { root: { padding: '4px 10px', minHeight: 28 } }
+        defaultProps: { size: 'small', color: 'primary' },
+        styleOverrides: {
+          root: { padding: '4px 10px', minHeight: 28, borderRadius: 6 },
+          startIcon: { marginRight: 6, '& > *:nth-of-type(1)': { fontSize: 18 } },
+          endIcon: { marginLeft: 6, '& > *:nth-of-type(1)': { fontSize: 18 } },
+        }
       },
       MuiIconButton: {
-        defaultProps: { size: 'small' },
-        styleOverrides: { root: { padding: 4 } }
+        defaultProps: { size: 'small', color: 'default' },
+        styleOverrides: { root: { padding: 4, width: 28, height: 28, borderRadius: 6 } }
+      },
+      MuiSvgIcon: {
+        defaultProps: { fontSize: 'small' },
+        styleOverrides: { root: { fontSize: 18 } }
       },
       MuiChip: {
         defaultProps: { size: 'small' },
@@ -69,11 +78,12 @@ export function createCompactTheme(mode: 'light' | 'dark') {
         }
       },
       MuiListItemIcon: { styleOverrides: { root: { minWidth: 28 } } },
+      MuiListItem: { styleOverrides: { root: { minHeight: 28 } } },
       MuiListItemText: { styleOverrides: { primary: { lineHeight: 1.2 } } },
+      MuiTableRow: { styleOverrides: { root: { height: 28 } } },
       MuiTableCell: { styleOverrides: { root: { paddingTop: 6, paddingBottom: 6 } } },
       MuiLinearProgress: { styleOverrides: { root: { height: 3 } } },
       MuiPaper: { styleOverrides: { root: { padding: 8 } } }
     }
   });
 }
-
