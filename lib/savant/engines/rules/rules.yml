@@ -1,4 +1,22 @@
 ---
+- name: code-review-rules
+  version: 1
+  summary: Standard code review rules focusing on clarity, safety, tests, and delivery.
+  tags:
+    - review
+    - quality
+  rules_md: |
+    # Code Review Rules
+
+    - Prefer small, focused commits with clear messages.
+    - Add or update tests alongside behavior changes.
+    - Avoid risky patterns; call out security concerns explicitly.
+    - Ensure migrations are reversible and safe for large datasets.
+    - Verify logging and observability for critical paths.
+
+    ## Code Review Rules — Detailed
+    Use concise language and point to specific files/lines when possible.
+
 - id: code-review-guidance
   name: Code Review Best Practices
   summary: Provide concise, high-level findings with a focus on risk, tests, and next steps.
