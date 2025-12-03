@@ -37,12 +37,20 @@ export function createCompactTheme(mode: 'light' | 'dark') {
         }
       },
       MuiButton: {
-        defaultProps: { size: 'small' },
-        styleOverrides: { root: { padding: '4px 10px', minHeight: 28 } }
+        defaultProps: { size: 'small', color: 'primary' },
+        styleOverrides: {
+          root: { padding: '4px 10px', minHeight: 28, borderRadius: 6 },
+          startIcon: { marginRight: 6, '& > *:nth-of-type(1)': { fontSize: 18 } },
+          endIcon: { marginLeft: 6, '& > *:nth-of-type(1)': { fontSize: 18 } },
+        }
       },
       MuiIconButton: {
-        defaultProps: { size: 'small' },
-        styleOverrides: { root: { padding: 4 } }
+        defaultProps: { size: 'small', color: 'default' },
+        styleOverrides: { root: { padding: 4, width: 28, height: 28, borderRadius: 6 } }
+      },
+      MuiSvgIcon: {
+        defaultProps: { fontSize: 'small' },
+        styleOverrides: { root: { fontSize: 18 } }
       },
       MuiChip: {
         defaultProps: { size: 'small' },
