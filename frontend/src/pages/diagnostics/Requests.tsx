@@ -22,7 +22,13 @@ import InputLabel from '@mui/material/InputLabel';
 import CloseIcon from '@mui/icons-material/Close';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import LinearProgress from '@mui/material/LinearProgress';
-import { useHubStats, RequestRecord } from '../../api';
+import { useHubStats, RequestRecord, callEngineTool, loadConfig, getUserId } from '../../api';
+import Button from '@mui/material/Button';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import ReplayIcon from '@mui/icons-material/Replay';
+import OpenInNewIcon from '@mui/icons-material/OpenInNew';
+import { buildCurlCommand, parseEngineToolFromPath } from '../../utils/tools';
+import { useNavigate } from 'react-router-dom';
 
 function formatTime(iso: string): string {
   const d = new Date(iso);
@@ -56,6 +62,7 @@ function formatJson(str: string | null): string {
 }
 
 export default function DiagnosticsRequests() {
+  const navigate = useNavigate();
   const { data, isLoading, refetch } = useHubStats();
   const [selected, setSelected] = useState<RequestRecord | null>(null);
   const [methodFilter, setMethodFilter] = useState<string>('');
@@ -217,6 +224,62 @@ export default function DiagnosticsRequests() {
         <DialogContent dividers>
           {selected && (
             <Stack spacing={2}>
+              {/* Quick actions */}
+              <Stack direction="row" spacing={1}>
+                <Button
+                  size="small"
+                  variant="contained"
+                  startIcon={<ReplayIcon fontSize="small" />}
+                  onClick={async () => {
+                    try {
+                      const { engine, tool } = parseEngineToolFromPath(selected.path || '');
+                      if (!engine || !tool) throw new Error('Not a tool call');
+                      let params: any = {};
+                      try { params = JSON.parse(selected.request_body || '{}')?.params || {}; } catch { /* ignore */ }
+                      await callEngineTool(engine, tool, params);
+                      refetch();
+                    } catch (e) {
+                      // ignore errors; UI will reflect via stats refresh
+                    }
+                  }}
+                >
+                  Re-execute
+                </Button>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  startIcon={<OpenInNewIcon fontSize="small" />}
+                  onClick={() => {
+                    const { engine, tool } = parseEngineToolFromPath(selected.path || '');
+                    if (!engine || !tool) return;
+                    let params: any = {};
+                    try { params = JSON.parse(selected.request_body || '{}')?.params || {}; } catch { /* ignore */ }
+                    // Store prefill for ToolRunner and navigate
+                    const key = `tool.${engine}.${tool}.prefill`;
+                    localStorage.setItem(key, JSON.stringify(params));
+                    navigate(`/engines/${engine}/tools`);
+                  }}
+                >
+                  Open in Tool Runner
+                </Button>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  startIcon={<ContentCopyIcon fontSize="small" />}
+                  onClick={() => {
+                    try {
+                      const { engine, tool } = parseEngineToolFromPath(selected.path || '');
+                      if (!engine || !tool) return;
+                      let params: any = {};
+                      try { params = JSON.parse(selected.request_body || '{}')?.params || {}; } catch { /* ignore */ }
+                      const cmd = buildCurlCommand(loadConfig().baseUrl, engine, tool, params, getUserId());
+                      navigator.clipboard.writeText(cmd);
+                    } catch { /* ignore */ }
+                  }}
+                >
+                  Copy cURL
+                </Button>
+              </Stack>
               {/* Meta info */}
               <Stack direction="row" spacing={2} flexWrap="wrap" useFlexGap>
                 <Box>
