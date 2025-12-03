@@ -271,7 +271,7 @@ export default function App() {
         else if (v === 2) navigate('/diagnostics');
       }} centered>
         <Tab icon={<DashboardIcon />} iconPosition="start" label="Dashboard" component={Link} to="/dashboard" />
-        <Tab icon={<StorageIcon />} iconPosition="start" label="Engines" component={Link} to="/engines" />
+        <Tab icon={<StorageIcon />} iconPosition="start" label="MCPs" component={Link} to="/engines" />
         <Tab icon={<ManageSearchIcon />} iconPosition="start" label="Diagnostics" component={Link} to="/diagnostics" />
       </Tabs>
       {mainIdx === 1 && (
