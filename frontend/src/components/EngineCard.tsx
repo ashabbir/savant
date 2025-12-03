@@ -167,11 +167,7 @@ export default function EngineCard({ name, mount, toolCount }: EngineCardProps) 
                   size="small"
                   variant="outlined"
                 />
-                <Chip
-                  label={`Uptime: ${formatUptime(status.data.uptime_seconds || (status.data as any).uptime || 0)}`}
-                  size="small"
-                  variant="outlined"
-                />
+                {/* Uptime removed (always 0 for HTTP hub status) */}
               </Stack>
             </>
           )}
