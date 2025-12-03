@@ -677,3 +677,26 @@ export function useRoutes() {
     }
   });
 }
+
+// Jira credentials diagnostics (no secret values; booleans + source)
+export type JiraCredsCheck = {
+  user: string | null;
+  resolved_user: string | null;
+  source: 'secret_store' | 'env' | 'none' | string;
+  fields: { base_url: boolean; email: boolean; api_token: boolean; username: boolean; password: boolean };
+  auth_mode: 'email+token' | 'username+password' | 'missing' | string;
+  allow_writes: boolean | null;
+  problems: string[];
+  suggestions: string[];
+};
+
+export function useJiraCreds() {
+  return useQuery<JiraCredsCheck>({
+    queryKey: ['diagnostics', 'jira'],
+    queryFn: async () => {
+      const res = await client().get('/diagnostics/jira');
+      return res.data as JiraCredsCheck;
+    },
+    retry: 0
+  });
+}
