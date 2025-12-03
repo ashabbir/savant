@@ -1,7 +1,8 @@
 .PHONY: dev up quickstart logs logs-all down ps migrate fts smoke mcp-test jira-test jira-self \
   repo-index-all repo-index-repo repo-delete-all repo-delete-repo repo-status \
   demo-engine demo-run demo-call hub hub-logs hub-down hub-local hub-local-logs ls \
-  ui-build ui-install ui-dev dev-ui ui-open frontend-stop
+  ui-build ui-install ui-dev dev-ui ui-open frontend-stop \
+  build package checksum clean-dist formula tag release
 
 # Ensure rbenv shims take precedence in Make subshells
 # (Reverted) Do not globally override PATH; use explicit rbenv shim per target.
@@ -174,3 +175,37 @@ hub-local-logs:
 
 ls:
 	@awk -F':' '/^[[:alnum:]_.-]+:([^=]|$$)/ {print $$1}' $(MAKEFILE_LIST) | grep -v '^\.' | sort -u
+
+# -----------------------------
+# Distribution (MVP)
+# -----------------------------
+DIST_DIR := $(CURDIR)/dist
+
+build:
+	@bash ./scripts/build/build.sh
+
+package:
+	@bash ./scripts/package/package.sh
+
+checksum:
+	@bash ./scripts/release/checksum.sh
+
+clean-dist:
+	@rm -rf $(DIST_DIR)
+
+# Generate Homebrew formula from dist/checksums.txt
+formula:
+	@RELEASE_BASE_URL=$(RELEASE_BASE_URL) ruby ./scripts/release/generate_formula.rb
+	@echo "Formula generated at packaging/homebrew/savant.rb"
+
+# Tag the repository with VERSION=v0.1.0
+tag:
+	@test -n "$(VERSION)" || (echo "usage: make tag VERSION=v0.1.0" && exit 2)
+	@git tag -a $(VERSION) -m "Savant $(VERSION)" && git push origin $(VERSION)
+
+# Create a GitHub release and upload artifacts (requires gh)
+release:
+	@test -n "$(VERSION)" || (echo "usage: make release VERSION=v0.1.0" && exit 2)
+	@test -x "$$(command -v gh)" || (echo "gh CLI is required for release" && exit 2)
+	@gh release create $(VERSION) dist/*.tar.gz --title "Savant $(VERSION)" --notes "Automated release"
+	@echo "Release created. Set RELEASE_BASE_URL=https://github.com/ashabbir/savant/releases/download and run: make formula"
