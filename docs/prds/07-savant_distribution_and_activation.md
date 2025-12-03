@@ -302,4 +302,70 @@ Implement offline licensing, reproducible builds, and a Homebrew formula with mi
 - App: delete the latest GitHub Release artifacts and retag if needed.
 - Local: users can run `savant deactivate` to remove invalid licenses and retry.
 
+---
+
+# 12. Implementation Status (as of this branch)
+
+## 12.1 Shipped in Code
+- Offline licensing:
+  - New `lib/savant/framework/license.rb` with `activate!`, `status`, `deactivate!`, `expected_key`, `verify!`.
+  - Build-time salt embed via `scripts/build/embed_salt.rb` (generates `lib/savant/framework/license_salt.rb`).
+  - Dev bypass supported via `SAVANT_DEV=1`.
+- Enforcement:
+  - `lib/savant/framework/boot.rb` calls `License.verify!` during boot.
+  - `lib/savant/framework/mcp/server.rb` verifies before transport start.
+- CLI:
+  - `savant activate <user>:<key>`
+  - `savant status`
+  - `savant deactivate`
+  - `savant version`
+- Distribution pipeline:
+  - `Dockerfile.build` for Linux amd64 (ruby-packer).
+  - Scripts: `scripts/build/build.sh`, `scripts/package/package.sh`, `scripts/release/checksum.sh`.
+  - Homebrew formula generator: `scripts/release/generate_formula.rb` → `packaging/homebrew/savant.rb` (class `Savant`).
+  - Tap publish helper: `scripts/release/publish_tap.sh` (copies formula to tap).
+  - Make targets: `build`, `package`, `checksum`, `formula`, `tag`, `release`.
+- Docs:
+  - `docs/getting-started.md` rewritten for Homebrew-first flow.
+  - README updated with Homebrew install and activation, and Memory Bank links.
+  - Memory Bank added/updated: Indexer, Multiplexer, Hub, Database, Logging, Distribution, License/Activation.
+- Tests:
+  - `spec/savant/framework/license_spec.rb` basic coverage.
+  - `spec/spec_helper.rb` sets `SAVANT_DEV=1` by default to avoid gating other tests.
+
+## 12.2 Release Flow (manual MVP)
+1) Build artifacts (embed secret salt):
+   - `SAVANT_BUILD_SALT='<secret>' make build`
+   - `make package && make checksum`
+2) Create Git tag and GitHub Release (requires `gh`):
+   - `make tag VERSION=v0.1.0`
+   - `make release VERSION=v0.1.0`
+3) Generate formula from checksums:
+   - `RELEASE_BASE_URL=https://github.com/<org>/savant/releases/download make formula`
+   - Result: `packaging/homebrew/savant.rb`
+4) Publish to tap:
+   - `TAP_DIR=~/code/homebrew-tap scripts/release/publish_tap.sh packaging/homebrew/savant.rb`
+5) Install and verify:
+   - `brew tap <org/tap>`; `brew install <org/tap>/savant`; `savant version`
+6) Activate and run:
+   - `savant activate <user>:<key>`; `savant status`; `savant serve --transport=stdio`
+
+## 12.3 Acceptance Criteria Mapping
+- Brew install/upgrade: Supported via public tap formula and `make release` flow.
+- Offline activation: Implemented (username+key; SHA256(user+salt)).
+- Engine boot gating: Implemented in boot and MCP server.
+- Reproducible builds: Linux via Docker (ruby-packer). macOS via local `rubyc` if available (optional).
+
+## 12.4 Deviations vs PRD and Notes
+- Embedded UI assets: Not yet embedded into the binary. Current approach serves UI from `public/ui` under `SAVANT_PATH` if present. MVP keeps UI optional; embedding can be added post‑MVP.
+- Multi-platform matrix: Implemented Linux amd64 in Docker; macOS binaries can be built locally if `rubyc` is installed. CI automation to follow.
+- SECRET_SALT: Must be provided at build time via `SAVANT_BUILD_SALT`. Default dev salt exists only for local use.
+
+## 12.5 Next Steps (handoff)
+- Add CI (GitHub Actions) for build/package/checksum/release and tap formula update.
+- Produce macOS (arm64, x86_64) artifacts consistently; consider using a macOS build runner.
+- Optionally embed prebuilt UI assets into release tarballs.
+- Harden tests (CLI activation E2E; brew-style smoke on extracted tarballs).
+- Document enterprise/private tap option (post-MVP).
+
 - Builds reproducible in Docker environment
