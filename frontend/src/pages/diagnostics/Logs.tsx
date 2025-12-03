@@ -273,23 +273,39 @@ export default function DiagnosticsLogs() {
             sx={{ width: 100 }}
           />
 
-          <Button variant="outlined" startIcon={<RefreshIcon />} onClick={tailOnce}>
-            Tail
-          </Button>
+          <Tooltip title="Tail once">
+            <span>
+              <IconButton color="default" onClick={tailOnce} aria-label="Tail once">
+                <RefreshIcon />
+              </IconButton>
+            </span>
+          </Tooltip>
 
           {!following ? (
-            <Button variant="contained" color="success" startIcon={<PlayArrowIcon />} onClick={start}>
-              Follow
-            </Button>
+            <Tooltip title="Start following">
+              <span>
+                <IconButton color="success" onClick={start} aria-label="Follow">
+                  <PlayArrowIcon />
+                </IconButton>
+              </span>
+            </Tooltip>
           ) : (
-            <Button variant="contained" color="warning" startIcon={<StopIcon />} onClick={stop}>
-              Stop
-            </Button>
+            <Tooltip title="Stop">
+              <span>
+                <IconButton color="warning" onClick={stop} aria-label="Stop">
+                  <StopIcon />
+                </IconButton>
+              </span>
+            </Tooltip>
           )}
 
-          <Button variant="outlined" color="inherit" startIcon={<DeleteIcon />} onClick={() => setLines([])}>
-            Clear
-          </Button>
+          <Tooltip title="Clear">
+            <span>
+              <IconButton color="default" onClick={() => setLines([])} aria-label="Clear logs">
+                <DeleteIcon />
+              </IconButton>
+            </span>
+          </Tooltip>
 
           <Tooltip title={lines.length === 0 ? 'No logs to copy' : 'Copy logs'}>
             <span>
