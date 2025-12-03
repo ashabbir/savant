@@ -56,6 +56,7 @@ module Savant
         list = []
         list << { module: 'hub', method: 'GET', path: '/', description: 'Hub dashboard' }
         list << { module: 'hub', method: 'GET', path: '/diagnostics', description: 'Env, mounts, repos visibility, DB checks' }
+        list << { module: 'hub', method: 'GET', path: '/diagnostics/jira', description: 'Jira credentials presence (no secrets leaked)' }
         list << { module: 'hub', method: 'GET', path: '/diagnostics/connections', description: 'Active SSE/stdio connections' }
         list << { module: 'hub', method: 'GET', path: '/diagnostics/agent', description: 'Agent runtime: memory + telemetry' }
         list << { module: 'hub', method: 'GET', path: '/diagnostics/agent/trace', description: 'Download agent trace log' }
@@ -199,6 +200,7 @@ module Savant
         return hub_root(req) if req.get? && req.path_info == '/'
         return hub_routes(req) if req.get? && req.path_info == '/routes'
         return diagnostics(req) if req.get? && req.path_info == '/diagnostics'
+        return diagnostics_jira(req) if req.get? && req.path_info == '/diagnostics/jira'
         return diagnostics_agent(req) if req.get? && %w[/diagnostics/agent /diagnostics/agents].include?(req.path_info)
         return diagnostics_agent_trace(req) if req.get? && req.path_info == '/diagnostics/agent/trace'
         return diagnostics_agent_session(req) if req.get? && req.path_info == '/diagnostics/agent/session'
@@ -254,6 +256,97 @@ module Savant
         else
           not_found
         end
+      end
+
+      # GET /diagnostics/jira -> presence/shape of Jira credentials for current user
+      # This endpoint never returns secret values; only booleans and source info.
+      def diagnostics_jira(req)
+        user_id = req.env['savant.user_id']
+        out = { user: user_id, resolved_user: nil, source: 'none', fields: {}, auth_mode: 'missing', allow_writes: nil, problems: [], suggestions: [] }
+        begin
+          require_relative '../framework/secret_store'
+        rescue StandardError
+          # ignore
+        end
+
+        creds = nil
+        resolved_user = nil
+        source = 'none'
+        begin
+          # Prefer exact user, then default, then _system_
+          if defined?(Savant::Framework::SecretStore)
+            [user_id, 'default', '_system_'].compact.each do |uid|
+              h = Savant::Framework::SecretStore.for(uid, :jira)
+              if h && !h.empty?
+                creds = h
+                resolved_user = uid
+                source = 'secret_store'
+                break
+              end
+            end
+          end
+        rescue StandardError
+          # ignore
+        end
+
+        # ENV fallback only if SecretStore missing
+        if creds.nil?
+          env = ENV
+          creds = {
+            base_url: env['JIRA_BASE_URL'],
+            email: env['JIRA_EMAIL'],
+            api_token: env['JIRA_API_TOKEN'],
+            username: env['JIRA_USERNAME'],
+            password: env['JIRA_PASSWORD'],
+            allow_writes: env['JIRA_ALLOW_WRITES']
+          }
+          source = 'env'
+          resolved_user ||= user_id
+        end
+
+        def present?(v)
+          !(v.nil? || v.to_s.strip.empty?)
+        end
+
+        base_url = creds[:base_url] || creds['base_url'] || creds[:jira_base_url] || creds['jira_base_url']
+        email = creds[:email] || creds['email'] || creds[:jira_email] || creds['jira_email']
+        api_token = creds[:api_token] || creds['api_token'] || creds[:jira_token] || creds['jira_token']
+        username = creds[:username] || creds['username']
+        password = creds[:password] || creds['password']
+        allow_writes_raw = creds[:allow_writes] || creds['allow_writes']
+        allow_writes = %w[true 1 yes].include?(allow_writes_raw.to_s.downcase)
+
+        fields = {
+          base_url: present?(base_url),
+          email: present?(email),
+          api_token: present?(api_token),
+          username: present?(username),
+          password: present?(password)
+        }
+
+        auth_mode = if fields[:email] && fields[:api_token]
+                       'email+token'
+                     elsif fields[:username] && fields[:password]
+                       'username+password'
+                     else
+                       'missing'
+                     end
+
+        problems = []
+        suggestions = []
+        problems << 'missing base_url' unless fields[:base_url]
+        problems << 'missing auth (email+token or username+password)' if auth_mode == 'missing'
+        suggestions << 'Set secrets.yml users:<user>.jira.{base_url,email,api_token}' if source == 'env' || auth_mode == 'missing'
+        suggestions << 'Ensure UI Settings user matches secrets.yml user (e.g., default)' if resolved_user != user_id
+
+        out[:resolved_user] = resolved_user
+        out[:source] = source
+        out[:fields] = fields
+        out[:auth_mode] = auth_mode
+        out[:allow_writes] = allow_writes
+        out[:problems] = problems
+        out[:suggestions] = suggestions
+        respond(200, out)
       end
 
       def handle_hub_get(req, rest)
