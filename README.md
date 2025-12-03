@@ -57,12 +57,19 @@ This README is intentionally concise. For a step-by-step guide, see docs/getting
 | [Architecture](memory_bank/architecture.md) | System topology, data model, and component responsibilities. |
 | [Boot Runtime](memory_bank/engine_boot.md) | Boot initialization, RuntimeContext, AMR system, and CLI commands. |
 | **[Agent Runtime](memory_bank/agent_runtime.md)** | **Autonomous reasoning loop, LLM adapters, memory system, and telemetry.** |
+| [Multiplexer](memory_bank/multiplexer.md) | Unified tool surface across engines; process model and routing. |
+| [Hub](memory_bank/hub.md) | HTTP endpoints, UI mounting, diagnostics, logs, and routes. |
+| [Database](memory_bank/database.md) | Schema, FTS index, migrations, and context engine queries. |
+| [Logging](memory_bank/logging.md) | Structured logs, metrics, and audit hooks. |
+| [Indexer Engine](memory_bank/engine_indexer.md) | Scan pipeline, dedupe/chunking, DB model, CLI. |
 | [Context Engine](memory_bank/engine_context.md) | FTS search flow, cache/indexer coordination, and tool APIs. |
 | [Think Engine](memory_bank/engine_think.md) | Plan/next workflow orchestration and prompt drivers. |
 | [Jira Engine](memory_bank/engine_jira.md) | Jira integration details, auth requirements, and tool contracts. |
 | [Git Engine](memory_bank/engine_git.md) | Local, read‑only Git intelligence (diffs, hunks, file context, changed files). |
 | [Personas Engine](memory_bank/engine_personas.md) | Persona catalog shape, YAML schema, and exposed tools. |
 | [Engine Rules](memory_bank/engine_rules.md) | Shared guardrails, telemetry hooks, and best-practice playbooks. |
+| [Distribution](memory_bank/distribution.md) | Packaging, artifacts, release flow, and Homebrew formula. |
+| [License & Activation](memory_bank/license_activation.md) | Offline gate design and CLI.
 
 ## Getting Started
 
