@@ -5,8 +5,9 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 DIST_DIR="$ROOT_DIR/dist"
 mkdir -p "$DIST_DIR"
 
-echo "[build] Building Linux amd64 binary via Dockerfile.build..."
-docker build -f "$ROOT_DIR/Dockerfile.build" -t savant-builder:latest "$ROOT_DIR" 1>/dev/null
+SALT="${SAVANT_BUILD_SALT:-DEVELOPMENT_ONLY_CHANGE_ME}"
+echo "[build] Building Linux amd64 binary via Dockerfile.build (salt length=${#SALT})..."
+docker build --build-arg SAVANT_BUILD_SALT="$SALT" -f "$ROOT_DIR/Dockerfile.build" -t savant-builder:latest "$ROOT_DIR" 1>/dev/null
 CID=$(docker create savant-builder:latest)
 trap 'docker rm -f "$CID" >/dev/null 2>&1 || true' EXIT
 docker cp "$CID:/dist/savant-linux-amd64" "$DIST_DIR/"
@@ -22,4 +23,3 @@ if command -v rubyc >/dev/null 2>&1; then
 fi
 
 echo "[build] Done."
-

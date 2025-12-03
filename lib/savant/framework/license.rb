@@ -5,6 +5,11 @@ require 'json'
 require 'digest'
 require 'fileutils'
 require 'socket'
+begin
+  require_relative 'license_salt'
+rescue LoadError
+  # optional build-time salt
+end
 
 module Savant
   module Framework
@@ -23,9 +28,14 @@ module Savant
         File.join(home, '.savant', 'license.json')
       end
 
-      # Return the salt from env or a development default
+      # Return the salt. Prefer build-time constant if present; fall back to env; else dev default.
       def secret_salt
-        (ENV['SAVANT_SECRET_SALT'] && !ENV['SAVANT_SECRET_SALT'].empty?) ? ENV['SAVANT_SECRET_SALT'] : 'DEVELOPMENT_ONLY_CHANGE_ME'
+        if defined?(Savant::Framework::LicenseSalt::SECRET_SALT) && Savant::Framework::LicenseSalt::SECRET_SALT && !Savant::Framework::LicenseSalt::SECRET_SALT.empty?
+          return Savant::Framework::LicenseSalt::SECRET_SALT
+        end
+        env = ENV['SAVANT_SECRET_SALT']
+        return env unless env.nil? || env.empty?
+        'DEVELOPMENT_ONLY_CHANGE_ME'
       end
 
       # Compute the expected key for a username

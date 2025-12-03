@@ -18,10 +18,13 @@ for bin in savant-*; do
   [[ -x "$bin" ]] || continue
   osarch="${bin#savant-}"
   tarball="savant-${VERSION}-${osarch}.tar.gz"
-  echo "[package] Packaging $bin -> $tarball"
-  tar -czf "$tarball" "$bin"
+  echo "[package] Packaging $bin -> $tarball (contains 'savant')"
+  # stage a renamed copy as 'savant' inside the tarball
+  rm -f savant
+  cp -f "$bin" savant
+  tar -czf "$tarball" savant
+  rm -f savant
 done
 popd >/dev/null
 
 echo "[package] Done. Artifacts in $DIST_DIR"
-
