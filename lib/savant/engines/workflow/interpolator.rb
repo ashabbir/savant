@@ -1,6 +1,8 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
+require 'json'
+
 module Savant
   module Workflow
     # Performs {{ path.to.value }} interpolation recursively
@@ -46,4 +48,3 @@ module Savant
     end
   end
 end
-

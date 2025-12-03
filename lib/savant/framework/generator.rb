@@ -2,6 +2,7 @@
 # frozen_string_literal: true
 
 require 'fileutils'
+require_relative '../version'
 
 module Savant
   # Lightweight project generator for new MCP engines/tools.
@@ -63,7 +64,7 @@ module Savant
               end
 
               def server_info
-                { name: 'savant-#{mod.downcase}', version: '1.1.0', description: '#{mod} MCP service' }
+                { name: 'savant-#{mod.downcase}', version: Savant::VERSION, description: '#{mod} MCP service' }
               end
             end
           end

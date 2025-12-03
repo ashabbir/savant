@@ -1,0 +1,9 @@
+steps:
+  - name: diff
+    tool: git.diff
+
+  - name: summarize
+    agent: summarizer
+    with:
+      goal: "Provide a concise summary of the code changes, highlighting the intent and any potential risks or follow-ups."
+      diff: "{{ diff }}"

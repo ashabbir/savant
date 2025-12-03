@@ -1,6 +1,6 @@
-# Savant
+# Savant v0.1.0
 
-Savant is a lightweight Ruby framework for building and running local MCP services with autonomous agent capabilities.
+Savant is a lightweight Ruby framework for building and running local MCP services with autonomous agent capabilities. The current release is **v0.1.0**, aligning the CLI, MCP services, and React UI to a single version surface.
 
 **Key Features:**
 - **Multiplexer**: Unified MCP surface merging tools from all engines (Context, Git, Think, Jira, Personas, Rules)
@@ -89,6 +89,61 @@ This boots the engine and displays runtime status including session ID, persona,
 ```
 
 See [Boot Runtime docs](memory_bank/engine_boot.md) for complete reference.
+
+## Workflows (YAML Executor)
+
+Savant includes a deterministic YAML workflow executor that can call tools (via the Multiplexer) and agents.
+
+### How to Run a Workflow
+
+- CLI (boots the runtime and executes the workflow):
+
+```bash
+# From project root
+./bin/savant workflow <name> --params='{"ticket":"JIRA-123"}'
+```
+
+- HTTP (Hub → Workflow tools via MCP registrar):
+
+```bash
+# List workflows known to the Workflow engine
+curl -s -H 'content-type: application/json' -H 'x-savant-user-id: me' \
+  -X POST http://localhost:9999/workflow/tools/workflow_list/call \
+  -d '{}'
+
+# Run a workflow by ID with params
+curl -s -H 'content-type: application/json' -H 'x-savant-user-id: me' \
+  -X POST http://localhost:9999/workflow/tools/workflow_run/call \
+  -d '{"params": {"ticket":"JIRA-123"}, "workflow": "example_workflow"}'
+```
+
+### Saved Runs & Telemetry
+
+- Run state is persisted to `.savant/workflow_runs/<workflow>__<run_id>.json`.
+- Per-step telemetry is appended to `logs/workflow_trace.log` (JSONL).
+
+### Diagnostics UI
+
+- Open Diagnostics → Workflows in the UI to see:
+  - Recent workflow events (with timing, step, and type)
+  - Saved Runs table with drill-down into full traces
+
+### Authoring Workflows
+
+- Place YAML files in the repo `workflows/` directory. Minimal schema:
+
+```yaml
+steps:
+  - name: diff
+    tool: git.diff
+
+  - name: summarize
+    agent: summarizer
+    with:
+      goal: "Summarize the diff concisely"
+```
+
+- The Think engine ships a Workflow Editor (Engines → Think → Workflows) that allows graph editing, validation, YAML preview, and diagram rendering.
 
 ### Agent Runtime (Local-first)
 

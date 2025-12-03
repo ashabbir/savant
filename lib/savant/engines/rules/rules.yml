@@ -1,135 +1,54 @@
 ---
-- id: code_review_rules
-  name: code-review-rules
+- name: code-review-rules
   version: 1
-  title: Code Review Rules
-  summary: Practical guidelines for consistent, high-quality code review.
+  summary: Standard code review rules focusing on clarity, safety, tests, and delivery.
   tags:
-  - review
-  - quality
-  - consistency
+    - review
+    - quality
   rules_md: |
     # Code Review Rules
-    - Prefer small, focused diffs with clear commit messages.
-    - Identify root causes; avoid band-aid fixes.
-    - Keep style consistent with the codebase; avoid unrelated refactors.
-    - Ask clarifying questions; propose alternatives with concrete examples.
-    - Verify tests and linters; highlight missing cases.
-  notes: 'Use alongside Personas to drive behavior in agent flows.
 
-    '
-- id: backend_rules
-  name: backend-rules
+    - Prefer small, focused commits with clear messages.
+    - Add or update tests alongside behavior changes.
+    - Avoid risky patterns; call out security concerns explicitly.
+    - Ensure migrations are reversible and safe for large datasets.
+    - Verify logging and observability for critical paths.
+
+    ## Code Review Rules — Detailed
+    Use concise language and point to specific files/lines when possible.
+
+- id: code-review-guidance
+  name: Code Review Best Practices
+  summary: Provide concise, high-level findings with a focus on risk, tests, and next steps.
   version: 1
-  title: Backend Rules
-  summary: Backend patterns, boundaries, and safety constraints.
   tags:
-  - backend
-  - design
-  - safety
+    - review
+    - clarity
+    - testing
   rules_md: |
-    # Backend Rules
-    - Separate transport, orchestration, domain, and IO layers.
-    - Prefer explicit contracts and typed boundaries.
-    - Log key events with stable fields; avoid PII.
-    - Fail fast; propagate context; provide actionable error messages.
-    - Guard writes with flags and validation; prefer idempotency.
-  notes: 'Extend with service-specific modules as needed.
+    ## Code Review Best Practices
 
-    '
-- id: development_rules
-  name: development-rules
+    1. Focus on **high-risk areas** (security, data integrity, complex logic) before nitpicks.
+    2. Highlight **missing tests**, especially regression, integration, or platform coverage gaps.
+    3. Call out **blocking issues** and describe why they matter instead of just marking them.
+    4. Suggest **next steps** so the author understands the intended fix or follow-up.
+    5. Keep comments **concise and actionable** to respect author bandwidth.
+  notes: Emphasize clarity, risk, and test coverage in every review.
+
+- id: backend-guidelines
+  name: Backend Engineering Guidelines
+  summary: Standardize backend changes with logging, observability, and safety checks.
   version: 1
-  title: Development Rules
-  summary: Ground rules for day-to-day development and delivery.
   tags:
-  - development
-  - workflow
-  - hygiene
+    - backend
+    - logging
+    - safety
   rules_md: |
-    # Development Rules
-    - Choose the simplest thing that can possibly work; avoid premature abstraction.
-    - Keep changes small and focused; ship incremental value behind flags when needed.
-    - Preserve backward compatibility by default; add clear migration paths if breaking.
-    - Prefer clear names and straightforward control flow over cleverness.
-    - Document decisions where they live (code comments, ADRs, PR descriptions).
-    - Treat warnings as errors in CI; keep the build green.
-    - Handle secrets and credentials via env/secret stores; never commit secrets.
-    - Design for failure: timeouts, retries, circuit-breakers, and idempotency.
-    - Make local setup reproducible (scripts/Makefile); keep onboarding time low.
-    - Track performance and error budgets; measure before optimizing.
-  notes: 'Use alongside linting/testing rules to keep quality steady over time.
+    ## Backend Engineering Guidelines
 
-    '
-- id: linting_rules
-  name: linting-rules
-  version: 1
-  title: Linting Rules
-  summary: Style and static checks as guard rails for consistency and safety.
-  tags:
-  - linting
-  - style
-  - quality
-  rules_md: |
-    # Linting Rules
-    - Run linters locally and in CI; treat violations as build failures.
-    - Avoid disabling rules; if necessary, add a comment explaining why and scope narrowly.
-    - Prefer automatic formatting; keep diffs minimal and readable.
-    - Fix root causes rather than suppressing symptoms.
-    - Keep lint configs in the repo; version and document any changes.
-    - Add project-specific rules for security (e.g., banned APIs) and migration nudges.
-  notes: 'Lint should be fast; developers should be able to run it on save or pre-commit.
-
-    '
-- id: testing_rules
-  name: testing-rules
-  version: 1
-  title: Testing Rules
-  summary: Deterministic and meaningful tests across unit/integration boundaries.
-  tags:
-  - testing
-  - quality
-  - ci
-  rules_md: |
-    # Testing Rules
-    - Favor unit tests for speed and signal; add integration tests where contracts cross boundaries.
-    - Keep tests deterministic; avoid time, randomness, and external flakiness without control.
-    - Mock/stub external services; record fixtures for repeatability.
-    - Name tests by behavior; arrange-act-assert with clear setup.
-    - Cover happy paths and key edge cases; assert outcomes, not implementation details.
-    - Keep tests fast; parallelize in CI; measure and prune slow suites.
-    - Use code coverage as a guide, not a goal; focus on critical paths.
-  notes: 'Make it easy to run just the impacted tests (by path/tag) during development.
-
-    '
-- id: git_operations_rules
-  name: git-operations-rules
-  version: 1
-  title: Git Operations Rules
-  summary: Branching, committing, and PR etiquette for smooth collaboration.
-  tags:
-  - git
-  - workflow
-  - reviews
-  rules_md: |
-    # Git Operations Rules
-    - Branch naming: `feature/<slug>`, `fix/<slug>`, or `chore/<slug>`; keep slugs short and descriptive.
-    - Write atomic commits with imperative subject lines; include context in body when helpful.
-    - Keep PRs small and reviewable; prefer multiple focused PRs over one massive change.
-    - Rebase locally to keep history clean; avoid force-push on shared branches.
-    - Resolve conversations or explain deferrals; be respectful and specific in reviews.
-    - Use squash merges for feature branches unless history needs to be preserved.
-    - Tag releases and update CHANGELOGs; automate release notes when possible.
-    - Link commits/PRs to tickets; keep cross-repo changes coordinated.
-  notes: 'Align with team defaults (merge strategy, branch protection) and automation
-    (CI checks, required reviews).
-
-    '
-- id: design_guide
-  name: design-guide
-  version: 2
-  summary: Design guide updated
-  rules_md: |-
-    # Design Guide
-    - Keep UX consistent.
-    - Prefer accessibility.
+    - Validate **input and downstream responses** to prevent silent failures.
+    - Add or update **metrics/logs** when introducing new behavior or toggles.
+    - Ensure **feature flags** and config guards are present for risky toggles.
+    - Include **explainers or runbooks** for non-obvious behavior changes.
+    - Confirm **database migrations** follow zero-downtime patterns and include rollbacks.
+  notes: Align with observability and maintainability goals before merging.

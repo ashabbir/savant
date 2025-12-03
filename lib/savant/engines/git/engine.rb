@@ -1,6 +1,7 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
+require_relative '../../version'
 require_relative '../../logging/logger'
 require_relative '../../framework/engine/engine'
 require_relative 'ops'
@@ -42,7 +43,7 @@ module Savant
       end
 
       def server_info
-        { name: 'savant-git', version: '0.1.0', description: 'Git MCP: repo_status, changed_files, diff, hunks, file_context, read_file' }
+        { name: 'savant-git', version: Savant::VERSION, description: 'Git MCP: repo_status, changed_files, diff, hunks, file_context, read_file' }
       end
     end
   end

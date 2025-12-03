@@ -1,6 +1,7 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
+require_relative '../../version'
 require_relative 'ops'
 
 module Savant
@@ -13,7 +14,7 @@ module Savant
       end
 
       def server_info
-        { name: 'personas', version: '1.1.0', description: 'Savant Personas MCP engine' }
+        { name: 'personas', version: Savant::VERSION, description: 'Savant Personas MCP engine' }
       end
 
       # API used by Tools

@@ -8,6 +8,7 @@ require_relative 'sse'
 require_relative '../logging/event_recorder'
 require_relative 'connections'
 require_relative '../multiplexer'
+require_relative '../version'
 
 module Savant
   module Hub
@@ -60,6 +61,8 @@ module Savant
         list << { module: 'hub', method: 'GET', path: '/diagnostics/agent/trace', description: 'Download agent trace log' }
         list << { module: 'hub', method: 'GET', path: '/diagnostics/agent/session', description: 'Download agent session memory JSON' }
         list << { module: 'hub', method: 'GET', path: '/diagnostics/workflows', description: 'Workflow engine telemetry (recent events)' }
+        list << { module: 'hub', method: 'GET', path: '/diagnostics/workflow_runs', description: 'Saved workflow run metadata' }
+        list << { module: 'hub', method: 'GET', path: '/diagnostics/workflow_runs/:workflow/:run_id', description: 'Workflow run details' }
         list << { module: 'hub', method: 'GET', path: '/diagnostics/workflows/trace', description: 'Download workflow trace JSONL' }
         list << { module: 'hub', method: 'GET', path: '/diagnostics/mcp/:name', description: 'Per-engine diagnostics' }
         list << { module: 'hub', method: 'GET', path: '/routes', description: 'Routes list (add ?expand=1 to include tool calls)' }
@@ -202,6 +205,11 @@ module Savant
         return diagnostics_connections(req) if req.get? && req.path_info == '/diagnostics/connections'
         return diagnostics_mcp(req) if req.get? && req.path_info.start_with?('/diagnostics/mcp/')
         return diagnostics_workflows(req) if req.get? && req.path_info == '/diagnostics/workflows'
+        return diagnostics_workflow_runs(req) if req.get? && req.path_info == '/diagnostics/workflow_runs'
+        if req.get?
+          match = req.path_info.match(%r{^/diagnostics/workflow_runs/([^/]+)/([^/]+)$})
+          return diagnostics_workflow_run(req, match[1], match[2]) if match
+        end
         return diagnostics_workflows_trace(req) if req.get? && req.path_info == '/diagnostics/workflows/trace'
         return logs_index(req) if req.get? && req.path_info == '/logs'
 
@@ -255,7 +263,7 @@ module Savant
                     engine: 'hub',
                     status: 'running',
                     uptime_seconds: uptime_seconds,
-                    info: { name: 'hub', version: '3.0.0', description: 'Savant MCP Hub HTTP router and logging' }
+                    info: { name: 'hub', version: Savant::VERSION, description: 'Savant MCP Hub HTTP router and logging' }
                   })
         when ['stats']
           stats_snapshot = @stats_mutex.synchronize { deep_copy_stats(@stats) }
@@ -302,6 +310,24 @@ module Savant
         respond(200, { count: events.length, events: events })
       end
 
+      # GET /diagnostics/workflow_runs -> saved runs summary
+      def diagnostics_workflow_runs(_req) # GET /diagnostics/workflow_runs -> saved runs summary
+        engine = workflow_engine
+        respond(200, engine.runs_list)
+      rescue StandardError => e
+        respond(500, { error: 'workflow_runs_error', message: e.message })
+      end
+
+      def diagnostics_workflow_run(_req, workflow, run_id)
+        base = workflow_base_path
+        path = File.join(base, '.savant', 'workflow_runs', "#{workflow}__#{run_id}.json")
+        return respond(404, { error: 'workflow_run_not_found', workflow: workflow, run_id: run_id }) unless File.file?(path)
+        data = JSON.parse(File.read(path))
+        respond(200, data)
+      rescue StandardError => e
+        respond(500, { error: 'workflow_run_error', message: e.message })
+      end
+
       # GET /diagnostics/workflows/trace -> download JSONL trace file
       def diagnostics_workflows_trace(_req)
         base = if ENV['SAVANT_PATH'] && !ENV['SAVANT_PATH'].empty?
@@ -313,6 +339,19 @@ module Savant
         return respond(404, { error: 'trace_not_found', path: path }) unless File.file?(path)
         data = File.read(path)
         [200, { 'Content-Type' => 'text/plain' }.merge(cors_headers), [data]]
+      end
+
+      def workflow_base_path
+        if ENV['SAVANT_PATH'] && !ENV['SAVANT_PATH'].empty?
+          ENV['SAVANT_PATH']
+        else
+          File.expand_path('../../..', __dir__)
+        end
+      end
+
+      def workflow_engine
+        require_relative '../engines/workflow/engine'
+        Savant::Workflow::Engine.new(base_path: workflow_base_path)
       end
 
       # GET /logs/stream -> SSE unified stream of events
@@ -426,7 +465,7 @@ module Savant
         engines = engine_overview
         payload = {
           service: 'Savant MCP Hub',
-          version: '3.0.0',
+          version: Savant::VERSION,
           transport: transport,
           hub: { pid: Process.pid, uptime_seconds: uptime_seconds },
           engines: engines

@@ -1,0 +1,31 @@
+---
+id: example_workflow
+name: example_workflow
+description: One-line description so think_workflows_list can display helpful text.
+driver_version: stable
+rules: []
+version: 1
+params:
+  ticket_key:
+    desc: Jira or GitLab identifier consumed in the workflow.
+    required: true
+steps:
+- id: bootstrap_driver
+  call: think_driver_prompt
+  input_template:
+    version: stable
+  capture_as: __driver
+- id: example_task
+  deps:
+  - bootstrap_driver
+  call: prompt_say
+  input_template:
+    text: 'Example workflow running for {{params.ticket_key}}
+
+'
+- id: conclude
+  deps:
+  - example_task
+  call: prompt_say
+  input_template:
+    text: "✅ Finished {{workflow}} for {{params.ticket_key}}\n"
