@@ -1,151 +1,95 @@
-# Getting Started with Savant
+# Getting Started with Savant (Homebrew)
 
-This guide gets you from zero to a running Savant stack with context search and a working MCP server, including offline activation.
+This guide assumes you install Savant via Homebrew and want a fast path to activation and running the MCP server and Hub. An advanced “From Source” flow is included at the end for Context search and indexing.
 
-## Prerequisites
-
-- macOS or Linux
-- Docker (for Postgres + quickstart)
-- Ruby 3.x + Bundler (for running CLIs locally)
-- Git
-
-Optional:
-- Node 18+ (to build the React UI locally)
-
-## 1) Clone and install gems
+## 1) Install
 
 ```bash
-git clone https://github.com/ashabbir/savant.git
-cd savant
-bundle install
+brew tap <org/tap>   # e.g., ashabbir/savant
+brew install <org/tap>/savant
+savant version
 ```
 
-## 2) Configure settings
-
-Copy the example settings and adjust repo paths as needed:
-
-```bash
-cp config/settings.example.json config/settings.json
-```
-
-Key fields to review:
-- `indexer.repos[]` list, each with `name` and `path` to your local repositories
-- `database` connection (leave defaults to use Docker quickstart)
-
-## 3) Start the stack (Docker quickstart)
-
-```bash
-make quickstart
-```
-
-This boots Postgres + Hub, runs migrations and FTS. It does not index repos yet.
-
-## 4) Index your repos
-
-```bash
-make repo-index-all
-```
-
-Re-run this anytime to refresh the index. For a single repo:
-
-```bash
-make repo-index-repo repo=<name>
-```
-
-## 5) Build or run the UI
-
-- Static UI under Hub:
-
-```bash
-make ui-build
-open http://localhost:9999/ui
-```
-
-- Dev server (hot reload):
-
-```bash
-make dev-ui
-# UI at http://localhost:5173 (Hub at http://localhost:9999)
-```
-
-## 6) Offline activation
+## 2) Activate (offline)
 
 Savant uses an offline activation file at `~/.savant/license.json`.
 
 ```bash
 # Format: <username>:<key>
-./bin/savant activate myuser:MYKEY
-
-# Check status
-./bin/savant status
+savant activate myuser:MYKEY
+savant status
 ```
 
-If you need to reset:
+To reset:
 
 ```bash
-./bin/savant deactivate
+savant deactivate
 ```
 
-Dev bypass (for local development only):
+## 3) Run MCP (stdio) or Hub (HTTP)
+
+- MCP (stdio, multiplexer of all engines):
 
 ```bash
-export SAVANT_DEV=1
+savant serve --transport=stdio
 ```
 
-## 7) Run the MCP server
-
-Stdio multiplexer (all engines):
+- Hub (HTTP, serves minimal diagnostics; UI shown if available):
 
 ```bash
-SAVANT_PATH=$(pwd) bundle exec ruby ./bin/mcp_server
+savant hub --host=0.0.0.0 --port=9999
+open http://localhost:9999/ui || true
 ```
 
-Single engine (e.g., Context):
+Tip: Most engines (Git, Think, Personas, Rules) work without a database. Context search requires a Postgres DB and indexing (see Advanced below).
+
+## 4) Optional: use a cloned repo for UI/config
+
+Some features (static UI, custom settings) work best with a local repo clone. Set `SAVANT_PATH` to point at the repo so the binary picks up config and assets.
 
 ```bash
-MCP_SERVICE=context SAVANT_PATH=$(pwd) bundle exec ruby ./bin/mcp_server
+git clone https://github.com/ashabbir/savant.git
+export SAVANT_PATH="$(pwd)/savant"
+savant hub
 ```
 
-## 8) Quick smoke test
+## 5) Advanced: Context search (DB + indexing)
 
-Search via MCP test helper (requires DB up and repos indexed):
+Context search requires Postgres and indexing. Use Docker for a quick setup, and point the brew-installed `savant` at the repo for config and UI:
 
 ```bash
-make mcp-test q='README' limit=5
+# Clone the repo and set SAVANT_PATH so Savant finds config and UI
+git clone https://github.com/ashabbir/savant.git
+cd savant
+cp config/settings.example.json config/settings.json
+export SAVANT_PATH="$(pwd)"
+
+# Start Postgres + Hub via Docker, run migrations and FTS
+make quickstart
+
+# Index your repos (edit config/settings.json first)
+make repo-index-all
+
+# Start MCP Context with DB
+DATABASE_URL=postgres://context:contextpw@localhost:5433/contextdb \
+  MCP_SERVICE=context savant serve --transport=stdio
 ```
 
 ## Troubleshooting
 
-- Activation failed: ensure you used `savant activate <username>:<key>` exactly; then check `savant status`.
-- DB connectivity: verify Docker is running; `make logs` to see Postgres and indexer logs.
-- No search results: confirm `config/settings.json` repo paths; re-run `make repo-index-all`.
-- UI 404: run `make ui-build` and reload `http://localhost:9999/ui`.
+- Activation: `savant status` shows current state and license file path.
+- DB connectivity: ensure Docker is running; `make logs` for Postgres/indexer logs.
+- No search results: verify `config/settings.json` repo paths; re-run `make repo-index-all`.
+- UI: if `/ui` is empty, run `make ui-build` in the repo then `savant hub` with `SAVANT_PATH` pointing at the repo.
 
-## Next steps
+## From Source (alternative)
 
-- Explore tools via the UI (Engines → Context/Jira/Think).
-- CLI lists: `SAVANT_PATH=$(pwd) bundle exec ruby ./bin/savant tools`.
-- Run an agent session: `./bin/savant run --skip-git --agent-input="Summarize recent changes"`.
-
-## Homebrew (when releases are published)
-
-- Install from tap:
+If you prefer running entirely from source (Ruby + Bundler), follow the README “Full Stack Setup” steps in the repo. In short:
 
 ```bash
-brew tap <org/tap>  # e.g., ashabbir/savant
-brew install <org/tap>/savant
-savant version
-```
-
-- Activate and run:
-
-```bash
-savant activate <username>:<key>
-savant status
-```
-
-- Upgrade:
-
-```bash
-brew upgrade savant
+git clone https://github.com/ashabbir/savant.git
+cd savant
+bundle install
+make quickstart && make repo-index-all && make ui-build
+./bin/savant run --skip-git
 ```
