@@ -13,5 +13,14 @@ describe('compact theme', () => {
     const li = (t.components?.MuiListItem?.styleOverrides as any)?.root || {};
     expect(li.minHeight).toBe(28);
   });
-});
 
+  it('standardizes button/icon defaults', () => {
+    const t = createCompactTheme('light');
+    const btn = t.components?.MuiButton as any;
+    expect(btn?.defaultProps?.size).toBe('small');
+    const iconBtn = t.components?.MuiIconButton as any;
+    expect(iconBtn?.defaultProps?.size).toBe('small');
+    const svg = t.components?.MuiSvgIcon as any;
+    expect(svg?.defaultProps?.fontSize).toBe('small');
+  });
+});
