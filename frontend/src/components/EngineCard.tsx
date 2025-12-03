@@ -251,25 +251,7 @@ export default function EngineCard({ name, mount, toolCount }: EngineCardProps) 
             Run Latest
           </Button>
         )}
-        {/* Open raw JSON diagnostics for this engine */}
-        <Button
-          size="small"
-          onClick={() => {
-            // Open Hub diagnostics endpoint in a new tab (outside /ui base)
-            window.open(`/diagnostics/mcp/${name}`, '_blank');
-          }}
-        >
-          Diagnostics
-        </Button>
-        {/* Open per-engine logs (JSON tail) */}
-        <Button
-          size="small"
-          onClick={() => {
-            window.open(`/${name}/logs?n=200`, '_blank');
-          }}
-        >
-          Logs
-        </Button>
+        {/* Diagnostics/Logs buttons removed to avoid blank pages */}
       </CardActions>
     </Card>
   );
