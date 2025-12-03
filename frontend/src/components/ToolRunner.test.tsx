@@ -45,5 +45,14 @@ describe('ToolRunner', () => {
     fireEvent.click(screen.getByRole('button', { name: /run/i }));
     await waitFor(() => expect(callEngineTool).toHaveBeenCalled());
   });
-});
 
+  it('readOnly hides run controls', async () => {
+    const tool = { name: 'noop', inputSchema: { properties: { q: { type: 'string' } } } } as any;
+    render(<ToolRunner engine="workflow" tool={tool} readOnly />);
+    // Schema viewer still present (by heading text)
+    expect(await screen.findByText(/noop/i)).toBeInTheDocument();
+    // No Run button in readOnly mode
+    const run = screen.queryByRole('button', { name: /run/i });
+    expect(run).toBeNull();
+  });
+});
