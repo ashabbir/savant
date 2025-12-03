@@ -31,7 +31,7 @@ def url_for(base_url, tag, file)
 end
 
 template = <<~RUBY
-  class SavantOs < Formula
+  class Savant < Formula
     desc "Local MCP services with offline activation"
     homepage "https://github.com/ashabbir/savant"
     version "#{version}"
@@ -91,5 +91,5 @@ end
 
 out_dir = File.join(root, 'packaging', 'homebrew')
 FileUtils.mkdir_p(out_dir)
-File.write(File.join(out_dir, 'savant-os.rb'), template)
-puts "[formula] Wrote #{File.join(out_dir, 'savant-os.rb')}"
+File.write(File.join(out_dir, 'savant.rb'), template)
+puts "[formula] Wrote #{File.join(out_dir, 'savant.rb')}"
