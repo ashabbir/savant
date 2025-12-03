@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'fileutils'
+require_relative '../version'
 require_relative '../logging/logger'
 require_relative '../logging/event_recorder'
 
@@ -40,11 +41,11 @@ module Savant
         if engine.respond_to?(:server_info)
           engine.server_info
         else
-          { name: 'savant', version: '1.1.0', description: "Savant MCP service=#{service}" }
+          { name: 'savant', version: Savant::VERSION, description: "Savant MCP service=#{service}" }
         end
-      rescue StandardError => e
+        rescue StandardError => e
         log_error('service_info error', error: e)
-        { name: 'savant', version: '1.1.0', description: "Savant MCP service=#{service} (unavailable)" }
+        { name: 'savant', version: Savant::VERSION, description: "Savant MCP service=#{service} (unavailable)" }
       end
 
       private

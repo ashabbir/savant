@@ -6,6 +6,7 @@ require 'json'
 require 'digest'
 require 'fileutils'
 require 'securerandom'
+require_relative '../../version'
 
 module Savant
   module Think
@@ -389,7 +390,7 @@ module Savant
       def server_info
         {
           name: 'savant-think',
-          version: '1.0.0',
+          version: Savant::VERSION,
           description: 'Think MCP: plan/next/driver_prompt/workflows/* — Hint: call think_workflows_list to discover workflows, then use think_plan to start a run.'
         }
       end
