@@ -3,7 +3,8 @@ import Grid from '@mui/material/Grid2';
 import Paper from '@mui/material/Paper';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
-import Button from '@mui/material/Button';
+import IconButton from '@mui/material/IconButton';
+import Tooltip from '@mui/material/Tooltip';
 import LinearProgress from '@mui/material/LinearProgress';
 import Alert from '@mui/material/Alert';
 import TextField from '@mui/material/TextField';
@@ -97,8 +98,20 @@ export default function APIHealth() {
             <Stack direction="row" spacing={1}>
               <TextField size="small" label="Filter tools" value={filter} onChange={(e)=>setFilter(e.target.value)} />
               <FormControlLabel control={<Checkbox checked={onlyFailures} onChange={(e)=>setOnlyFailures(e.target.checked)} />} label="Only failures" />
-              <Button startIcon={<RefreshIcon />} variant="contained" onClick={checkAll} disabled={checking}>Scan All</Button>
-              <Button startIcon={<ContentCopyIcon />} onClick={copyFailures} disabled={!failingOnly.length}>Copy Failing</Button>
+              <Tooltip title="Scan all tools">
+                <span>
+                  <IconButton color="primary" onClick={checkAll} disabled={checking} aria-label="Scan all">
+                    <RefreshIcon />
+                  </IconButton>
+                </span>
+              </Tooltip>
+              <Tooltip title="Copy failing">
+                <span>
+                  <IconButton color="default" onClick={copyFailures} disabled={!failingOnly.length} aria-label="Copy failing">
+                    <ContentCopyIcon />
+                  </IconButton>
+                </span>
+              </Tooltip>
             </Stack>
           </Stack>
           {checking && <LinearProgress sx={{ mt: 1 }} />}
