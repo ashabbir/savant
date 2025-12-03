@@ -27,6 +27,7 @@ import HubIcon from '@mui/icons-material/Hub';
 import HttpIcon from '@mui/icons-material/Http';
 import { useHubInfo, useDiagnostics, useHubStats, testDbQuery, DbQueryTest, usePersonas, useRules } from '../../api';
 import SmallMultiples, { SmallSeries } from '../../components/SmallMultiples';
+import SmallMultiplesMulti, { MultiSeries } from '../../components/SmallMultiplesMulti';
 
 function formatEngineName(rawName: string): string {
   let clean = rawName
@@ -113,6 +114,41 @@ export default function DiagnosticsOverview() {
     return out;
   }, [stats.data?.recent]);
 
+  const statusSeries: MultiSeries[] = React.useMemo(() => {
+    const out: MultiSeries[] = [];
+    const rec = (stats.data?.recent || []).filter(r => {
+      const p = (r.path || '');
+      if (r.engine === 'hub') return false;
+      if (p.startsWith('/diagnostics')) return false;
+      if (p.startsWith('/logs')) return false;
+      if (/^\/[\w-]+\/logs/.test(p)) return false;
+      return true;
+    });
+    if (!rec.length) return out;
+    const engines = Array.from(new Set(rec.map(r => r.engine))).sort();
+    // 12 buckets over time
+    const times = rec.map(r => new Date(r.time).getTime()).filter(n => !Number.isNaN(n));
+    const minT = Math.min(...times);
+    const maxT = Math.max(...times);
+    const buckets = 12;
+    const span = Math.max(1, maxT - minT);
+    for (const eng of engines) {
+      const ok = new Array(buckets).fill(0);
+      const warn = new Array(buckets).fill(0);
+      const err = new Array(buckets).fill(0);
+      for (const r of rec) {
+        if (r.engine !== eng) continue;
+        const t = new Date(r.time).getTime();
+        const idx = span === 0 ? buckets - 1 : Math.min(buckets - 1, Math.max(0, Math.floor(((t - minT) / span) * buckets)));
+        if (r.status < 300) ok[idx] += 1;
+        else if (r.status < 500) warn[idx] += 1;
+        else err[idx] += 1;
+      }
+      out.push({ id: eng, title: eng.charAt(0).toUpperCase() + eng.slice(1), data: { ok, warn, err } });
+    }
+    return out;
+  }, [stats.data?.recent]);
+
   return (
     <Box sx={{ flex: 1, minHeight: 0, overflow: 'auto', display: 'flex', flexDirection: 'column' }}>
       {/* Top Row - Hub Stats */}
@@ -167,6 +203,13 @@ export default function DiagnosticsOverview() {
       {engineSeries.length > 0 && (
         <Box sx={{ mb: 1.5 }}>
           <SmallMultiples title="Requests (recent) — per engine" series={engineSeries} height={60} />
+        </Box>
+      )}
+
+      {/* Small Multiples: Status codes per Engine (recent) */}
+      {statusSeries.length > 0 && (
+        <Box sx={{ mb: 1.5 }}>
+          <SmallMultiplesMulti title="HTTP status (recent) — per engine" series={statusSeries} height={68} />
         </Box>
       )}
 
