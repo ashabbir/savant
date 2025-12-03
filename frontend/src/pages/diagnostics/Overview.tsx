@@ -83,7 +83,8 @@ export default function DiagnosticsOverview() {
   // Build small multiples per engine using recent requests time-series
   const engineSeries: SmallSeries[] = React.useMemo(() => {
     const out: SmallSeries[] = [];
-    const rec = stats.data?.recent || [];
+    // Exclude hub and diagnostics traffic from charts
+    const rec = (stats.data?.recent || []).filter(r => r.engine !== 'hub' && !(r.path || '').startsWith('/diagnostics'));
     if (!rec.length) return out;
     const engines = Array.from(new Set(rec.map(r => r.engine))).sort();
     // Determine time span and split into 12 buckets
