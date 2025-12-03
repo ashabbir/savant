@@ -27,7 +27,7 @@ export type ToolSpec = { name: string; description?: string; inputSchema?: any; 
 type Preset = { name: string; params: any };
 type HistoryItem = { ts: number; params: any };
 
-export default function ToolRunner({ engine, tool }: { engine: string; tool: ToolSpec | null }) {
+export default function ToolRunner({ engine, tool, readOnly = false }: { engine: string; tool: ToolSpec | null; readOnly?: boolean }) {
   const schema = useMemo(() => (tool?.inputSchema || tool?.schema), [tool]);
   const toolName = tool?.name || '';
   const [useForm, setUseForm] = useState(false);
@@ -122,6 +122,7 @@ export default function ToolRunner({ engine, tool }: { engine: string; tool: Too
           <Viewer content={JSON.stringify(schema, null, 2)} contentType="application/json" height={180} />
         </Box>
       )}
+      {readOnly ? null : (
       <Box sx={{ flex: 1, overflowY: 'auto', mt: 1, pr: 1 }}>
         <Stack spacing={1}>
           <Stack direction="row" spacing={1} sx={{ mb: 1 }}>
@@ -188,8 +189,8 @@ export default function ToolRunner({ engine, tool }: { engine: string; tool: Too
                 );
                 if (t === 'array' && v?.items?.type === 'string') return <TextField key={k} label={`${k} (comma-separated)`} value={(formValues[k]||[]).join(',')} onChange={(e)=>setFormValues({...formValues,[k]:e.target.value.split(',').map(s=>s.trim()).filter(Boolean)})} />;
                 return null;
-              })}
-            </Stack>
+            })}
+          </Stack>
           )}
 
           <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
@@ -203,8 +204,8 @@ export default function ToolRunner({ engine, tool }: { engine: string; tool: Too
           {output && <Viewer content={output} contentType={outContentType} height={320} />}
         </Stack>
       </Box>
+      )}
       <Snackbar open={!!toast} autoHideDuration={2000} onClose={() => setToast(null)} message={toast || ''} />
     </Paper>
   );
 }
-
