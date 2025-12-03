@@ -1,1 +1,54 @@
---- []
+---
+- name: code-review-rules
+  version: 1
+  summary: Standard code review rules focusing on clarity, safety, tests, and delivery.
+  tags:
+    - review
+    - quality
+  rules_md: |
+    # Code Review Rules
+
+    - Prefer small, focused commits with clear messages.
+    - Add or update tests alongside behavior changes.
+    - Avoid risky patterns; call out security concerns explicitly.
+    - Ensure migrations are reversible and safe for large datasets.
+    - Verify logging and observability for critical paths.
+
+    ## Code Review Rules — Detailed
+    Use concise language and point to specific files/lines when possible.
+
+- id: code-review-guidance
+  name: Code Review Best Practices
+  summary: Provide concise, high-level findings with a focus on risk, tests, and next steps.
+  version: 1
+  tags:
+    - review
+    - clarity
+    - testing
+  rules_md: |
+    ## Code Review Best Practices
+
+    1. Focus on **high-risk areas** (security, data integrity, complex logic) before nitpicks.
+    2. Highlight **missing tests**, especially regression, integration, or platform coverage gaps.
+    3. Call out **blocking issues** and describe why they matter instead of just marking them.
+    4. Suggest **next steps** so the author understands the intended fix or follow-up.
+    5. Keep comments **concise and actionable** to respect author bandwidth.
+  notes: Emphasize clarity, risk, and test coverage in every review.
+
+- id: backend-guidelines
+  name: Backend Engineering Guidelines
+  summary: Standardize backend changes with logging, observability, and safety checks.
+  version: 1
+  tags:
+    - backend
+    - logging
+    - safety
+  rules_md: |
+    ## Backend Engineering Guidelines
+
+    - Validate **input and downstream responses** to prevent silent failures.
+    - Add or update **metrics/logs** when introducing new behavior or toggles.
+    - Ensure **feature flags** and config guards are present for risky toggles.
+    - Include **explainers or runbooks** for non-obvious behavior changes.
+    - Confirm **database migrations** follow zero-downtime patterns and include rollbacks.
+  notes: Align with observability and maintainability goals before merging.
