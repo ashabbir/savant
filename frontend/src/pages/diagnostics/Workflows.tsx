@@ -33,9 +33,25 @@ function useWorkflowEvents() {
   async function fetchNow() {
     try {
       setLoading(true);
-      const res = await fetch(`${base}/diagnostics/workflows?n=200`, { headers: { 'x-savant-user-id': getUserId() } });
-      const json = await res.json();
-      setData(json);
+      // Primary endpoint (Hub v0.1.0+)
+      let ok = false;
+      try {
+        const res = await fetch(`${base}/diagnostics/workflows?n=200`, { headers: { 'x-savant-user-id': getUserId() } });
+        if (res.ok) {
+          const json = await res.json();
+          setData(json);
+          ok = true;
+        }
+      } catch { /* fallback below */ }
+
+      // Fallback: aggregated events API filtered by type
+      if (!ok) {
+        const res2 = await fetch(`${base}/logs?n=200&type=workflow_step`, { headers: { 'x-savant-user-id': getUserId() } });
+        if (!res2.ok) throw new Error(`HTTP ${res2.status}`);
+        const js2 = await res2.json();
+        const events = (js2 && js2.events) || [];
+        setData({ events });
+      }
       setError(null);
     } catch (e) {
       setError(e);
