@@ -51,6 +51,21 @@ SAVANT_PATH=$(pwd) bundle exec ruby ./bin/savant tools
 
 This README is intentionally concise. For a step-by-step guide, see docs/getting-started.md. Full, detailed docs (with diagrams) live in the Memory Bank:
 
+## Homebrew Install (after releases are published)
+
+```
+brew tap <org/tap>   # e.g., ashabbir/savant
+brew install <org/tap>/savant
+savant version
+```
+
+Activate and run:
+
+```
+savant activate <username>:<key>
+savant status
+```
+
 | Doc | Summary |
 | --- | --- |
 | [Framework](memory_bank/framework.md) | Core concepts, lifecycle, and configuration surface. |
