@@ -198,4 +198,108 @@ work with zero friction.
 - Activation works offline
 - Engine refuses to boot without valid key
 - Brew upgrades work without breaking installs
+
+---
+
+# 11. Agent Implementation Plan (MVP)
+
+## 11.1 Overview
+Implement offline licensing, reproducible builds, and a Homebrew formula with minimal disruption to the existing Ruby codebase. Ship a single self-contained binary per platform by packaging the Ruby runtime and app code, enforce license at boot, and provide an `activate` CLI. Automate build/package/checksum via Make targets and Docker where feasible.
+
+## 11.2 Scope Decisions (MVP)
+- Language: package current Ruby app into a single binary (via Ruby packer) rather than rewriting in Go/Rust.
+- Platforms: macOS arm64, macOS amd64, Linux amd64. Build Linux via Docker; build macOS on macOS runners.
+- Activation: offline key = SHA256(username + SECRET_SALT); stored at `~/.savant/license.json`.
+- Enforcement: gate engine boot and MCP server start. Allow explicit dev bypass via `SAVANT_DEV=1`.
+- Distribution: public GitHub Releases + public Homebrew formula. Manual bump for MVP (CI later).
+
+## 11.3 Work Breakdown
+
+1) Licensing & Activation
+- Add `lib/savant/framework/license.rb`:
+  - `SECRET_SALT` constant (placeholder; replace before release).
+  - `License.path` → `~/.savant/license.json`.
+  - `License.activate!(username:, key:)` → writes JSON `{username,key,activated_at,host}`.
+  - `License.valid?` and `License.verify!` → compute expected_key = SHA256(username + SECRET_SALT).
+  - Structured logging on success/failure.
+- CLI: extend `bin/savant` with `activate <username>:<key>` subcommand:
+  - Parse `user:key`, call `License.activate!`, print result and location.
+  - Add `savant status` to show license state (valid/invalid, username, file path).
+- Enforcement hooks:
+  - `lib/savant/framework/boot.rb`: call `License.verify!` at the beginning of `initialize!` unless `SAVANT_DEV=1`.
+  - `lib/savant/framework/mcp/server.rb`: verify on `initialize` or `start` for MCP-only runs.
+  - Exit with non‑zero on invalid/missing license with clear message and log.
+
+2) Reproducible Builds
+- Add `Dockerfile.build` (builder image) and `scripts/build/build.sh`:
+  - Assemble self-contained binary with Ruby + app code for Linux amd64.
+  - Stage artifacts to `dist/savant-${os}-${arch}`.
+- Add `scripts/package/package.sh` to tarball each binary: `dist/savant-${version}-${os}-${arch}.tar.gz`.
+- Add `scripts/release/checksum.sh` to output SHA256 sums into `dist/checksums.txt`.
+- Make targets in `Makefile`:
+  - `make build` → build all targets (Docker for Linux, local for macOS).
+  - `make package` → produce tarballs under `dist/`.
+  - `make checksum` → write SHA256 per artifact.
+  - `make clean-dist` → remove `dist/`.
+
+3) Versioning & Releases
+- Tagging: `make tag VERSION=v0.1.0` → `git tag -a v0.1.0 -m "Savant v0.1.0"`.
+- Release: `make release VERSION=v0.1.0` → build, package, checksum, then upload artifacts to GitHub Release (via `gh` if available; otherwise manual).
+- Embed version into binary by sourcing `lib/savant/version.rb` at build time and stamping `SAVANT_VERSION` env.
+
+4) Homebrew Formula (Public)
+- Template: `packaging/homebrew/savant.rb.tmpl` with placeholders for version, darwin/arm64, darwin/amd64, linux/amd64 URLs and SHA256s.
+- Generator: `scripts/release/generate_formula.rb` → reads `dist/checksums.txt` and emits `packaging/homebrew/savant.rb`.
+- Manual publish for MVP:
+  - Create/maintain a public tap (or submit to homebrew-core later).
+  - `brew tap <org/tap>`; `brew install <org/tap>/savant`.
+- Make target: `make formula` → generate formula locally ready to copy to tap.
+
+5) Tests & QA
+- RSpec: `spec/framework/license_spec.rb`
+  - Valid/invalid activation key cases.
+  - `activate` CLI writes file and is readable/valid.
+  - Boot fails without license; passes with valid license; is bypassed with `SAVANT_DEV=1`.
+- Smoke: script to run `savant run --dry-run` and `bin/mcp_server --transport=stdio` with/without license.
+- Packaging smoke: unpack each tarball, `./savant --version`, `./savant status`.
+
+6) Documentation
+- README updates:
+  - Install: `brew install savant` (and Linuxbrew notes).
+  - Activate: `savant activate <username>:<key>`; `savant status`.
+  - Troubleshooting: where the license file lives; how to reset.
+- Update `docs/prds/mvp-checklist.md` with distribution tasks and checkboxes.
+
+7) Security & Operational Notes (MVP)
+- Keep `SECRET_SALT` out of VCS history; inject via build step before packaging.
+- Log only high‑level activation events; never log secret salt or full key inputs.
+- Provide `savant deactivate` to delete local license file for support workflows.
+
+## 11.4 File/Code Changes
+- New: `lib/savant/framework/license.rb`
+- Update: `bin/savant` (add `activate`, `status`, `deactivate` commands)
+- Update: `lib/savant/framework/boot.rb` (early license verification)
+- Update: `lib/savant/framework/mcp/server.rb` (license check on start)
+- New: `Dockerfile.build`, `scripts/build/build.sh`, `scripts/package/package.sh`, `scripts/release/checksum.sh`
+- New: `packaging/homebrew/savant.rb.tmpl`, generated `packaging/homebrew/savant.rb`
+- Update: `Makefile` (build/package/checksum/release/formula targets)
+- New: `spec/framework/license_spec.rb`
+
+## 11.5 Milestones & Timeline
+- M1 (Day 1–2): License module + CLI; boot/MCP enforcement; basic specs green.
+- M2 (Day 3–4): Docker build for Linux; local macOS builds; Make targets; checksums.
+- M3 (Day 5): Homebrew formula template/generator; README/docs; smoke tests.
+- M4 (Day 6): Tag v0.1.0; create GitHub Release; publish tap; internal dogfood.
+
+## 11.6 Acceptance Tests Mapping
+- Install via Brew then run `savant status` → shows valid after activation.
+- Engine boot without activation → fails with clear error; succeeds after activation.
+- MCP `stdio` launch without activation → fails; succeeds after activation.
+- `brew upgrade savant` on a new tag → updates and preserves license file.
+
+## 11.7 Rollback/Backout
+- Brew: revert formula to previous version.
+- App: delete the latest GitHub Release artifacts and retag if needed.
+- Local: users can run `savant deactivate` to remove invalid licenses and retry.
+
 - Builds reproducible in Docker environment

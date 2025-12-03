@@ -39,6 +39,7 @@ require 'rspec'
 require 'json'
 
 ENV['SAVANT_MULTIPLEXER_DISABLED'] ||= '1'
+ENV['SAVANT_DEV'] ||= '1'
 
 # Load library under test
 $LOAD_PATH.unshift(File.expand_path('../lib', __dir__))

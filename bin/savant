@@ -15,6 +15,9 @@ def usage!
       savant routes [--expand]
       savant list tools [--service=NAME]
       savant call <tool> --input='{}' [--service=NAME]
+      savant activate <username>:<key>
+      savant status
+      savant deactivate
   TXT
   exit 2
 end
@@ -360,6 +363,36 @@ when 'routes'
 
 else
   case cmd
+  when 'activate'
+    require_relative '../lib/savant/framework/license'
+    cred = ARGV.shift
+    usage! if cred.nil? || !cred.include?(':')
+    username, key = cred.split(':', 2)
+    begin
+      st = Savant::Framework::License.activate!(username: username, key: key)
+      if st[:valid]
+        puts "✅ Activated for user=#{st[:username]} path=#{st[:path] || Savant::Framework::License.path}"
+      else
+        puts "⚠️  Saved license but currently invalid (reason=#{st[:reason]})."
+        exit 1
+      end
+    rescue StandardError => e
+      warn "❌ Activation failed: #{e.message}"
+      exit 1
+    end
+  when 'status'
+    require_relative '../lib/savant/framework/license'
+    st = Savant::Framework::License.status
+    if st[:valid]
+      puts "License: VALID (user=#{st[:username] || 'dev'})"
+    else
+      puts "License: INVALID (reason=#{st[:reason]})"
+    end
+    puts "Path:    #{st[:path] || '(dev-bypass)'}"
+  when 'deactivate'
+    require_relative '../lib/savant/framework/license'
+    Savant::Framework::License.deactivate!
+    puts '✅ Deactivated (license file removed if it existed)'
   when 'list'
     sub = ARGV.shift
     usage! unless sub == 'tools'

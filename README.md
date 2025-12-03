@@ -49,7 +49,7 @@ SAVANT_PATH=$(pwd) bundle exec ruby ./bin/savant engines
 SAVANT_PATH=$(pwd) bundle exec ruby ./bin/savant tools
 ```
 
-This README is intentionally concise. Full, detailed docs (with diagrams) live in the Memory Bank:
+This README is intentionally concise. For a step-by-step guide, see docs/getting-started.md. Full, detailed docs (with diagrams) live in the Memory Bank:
 
 | Doc | Summary |
 | --- | --- |
@@ -239,11 +239,17 @@ make migrate && make fts
 make repo-index-all
 ```
 
-4) UI
+4) Offline activation (required for engine/MCP boot; devs can bypass with `SAVANT_DEV=1`):
+```
+./bin/savant activate <username>:<key>
+./bin/savant status
+```
+
+5) UI
 - Static: `make ui-build` then open http://localhost:9999/ui
 - Dev: `make dev-ui` then open http://localhost:5173 (Hub at http://localhost:9999)
 
-5) MCP Multiplexer (stdio)
+6) MCP Multiplexer (stdio)
 ```
 # Unified multiplexer (default)
 SAVANT_PATH=$(pwd) bundle exec ruby ./bin/mcp_server
