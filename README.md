@@ -55,7 +55,7 @@ This README is intentionally concise. For a step-by-step guide, see docs/getting
 
 ```
 brew tap <org/tap>   # e.g., ashabbir/savant
-brew install <org/tap>/savant-os
+brew install <org/tap>/savant
 savant version
 ```
 

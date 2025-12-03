@@ -196,7 +196,7 @@ clean-dist:
 # Generate Homebrew formula from dist/checksums.txt
 formula:
 	@RELEASE_BASE_URL=$(RELEASE_BASE_URL) ruby ./scripts/release/generate_formula.rb
-	@echo "Formula generated at packaging/homebrew/savant-os.rb"
+	@echo "Formula generated at packaging/homebrew/savant.rb"
 
 # Tag the repository with VERSION=v0.1.0
 tag:

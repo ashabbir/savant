@@ -21,10 +21,10 @@
 - Embed version from `lib/savant/version.rb`
 
 ## Homebrew Formula
-- Template: `packaging/homebrew/savant-os.rb.tmpl`
-- Generator reads `dist/checksums.txt` and emits `packaging/homebrew/savant-os.rb`
+- Template: `packaging/homebrew/savant.rb.tmpl`
+- Generator reads `dist/checksums.txt` and emits `packaging/homebrew/savant.rb`
 - Publish to public tap for MVP; homebrew-core later
-- Formula name: `savant-os`; installs binary named `savant` and test runs `savant version`
+- Formula name: `savant`; installs binary named `savant` and test runs `savant version`
 
 ## Activation (Runtime)
 See `memory_bank/license_activation.md` for the gate enforced at startup.
@@ -55,11 +55,11 @@ RELEASE_BASE_URL=https://github.com/<org>/savant/releases/download make formula
 
 4) Publish to tap:
 ```
-TAP_DIR=~/code/homebrew-tap scripts/release/publish_tap.sh packaging/homebrew/savant-os.rb
+TAP_DIR=~/code/homebrew-tap scripts/release/publish_tap.sh packaging/homebrew/savant.rb
 ```
 
 5) Install from tap:
 ```
 brew tap <org/tap>
-brew install <org/tap>/savant-os
+brew install <org/tap>/savant
 ```
