@@ -203,7 +203,7 @@ ollama pull llama3:latest
   - Each Engine card now has quick links: Diagnostics (opens `/diagnostics/mcp/<engine>`) and Logs (opens `/<engine>/logs`).
   - The Agent page is accessible under Diagnostics.
 ```
-http://localhost:9999/diagnostics/agents
+http://localhost:9999/diagnostics/agent
   ├─ Timeline View    (chronological event stream)
   ├─ Grouped View     (events grouped by step)
   ├─ Live Streaming   (real-time updates)
