@@ -8,6 +8,7 @@ require_relative 'sse'
 require_relative '../logging/event_recorder'
 require_relative 'connections'
 require_relative '../multiplexer'
+require_relative '../version'
 
 module Savant
   module Hub
@@ -262,7 +263,7 @@ module Savant
                     engine: 'hub',
                     status: 'running',
                     uptime_seconds: uptime_seconds,
-                    info: { name: 'hub', version: '3.0.0', description: 'Savant MCP Hub HTTP router and logging' }
+                    info: { name: 'hub', version: Savant::VERSION, description: 'Savant MCP Hub HTTP router and logging' }
                   })
         when ['stats']
           stats_snapshot = @stats_mutex.synchronize { deep_copy_stats(@stats) }
@@ -464,7 +465,7 @@ module Savant
         engines = engine_overview
         payload = {
           service: 'Savant MCP Hub',
-          version: '3.0.0',
+          version: Savant::VERSION,
           transport: transport,
           hub: { pid: Process.pid, uptime_seconds: uptime_seconds },
           engines: engines
