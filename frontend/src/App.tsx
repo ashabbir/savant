@@ -33,7 +33,7 @@ import ContextTools from './pages/context/Tools';
 import ContextResources from './pages/context/Resources';
 import MemorySearch from './pages/context/MemorySearch';
 import WorkflowTools from './pages/workflow/Tools';
-import { getErrorMessage, loadConfig, useHubHealth, useHubInfo } from './api';
+import { getErrorMessage, loadConfig, useHubHealth, useHubInfo, useEngineStatus } from './api';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import HubIcon from '@mui/icons-material/Hub';
 import StorageIcon from '@mui/icons-material/Storage';
@@ -177,6 +177,7 @@ export default function App() {
   const navigate = useNavigate();
   const { data, isLoading, isError, error } = useHubHealth();
   const hub = useHubInfo();
+  const hubStatus = useEngineStatus('hub');
   const { engines, name: selEngine, index: engIdx } = useSelectedEngine(hub.data);
   const engSubIdx = useEngineSubIndex(selEngine);
   const diagSubIdx = useDiagnosticsSubIndex();
@@ -230,7 +231,13 @@ export default function App() {
           <Stack direction="row" spacing={1} alignItems="center">
             {hub.data && (
               <>
-                <Chip size="small" label={`v${hub.data.version}`} sx={{ bgcolor: 'rgba(255,255,255,0.15)', color: 'white', height: 22 }} />
+                {(() => {
+                  const raw = (hubStatus.data?.info?.version || hub.data?.version || '0.1.0') as string;
+                  const label = raw?.startsWith('v') ? raw : `v${raw}`;
+                  return (
+                    <Chip size="small" label={label} sx={{ bgcolor: 'rgba(255,255,255,0.15)', color: 'white', height: 22 }} />
+                  );
+                })()}
                 <Chip size="small" label={`Uptime: ${formatUptime(hub.data.hub?.uptime_seconds || 0)}`} sx={{ bgcolor: 'rgba(255,255,255,0.15)', color: 'white', height: 22 }} />
                 <Chip size="small" label={`PID: ${hub.data.hub?.pid}`} sx={{ bgcolor: 'rgba(255,255,255,0.15)', color: 'white', height: 22 }} />
                 {hub.data.multiplexer && (
