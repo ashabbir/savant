@@ -1,0 +1,20 @@
+# syntax=docker/dockerfile:1
+FROM pmq20/ruby-packer:latest AS builder
+
+WORKDIR /app
+
+# Copy project
+COPY . /app
+
+# Ensure bundle is installed in the image context
+RUN bash -lc "bundle install"
+
+# Build a self-contained Linux amd64 binary using rubyc
+# The entrypoint is bin/savant which requires the full project tree.
+RUN bash -lc "rubyc --output savant-linux-amd64 ./bin/savant"
+
+# Stage artifacts
+FROM alpine:3.19
+WORKDIR /dist
+COPY --from=builder /app/savant-linux-amd64 /dist/savant-linux-amd64
+

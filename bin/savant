@@ -18,6 +18,7 @@ def usage!
       savant activate <username>:<key>
       savant status
       savant deactivate
+      savant version
   TXT
   exit 2
 end
@@ -393,6 +394,9 @@ else
     require_relative '../lib/savant/framework/license'
     Savant::Framework::License.deactivate!
     puts '✅ Deactivated (license file removed if it existed)'
+  when 'version'
+    require_relative '../lib/savant/version'
+    puts Savant::VERSION
   when 'list'
     sub = ARGV.shift
     usage! unless sub == 'tools'
