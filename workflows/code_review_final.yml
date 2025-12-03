@@ -1,0 +1,485 @@
+---
+id: code_review_final
+name: Code Review Final
+description: 'Phase 2 of code review: Impact analysis, cross-repo search, visual diagrams,
+  and final safety decision. Reads intermediate state from code_review_initial. All
+  operations are non-blocking (no local git/shell commands).'
+driver_version: stable
+rules:
+- code-review-rules
+version: 4
+steps:
+- id: '1'
+  call: prompt_say
+  input_template:
+    text: |
+      Code Review Final (Phase 2/2)
+
+      Loading state -> Impact analysis -> Visual diagrams -> Final verdict
+      Reading from: .savant/code-review/{{params.ticket}}-*-state.json
+- id: '2'
+  call: local.exec
+  deps:
+  - '1'
+  input_template:
+    cmd: 'ls -t .savant/code-review/{{params.ticket}}-*-state.json 2>/dev/null | head
+      -1 || echo "NOT_FOUND"
+
+      '
+    note: Find most recent state file for ticket
+  capture_as: state_file_path_raw
+- id: '3'
+  call: analysis.parse_first_line
+  deps:
+  - '2'
+  input_template:
+    text: "{{state_file_path_raw}}"
+    note: Extract file path from command output
+  capture_as: state_file_path
+- id: '4'
+  call: local.read
+  deps:
+  - '3'
+  input_template:
+    files:
+    - "{{state_file_path}}"
+  capture_as: state_json_raw
+- id: '5'
+  call: analysis.parse_json
+  deps:
+  - '4'
+  input_template:
+    json: "{{state_json_raw}}"
+    note: Parse intermediate state JSON
+  capture_as: state
+- id: '6'
+  call: analysis.validate_code_review_state
+  deps:
+  - '5'
+  input_template:
+    state: "{{state}}"
+    note: |
+      LLM validates state has required fields:
+      {
+        "valid": bool,
+        "missing_fields": [...],
+        "error": "..." or null
+      }
+  capture_as: state_validation
+- id: '7'
+  call: prompt_say
+  deps:
+  - '6'
+  input_template:
+    text: |
+      State Loaded: {{state.ticket}}
+
+      MR: !{{state.mr_iid}}
+      Date: {{state.date}}
+      Commit: {{state.commit_sha}}
+      Quality: {{state.quality_summary.overall_status}}
+- id: '8'
+  call: gitlab.get_merge_request_discussions
+  deps:
+  - '7'
+  input_template:
+    project: "{{state.project.project_gitlab}}"
+    mr_iid: "{{state.mr_iid}}"
+  capture_as: discussion_list
+- id: '9'
+  call: analysis.outstanding_items
+  deps:
+  - '8'
+  input_template:
+    discussions: "{{discussion_list}}"
+  capture_as: outstanding
+- id: '10'
+  call: analysis.find_impacted_areas
+  deps:
+  - '7'
+  input_template:
+    changes: "{{state.changes_classified}}"
+    requirements: "{{state.requirements}}"
+    diff: "{{state.diff_text}}"
+    note: |
+      LLM performs static analysis to find impacted areas:
+      {
+        "changed_symbols": [...],
+        "impacted_files": [...],
+        "test_coverage": { "has_tests": bool, "coverage_areas": [...] },
+        "external_impacts": [...],
+        "risk_areas": [...]
+      }
+  capture_as: impact_analysis
+- id: '11'
+  call: fts_search
+  deps:
+  - '10'
+  input_template:
+    q: "{{impact_analysis.changed_symbols}}"
+    limit: 50
+  capture_as: cross_repo_hits
+- id: '12'
+  call: memory_search
+  deps:
+  - '10'
+  input_template:
+    q: "{{impact_analysis.changed_symbols}}"
+    limit: 50
+  capture_as: memory_hits
+- id: '13'
+  call: analysis.parse_cross_repo_results
+  deps:
+  - '11'
+  - '12'
+  input_template:
+    fts_hits: "{{cross_repo_hits}}"
+    memory_hits: "{{memory_hits}}"
+    note: |
+      LLM analyzes cross-repo impact:
+      {
+        "affected_repos": [...],
+        "breaking_changes": [...],
+        "migration_needed": bool,
+        "communication_plan": "..."
+      }
+  capture_as: cross_repo_impact
+- id: '14'
+  call: analysis.find_requirements_gaps
+  deps:
+  - '13'
+  input_template:
+    requirements: "{{state.requirements}}"
+    requirements_map: "{{state.requirements_map}}"
+    implementation: "{{state.changes_classified}}"
+    impact: "{{impact_analysis}}"
+    note: |
+      LLM finds gaps between requirements and implementation:
+      {
+        "implemented": [...],
+        "missing": [...],
+        "partially_implemented": [...],
+        "out_of_scope": [...],
+        "coverage_percent": N
+      }
+  capture_as: requirements_gap
+- id: '15'
+  call: local.read
+  deps:
+  - '14'
+  input_template:
+    files:
+    - ".cline/rules/code_review_rules.md"
+    - ".cline/rules/backend_rules.md"
+    - ".cline/rules/testing_rules.md"
+    - ".cline/rules/style_rules.md"
+    - ".cline/rules/savant_rules.md"
+    - ".cline/rules/code-review-rules.md"
+    - ".cline/rules/backend-rules.md"
+    - ".cline/rules/testing-rules.md"
+    - ".cline/rules/style-rules.md"
+    - ".cline/rules/savant-rules.md"
+    - ".clinerules/INDEX.md"
+  capture_as: rules_text
+- id: '16'
+  call: analysis.apply_rules
+  deps:
+  - '15'
+  input_template:
+    rule_files:
+    - ".cline/rules/code_review_rules.md"
+    - ".cline/rules/backend_rules.md"
+    - ".cline/rules/testing_rules.md"
+    - ".cline/rules/style_rules.md"
+    - ".cline/rules/savant_rules.md"
+    - ".cline/rules/code-review-rules.md"
+    - ".cline/rules/backend-rules.md"
+    - ".cline/rules/testing-rules.md"
+    - ".cline/rules/style-rules.md"
+    - ".cline/rules/savant-rules.md"
+    note: 'Summarize findings using rule sets and state-provided quality signals;
+      prefer references over large blobs.
+
+      '
+    context:
+      rubocop: "{{state.rubocop_result}}"
+      rspec: "{{state.rspec_final_result}}"
+      security: "{{state.security_results}}"
+      quality_summary: "{{state.quality_summary}}"
+  capture_as: rules_assessment
+- id: '17'
+  call: analysis.issues_table
+  deps:
+  - '16'
+  input_template:
+    sources:
+    - "{{rules_assessment}}"
+    - "{{state.findings_fs}}"
+    - "{{state.security_fs}}"
+    - "{{state.rails_anti_fs}}"
+    note: |
+      Return a compact table of issues with columns: issue, type, category, location(s), fix_required.
+      Keep payload size modest; prefer references to full text.
+  capture_as: issues
+- id: '18'
+  call: analysis.create_impact_graph
+  deps:
+  - '13'
+  input_template:
+    impact: "{{impact_analysis}}"
+    cross_repo: "{{cross_repo_impact}}"
+    max_nodes: 150
+    note: |
+      LLM generates Mermaid impact graph showing:
+      - Changed files (red/orange)
+      - Impacted files (yellow)
+      - Dependencies (edges)
+      Returns: { "mermaid": "graph TD\n...", "node_count": N }
+  capture_as: impact_graph
+- id: '19'
+  call: analysis.create_sequence_diagram
+  deps:
+  - '18'
+  input_template:
+    impact: "{{impact_analysis}}"
+    changes: "{{state.changes_classified}}"
+    note: |
+      LLM generates Mermaid sequence diagram showing:
+      - User flow
+      - System interactions
+      - Where changes occur
+      Returns: { "mermaid": "sequenceDiagram\n...", "actors": [...] }
+  capture_as: sequence_diagram
+- id: '20'
+  call: analysis.evaluate_safety
+  deps:
+  - '19'
+  - '14'
+  input_template:
+    quality: "{{state.quality_summary}}"
+    impact: "{{impact_analysis}}"
+    cross_repo: "{{cross_repo_impact}}"
+    gaps: "{{requirements_gap}}"
+    changes: "{{state.changes_classified}}"
+    criteria:
+      backward_compat: true
+      test_coverage: 85
+      security_clean: true
+      no_secrets: true
+      reversible_migrations: true
+    note: |
+      LLM makes final safety decision:
+      {
+        "verdict": "SAFE|CAUTION|RISKY",
+        "confidence": "low|medium|high",
+        "criteria_met": {
+          "backward_compat": bool,
+          "test_coverage": bool,
+          "security": bool,
+          "quality": bool,
+          "requirements": bool
+        },
+        "risks": [...],
+        "mitigations": [...],
+        "recommendation": "approve|request_changes|reject",
+        "rationale": "..."
+      }
+  capture_as: safety_decision
+- id: '21'
+  call: local.write
+  deps:
+  - '20'
+  input_template:
+    path: code-reviews/{{state.ticket}}/{{state.date}}/code_review_final.md
+    content_template: |
+      # Code Review: {{state.ticket}}
+
+      **Date**: {{state.date}} {{state.timestamp}}
+      **Commit**: {{state.commit_sha}}
+      **MR**: !{{state.mr_iid}} - {{state.mr_data.title}}
+      **Powered by**: Savant.Workflows -> Savant.Think -> Savant.Next
+
+      ## Safety Decision: {{safety_decision.verdict}}
+
+      **Confidence**: {{safety_decision.confidence}}
+      **Recommendation**: {{safety_decision.recommendation}}
+
+      {{safety_decision.rationale}}
+
+      ### Criteria Assessment
+
+      | Criterion | Status | Notes |
+      |-----------|--------|-------|
+      | Backward Compatibility | {{safety_decision.criteria_met.backward_compat}} | |
+      | Test Coverage (>=85%) | {{safety_decision.criteria_met.test_coverage}} | |
+      | Security Clean | {{safety_decision.criteria_met.security}} | |
+      | Code Quality | {{safety_decision.criteria_met.quality}} | |
+      | Requirements Met | {{safety_decision.criteria_met.requirements}} | |
+
+      ### Risks
+      {{safety_decision.risks}}
+
+      ### Mitigations
+      {{safety_decision.mitigations}}
+
+      ---
+
+      ## Change Summary
+
+      {{state.changes_classified.summary}}
+
+      **Risk Level**: {{state.changes_classified.risk_level}}
+
+      ### Change Types
+
+      - **Backend**: {{state.changes_classified.change_types.backend.detected}}
+        - Ruby files: {{state.changes_classified.change_types.backend.ruby_files}}
+        - Spec files: {{state.changes_classified.change_types.backend.spec_files}}
+
+      - **Frontend**: {{state.changes_classified.change_types.frontend.detected}}
+        - JS/TS files: {{state.changes_classified.change_types.frontend.js_files}}
+        - Test files: {{state.changes_classified.change_types.frontend.test_files}}
+
+      - **Database**: {{state.changes_classified.change_types.database.detected}}
+        - Migrations: {{state.changes_classified.change_types.migrations.files}}
+        - Schema changed: {{state.changes_classified.change_types.database.schema_changed}}
+
+      ---
+
+      ## Requirements ({{state.ticket}})
+
+      {{state.requirements}}
+
+      ### Requirements Coverage
+
+      {{requirements_gap}}
+
+      ---
+
+      ## Quality Gates Summary
+
+      {{state.quality_summary}}
+
+      #### Alternate Summary (Pattern Scans)
+      {{state.quality_summary_alt}}
+
+      ### Backend Quality
+
+      #### RuboCop
+      ```
+      {{state.rubocop_result}}
+      ```
+
+      #### RSpec
+      ```
+      {{state.rspec_final_result}}
+      ```
+
+      **Migration Fix Applied**: {{state.rspec_final_result.used_retry}}
+      **Retry Improved Results**: {{state.rspec_final_result.retry_improved}}
+
+      ### Frontend Quality
+
+      #### ESLint
+      ```
+      {{state.eslint_result}}
+      ```
+
+      #### Tests
+      ```
+      {{state.frontend_tests_result}}
+      ```
+
+      ---
+
+      ## Security & Safety
+
+      ### Security Scans
+      {{state.security_results}}
+
+      ### Secret Detection
+      {{state.secrets_result}}
+
+      ### Migration Safety
+      {{state.migration_safety}}
+
+      ### Debug Code
+      {{state.debug_result}}
+
+      ---
+
+      ## Database Migrations
+
+      ### Development DB
+      {{state.dev_migration_result}}
+
+      ### Test DB
+      {{state.test_migration_result}}
+
+      ---
+
+      ## Impact Analysis
+
+      {{impact_analysis}}
+
+      ### Change Summary (Diff)
+      {{state.change_summary}}
+
+      ### Cross-Repository Impact
+      {{cross_repo_impact}}
+
+      ### Impact Graph
+      ```mermaid
+      {{impact_graph.mermaid}}
+      ```
+
+      ### Sequence Diagram
+      ```mermaid
+      {{sequence_diagram.mermaid}}
+      ```
+
+      ### Change Graph (Early Understanding)
+      {{state.change_graph}}
+
+      ---
+
+      ## Code Review Rules Assessment
+      {{rules_assessment}}
+
+      ## Issues
+      {{issues}}
+
+      ## Outstanding Discussions
+      {{outstanding}}
+
+      ---
+
+      ## Evidence
+
+      - **FTS Hits**: {{cross_repo_hits}}
+      - **Memory Hits**: {{memory_hits}}
+      - **Files Changed**: {{state.changed_files}}
+
+      ---
+
+      *Generated by **Savant.Workflows** (code_review v2.3 split) using **Savant.Think** orchestration and **Savant.Next** LLM decision-making*
+
+      *Phase 1*: code_review_initial v1.0
+      *Phase 2*: code_review_final v1.0
+  capture_as: report_write_result
+- id: '22'
+  call: prompt_say
+  deps:
+  - '21'
+  input_template:
+    text: |
+      Code Review Complete!
+
+      Final report:
+      code-reviews/{{state.ticket}}/{{state.date}}/code_review_final.md
+
+      Safety Decision: {{safety_decision.verdict}} ({{safety_decision.confidence}} confidence)
+      Recommendation: {{safety_decision.recommendation}}
+
+      Summary:
+      {{safety_decision.rationale}}

@@ -60,6 +60,8 @@ module Savant
         list << { module: 'hub', method: 'GET', path: '/diagnostics/agent/trace', description: 'Download agent trace log' }
         list << { module: 'hub', method: 'GET', path: '/diagnostics/agent/session', description: 'Download agent session memory JSON' }
         list << { module: 'hub', method: 'GET', path: '/diagnostics/workflows', description: 'Workflow engine telemetry (recent events)' }
+        list << { module: 'hub', method: 'GET', path: '/diagnostics/workflow_runs', description: 'Saved workflow run metadata' }
+        list << { module: 'hub', method: 'GET', path: '/diagnostics/workflow_runs/:workflow/:run_id', description: 'Workflow run details' }
         list << { module: 'hub', method: 'GET', path: '/diagnostics/workflows/trace', description: 'Download workflow trace JSONL' }
         list << { module: 'hub', method: 'GET', path: '/diagnostics/mcp/:name', description: 'Per-engine diagnostics' }
         list << { module: 'hub', method: 'GET', path: '/routes', description: 'Routes list (add ?expand=1 to include tool calls)' }
@@ -202,8 +204,12 @@ module Savant
         return diagnostics_connections(req) if req.get? && req.path_info == '/diagnostics/connections'
         return diagnostics_mcp(req) if req.get? && req.path_info.start_with?('/diagnostics/mcp/')
         return diagnostics_workflows(req) if req.get? && req.path_info == '/diagnostics/workflows'
-        return diagnostics_workflows_trace(req) if req.get? && req.path_info == '/diagnostics/workflows/trace'
         return diagnostics_workflow_runs(req) if req.get? && req.path_info == '/diagnostics/workflow_runs'
+        if req.get?
+          match = req.path_info.match(%r{^/diagnostics/workflow_runs/([^/]+)/([^/]+)$})
+          return diagnostics_workflow_run(req, match[1], match[2]) if match
+        end
+        return diagnostics_workflows_trace(req) if req.get? && req.path_info == '/diagnostics/workflows/trace'
         return logs_index(req) if req.get? && req.path_info == '/logs'
 
         if req.get? && req.path_info.start_with?('/logs/')
@@ -304,11 +310,21 @@ module Savant
       end
 
       # GET /diagnostics/workflow_runs -> saved runs summary
-      def diagnostics_workflow_runs(_req)
+      def diagnostics_workflow_runs(_req) # GET /diagnostics/workflow_runs -> saved runs summary
         engine = workflow_engine
         respond(200, engine.runs_list)
       rescue StandardError => e
         respond(500, { error: 'workflow_runs_error', message: e.message })
+      end
+
+      def diagnostics_workflow_run(_req, workflow, run_id)
+        base = workflow_base_path
+        path = File.join(base, '.savant', 'workflow_runs', "#{workflow}__#{run_id}.json")
+        return respond(404, { error: 'workflow_run_not_found', workflow: workflow, run_id: run_id }) unless File.file?(path)
+        data = JSON.parse(File.read(path))
+        respond(200, data)
+      rescue StandardError => e
+        respond(500, { error: 'workflow_run_error', message: e.message })
       end
 
       # GET /diagnostics/workflows/trace -> download JSONL trace file

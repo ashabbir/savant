@@ -38,27 +38,7 @@ import { getErrorMessage } from '../../api';
 import Viewer from '../../components/Viewer';
 import YAML from 'js-yaml';
 import { thinkWorkflowDelete } from '../../thinkApi';
-
-// Lazy load mermaid and cache it
-let mermaidInstance: any = null;
-const MERMAID_CDN = 'https://cdn.jsdelivr.net/npm/mermaid@11.4.0/dist/mermaid.esm.min.mjs';
-async function getMermaid() {
-  if (mermaidInstance) return mermaidInstance;
-  let m: any;
-  try {
-    m = await import('mermaid');
-  } catch (err) {
-    m = await import(MERMAID_CDN);
-  }
-  mermaidInstance = (m && (m.default || m)) as any;
-  mermaidInstance.initialize({
-    startOnLoad: false,
-    theme: 'default',
-    flowchart: { useMaxWidth: true, htmlLabels: true, curve: 'basis' },
-    securityLevel: 'loose',
-  });
-  return mermaidInstance;
-}
+import { getMermaidInstance, isMermaidDynamicImportError } from '../../utils/mermaidLoader';
 
 export default function ThinkWorkflows() {
   const navigate = useNavigate();
@@ -99,9 +79,9 @@ export default function ThinkWorkflows() {
     let cancelled = false;
     setIsRendering(true);
 
-    const renderInBackground = async () => {
+    const renderInBackground = async (useCdn = false) => {
       try {
-        const mermaid = await getMermaid();
+        const mermaid = await getMermaidInstance(useCdn);
         const id = `pre-render-${Date.now()}`;
         const { svg } = await mermaid.render(id, mermaidCode);
         if (!cancelled) {
@@ -109,6 +89,11 @@ export default function ThinkWorkflows() {
           setIsRendering(false);
         }
       } catch (e: any) {
+        if (cancelled) return;
+        if (!useCdn && isMermaidDynamicImportError(e)) {
+          await renderInBackground(true);
+          return;
+        }
         if (!cancelled) {
           setMermaidError(`Diagram render failed: ${e?.message || e}`);
           setIsRendering(false);
@@ -117,7 +102,9 @@ export default function ThinkWorkflows() {
     };
 
     renderInBackground();
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [mermaidCode]);
 
   useEffect(() => {
