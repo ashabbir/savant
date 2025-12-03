@@ -102,7 +102,7 @@ export default function Dashboard() {
         }}
       >
         {hub.data?.engines?.map((engine) => (
-          <Box key={engine.name}>
+          <Box key={engine.name} sx={{ mb: 2 }}>
             <EngineCard name={engine.name} mount={engine.mount} toolCount={engine.tools} />
           </Box>
         ))}
