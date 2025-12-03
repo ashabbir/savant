@@ -6,7 +6,7 @@ This guide assumes you install Savant via Homebrew and want a fast path to activ
 
 ```bash
 brew tap <org/tap>   # e.g., ashabbir/savant
-brew install <org/tap>/savant
+brew install <org/tap>/savant-os
 savant version
 ```
 

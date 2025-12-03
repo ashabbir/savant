@@ -6,7 +6,7 @@ set -euo pipefail
 #   TAP_DIR=/path/to/local/tap \
 #   scripts/release/publish_tap.sh packaging/homebrew/savant.rb
 
-FORMULA_SRC=${1:-packaging/homebrew/savant.rb}
+FORMULA_SRC=${1:-packaging/homebrew/savant-os.rb}
 TAP_DIR=${TAP_DIR:-}
 
 if [[ -z "$TAP_DIR" ]]; then
@@ -20,12 +20,11 @@ if [[ ! -f "$FORMULA_SRC" ]]; then
 fi
 
 mkdir -p "$TAP_DIR/Formula"
-cp -f "$FORMULA_SRC" "$TAP_DIR/Formula/savant.rb"
+cp -f "$FORMULA_SRC" "$TAP_DIR/Formula/savant-os.rb"
 pushd "$TAP_DIR" >/dev/null
-git add Formula/savant.rb
+git add Formula/savant-os.rb
 git commit -m "Update savant formula" || true
 git push
 popd >/dev/null
 
 echo "[tap] Published formula to $TAP_DIR/Formula/savant.rb"
-

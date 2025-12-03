@@ -1,4 +1,4 @@
-class Savant < Formula
+class SavantOs < Formula
   desc "Local MCP services with offline activation"
   homepage "https://github.com/ashabbir/savant"
   version "__VERSION__"
@@ -29,4 +29,3 @@ class Savant < Formula
     assert_match version.to_s, shell_output("#{bin}/savant version")
   end
 end
-
