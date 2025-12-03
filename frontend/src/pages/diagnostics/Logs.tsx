@@ -273,6 +273,8 @@ export default function DiagnosticsLogs() {
             sx={{ width: 100 }}
           />
 
+          <Box sx={{ flex: 1 }} />
+
           <Tooltip title="Tail once">
             <span>
               <IconButton color="default" onClick={tailOnce} aria-label="Tail once">
