@@ -1,6 +1,6 @@
-# Savant
+# Savant v0.1.0
 
-Savant is a lightweight Ruby framework for building and running local MCP services with autonomous agent capabilities.
+Savant is a lightweight Ruby framework for building and running local MCP services with autonomous agent capabilities. The current release is **v0.1.0**, aligning the CLI, MCP services, and React UI to a single version surface.
 
 **Key Features:**
 - **Multiplexer**: Unified MCP surface merging tools from all engines (Context, Git, Think, Jira, Personas, Rules)
