@@ -85,9 +85,27 @@ Files to change/add:
 
 Notes and constraints:
 - Initial implementation targets Postgres only (existing adapter); SQLite compatibility to be added in a follow‑up migration layer.
-- `bin/db_migrate` is destructive by design for dev; production will require versioned, non‑destructive migrations.
+- Non‑destructive, versioned migrations are implemented. Destructive reset remains available for dev via `SAVANT_DESTRUCTIVE=1 ./bin/db_migrate` or `make migrate-reset`.
 
 ## Deviations vs PRD
 
-- SQLite compatibility: deferred. The code remains Postgres‑only via `pg`. We will introduce adapter abstraction and SQLite DDL in a subsequent PRD.
-- Versioned migrations: deferred. Current flow continues to use a destructive reset script for developer environments; a simple migrations table and stepwise DDL will follow.
+- SQLite compatibility: deferred. The code remains Postgres‑only via `pg`. Adapter abstraction and SQLite DDL will follow.
+
+## Delivery Summary (Done)
+
+- Schema delivered for: `personas`, `rulesets`, `agents`, `agent_runs(jsonb)`, `workflows(jsonb)`, `workflow_steps(jsonb)`, `workflow_runs(jsonb)` plus existing indexer tables (`repos`, `files`, `blobs`, `file_blob_map`, `chunks` with GIN FTS).
+- Versioned migrations: `db/migrations/001_initial.sql` applied via `Savant::Framework::DB#apply_migrations` with `schema_migrations` tracking.
+- Dev reset path retained: `SAVANT_DESTRUCTIVE=1 make migrate-reset` drops/recreates tables.
+- CRUD helpers added in `lib/savant/framework/db.rb` for personas/rulesets/agents(+runs)/workflows(+steps,+runs).
+- Diagnostics: Hub `/diagnostics` and Context tool `fs_repo_diagnostics` return per‑table stats (rows, size, latest); UI renders compact table.
+- Dev ergonomics: `bin/mcp_server` and `bin/savant` default to `SAVANT_DEV=1` and set `SAVANT_PATH` for smooth local runs.
+
+## How To Verify
+
+- Bring up stack + migrate: `make quickstart` (or `make dev && make migrate && make fts`).
+- Shared DB URL: `postgres://context:contextpw@localhost:5433/contextdb` (Hub, MCP, Indexer).
+- UI: Build `make ui-build`, open `http://localhost:9999/ui/diagnostics/overview`; Database shows name + rows + status per table.
+- Tool JSON: `curl -s -H 'x-savant-user-id: dev' -H 'Content-Type: application/json' -d '{"params":{}}' http://localhost:9999/context/tools/fs_repo_diagnostics/call | jq '.db.tables'`.
+- Tests: inside container `docker compose exec -T indexer-ruby bash -lc 'bundle install && bundle exec rspec spec/savant/framework/db_app_schema_spec.rb'`.
+
+# END OF PRD
