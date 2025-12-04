@@ -106,8 +106,19 @@ module Savant
       end
 
       def dev_bypass?
+        # Explicit dev bypass
         val = ENV['SAVANT_DEV']
-        val && !val.empty? && (val == '1' || val.casecmp('true').zero?)
+        return true if val && !val.empty? && (val == '1' || val.casecmp('true').zero?)
+
+        # If explicitly enforcing, do not auto-bypass
+        enforce = ENV['SAVANT_ENFORCE_LICENSE']
+        return false if enforce && !enforce.empty? && (enforce == '1' || enforce.casecmp('true').zero?)
+
+        # Auto-bypass when running from a git checkout (developer workflow)
+        # Only applies when SAVANT_PATH is explicitly set to a source tree.
+        base = ENV['SAVANT_PATH']
+        return false if base.nil? || base.empty?
+        File.directory?(File.join(base, '.git'))
       end
     end
   end
