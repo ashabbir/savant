@@ -59,12 +59,17 @@ brew install <org/tap>/savant
 savant version
 ```
 
-Activate and run:
+Activate (offline) and run:
 
 ```
 savant activate <username>:<key>
 savant status
 ```
+
+Notes
+- Activation is fully offline. The key is validated locally at runtime.
+- Brew installs enforce activation by default. No network calls are made.
+- For development, see the License & Activation section below for bypass options.
 
 | Doc | Summary |
 | --- | --- |
@@ -261,7 +266,9 @@ make migrate && make fts
 make repo-index-all
 ```
 
-4) Offline activation (required for engine/MCP boot; devs can bypass with `SAVANT_DEV=1`):
+4) Offline activation
+   - Production (brew/packaged): required before engine/MCP boot.
+   - Development (git checkout): bypassed automatically; see below for details.
 ```
 ./bin/savant activate <username>:<key>
 ./bin/savant status
@@ -488,3 +495,36 @@ All detailed docs (with visual diagrams) live under `memory_bank/`. Use the tabl
 - Guardrails + patterns: [`engine_rules.md`](memory_bank/engine_rules.md)
 
 These are the canonical references; the README stays short and points you there.
+
+## Distribution & Activation (MVP)
+
+Overview
+- Savant ships as a single binary via Homebrew. Activation is offline-only using a username+key pair.
+- Keys are validated locally using a salted SHA256. No license servers are contacted.
+
+Commands
+- `savant activate <username>:<key>` — stores the license at `~/.savant/license.json`.
+- `savant status` — prints whether the license is valid and the stored path.
+- `savant deactivate` — removes the local license file.
+
+Dev vs Prod behavior
+- Brew/packaged installs: license is enforced by default.
+- Git checkout (development): license is bypassed automatically when `SAVANT_PATH` points to a directory that contains a `.git` folder.
+- Make targets: default to `SAVANT_DEV=1`, so all `make` flows run without a key.
+- Force enforcement in dev: set `SAVANT_ENFORCE_LICENSE=1` to require a valid license even from a git checkout.
+
+Environment variables
+- `SAVANT_PATH`: project base path (required for local runs; Brew sets this internally).
+- `SAVANT_DEV`: when `1`, bypasses license checks. The Makefile exports this as `1` by default.
+- `SAVANT_ENFORCE_LICENSE`: when `1`, forces license checks even in dev/git checkouts.
+
+Build & Release (manual MVP)
+- Build/package/checksum (artifacts in `dist/`):
+  - `SAVANT_BUILD_SALT='<secret>' make build`
+  - `make package && make checksum`
+- Tag + Release (requires `gh`):
+  - `make tag VERSION=v0.1.0`
+  - `make release VERSION=v0.1.0`
+- Homebrew formula:
+  - `RELEASE_BASE_URL=https://github.com/<org>/savant/releases/download make formula`
+  - Copy `packaging/homebrew/savant.rb` into your public tap.
