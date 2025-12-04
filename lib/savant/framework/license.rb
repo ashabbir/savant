@@ -5,6 +5,7 @@ require 'json'
 require 'digest'
 require 'fileutils'
 require 'socket'
+require 'time'
 begin
   require_relative 'license_salt'
 rescue LoadError
@@ -58,7 +59,12 @@ module Savant
       def activate!(username:, key:)
         dir = File.dirname(path)
         FileUtils.mkdir_p(dir)
-        rec = { 'username' => username, 'key' => key, 'activated_at' => Time.now.utc.iso8601, 'host' => Socket.gethostname rescue 'unknown' }
+        hostname = begin
+          Socket.gethostname
+        rescue StandardError
+          'unknown'
+        end
+        rec = { 'username' => username, 'key' => key, 'activated_at' => Time.now.utc.iso8601, 'host' => hostname }
         File.write(path, JSON.pretty_generate(rec))
         status
       end

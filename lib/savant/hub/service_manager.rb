@@ -43,7 +43,7 @@ module Savant
         else
           { name: 'savant', version: Savant::VERSION, description: "Savant MCP service=#{service}" }
         end
-        rescue StandardError => e
+      rescue StandardError => e
         log_error('service_info error', error: e)
         { name: 'savant', version: Savant::VERSION, description: "Savant MCP service=#{service} (unavailable)" }
       end

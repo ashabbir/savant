@@ -43,7 +43,7 @@ module Savant
         steps = 0
         model = @slm_model
         # AMR shortcut: if goal clearly requests a workflow, auto-trigger workflow_run once.
-        if !@forced_tool
+        unless @forced_tool
           begin
             auto = detect_workflow_intent(@goal)
             if auto
@@ -166,11 +166,13 @@ module Savant
       def detect_workflow_intent(goal)
         g = (goal || '').to_s
         return nil if g.empty?
+
         # If "workflow <name>" present, extract name token
-        m = g.match(/workflow\s+([A-Za-z0-9_.\-]+)/i)
+        m = g.match(/workflow\s+([A-Za-z0-9_.-]+)/i)
         if m && m[1]
           name = m[1].downcase
           return { workflow: name } if workflow_exists?(name)
+
           # Try underscored and hyphen variants
           alt = name.tr('-', '_')
           return { workflow: alt } if workflow_exists?(alt)
@@ -183,6 +185,7 @@ module Savant
         end
         # Default example workflow for demonstration
         return { workflow: 'hello' } if workflow_exists?('hello') && g =~ /(workflow|execute)/i
+
         nil
       end
 

@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'tmpdir'
 require_relative '../../../lib/savant/agent/runtime'
 require_relative '../../../lib/savant/framework/engine/runtime_context'
@@ -20,4 +22,3 @@ RSpec.describe 'Agent AMR workflow shortcut' do
     expect(res[:final]).to include('Finished after workflow.workflow_run')
   end
 end
-

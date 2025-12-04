@@ -12,12 +12,13 @@ checksums = File.read(File.join(dist, 'checksums.txt')).lines.map(&:strip)
 artifacts = {}
 checksums.each do |line|
   next if line.empty?
+
   sha, filename = line.split(/\s+/, 2)
-  if filename =~ /savant-(v?\d+\.\d+\.\d+)-(.*)\.tar\.gz/
-    version = Regexp.last_match(1)
-    osarch = Regexp.last_match(2)
-    artifacts[osarch] = { sha: sha, file: filename, version: version }
-  end
+  next unless filename =~ /savant-(v?\d+\.\d+\.\d+)-(.*)\.tar\.gz/
+
+  version = Regexp.last_match(1)
+  osarch = Regexp.last_match(2)
+  artifacts[osarch] = { sha: sha, file: filename, version: version }
 end
 
 version = artifacts.values.first && artifacts.values.first[:version]
@@ -69,16 +70,17 @@ replacements = {
   '__SHA_DARWIN_ARM64__' => nil,
   '__URL_DARWIN_AMD64__' => nil,
   '__SHA_DARWIN_AMD64__' => nil,
-  '__URL_LINUX_AMD64__'  => nil,
-  '__SHA_LINUX_AMD64__'  => nil
+  '__URL_LINUX_AMD64__' => nil,
+  '__SHA_LINUX_AMD64__' => nil
 }
 
 {
-  'darwin-arm64' => ['__URL_DARWIN_ARM64__', '__SHA_DARWIN_ARM64__'],
-  'darwin-x86_64' => ['__URL_DARWIN_AMD64__', '__SHA_DARWIN_AMD64__'],
-  'linux-amd64' => ['__URL_LINUX_AMD64__', '__SHA_LINUX_AMD64__']
+  'darwin-arm64' => %w[__URL_DARWIN_ARM64__ __SHA_DARWIN_ARM64__],
+  'darwin-x86_64' => %w[__URL_DARWIN_AMD64__ __SHA_DARWIN_AMD64__],
+  'linux-amd64' => %w[__URL_LINUX_AMD64__ __SHA_LINUX_AMD64__]
 }.each do |osarch, (url_key, sha_key)|
   next unless artifacts[osarch]
+
   file = artifacts[osarch][:file]
   sha = artifacts[osarch][:sha]
   replacements[url_key] = url_for(base_url, tag, file)

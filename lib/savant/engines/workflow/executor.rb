@@ -34,7 +34,7 @@ module Savant
         status = 'ok'
         error_msg = nil
 
-        spec[:steps].each_with_index do |step, idx|
+        spec[:steps].each_with_index do |step, _idx|
           ts0 = current_ms
           with_resolved = interp.apply(step[:with])
           emit_event('workflow_step_started', step: step[:name], type: step[:type].to_s, run_id: run_id, input_summary: summarize(with_resolved))
@@ -74,14 +74,16 @@ module Savant
         # Normalize older names (dots/slashes) to the current underscore form
         s = ref.to_s
         return s unless s.include?('.')
+
         service, name = s.split('.', 2)
-        name = name.gsub(/[.\/]/, '_')
+        name = name.gsub(%r{[./]}, '_')
         [service, name].join('.')
       end
 
       def call_tool(ref, args)
         mux = Savant::Framework::Runtime.current&.multiplexer
         raise 'multiplexer_unavailable' unless mux
+
         tool = normalize_tool_name(ref)
         mux.call(tool, args || {})
       end
@@ -104,8 +106,13 @@ module Savant
       end
 
       def truncate(obj)
-        json = JSON.generate(obj) rescue nil
+        json = begin
+          JSON.generate(obj)
+        rescue StandardError
+          nil
+        end
         return obj unless json && json.bytesize > 100_000
+
         { _truncated: true, _summary: summarize(obj) }
       end
 

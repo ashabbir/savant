@@ -18,6 +18,7 @@ module Savant
 
       def get(path)
         return nil if path.nil?
+
         parts = path.to_s.split('.')
         root_key = parts.shift
         obj = case root_key
@@ -30,7 +31,11 @@ module Savant
           if obj.is_a?(Hash)
             obj = obj[p] || obj[p.to_sym]
           elsif obj.is_a?(Array)
-            idx = (Integer(p) rescue nil)
+            idx = begin
+              Integer(p)
+            rescue StandardError
+              nil
+            end
             obj = idx ? obj[idx] : nil
           else
             obj = nil
@@ -41,4 +46,3 @@ module Savant
     end
   end
 end
-
