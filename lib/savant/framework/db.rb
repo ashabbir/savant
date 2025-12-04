@@ -11,6 +11,7 @@
 
 require 'pg'
 require 'json'
+require 'pathname'
 
 module Savant
   module Framework
@@ -261,6 +262,28 @@ module Savant
           CREATE INDEX IF NOT EXISTS idx_chunks_fts ON chunks USING GIN (to_tsvector('english', chunk_text));
         SQL
         true
+      end
+
+      # Apply versioned migrations from db/migrations non-destructively.
+      # Returns an array of applied versions.
+      def apply_migrations(dir = default_migrations_dir)
+        ensure_schema_migrations!
+        files = Dir.glob(File.join(dir, '*')).sort
+        applied = []
+        files.each do |path|
+          next unless path.end_with?('.sql')
+
+          version = File.basename(path).sub(/\.(sql|rb)\z/, '')
+          next if migration_applied?(version)
+
+          sql = File.read(path)
+          with_transaction do
+            exec(sql)
+            mark_migration_applied!(version)
+          end
+          applied << version
+        end
+        applied
       end
 
       # Fetch an existing blob id by hash or insert a new blob.
@@ -590,6 +613,34 @@ module Savant
       end
 
       private
+      def project_root
+        base = (ENV['SAVANT_PATH'] && !ENV['SAVANT_PATH'].empty?) ? ENV['SAVANT_PATH'] : File.expand_path('../../..', __dir__)
+        File.expand_path(base)
+      end
+
+      def default_migrations_dir
+        File.join(project_root, 'db', 'migrations')
+      end
+
+      def ensure_schema_migrations!
+        exec(<<~SQL)
+          CREATE TABLE IF NOT EXISTS schema_migrations (
+            version TEXT PRIMARY KEY,
+            applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+          );
+        SQL
+        true
+      end
+
+      def migration_applied?(version)
+        res = exec_params('SELECT 1 FROM schema_migrations WHERE version=$1', [version])
+        res.ntuples.positive?
+      end
+
+      def mark_migration_applied!(version)
+        exec_params('INSERT INTO schema_migrations(version) VALUES($1) ON CONFLICT (version) DO NOTHING', [version])
+        true
+      end
 
       def text_array_encoder
         @text_array_encoder ||= PG::TextEncoder::Array.new(
