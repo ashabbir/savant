@@ -69,3 +69,25 @@ id, workflow_id, input, output, status, duration, created_at, transcript (jsonb)
 
 ## 9. Timeline
 3–6 days total
+
+## Agent Implementation Plan
+
+- Create tables for agents, personas, rulesets, agent_runs, workflows, workflow_steps, workflow_runs with required columns, indexes, and foreign keys.
+- Extend `lib/savant/framework/db.rb` with CRUD helpers for each entity and JSONB transcript storage (Postgres).
+- Update `bin/db_migrate` to include the new schema (destructive dev reset) and keep `bin/db_fts` unchanged.
+- Add RSpec tests covering create/read/update for agents, personas, rulesets, workflows, and inserting runs with transcripts.
+- Validate on local Postgres via `make migrate && make fts` and run `bundle exec rspec`.
+
+Files to change/add:
+- `lib/savant/framework/db.rb` — schema additions + CRUD helpers
+- `spec/savant/framework/db_app_schema_spec.rb` — CRUD specs for new tables
+- `bin/db_migrate` — no interface change; uses updated `migrate_tables`
+
+Notes and constraints:
+- Initial implementation targets Postgres only (existing adapter); SQLite compatibility to be added in a follow‑up migration layer.
+- `bin/db_migrate` is destructive by design for dev; production will require versioned, non‑destructive migrations.
+
+## Deviations vs PRD
+
+- SQLite compatibility: deferred. The code remains Postgres‑only via `pg`. We will introduce adapter abstraction and SQLite DDL in a subsequent PRD.
+- Versioned migrations: deferred. Current flow continues to use a destructive reset script for developer environments; a simple migrations table and stepwise DDL will follow.
