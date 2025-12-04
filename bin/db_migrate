@@ -5,10 +5,15 @@ require_relative '../lib/savant/framework/db'
 
 begin
   db = Savant::Framework::DB.new
-  warn 'WARNING: destructive migration — dropping and recreating all tables'
-  db.migrate_tables
-  db.ensure_fts
-  puts 'DB RESET COMPLETE (tables + FTS ready)'
+  if ENV['SAVANT_DESTRUCTIVE'] == '1'
+    warn 'WARNING: destructive migration — dropping and recreating all tables'
+    db.migrate_tables
+    db.ensure_fts
+    puts 'DB RESET COMPLETE (tables + FTS ready)'
+  else
+    applied = db.apply_migrations
+    puts "DB MIGRATIONS APPLIED: #{applied.length} (#{applied.join(', ')})"
+  end
   exit 0
 rescue StandardError => e
   warn "DB ERROR: #{e.class}: #{e.message}"
