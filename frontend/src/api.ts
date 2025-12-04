@@ -619,6 +619,69 @@ export async function rulesCatalogWrite(yaml: string) {
   return res.data as { ok: boolean; count: number };
 }
 
+// AGENTS engine API
+export type AgentSummary = { id: number; name: string; favorite: boolean; run_count?: number; last_run_at?: string | null };
+export type AgentsList = { agents: AgentSummary[] };
+export type Agent = { id: number; name: string; persona_id?: number | null; driver: string; rule_set_ids: number[]; favorite: boolean; run_count?: number; last_run_at?: string | null };
+
+export function useAgents() {
+  return useQuery<AgentsList>({
+    queryKey: ['agents', 'list'],
+    queryFn: async () => {
+      const res = await client().post('/agents/tools/agents_list/call', { params: {} });
+      return res.data as AgentsList;
+    }
+  });
+}
+
+export function useAgent(name: string | null) {
+  return useQuery<Agent>({
+    queryKey: ['agents', 'get', name],
+    queryFn: async () => {
+      const res = await client().post('/agents/tools/agents_get/call', { params: { name } });
+      return res.data as Agent;
+    },
+    enabled: !!name
+  });
+}
+
+export async function agentsCreate(payload: { name: string; persona: string; driver: string; rules?: string[]; favorite?: boolean }) {
+  const res = await client().post('/agents/tools/agents_create/call', { params: payload });
+  return res.data as Agent;
+}
+
+export async function agentsUpdate(payload: { name: string; persona?: string; driver?: string; rules?: string[]; favorite?: boolean }) {
+  const res = await client().post('/agents/tools/agents_update/call', { params: payload });
+  return res.data as Agent;
+}
+
+export async function agentsDelete(name: string) {
+  const res = await client().post('/agents/tools/agents_delete/call', { params: { name } });
+  return res.data as { ok: boolean };
+}
+
+export type AgentRun = { id: number; input: string; output_summary?: string; status?: string; duration_ms?: number; created_at: string };
+export function useAgentRuns(name: string | null) {
+  return useQuery<{ runs: AgentRun[] }>({
+    queryKey: ['agents', 'runs', name],
+    queryFn: async () => {
+      const res = await client().post('/agents/tools/agents_runs_list/call', { params: { name } });
+      return res.data as { runs: AgentRun[] };
+    },
+    enabled: !!name
+  });
+}
+
+export async function agentRun(name: string, input: string, maxSteps?: number) {
+  const res = await client().post('/agents/tools/agents_run/call', { params: { name, input, max_steps: maxSteps } });
+  return res.data as { status: string; duration_ms?: number; result?: any };
+}
+
+export async function agentRunRead(name: string, runId: number) {
+  const res = await client().post('/agents/tools/agents_run_read/call', { params: { name, run_id: runId } });
+  return res.data as { id: number; transcript: any };
+}
+
 // Hub stats for diagnostics
 export type RequestRecord = {
   id: number;

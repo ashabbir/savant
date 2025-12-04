@@ -493,6 +493,15 @@ module Savant
         res.to_a
       end
 
+      def delete_agent_by_name(name)
+        res = exec_params('SELECT id FROM agents WHERE name=$1', [name])
+        return 0 if res.ntuples.zero?
+
+        id = res[0]['id']
+        exec_params('DELETE FROM agents WHERE id=$1', [id])
+        1
+      end
+
       def increment_agent_run_count(agent_id)
         exec_params('UPDATE agents SET run_count = run_count + 1, last_run_at = NOW(), updated_at = NOW() WHERE id=$1', [agent_id])
         true

@@ -3,6 +3,12 @@ Savant Codebase Overview
 Purpose
 - Local repository indexer and MCP servers for fast, private code search and Jira access. Ruby services store chunked repo content in Postgres with FTS and expose tools over MCP stdio for editors.
 
+Important Documents:
+docs/getting-started.md
+docs/savant-foundation.md
+docs/savant-instructions.md
+docs/savant-vision.md
+
 Architecture
 - Indexer: scans configured repos, hashes/dedupes files, chunks content, and writes to Postgres tables (`repos`, `files`, `blobs`, `file_blob_map`, `chunks`). FTS index on `chunks.chunk_text` powers ranked search.
 - MCP servers: stdio JSON-RPC interface; a single service is active per process via `MCP_SERVICE` (e.g., `context` or `jira`). Tools are advertised by the active service’s registrar and calls are delegated to its Engine.
@@ -119,3 +125,4 @@ UI Layout Rules (Codex)
 - Preview Behavior: Use popups (modal Dialog) for large YAML/Markdown previews. Keep the right panel focused on the primary result (graph/list/view) and only open larger previews in a dialog.
 - Close Controls: All dialogs must include a close icon button in the title bar and may also include a Close action button.
 - Consistency: Apply this pattern to all “Rules” windows and editors, and prefer it across the app (Workflows, Personas, Diagnostics) unless a different UX is clearly better for usability.
+

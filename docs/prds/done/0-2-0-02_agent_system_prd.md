@@ -1,4 +1,8 @@
-# PRD — Savant Agent System (v0.2.0)
+# PRD — Savant Agent System (v0.2.0) — Done
+
+Status: Done
+
+Implemented on branch `feature/0-2-0-02-agent-system`.
 
 ## 1. Purpose
 The Savant Agent System enables users to create, edit, run, and inspect AI agents using structured components stored in the database. This PRD defines the UI, backend, runtime behavior, storage, and CLI required for v0.2.0.
@@ -142,3 +146,30 @@ savant agent delete <name>
 
 ---
 
+## Delivery Summary (Done)
+
+- Backend: Added Agents engine with CRUD + run tools (`lib/savant/engines/agents/*`), plus DB helper `delete_agent_by_name`.
+- CLI: Added `savant agent` subcommands (create/list/show/run/delete).
+- Frontend: Agents pages (list/run, wizard, detail with transcript), API bindings, and routes.
+- Tests: Backend spec for Ops (CRUD + dry-run run) and frontend spec for Agents page rendering and run UI wiring.
+- Notes: Hub auto-discovers engine; multiplexer defaults exclude Agents, but runtime retains access to core tools.
+
+## Agent Implementation Plan (by Codex)
+
+- Backend
+  - Add `lib/savant/engines/agents/{engine.rb,ops.rb,tools.rb}` exposing CRUD and run tools.
+  - Extend DB with `delete_agent_by_name` helper; reuse existing agents/agent_runs schema.
+  - Implement run orchestration: boot runtime with persona, override driver from agent row, execute `Savant::Agent::Runtime`, persist transcript to `agent_runs.full_transcript`.
+- CLI
+  - Add `savant agent` subcommands to `bin/savant` (create/list/show/run/delete).
+- Frontend
+  - Add Agents pages: list/run (`frontend/src/pages/agents/Agents.tsx`), create wizard (`AgentWizard.tsx`), detail + transcript viewer (`AgentDetail.tsx`).
+  - Wire routes and engine ordering in `frontend/src/App.tsx`.
+  - Add API bindings in `frontend/src/api.ts`.
+- Tests
+  - Backend: `spec/savant/engines/agents_engine_spec.rb` covers CRUD + dry-run execution using a stub DB.
+  - Frontend: `frontend/src/pages/agents/Agents.test.tsx` renders list and validates run UX wiring with mocked API.
+- Docs
+  - Move this PRD to `docs/prds/done/` after implementation with delivery summary.
+
+Notes: The Hub auto-discovers new engine via `tools.rb`. Multiplexer default engines exclude Agents; agent runtime still has access to core tools (context/git/jira/workflow) for execution.
