@@ -1,4 +1,4 @@
-.PHONY: dev up quickstart logs logs-all down ps migrate fts smoke mcp-test jira-test jira-self \
+.PHONY: dev up quickstart logs logs-all down ps migrate migrate-reset fts smoke mcp-test jira-test jira-self \
   repo-index-all repo-index-repo repo-delete-all repo-delete-repo repo-status \
   demo-engine demo-run demo-call hub hub-logs hub-down hub-local hub-local-logs ls \
   ui-build ui-install ui-dev dev-ui ui-open frontend-stop \
@@ -29,7 +29,7 @@ up:
 	@$(MAKE) fts
 	@$(MAKE) reindex-all
 	@echo "========================================="
-	@echo "  Stack is up, DB migrated, FTS ready."
+	@echo "  Stack is up, DB migrated (non-destructive), FTS ready."
 	@echo "  Repos indexed; UI:        http://localhost:9999/ui"
 	@echo "                 Hub:       http://localhost:9999"
 	@echo "                 React Dev: http://localhost:5173 (use: make ui-dev)"
@@ -43,7 +43,7 @@ quickstart:
 	@echo ""
 	@echo "========================================="
 	@echo "  Quickstart complete!"
-	@echo "  DB migrated and FTS ready."
+	@echo "  DB migrated (non-destructive) and FTS ready."
 	@echo "  Hub:       http://localhost:9999"
 	@echo "  React UI:  http://localhost:5173"
 	@echo "  UI build:  http://localhost:9999/ui"
@@ -53,6 +53,7 @@ quickstart:
 	@echo "    make repo-index-repo repo=<name>"
 	@echo "    make ui-build"	# to build the UI
 	@echo "-----------------------------------------"
+	@echo "  Need a clean dev reset? Use: make migrate-reset"
 	@echo "  Start MCP servers manually when ready:"
 	@echo "    DATABASE_URL=postgres://context:contextpw@localhost:5433/contextdb \\"
 	@echo "      SAVANT_PATH=$(CURDIR) MCP_SERVICE=context bundle exec ruby ./bin/mcp_server"
@@ -72,6 +73,9 @@ ps:
 
 migrate:
 	@docker compose exec -T -e SAVANT_DEV=$(SAVANT_DEV) indexer-ruby ./bin/db_migrate || true
+
+migrate-reset:
+	@docker compose exec -T -e SAVANT_DEV=$(SAVANT_DEV) -e SAVANT_DESTRUCTIVE=1 indexer-ruby ./bin/db_migrate || true
 
 fts:
 	@docker compose exec -T -e SAVANT_DEV=$(SAVANT_DEV) indexer-ruby ./bin/db_fts || true

@@ -662,6 +662,26 @@ export default function DiagnosticsOverview() {
                       </>
                     )}
                   </Stack>
+                  {Array.isArray((diag.data as any).db?.tables) && (diag.data as any).db.tables.length > 0 && (
+                    <Table size="small" sx={{ tableLayout: 'fixed' }}>
+                      <TableHead>
+                        <TableRow>
+                          <TableCell sx={{ fontWeight: 600, width: '55%' }}>Table</TableCell>
+                          <TableCell sx={{ fontWeight: 600 }} align="right">Rows</TableCell>
+                          <TableCell sx={{ fontWeight: 600 }} align="left">Status</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {((diag.data as any).db.tables as any[]).map((t: any) => (
+                          <TableRow key={t.name} hover>
+                            <TableCell sx={{ fontFamily: 'monospace', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.name}</TableCell>
+                            <TableCell align="right">{t.rows?.toLocaleString?.() || '-'}</TableCell>
+                            <TableCell align="left">{t.error ? <Chip size="small" label="error" color="warning" /> : <Chip size="small" label="ok" color="success" variant="outlined" />}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
                 </Stack>
               )}
             </Paper>
