@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'spec_helper'
 
 RSpec.describe Savant::Framework::License do
@@ -49,4 +51,3 @@ RSpec.describe Savant::Framework::License do
     expect { described_class.verify! }.not_to raise_error
   end
 end
-

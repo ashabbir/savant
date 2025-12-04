@@ -19,4 +19,3 @@ RUBY
 
 File.write(out, content)
 puts "[embed_salt] Wrote #{out}"
-

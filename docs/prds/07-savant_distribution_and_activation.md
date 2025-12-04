@@ -368,4 +368,25 @@ Implement offline licensing, reproducible builds, and a Homebrew formula with mi
 - Harden tests (CLI activation E2E; brew-style smoke on extracted tarballs).
 - Document enterprise/private tap option (post-MVP).
 
+## 12.6 Tap Publishing Plan (ashabbir/homebrew-savant)
+- We do NOT commit binaries to git; binaries are attached to GitHub Releases, and the tap stores only the formula.
+- Tomorrow’s steps to publish:
+  1) Build + package + checksum:
+     - `SAVANT_BUILD_SALT='<secret>' make build`
+     - `make package && make checksum`
+  2) Create tag + release on ashabbir/savant (uploads tarballs):
+     - `make tag VERSION=v0.1.0`
+     - `make release VERSION=v0.1.0`
+  3) Generate formula pointing at the Release URLs:
+     - `RELEASE_BASE_URL=https://github.com/ashabbir/savant/releases/download make formula`
+     - Output: `packaging/homebrew/savant.rb`
+  4) Commit formula to tap repo ashabbir/homebrew-savant:
+     - `git clone git@github.com:ashabbir/homebrew-savant.git`
+     - `cp packaging/homebrew/savant.rb homebrew-savant/Formula/savant.rb`
+     - `cd homebrew-savant && git add Formula/savant.rb && git commit -m "savant v0.1.0" && git push`
+     - or: `TAP_DIR=~/code/homebrew-savant scripts/release/publish_tap.sh packaging/homebrew/savant.rb`
+  5) Verify:
+     - `brew tap ashabbir/savant && brew install ashabbir/savant/savant`
+     - `savant version && savant activate <user>:<key> && savant status`
+
 - Builds reproducible in Docker environment

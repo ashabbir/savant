@@ -55,4 +55,3 @@ RSpec.describe Savant::Workflow::Loader do
     end
   end
 end
-
