@@ -1,6 +1,10 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
+# Dev-friendly defaults: bypass license in development and set project root.
+ENV['SAVANT_DEV'] ||= '1'
+ENV['SAVANT_PATH'] ||= File.expand_path('..', __dir__)
+
 require_relative '../lib/savant/framework/mcp/server'
 
 transport = nil
