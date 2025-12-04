@@ -43,6 +43,22 @@ open http://localhost:9999/ui || true
 
 Tip: Most engines (Git, Think, Personas, Rules) work without a database. Context search requires a Postgres DB and indexing (see Advanced below).
 
+## 3.1) View the UI
+
+- Quickstart (Docker):
+  - `make dev` boots Postgres + Hub and builds the static UI.
+  - Open `http://localhost:9999/ui` (static UI served by Hub).
+  - Dev server (hot reload): run `make dev-ui` (Hub + Vite at `http://localhost:5173`).
+
+- Manual (host):
+  - Start Hub: `ruby ./bin/hub_server` (ensure `SAVANT_PATH=$(pwd)` and DB are configured; see Makefile for Docker Postgres on 5433).
+  - Build UI: `make ui-build` (copies `frontend/dist` into `public/ui`).
+  - Open `http://localhost:9999/ui`.
+
+Tips
+- The UI calls the Hub at `http://localhost:9999` by default; override in the UI settings (top-right gear) or via `VITE_HUB_BASE` when using dev server.
+- Make targets: `make ui-build`, `make ui-dev`, `make dev-ui`, `make ui-open`.
+
 ## 4) Optional: use a cloned repo for UI/config
 
 Some features (static UI, custom settings) work best with a local repo clone. Set `SAVANT_PATH` to point at the repo so the binary picks up config and assets.
@@ -93,3 +109,20 @@ bundle install
 make quickstart && make repo-index-all && make ui-build
 ./bin/savant run --skip-git
 ```
+
+## Agents UI — Create and Run
+
+Create an agent from the UI:
+- Open the UI → MCPs tab → select “agents”.
+- Click the “+” (New Agent).
+- Fill fields:
+  - Name: unique id for the agent
+  - Persona: pick from Personas engine
+  - Driver: mission + endpoint description (free text)
+  - Rules: optional list from Rules engine
+- Save Agent. The agent appears in the list.
+
+Run an agent (UI):
+- Select an agent from the list.
+- Enter input in “Enter input for run…” and click Run.
+- Recent runs show below; click View to open the chat-style transcript.
