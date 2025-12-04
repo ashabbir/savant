@@ -12,6 +12,11 @@ def usage!
       savant run [--persona=NAME] [--skip-git] [--agent-input=TEXT|--agent-file=PATH] [--slm=MODEL] [--llm=MODEL] [--max-steps=N] [--dry-run]
       savant review [--persona=NAME]
       savant workflow <name> [--params='{}']
+      savant agent create --name=NAME --persona=NAME --driver=TEXT [--rules='a,b'] [--favorite]
+      savant agent list
+      savant agent show <name>
+      savant agent run <name> --input=TEXT [--max-steps=N] [--dry-run]
+      savant agent delete <name>
       savant generate engine <name> [--with-db] [--force]
       savant serve [--transport=stdio|http] [--host=HOST] [--port=PORT] [--service=NAME]
       savant hub [--host=HOST] [--port=PORT]
@@ -217,6 +222,52 @@ when 'generate'
   end.parse!(ARGV)
 
   Savant::Generator.new.generate_engine(name, **opts)
+
+when 'agent'
+  ensure_savant_path!
+  require_relative '../lib/savant/engines/agents/engine'
+  require 'json'
+
+  sub = ARGV.shift
+  usage! unless sub
+  eng = Savant::Agents::Engine.new
+  case sub
+  when 'create'
+    opts = { name: nil, persona: nil, driver: nil, rules: [], favorite: false }
+    OptionParser.new do |o|
+      o.on('--name=NAME') { |v| opts[:name] = v }
+      o.on('--persona=NAME') { |v| opts[:persona] = v }
+      o.on('--driver=TEXT') { |v| opts[:driver] = v }
+      o.on('--rules=CSV') { |v| opts[:rules] = v.to_s.split(',').map(&:strip).reject(&:empty?) }
+      o.on('--favorite') { opts[:favorite] = true }
+    end.parse!(ARGV)
+    abort('Missing --name, --persona, or --driver') if [opts[:name], opts[:persona], opts[:driver]].any? { |x| x.nil? || x.to_s.empty? }
+    res = eng.create(**opts)
+    puts JSON.pretty_generate(res)
+  when 'list'
+    puts JSON.pretty_generate({ agents: eng.list })
+  when 'show'
+    name = ARGV.shift
+    usage! unless name
+    puts JSON.pretty_generate(eng.get(name: name))
+  when 'run'
+    name = ARGV.shift
+    usage! unless name
+    opts = { input: nil, max_steps: nil, dry_run: false }
+    OptionParser.new do |o|
+      o.on('--input=TEXT') { |v| opts[:input] = v }
+      o.on('--max-steps=N', Integer) { |v| opts[:max_steps] = v }
+      o.on('--dry-run') { opts[:dry_run] = true }
+    end.parse!(ARGV)
+    abort('Missing --input') unless opts[:input]
+    puts JSON.pretty_generate(eng.run(name: name, **opts))
+  when 'delete'
+    name = ARGV.shift
+    usage! unless name
+    puts JSON.pretty_generate({ ok: eng.delete(name: name) })
+  else
+    usage!
+  end
 
 when 'engines'
   ensure_savant_path!

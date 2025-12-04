@@ -27,6 +27,9 @@ import PersonaEditor from './pages/personas/PersonaEditor';
 import RulesPage from './pages/rules/Rules';
 import RulesTools from './pages/rules/Tools';
 import RuleEditor from './pages/rules/RuleEditor';
+import Agents from './pages/agents/Agents';
+import AgentWizard from './pages/agents/AgentWizard';
+import AgentDetail from './pages/agents/AgentDetail';
 import JiraTools from './pages/jira/Tools';
 import GitTools from './pages/git/Tools';
 import ContextTools from './pages/context/Tools';
@@ -67,7 +70,7 @@ function useThinkSubIndex() {
 }
 
 function sortEngines(engines: string[]): string[] {
-  const order = ['context', 'think', 'personas', 'rules', 'jira', 'git'];
+  const order = ['context', 'think', 'agents', 'personas', 'rules', 'jira', 'git'];
   return engines.sort((a, b) => {
     const aIdx = order.indexOf(a);
     const bIdx = order.indexOf(b);
@@ -130,6 +133,7 @@ function defaultEngineRoute(name: string): string {
   if (name === 'context') return '/engines/context/resources';
   if (name === 'think') return '/engines/think/workflows';
   if (name === 'jira') return '/engines/jira/tools';
+  if (name === 'agents') return '/engines/agents';
   if (name === 'personas') return '/engines/personas';
   if (name === 'rules') return '/engines/rules';
   if (name === 'git') return '/engines/git/tools';
@@ -299,6 +303,7 @@ export default function App() {
             // Navigate to engine default route
           if (tgt === 'context') navigate('/engines/context/resources');
           else if (tgt === 'think') navigate('/engines/think/workflows');
+          else if (tgt === 'agents') navigate('/engines/agents');
           else if (tgt === 'personas') navigate('/engines/personas');
           else if (tgt === 'rules') navigate('/engines/rules');
           else if (tgt === 'jira') navigate('/engines/jira/tools');
@@ -467,6 +472,9 @@ export default function App() {
           <Route path="/engines/rules/tools" element={<RulesTools />} />
           <Route path="/engines/rules/new" element={<RuleEditor />} />
           <Route path="/engines/rules/edit/:name" element={<RuleEditor />} />
+          <Route path="/engines/agents" element={<Agents />} />
+          <Route path="/engines/agents/new" element={<AgentWizard />} />
+          <Route path="/engines/agents/edit/:name" element={<AgentDetail />} />
           {/* Workflows editor moved under Think engine */}
           {/* Legacy shortcuts */}
           <Route path="/rules" element={<RulesPage />} />
