@@ -11,6 +11,7 @@ require_relative '../transports/mcp/stdio'
 require_relative '../transports/mcp/websocket'
 require_relative '../config'
 require_relative '../../multiplexer'
+require_relative '../license'
 
 module Savant
   # Launch MCP with selected transport.
@@ -41,6 +42,8 @@ module Savant
     end
 
     def start
+      # Validate license before starting transport (unless dev bypass)
+      Savant::Framework::License.verify!
       case @transport_mode
       when 'websocket'
         Savant::Transports::MCP::WebSocket.new(service: @service, host: @ws_host, port: @ws_port, path: @ws_path,

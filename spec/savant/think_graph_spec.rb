@@ -55,4 +55,3 @@ RSpec.describe 'Think workflow graph validation' do
     expect(msg).to match(/start|cycle/i)
   end
 end
-

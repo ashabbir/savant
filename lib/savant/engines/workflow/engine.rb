@@ -1,6 +1,7 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
+require 'English'
 require 'json'
 require 'yaml'
 require 'fileutils'
@@ -95,7 +96,7 @@ module Savant
 
       def persist_state(workflow:, run_id:, state:)
         path = File.join(@runs_dir, "#{workflow}__#{run_id}.json")
-        tmp = path + '.tmp'
+        tmp = "#{path}.tmp"
         File.open(tmp, 'w:UTF-8') { |f| f.write(JSON.pretty_generate(state.merge(workflow: workflow, run_id: run_id))) }
         FileUtils.mv(tmp, path)
       rescue StandardError
@@ -104,7 +105,7 @@ module Savant
       end
 
       def generate_run_id(workflow)
-        seed = "#{workflow}|#{Time.now.utc.to_i}|#{$$}|#{rand(1_000_000)}"
+        seed = "#{workflow}|#{Time.now.utc.to_i}|#{$PROCESS_ID}|#{rand(1_000_000)}"
         "#{Time.now.utc.strftime('%Y%m%d%H%M%S')}-#{Digest::SHA256.hexdigest(seed)[0, 8]}"
       end
 

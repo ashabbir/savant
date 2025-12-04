@@ -7,7 +7,7 @@ module Savant
   module Workflow
     # Performs {{ path.to.value }} interpolation recursively
     class Interpolator
-      PLACEHOLDER = /\{\{\s*([^}]+?)\s*\}\}/.freeze
+      PLACEHOLDER = /\{\{\s*([^}]+?)\s*\}\}/
 
       def initialize(context)
         @ctx = context
@@ -20,8 +20,8 @@ module Savant
         when Array
           obj.map { |el| apply(el) }
         when Hash
-          obj.each_with_object({}) do |(k, v), h|
-            h[k] = apply(v)
+          obj.transform_values do |v|
+            apply(v)
           end
         else
           obj

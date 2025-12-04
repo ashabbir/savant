@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'yaml'
 require_relative '../../lib/savant/engines/workflow/context'
 require_relative '../../lib/savant/engines/workflow/interpolator'
@@ -19,4 +21,3 @@ RSpec.describe Savant::Workflow::Interpolator do
     expect(out['arr'][2]['k']).to eq('a.rb')
   end
 end
-

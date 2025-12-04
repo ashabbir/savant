@@ -17,7 +17,7 @@ RSpec.describe 'Savant::Think::Engine' do
       workflow_dir = File.join(tmp_dir, 'workflows')
       FileUtils.rm_rf(workflow_dir)
 
-      engine = Savant::Think::Engine.new(env: { 'SAVANT_PATH' => tmp_dir })
+      Savant::Think::Engine.new(env: { 'SAVANT_PATH' => tmp_dir })
       expect(File.exist?(File.join(workflow_dir, 'sync_test.yaml'))).to be true
       expect(File.read(File.join(workflow_dir, 'sync_test.yaml'))).to include('steps')
     end

@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require 'json'
 require 'tmpdir'
 require_relative '../../lib/savant/engines/workflow/engine'
@@ -64,9 +66,6 @@ RSpec.describe 'Workflow executor end-to-end' do
     expect(last).to be_a(Hash)
     # Since agent is stubbed by default, ensure mode is stub
     outputs = last['output'] || {}
-    if outputs.is_a?(Hash)
-      expect((outputs['mode'] || outputs[:mode]).to_s).to eq('stub')
-    end
+    expect((outputs['mode'] || outputs[:mode]).to_s).to eq('stub') if outputs.is_a?(Hash)
   end
 end
-

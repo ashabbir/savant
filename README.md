@@ -49,7 +49,27 @@ SAVANT_PATH=$(pwd) bundle exec ruby ./bin/savant engines
 SAVANT_PATH=$(pwd) bundle exec ruby ./bin/savant tools
 ```
 
-This README is intentionally concise. Full, detailed docs (with diagrams) live in the Memory Bank:
+This README is intentionally concise. For a step-by-step guide, see docs/getting-started.md. Full, detailed docs (with diagrams) live in the Memory Bank:
+
+## Homebrew Install (after releases are published)
+
+```
+brew tap <org/tap>   # e.g., ashabbir/savant
+brew install <org/tap>/savant
+savant version
+```
+
+Activate (offline) and run:
+
+```
+savant activate <username>:<key>
+savant status
+```
+
+Notes
+- Activation is fully offline. The key is validated locally at runtime.
+- Brew installs enforce activation by default. No network calls are made.
+- For development, see the License & Activation section below for bypass options.
 
 | Doc | Summary |
 | --- | --- |
@@ -57,12 +77,19 @@ This README is intentionally concise. Full, detailed docs (with diagrams) live i
 | [Architecture](memory_bank/architecture.md) | System topology, data model, and component responsibilities. |
 | [Boot Runtime](memory_bank/engine_boot.md) | Boot initialization, RuntimeContext, AMR system, and CLI commands. |
 | **[Agent Runtime](memory_bank/agent_runtime.md)** | **Autonomous reasoning loop, LLM adapters, memory system, and telemetry.** |
+| [Multiplexer](memory_bank/multiplexer.md) | Unified tool surface across engines; process model and routing. |
+| [Hub](memory_bank/hub.md) | HTTP endpoints, UI mounting, diagnostics, logs, and routes. |
+| [Database](memory_bank/database.md) | Schema, FTS index, migrations, and context engine queries. |
+| [Logging](memory_bank/logging.md) | Structured logs, metrics, and audit hooks. |
+| [Indexer Engine](memory_bank/engine_indexer.md) | Scan pipeline, dedupe/chunking, DB model, CLI. |
 | [Context Engine](memory_bank/engine_context.md) | FTS search flow, cache/indexer coordination, and tool APIs. |
 | [Think Engine](memory_bank/engine_think.md) | Plan/next workflow orchestration and prompt drivers. |
 | [Jira Engine](memory_bank/engine_jira.md) | Jira integration details, auth requirements, and tool contracts. |
 | [Git Engine](memory_bank/engine_git.md) | Local, read‑only Git intelligence (diffs, hunks, file context, changed files). |
 | [Personas Engine](memory_bank/engine_personas.md) | Persona catalog shape, YAML schema, and exposed tools. |
 | [Engine Rules](memory_bank/engine_rules.md) | Shared guardrails, telemetry hooks, and best-practice playbooks. |
+| [Distribution](memory_bank/distribution.md) | Packaging, artifacts, release flow, and Homebrew formula. |
+| [License & Activation](memory_bank/license_activation.md) | Offline gate design and CLI.
 
 ## Getting Started
 
@@ -239,11 +266,19 @@ make migrate && make fts
 make repo-index-all
 ```
 
-4) UI
+4) Offline activation
+   - Production (brew/packaged): required before engine/MCP boot.
+   - Development (git checkout): bypassed automatically; see below for details.
+```
+./bin/savant activate <username>:<key>
+./bin/savant status
+```
+
+5) UI
 - Static: `make ui-build` then open http://localhost:9999/ui
 - Dev: `make dev-ui` then open http://localhost:5173 (Hub at http://localhost:9999)
 
-5) MCP Multiplexer (stdio)
+6) MCP Multiplexer (stdio)
 ```
 # Unified multiplexer (default)
 SAVANT_PATH=$(pwd) bundle exec ruby ./bin/mcp_server
@@ -460,3 +495,36 @@ All detailed docs (with visual diagrams) live under `memory_bank/`. Use the tabl
 - Guardrails + patterns: [`engine_rules.md`](memory_bank/engine_rules.md)
 
 These are the canonical references; the README stays short and points you there.
+
+## Distribution & Activation (MVP)
+
+Overview
+- Savant ships as a single binary via Homebrew. Activation is offline-only using a username+key pair.
+- Keys are validated locally using a salted SHA256. No license servers are contacted.
+
+Commands
+- `savant activate <username>:<key>` — stores the license at `~/.savant/license.json`.
+- `savant status` — prints whether the license is valid and the stored path.
+- `savant deactivate` — removes the local license file.
+
+Dev vs Prod behavior
+- Brew/packaged installs: license is enforced by default.
+- Git checkout (development): license is bypassed automatically when `SAVANT_PATH` points to a directory that contains a `.git` folder.
+- Make targets: default to `SAVANT_DEV=1`, so all `make` flows run without a key.
+- Force enforcement in dev: set `SAVANT_ENFORCE_LICENSE=1` to require a valid license even from a git checkout.
+
+Environment variables
+- `SAVANT_PATH`: project base path (required for local runs; Brew sets this internally).
+- `SAVANT_DEV`: when `1`, bypasses license checks. The Makefile exports this as `1` by default.
+- `SAVANT_ENFORCE_LICENSE`: when `1`, forces license checks even in dev/git checkouts.
+
+Build & Release (manual MVP)
+- Build/package/checksum (artifacts in `dist/`):
+  - `SAVANT_BUILD_SALT='<secret>' make build`
+  - `make package && make checksum`
+- Tag + Release (requires `gh`):
+  - `make tag VERSION=v0.1.0`
+  - `make release VERSION=v0.1.0`
+- Homebrew formula:
+  - `RELEASE_BASE_URL=https://github.com/<org>/savant/releases/download make formula`
+  - Copy `packaging/homebrew/savant.rb` into your public tap.
