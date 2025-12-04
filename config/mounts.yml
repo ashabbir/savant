@@ -11,3 +11,5 @@ mounts:
     path: "/rules"
   - engine: "jira"
     path: "/jira"
+  - engine: "agents"
+    path: "/agents"
