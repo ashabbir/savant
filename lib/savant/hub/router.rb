@@ -659,6 +659,31 @@ module Savant
               r2 = conn.exec('SELECT COUNT(*) AS c FROM files')
               r3 = conn.exec('SELECT COUNT(*) AS c FROM chunks')
               db[:counts] = { repos: r1[0]['c'].to_i, files: r2[0]['c'].to_i, chunks: r3[0]['c'].to_i }
+              # Detailed per-table stats
+              tables = %w[repos files blobs file_blob_map chunks personas rulesets agents agent_runs workflows workflow_steps workflow_runs]
+              details = []
+              tables.each do |t|
+                begin
+                  # Column presence
+                  cols = conn.exec_params("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name=$1", [t]).map { |r| r['column_name'] }
+                  # Row count
+                  cnt = conn.exec("SELECT COUNT(*) AS c FROM #{t}")[0]['c'].to_i
+                  # Relation size in bytes
+                  sz = conn.exec_params("SELECT pg_total_relation_size($1::regclass) AS bytes", [t])[0]['bytes'].to_i
+                  # Last activity timestamp
+                  last_at = nil
+                  if cols.include?('updated_at')
+                    last_at = conn.exec("SELECT MAX(updated_at) AS m FROM #{t}")[0]['m']
+                  end
+                  if !last_at && cols.include?('created_at')
+                    last_at = conn.exec("SELECT MAX(created_at) AS m FROM #{t}")[0]['m']
+                  end
+                  details << { name: t, rows: cnt, size_bytes: sz, last_at: last_at }
+                rescue StandardError => e
+                  details << { name: t, error: e.message }
+                end
+              end
+              db[:tables] = details
             rescue StandardError => e
               db[:counts_error] = e.message
             end

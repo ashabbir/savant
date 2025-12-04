@@ -66,6 +66,19 @@ function normalizeModelProgress(model: any): number | null {
   return null;
 }
 
+function formatBytes(n?: number): string {
+  if (n == null || Number.isNaN(n)) return '—';
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let v = Math.max(0, Number(n));
+  let i = 0;
+  while (v >= 1024 && i < units.length - 1) {
+    v /= 1024;
+    i++;
+  }
+  const val = v < 10 && i > 0 ? Math.round(v * 10) / 10 : Math.round(v);
+  return `${val.toLocaleString()} ${units[i]}`;
+}
+
 export default function DiagnosticsOverview() {
   const navigate = useNavigate();
   const hub = useHubInfo();
@@ -662,6 +675,30 @@ export default function DiagnosticsOverview() {
                       </>
                     )}
                   </Stack>
+                  {Array.isArray((diag.data as any).db?.tables) && (diag.data as any).db.tables.length > 0 && (
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell sx={{ fontWeight: 600 }}>Table</TableCell>
+                          <TableCell sx={{ fontWeight: 600 }} align="right">Rows</TableCell>
+                          <TableCell sx={{ fontWeight: 600 }} align="right">Size</TableCell>
+                          <TableCell sx={{ fontWeight: 600 }} align="right">Latest</TableCell>
+                          <TableCell sx={{ fontWeight: 600 }} align="left">Status</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {((diag.data as any).db.tables as any[]).map((t: any) => (
+                          <TableRow key={t.name} hover>
+                            <TableCell sx={{ fontFamily: 'monospace' }}>{t.name}</TableCell>
+                            <TableCell align="right">{t.rows?.toLocaleString?.() || '-'}</TableCell>
+                            <TableCell align="right">{formatBytes(t.size_bytes)}</TableCell>
+                            <TableCell align="right">{t.last_at ? new Date(t.last_at).toLocaleString() : '—'}</TableCell>
+                            <TableCell align="left">{t.error ? <Chip size="small" label="error" color="warning" /> : <Chip size="small" label="ok" color="success" variant="outlined" />}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
                 </Stack>
               )}
             </Paper>
