@@ -666,8 +666,9 @@ export default function DiagnosticsOverview() {
                     <Table size="small" sx={{ tableLayout: 'fixed' }}>
                       <TableHead>
                         <TableRow>
-                          <TableCell sx={{ fontWeight: 600, width: '60%' }}>Table</TableCell>
+                          <TableCell sx={{ fontWeight: 600, width: '55%' }}>Table</TableCell>
                           <TableCell sx={{ fontWeight: 600 }} align="right">Rows</TableCell>
+                          <TableCell sx={{ fontWeight: 600 }} align="left">Status</TableCell>
                         </TableRow>
                       </TableHead>
                       <TableBody>
@@ -675,6 +676,7 @@ export default function DiagnosticsOverview() {
                           <TableRow key={t.name} hover>
                             <TableCell sx={{ fontFamily: 'monospace', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.name}</TableCell>
                             <TableCell align="right">{t.rows?.toLocaleString?.() || '-'}</TableCell>
+                            <TableCell align="left">{t.error ? <Chip size="small" label="error" color="warning" /> : <Chip size="small" label="ok" color="success" variant="outlined" />}</TableCell>
                           </TableRow>
                         ))}
                       </TableBody>
