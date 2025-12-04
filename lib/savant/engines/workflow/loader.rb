@@ -20,12 +20,16 @@ module Savant
       def load(id)
         path = File.join(@base_path, 'workflows', "#{id}.yaml")
         raise LoadError, "workflow not found: #{id}" unless File.file?(path)
+
         data = YAML.safe_load(File.read(path), permitted_classes: [], aliases: true)
         raise LoadError, 'invalid workflow: expected mapping' unless data.is_a?(Hash)
+
         steps = Array(data['steps']).map do |s|
           raise LoadError, 'each step must be a mapping' unless s.is_a?(Hash)
+
           name = (s['name'] || '').to_s
           raise LoadError, 'step.name missing' if name.empty?
+
           type = if s['tool']
                    :tool
                  elsif s['agent']
@@ -37,7 +41,7 @@ module Savant
             name: name,
             type: type,
             ref: (s['tool'] || s['agent']).to_s,
-            with: (s['with'] || {})
+            with: s['with'] || {}
           }
         end
         { id: id, steps: steps }
@@ -57,4 +61,3 @@ module Savant
     end
   end
 end
-

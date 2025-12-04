@@ -208,6 +208,7 @@ module Savant
         return diagnostics_mcp(req) if req.get? && req.path_info.start_with?('/diagnostics/mcp/')
         return diagnostics_workflows(req) if req.get? && req.path_info == '/diagnostics/workflows'
         return diagnostics_workflow_runs(req) if req.get? && req.path_info == '/diagnostics/workflow_runs'
+
         if req.get?
           match = req.path_info.match(%r{^/diagnostics/workflow_runs/([^/]+)/([^/]+)$})
           return diagnostics_workflow_run(req, match[1], match[2]) if match
@@ -277,12 +278,12 @@ module Savant
           if defined?(Savant::Framework::SecretStore)
             [user_id, 'default', '_system_'].compact.each do |uid|
               h = Savant::Framework::SecretStore.for(uid, :jira)
-              if h && !h.empty?
-                creds = h
-                resolved_user = uid
-                source = 'secret_store'
-                break
-              end
+              next unless h && !h.empty?
+
+              creds = h
+              resolved_user = uid
+              source = 'secret_store'
+              break
             end
           end
         rescue StandardError
@@ -325,12 +326,12 @@ module Savant
         }
 
         auth_mode = if fields[:email] && fields[:api_token]
-                       'email+token'
-                     elsif fields[:username] && fields[:password]
-                       'username+password'
-                     else
-                       'missing'
-                     end
+                      'email+token'
+                    elsif fields[:username] && fields[:password]
+                      'username+password'
+                    else
+                      'missing'
+                    end
 
         problems = []
         suggestions = []
@@ -404,7 +405,8 @@ module Savant
       end
 
       # GET /diagnostics/workflow_runs -> saved runs summary
-      def diagnostics_workflow_runs(_req) # GET /diagnostics/workflow_runs -> saved runs summary
+      # GET /diagnostics/workflow_runs -> saved runs summary
+      def diagnostics_workflow_runs(_req)
         engine = workflow_engine
         respond(200, engine.runs_list)
       rescue StandardError => e
@@ -415,6 +417,7 @@ module Savant
         base = workflow_base_path
         path = File.join(base, '.savant', 'workflow_runs', "#{workflow}__#{run_id}.json")
         return respond(404, { error: 'workflow_run_not_found', workflow: workflow, run_id: run_id }) unless File.file?(path)
+
         data = JSON.parse(File.read(path))
         respond(200, data)
       rescue StandardError => e
@@ -430,6 +433,7 @@ module Savant
                end
         path = File.join(base, 'logs', 'workflow_trace.log')
         return respond(404, { error: 'trace_not_found', path: path }) unless File.file?(path)
+
         data = File.read(path)
         [200, { 'Content-Type' => 'text/plain' }.merge(cors_headers), [data]]
       end
@@ -781,9 +785,7 @@ module Savant
           tool_candidates << t.tr('.', '/') if t.include?('.')
           tool_candidates << t.tr('.', '_') if t.include?('.')
           # Context engine historically uses snake_case; prefer underscore variant
-          if engine_name.to_s == 'context'
-            tool_candidates << t.tr('/', '_')
-          end
+          tool_candidates << t.tr('/', '_') if engine_name.to_s == 'context'
         rescue StandardError
           # ignore
         end
@@ -838,7 +840,11 @@ module Savant
           # Last resort: use manager.call_tool
           begin
             result = manager.call_tool(name_variant, params)
-            dur = ((Process.clock_gettime(Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round rescue 0)
+            dur = begin
+              (Process.clock_gettime(Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round
+            rescue StandardError
+              0
+            end
             logger&.info(event: 'tool.call finish', name: name_variant, duration_ms: dur)
             return result
           rescue StandardError

@@ -7,6 +7,7 @@ require 'fileutils'
 require 'securerandom'
 require_relative 'engine/runtime_context'
 require_relative '../logging/logger'
+require_relative 'license'
 require_relative '../engines/personas/ops'
 require_relative '../engines/think/engine'
 require_relative '../multiplexer'
@@ -36,6 +37,14 @@ module Savant
         logger.info(event: 'boot_start', session_id: 'initializing')
 
         begin
+          # Enforce offline activation unless dev bypass
+          begin
+            Savant::Framework::License.verify!
+          rescue Savant::Framework::License::Error => e
+            logger.error(event: 'license_invalid', error: e.message)
+            raise BootError, e.message
+          end
+
           # Generate session ID
           session_id = generate_session_id
 
