@@ -10,6 +10,8 @@
 # intentionally focused on connection lifecycle and schema operations.
 
 require 'pg'
+require 'json'
+require 'pathname'
 
 module Savant
   module Framework
@@ -98,6 +100,16 @@ module Savant
       # @return [true]
       def migrate_tables
         # Destructive reset: drop and recreate all tables/indexes
+        # App tables (agents/workflows/personas/rules):
+        exec('DROP TABLE IF EXISTS workflow_runs CASCADE')
+        exec('DROP TABLE IF EXISTS workflow_steps CASCADE')
+        exec('DROP TABLE IF EXISTS workflows CASCADE')
+        exec('DROP TABLE IF EXISTS agent_runs CASCADE')
+        exec('DROP TABLE IF EXISTS agents CASCADE')
+        exec('DROP TABLE IF EXISTS rulesets CASCADE')
+        exec('DROP TABLE IF EXISTS personas CASCADE')
+
+        # Indexer tables:
         exec('DROP TABLE IF EXISTS file_blob_map CASCADE')
         exec('DROP TABLE IF EXISTS chunks CASCADE')
         exec('DROP TABLE IF EXISTS files CASCADE')
@@ -152,6 +164,94 @@ module Savant
           );
         SQL
         exec('CREATE INDEX idx_chunks_blob ON chunks(blob_id)')
+
+        # App schema — agents/personas/rules/workflows
+        exec(<<~SQL)
+          CREATE TABLE personas (
+            id SERIAL PRIMARY KEY,
+            name TEXT NOT NULL UNIQUE,
+            content TEXT,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+          );
+        SQL
+
+        exec(<<~SQL)
+          CREATE TABLE rulesets (
+            id SERIAL PRIMARY KEY,
+            name TEXT NOT NULL UNIQUE,
+            content TEXT,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+          );
+        SQL
+
+        exec(<<~SQL)
+          CREATE TABLE agents (
+            id SERIAL PRIMARY KEY,
+            name TEXT NOT NULL UNIQUE,
+            persona_id INTEGER REFERENCES personas(id) ON DELETE SET NULL,
+            driver_prompt TEXT,
+            rule_set_ids INTEGER[],
+            favorite BOOLEAN NOT NULL DEFAULT FALSE,
+            run_count INTEGER NOT NULL DEFAULT 0,
+            last_run_at TIMESTAMPTZ,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+          );
+        SQL
+        exec('CREATE INDEX idx_agents_persona ON agents(persona_id)')
+
+        exec(<<~SQL)
+          CREATE TABLE agent_runs (
+            id SERIAL PRIMARY KEY,
+            agent_id INTEGER REFERENCES agents(id) ON DELETE CASCADE,
+            input TEXT,
+            output_summary TEXT,
+            status TEXT,
+            duration_ms BIGINT,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            full_transcript JSONB
+          );
+        SQL
+        exec('CREATE INDEX idx_agent_runs_agent ON agent_runs(agent_id)')
+
+        exec(<<~SQL)
+          CREATE TABLE workflows (
+            id SERIAL PRIMARY KEY,
+            name TEXT NOT NULL UNIQUE,
+            description TEXT,
+            graph JSONB,
+            favorite BOOLEAN NOT NULL DEFAULT FALSE,
+            run_count INTEGER NOT NULL DEFAULT 0,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+          );
+        SQL
+
+        exec(<<~SQL)
+          CREATE TABLE workflow_steps (
+            id SERIAL PRIMARY KEY,
+            workflow_id INTEGER NOT NULL REFERENCES workflows(id) ON DELETE CASCADE,
+            name TEXT NOT NULL,
+            step_type TEXT NOT NULL,
+            config JSONB,
+            position INTEGER
+          );
+        SQL
+        exec('CREATE INDEX idx_workflow_steps_workflow ON workflow_steps(workflow_id)')
+
+        exec(<<~SQL)
+          CREATE TABLE workflow_runs (
+            id SERIAL PRIMARY KEY,
+            workflow_id INTEGER NOT NULL REFERENCES workflows(id) ON DELETE CASCADE,
+            input TEXT,
+            output TEXT,
+            status TEXT,
+            duration_ms BIGINT,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            transcript JSONB
+          );
+        SQL
+        exec('CREATE INDEX idx_workflow_runs_workflow ON workflow_runs(workflow_id)')
         true
       end
 
@@ -162,6 +262,28 @@ module Savant
           CREATE INDEX IF NOT EXISTS idx_chunks_fts ON chunks USING GIN (to_tsvector('english', chunk_text));
         SQL
         true
+      end
+
+      # Apply versioned migrations from db/migrations non-destructively.
+      # Returns an array of applied versions.
+      def apply_migrations(dir = default_migrations_dir)
+        ensure_schema_migrations!
+        files = Dir.glob(File.join(dir, '*')).sort
+        applied = []
+        files.each do |path|
+          next unless path.end_with?('.sql')
+
+          version = File.basename(path).sub(/\.(sql|rb)\z/, '')
+          next if migration_applied?(version)
+
+          sql = File.read(path)
+          with_transaction do
+            exec(sql)
+            mark_migration_applied!(version)
+          end
+          applied << version
+        end
+        applied
       end
 
       # Fetch an existing blob id by hash or insert a new blob.
@@ -296,12 +418,241 @@ module Savant
         res.map { |row| { name: row['name'], readme_text: row['readme_text'] } }
       end
 
+      # =========================
+      # App CRUD: Personas
+      # =========================
+      def create_persona(name, content)
+        res = exec_params(
+          'INSERT INTO personas(name, content) VALUES($1,$2) ON CONFLICT (name) DO UPDATE SET content=EXCLUDED.content RETURNING id',
+          [name, content]
+        )
+        res[0]['id'].to_i
+      end
+
+      def get_persona_by_name(name)
+        res = exec_params('SELECT * FROM personas WHERE name=$1', [name])
+        res.ntuples.positive? ? res[0] : nil
+      end
+
+      def list_personas
+        res = exec('SELECT * FROM personas ORDER BY name ASC')
+        res.to_a
+      end
+
+      # =========================
+      # App CRUD: Rulesets
+      # =========================
+      def create_ruleset(name, content)
+        res = exec_params(
+          'INSERT INTO rulesets(name, content) VALUES($1,$2) ON CONFLICT (name) DO UPDATE SET content=EXCLUDED.content RETURNING id',
+          [name, content]
+        )
+        res[0]['id'].to_i
+      end
+
+      def get_ruleset_by_name(name)
+        res = exec_params('SELECT * FROM rulesets WHERE name=$1', [name])
+        res.ntuples.positive? ? res[0] : nil
+      end
+
+      def list_rulesets
+        res = exec('SELECT * FROM rulesets ORDER BY name ASC')
+        res.to_a
+      end
+
+      # =========================
+      # App CRUD: Agents
+      # =========================
+      def create_agent(name:, persona_id: nil, driver_prompt: nil, rule_set_ids: [], favorite: false)
+        params = [name, persona_id, driver_prompt, int_array_encoder.encode(rule_set_ids), favorite]
+        res = exec_params(
+          <<~SQL, params
+            INSERT INTO agents(name, persona_id, driver_prompt, rule_set_ids, favorite)
+            VALUES($1,$2,$3,$4,$5)
+            ON CONFLICT (name) DO UPDATE
+            SET persona_id=EXCLUDED.persona_id, driver_prompt=EXCLUDED.driver_prompt,
+                rule_set_ids=EXCLUDED.rule_set_ids, favorite=EXCLUDED.favorite, updated_at=NOW()
+            RETURNING id
+          SQL
+        )
+        res[0]['id'].to_i
+      end
+
+      def get_agent(id)
+        res = exec_params('SELECT * FROM agents WHERE id=$1', [id])
+        res.ntuples.positive? ? res[0] : nil
+      end
+
+      def find_agent_by_name(name)
+        res = exec_params('SELECT * FROM agents WHERE name=$1', [name])
+        res.ntuples.positive? ? res[0] : nil
+      end
+
+      def list_agents
+        res = exec('SELECT * FROM agents ORDER BY name ASC')
+        res.to_a
+      end
+
+      def increment_agent_run_count(agent_id)
+        exec_params('UPDATE agents SET run_count = run_count + 1, last_run_at = NOW(), updated_at = NOW() WHERE id=$1', [agent_id])
+        true
+      end
+
+      def record_agent_run(agent_id:, input:, output_summary:, status:, duration_ms:, full_transcript: nil)
+        payload = full_transcript.nil? ? nil : JSON.generate(full_transcript)
+        res = exec_params(
+          <<~SQL, [agent_id, input, output_summary, status, duration_ms, payload]
+            INSERT INTO agent_runs(agent_id, input, output_summary, status, duration_ms, full_transcript)
+            VALUES($1,$2,$3,$4,$5,$6)
+            RETURNING id
+          SQL
+        )
+        res[0]['id'].to_i
+      end
+
+      def list_agent_runs(agent_id, limit: 50)
+        res = exec_params(
+          'SELECT * FROM agent_runs WHERE agent_id=$1 ORDER BY id DESC LIMIT $2',
+          [agent_id, limit]
+        )
+        res.to_a
+      end
+
+      # =========================
+      # App CRUD: Workflows
+      # =========================
+      def create_workflow(name:, description: nil, graph: nil, favorite: false)
+        graph_json = graph.nil? ? nil : JSON.generate(graph)
+        res = exec_params(
+          <<~SQL, [name, description, graph_json, favorite]
+            INSERT INTO workflows(name, description, graph, favorite)
+            VALUES($1,$2,$3::jsonb,$4)
+            ON CONFLICT (name) DO NOTHING
+            RETURNING id
+          SQL
+        )
+        if res.ntuples.zero?
+          # already exists; fetch id
+          got = exec_params('SELECT id FROM workflows WHERE name=$1', [name])
+          got[0]['id'].to_i
+        else
+          res[0]['id'].to_i
+        end
+      end
+
+      def update_workflow(id:, description: nil, graph: nil, favorite: nil, run_count_delta: 0)
+        sets = []
+        params = []
+        idx = 1
+        unless description.nil?
+          sets << "description=$#{idx}"; params << description; idx += 1
+        end
+        unless graph.nil?
+          sets << "graph=$#{idx}::jsonb"; params << JSON.generate(graph); idx += 1
+        end
+        unless favorite.nil?
+          sets << "favorite=$#{idx}"; params << (favorite ? true : false); idx += 1
+        end
+        unless run_count_delta.to_i.zero?
+          sets << "run_count=run_count + #{run_count_delta.to_i}"
+        end
+        sets << 'updated_at=NOW()'
+        params << id
+        sql = "UPDATE workflows SET #{sets.join(', ')} WHERE id=$#{idx}"
+        exec_params(sql, params)
+        true
+      end
+
+      def get_workflow(id)
+        res = exec_params('SELECT * FROM workflows WHERE id=$1', [id])
+        res.ntuples.positive? ? res[0] : nil
+      end
+
+      def find_workflow_by_name(name)
+        res = exec_params('SELECT * FROM workflows WHERE name=$1', [name])
+        res.ntuples.positive? ? res[0] : nil
+      end
+
+      def list_workflows
+        res = exec('SELECT * FROM workflows ORDER BY name ASC')
+        res.to_a
+      end
+
+      def add_workflow_step(workflow_id:, name:, step_type:, config: nil, position: nil)
+        cfg = config.nil? ? nil : JSON.generate(config)
+        res = exec_params(
+          <<~SQL, [workflow_id, name, step_type, cfg, position]
+            INSERT INTO workflow_steps(workflow_id, name, step_type, config, position)
+            VALUES($1,$2,$3,$4::jsonb,$5)
+            RETURNING id
+          SQL
+        )
+        res[0]['id'].to_i
+      end
+
+      def list_workflow_steps(workflow_id)
+        res = exec_params('SELECT * FROM workflow_steps WHERE workflow_id=$1 ORDER BY position NULLS LAST, id ASC', [workflow_id])
+        res.to_a
+      end
+
+      def record_workflow_run(workflow_id:, input:, output:, status:, duration_ms:, transcript: nil)
+        payload = transcript.nil? ? nil : JSON.generate(transcript)
+        res = exec_params(
+          <<~SQL, [workflow_id, input, output, status, duration_ms, payload]
+            INSERT INTO workflow_runs(workflow_id, input, output, status, duration_ms, transcript)
+            VALUES($1,$2,$3,$4,$5,$6)
+            RETURNING id
+          SQL
+        )
+        res[0]['id'].to_i
+      end
+
+      def list_workflow_runs(workflow_id, limit: 50)
+        res = exec_params('SELECT * FROM workflow_runs WHERE workflow_id=$1 ORDER BY id DESC LIMIT $2', [workflow_id, limit])
+        res.to_a
+      end
+
       private
+      def project_root
+        base = (ENV['SAVANT_PATH'] && !ENV['SAVANT_PATH'].empty?) ? ENV['SAVANT_PATH'] : File.expand_path('../../..', __dir__)
+        File.expand_path(base)
+      end
+
+      def default_migrations_dir
+        File.join(project_root, 'db', 'migrations')
+      end
+
+      def ensure_schema_migrations!
+        exec(<<~SQL)
+          CREATE TABLE IF NOT EXISTS schema_migrations (
+            version TEXT PRIMARY KEY,
+            applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+          );
+        SQL
+        true
+      end
+
+      def migration_applied?(version)
+        res = exec_params('SELECT 1 FROM schema_migrations WHERE version=$1', [version])
+        res.ntuples.positive?
+      end
+
+      def mark_migration_applied!(version)
+        exec_params('INSERT INTO schema_migrations(version) VALUES($1) ON CONFLICT (version) DO NOTHING', [version])
+        true
+      end
 
       def text_array_encoder
         @text_array_encoder ||= PG::TextEncoder::Array.new(
           name: 'text[]',
           elements_type: PG::TextEncoder::String.new(name: 'text')
+        )
+      end
+
+      def int_array_encoder
+        @int_array_encoder ||= PG::TextEncoder::Array.new(
+          name: 'int[]',
+          elements_type: PG::TextEncoder::Integer.new(name: 'int4')
         )
       end
 
