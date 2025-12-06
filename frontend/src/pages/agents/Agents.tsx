@@ -124,7 +124,7 @@ export default function Agents() {
                     <Chip size="small" color={r.status === 'ok' ? 'success' : 'warning'} label={r.status || 'ok'} />
                     <Chip size="small" label={`${r.duration_ms || 0} ms`} />
                   </Stack>
-                  <Button size="small" onClick={() => nav(`/engines/agents/edit/${sel}?run=${r.id}`)}>View</Button>
+                  <Button size="small" onClick={() => nav(`/engines/agents/run/${sel}/${r.id}`)}>View</Button>
                 </Stack>
                 <Typography variant="body2" sx={{ mt: 1 }}>{r.output_summary || '(no summary)'}</Typography>
               </Paper>
@@ -157,4 +157,3 @@ export default function Agents() {
     </Grid>
   );
 }
-
