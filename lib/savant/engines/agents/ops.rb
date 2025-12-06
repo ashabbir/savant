@@ -175,12 +175,37 @@ module Savant
       end
 
       def to_agent_hash(row)
+        # Lookup persona and ruleset names for better UX in UI
+        persona_name = nil
+        begin
+          if row['persona_id']
+            res = @db.exec_params('SELECT name FROM personas WHERE id=$1', [row['persona_id']])
+            persona_name = res.ntuples.positive? ? res[0]['name'] : nil
+          end
+        rescue StandardError
+          persona_name = nil
+        end
+
+        rule_ids = parse_int_array(row['rule_set_ids'])
+        rules_names = []
+        begin
+          unless rule_ids.empty?
+            param = "{#{rule_ids.join(',')}}"
+            res = @db.exec_params('SELECT name FROM rulesets WHERE id = ANY($1::int[]) ORDER BY name ASC', [param])
+            rules_names = res.map { |r| r['name'] }
+          end
+        rescue StandardError
+          rules_names = []
+        end
+
         {
           id: row['id'].to_i,
           name: row['name'],
           persona_id: row['persona_id']&.to_i,
+          persona_name: persona_name,
           driver: row['driver_prompt'],
-          rule_set_ids: parse_int_array(row['rule_set_ids']),
+          rule_set_ids: rule_ids,
+          rules_names: rules_names,
           favorite: row['favorite'] == 't' || row['favorite'] == true,
           run_count: row['run_count']&.to_i,
           last_run_at: row['last_run_at'],

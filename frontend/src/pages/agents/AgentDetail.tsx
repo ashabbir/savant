@@ -55,9 +55,11 @@ export default function AgentDetail() {
   const [runMeta, setRunMeta] = useState<{ id: number; status?: string; output_summary?: string; duration_ms?: number } | null>(null);
 
   useEffect(() => {
-    const a = agent.data;
+    const a = agent.data as any;
     if (!a) return;
     setDriver(a.driver || '');
+    if (typeof a.persona_name === 'string' && a.persona_name.length > 0) setPersona(a.persona_name);
+    if (Array.isArray(a.rules_names) && a.rules_names.length > 0) setSelRules(a.rules_names);
   }, [agent.data]);
 
   useEffect(() => {
