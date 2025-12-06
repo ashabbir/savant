@@ -5,7 +5,7 @@ import react from '@vitejs/plugin-react-swc';
 export default defineConfig({
   plugins: [react()],
   optimizeDeps: {
-    include: ['@mui/material', '@mui/icons-material', '@emotion/react', '@emotion/styled']
+    include: ['@mui/material', '@mui/icons-material', '@emotion/react', '@emotion/styled', 'react-router-dom', 'react-router']
   },
   server: {
     host: '0.0.0.0',
