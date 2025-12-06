@@ -12,12 +12,16 @@ export default defineConfig({
   optimizeDeps: {
     include: [
       '@mui/material', '@mui/icons-material', '@emotion/react', '@emotion/styled',
-      'react-router-dom', 'react-router', 'internmap', 'd3-array'
-    ]
+      'react-router-dom', 'react-router'
+    ],
+    exclude: ['internmap']
   },
   resolve: {
     alias: {
       'react-router-dom': r('react-router-dom/dist/index.js')
+      ,
+      // Shim internmap used by d3-array in reactflow; avoids npm packaging issues in container
+      'internmap': path.resolve(__dirname, 'src/shims/internmap.ts')
     }
   },
   server: {
