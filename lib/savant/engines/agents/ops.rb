@@ -85,7 +85,8 @@ module Savant
               transcript = JSON.parse(File.read(mpath)) rescue nil
             end
           end
-          summary = res[:final] || res['final'] || nil
+          # Prefer final, else error text for visibility
+          summary = res[:final] || res['final'] || res[:error] || res['error'] || nil
           status = res[:status] || res['status'] || 'ok'
           @db.record_agent_run(agent_id: agent['id'], input: input.to_s, output_summary: summary, status: status, duration_ms: dur_ms, full_transcript: transcript)
         rescue StandardError
@@ -125,7 +126,13 @@ module Savant
         rescue StandardError
           nil
         end
-        { id: row['id'].to_i, transcript: parsed }
+        {
+          id: row['id'].to_i,
+          status: row['status'],
+          output_summary: row['output_summary'],
+          duration_ms: row['duration_ms']&.to_i,
+          transcript: parsed
+        }
       end
 
       private
@@ -194,4 +201,3 @@ module Savant
     end
   end
 end
-
