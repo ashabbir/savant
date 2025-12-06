@@ -9,39 +9,14 @@ import Alert from '@mui/material/Alert';
 import LinearProgress from '@mui/material/LinearProgress';
 import Autocomplete from '@mui/material/Autocomplete';
 import Stack from '@mui/material/Stack';
-import Chip from '@mui/material/Chip';
-import Divider from '@mui/material/Divider';
-import { agentsDelete, agentsUpdate, agentRunRead, getErrorMessage, useAgent, useAgentRuns, usePersonas, useRules } from '../../api';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-
-function TranscriptView({ transcript }: { transcript: any }) {
-  if (!transcript) return <Typography variant="body2" color="text.secondary">No transcript available.</Typography>;
-  const steps = transcript.steps || [];
-  return (
-    <Stack spacing={1}>
-      {steps.map((s: any, idx: number) => (
-        <Paper key={idx} variant="outlined" sx={{ p: 1 }}>
-          <Stack direction="row" spacing={1} alignItems="center">
-            <Chip size="small" label={`#${s.index || idx+1}`} />
-            <Chip size="small" label={s.action?.action || s.action || 'step'} />
-            {s.action?.tool_name && <Chip size="small" color="primary" label={s.action.tool_name} />}
-          </Stack>
-          {s.action?.final && <Typography variant="body2" sx={{ mt: 1 }}>{s.action.final}</Typography>}
-          {s.output && <pre style={{ margin: 0, marginTop: 8, whiteSpace: 'pre-wrap' }}>{JSON.stringify(s.output, null, 2)}</pre>}
-          {s.note && <Typography variant="caption" color="text.secondary">{s.note}</Typography>}
-        </Paper>
-      ))}
-    </Stack>
-  );
-}
+import { agentsUpdate, getErrorMessage, useAgent, usePersonas, useRules } from '../../api';
+import { useNavigate, useParams } from 'react-router-dom';
 
 export default function AgentDetail() {
   const params = useParams();
-  const [search] = useSearchParams();
   const name = params.name || null;
   const nav = useNavigate();
   const agent = useAgent(name);
-  const runs = useAgentRuns(name);
   const personas = usePersonas('');
   const rules = useRules('');
   const personaOptions = useMemo(() => (personas.data?.personas || []).map(p=>p.name), [personas.data]);
@@ -51,8 +26,6 @@ export default function AgentDetail() {
   const [selRules, setSelRules] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
-  const [transcript, setTranscript] = useState<any>(null);
-  const [runMeta, setRunMeta] = useState<{ id: number; status?: string; output_summary?: string; duration_ms?: number } | null>(null);
 
   useEffect(() => {
     const a = agent.data as any;
@@ -62,15 +35,16 @@ export default function AgentDetail() {
     if (Array.isArray(a.rules_names) && a.rules_names.length > 0) setSelRules(a.rules_names);
   }, [agent.data]);
 
+  // Ensure values are set after options load as well
   useEffect(() => {
-    const run = search.get('run');
-    if (name && run) {
-      agentRunRead(name, Number(run)).then((d)=> { setTranscript(d.transcript); setRunMeta({ id: d.id, status: (d as any).status, output_summary: (d as any).output_summary, duration_ms: (d as any).duration_ms }); }).catch(()=>{ setTranscript(null); setRunMeta(null); });
-    } else {
-      setTranscript(null);
-      setRunMeta(null);
+    const a = agent.data as any;
+    if (!a) return;
+    if (a.persona_name && personaOptions.includes(a.persona_name)) setPersona((prev)=> prev || a.persona_name);
+    if (Array.isArray(a.rules_names) && a.rules_names.length > 0) {
+      const ready = a.rules_names.every((n: string) => ruleOptions.includes(n));
+      if (ready && selRules.length === 0) setSelRules(a.rules_names);
     }
-  }, [name, search]);
+  }, [personaOptions, ruleOptions]);
 
   async function save() {
     if (!name) return;
@@ -113,28 +87,7 @@ export default function AgentDetail() {
         </Paper>
       </Grid>
 
-      <Grid size={{ xs: 12, md: 6 }}>
-        <Paper sx={{ p:2, display: 'flex', flexDirection: 'column', gap: 1 }}>
-          <Stack direction="row" alignItems="center" justifyContent="space-between">
-            <Typography variant="subtitle1">Run Transcript</Typography>
-            {runMeta && (
-              <Stack direction="row" spacing={1} alignItems="center">
-                <Chip size="small" label={`#${runMeta.id}`} />
-                {runMeta.status && <Chip size="small" color={runMeta.status === 'ok' ? 'success' : 'warning'} label={runMeta.status} />}
-                {typeof runMeta.duration_ms === 'number' && <Chip size="small" label={`${runMeta.duration_ms} ms`} />}
-              </Stack>
-            )}
-          </Stack>
-          <Divider />
-          {!transcript && (
-            <>
-              {runMeta?.output_summary && <Alert severity={runMeta.status === 'ok' ? 'success' : 'error'} sx={{ mb: 1 }}>{runMeta.output_summary}</Alert>}
-              <Alert severity="info">No transcript was persisted for this run. Check Diagnostics → Agent or engine logs for details.</Alert>
-            </>
-          )}
-          {transcript && <TranscriptView transcript={transcript} />}
-        </Paper>
-      </Grid>
+      {/* No run info in edit page per requirements */}
     </Grid>
   );
 }

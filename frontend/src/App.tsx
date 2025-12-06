@@ -30,6 +30,7 @@ import RuleEditor from './pages/rules/RuleEditor';
 import Agents from './pages/agents/Agents';
 import AgentWizard from './pages/agents/AgentWizard';
 import AgentDetail from './pages/agents/AgentDetail';
+import AgentRun from './pages/agents/AgentRun';
 import JiraTools from './pages/jira/Tools';
 import GitTools from './pages/git/Tools';
 import ContextTools from './pages/context/Tools';
@@ -475,6 +476,7 @@ export default function App() {
           <Route path="/engines/agents" element={<Agents />} />
           <Route path="/engines/agents/new" element={<AgentWizard />} />
           <Route path="/engines/agents/edit/:name" element={<AgentDetail />} />
+          <Route path="/engines/agents/run/:name/:id" element={<AgentRun />} />
           {/* Workflows editor moved under Think engine */}
           {/* Legacy shortcuts */}
           <Route path="/rules" element={<RulesPage />} />
