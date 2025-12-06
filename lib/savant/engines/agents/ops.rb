@@ -59,7 +59,7 @@ module Savant
         @db.delete_agent_by_name(name) > 0
       end
 
-      def run(name:, input:, max_steps: nil, dry_run: false)
+      def run(name:, input:, max_steps: nil, dry_run: false, user_id: nil)
         agent = @db.find_agent_by_name(name)
         raise 'not_found' unless agent
 
@@ -67,7 +67,19 @@ module Savant
         context = Savant::Boot.initialize!(persona_name: persona_name(agent), skip_git: true, base_path: @base_path)
         context.driver_prompt = { version: 'agent', prompt_md: (agent['driver_prompt'] || '').to_s }
 
-        rt = Savant::Agent::Runtime.new(goal: input.to_s, base_path: @base_path)
+        # Prepare cancellation key (per user if available)
+        cancel_key = Savant::Agent::Cancel.key_for(agent_name: name, user_id: user_id)
+        # Clear any stale cancellation signals before starting
+        begin
+          Savant::Agent::Cancel.clear(cancel_key)
+        rescue StandardError
+        end
+        rt = Savant::Agent::Runtime.new(goal: input.to_s, base_path: @base_path, cancel_key: cancel_key)
+        begin
+          Savant::Logging::EventRecorder.global.record({ type: 'agent_run_started', mcp: 'agent', agent: name, goal: input.to_s, ts: Time.now.utc.iso8601, timestamp: Time.now.to_i })
+        rescue StandardError
+          # ignore telemetry errors
+        end
         started = monotonic
         res = rt.run(max_steps: (max_steps || Savant::Agent::Runtime::DEFAULT_MAX_STEPS).to_i, dry_run: dry_run)
         dur_ms = ((monotonic - started) * 1000.0).round
@@ -77,12 +89,15 @@ module Savant
           # Update counters
           @db.increment_agent_run_count(agent['id'])
 
-          # Read transcript JSON from memory file if exists
+          # Prefer full transcript returned by runtime; fallback to snapshot file if needed
           transcript = nil
           if res.is_a?(Hash)
-            mpath = res[:memory_path] || res['memory_path']
-            if mpath && File.file?(mpath)
-              transcript = JSON.parse(File.read(mpath)) rescue nil
+            transcript = res[:transcript] || res['transcript']
+            if transcript.nil?
+              mpath = res[:memory_path] || res['memory_path']
+              if mpath && File.file?(mpath)
+                transcript = JSON.parse(File.read(mpath)) rescue nil
+              end
             end
           end
           # Prefer final, else error text for visibility
@@ -93,9 +108,24 @@ module Savant
           # best-effort
         end
 
+        begin
+          Savant::Logging::EventRecorder.global.record({ type: 'agent_run_completed', mcp: 'agent', agent: name, status: 'ok', duration_ms: dur_ms, ts: Time.now.utc.iso8601, timestamp: Time.now.to_i })
+        rescue StandardError
+        end
         { status: 'ok', duration_ms: dur_ms, result: res }
       rescue StandardError => e
+        begin
+          Savant::Logging::EventRecorder.global.record({ type: 'agent_run_completed', mcp: 'agent', agent: name, status: 'error', error: e.message, ts: Time.now.utc.iso8601, timestamp: Time.now.to_i })
+        rescue StandardError
+        end
         { status: 'error', error: e.message }
+      end
+
+      # Signal cancellation for an agent run (per user if available)
+      def run_cancel(name:, user_id: nil)
+        key = Savant::Agent::Cancel.key_for(agent_name: name, user_id: user_id)
+        Savant::Agent::Cancel.request(key)
+        { ok: true }
       end
 
       def runs_list(name:, limit: 50)
@@ -103,13 +133,41 @@ module Savant
         raise 'not_found' unless agent
         rows = @db.list_agent_runs(agent['id'], limit: limit)
         rows.map do |r|
+          steps_count = nil
+          final_text = nil
+          begin
+            if r['full_transcript'] && !r['full_transcript'].to_s.empty?
+              t = JSON.parse(r['full_transcript']) rescue nil
+              if t.is_a?(Hash)
+                steps = t['steps'] || t[:steps] || []
+                steps_count = steps.is_a?(Array) ? steps.size : nil
+                # Try to derive final from transcript if missing
+                if steps.is_a?(Array)
+                  steps.reverse_each do |s|
+                    a = s['action'] || s[:action] || {}
+                    f = a['final'] || a[:final]
+                    if f && !f.to_s.empty?
+                      final_text = f.to_s
+                      break
+                    end
+                  end
+                end
+              end
+            end
+          rescue StandardError
+            steps_count = nil
+            final_text = nil
+          end
+
           {
             id: r['id'].to_i,
             input: r['input'],
             output_summary: r['output_summary'],
             status: r['status'],
             duration_ms: r['duration_ms']&.to_i,
-            created_at: r['created_at']
+            created_at: r['created_at'],
+            steps: steps_count,
+            final: (r['output_summary'] && !r['output_summary'].to_s.empty?) ? r['output_summary'] : final_text
           }
         end
       end
@@ -133,6 +191,20 @@ module Savant
           duration_ms: row['duration_ms']&.to_i,
           transcript: parsed
         }
+      end
+
+      def run_delete(name:, run_id:)
+        agent = @db.find_agent_by_name(name)
+        raise 'not_found' unless agent
+        res = @db.exec_params('DELETE FROM agent_runs WHERE id=$1 AND agent_id=$2', [run_id.to_i, agent['id']])
+        res.cmd_tuples.positive?
+      end
+
+      def runs_clear_all(name:)
+        agent = @db.find_agent_by_name(name)
+        raise 'not_found' unless agent
+        res = @db.exec_params('DELETE FROM agent_runs WHERE agent_id=$1', [agent['id']])
+        { deleted_count: res.cmd_tuples }
       end
 
       private

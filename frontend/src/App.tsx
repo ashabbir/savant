@@ -43,6 +43,8 @@ import HubIcon from '@mui/icons-material/Hub';
 import StorageIcon from '@mui/icons-material/Storage';
 import ManageSearchIcon from '@mui/icons-material/ManageSearch';
 import CodeIcon from '@mui/icons-material/Code';
+import SmartToyIcon from '@mui/icons-material/SmartToy';
+import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import SettingsDialog from './components/SettingsDialog';
 import { onAppEvent } from './utils/bus';
 
@@ -50,7 +52,9 @@ function useMainTabIndex() {
   const { pathname } = useLocation();
   if (pathname === '/dashboard' || pathname === '/') return 0;
   if (pathname.startsWith('/engines')) return 1;
-  if (pathname.startsWith('/diagnostics')) return 2;
+  if (pathname.startsWith('/agents')) return 2;
+  if (pathname.startsWith('/workflows')) return 3;
+  if (pathname.startsWith('/diagnostics')) return 4;
   return 0;
 }
 
@@ -71,8 +75,11 @@ function useThinkSubIndex() {
 }
 
 function sortEngines(engines: string[]): string[] {
-  const order = ['context', 'think', 'agents', 'personas', 'rules', 'jira', 'git'];
-  return engines.sort((a, b) => {
+  // Filter out agents since it's a top-level tab now
+  // Keep 'think' for Prompts/Tools sub-pages
+  const filtered = engines.filter(e => e !== 'agents');
+  const order = ['context', 'think', 'personas', 'rules', 'jira', 'git'];
+  return filtered.sort((a, b) => {
     const aIdx = order.indexOf(a);
     const bIdx = order.indexOf(b);
     if (aIdx === -1 && bIdx === -1) return a.localeCompare(b);
@@ -107,10 +114,8 @@ function useEngineSubIndex(engineName: string | undefined) {
     return 0;
   }
   if (engineName === 'think') {
-    if (pathname.includes('/workflows')) return 0;
-    if (pathname.includes('/prompts')) return 1;
-    if (pathname.includes('/runs')) return 2;
-    if (pathname.includes('/think/tools')) return 3;
+    if (pathname.includes('/prompts')) return 0;
+    if (pathname.includes('/think/tools')) return 1;
     return 0;
   }
   if (engineName === 'personas') {
@@ -132,12 +137,13 @@ function useEngineSubIndex(engineName: string | undefined) {
 
 function defaultEngineRoute(name: string): string {
   if (name === 'context') return '/engines/context/resources';
-  if (name === 'think') return '/engines/think/workflows';
+  if (name === 'think') return '/engines/think/prompts';  // Default to prompts since workflows is top-level
   if (name === 'jira') return '/engines/jira/tools';
-  if (name === 'agents') return '/engines/agents';
   if (name === 'personas') return '/engines/personas';
   if (name === 'rules') return '/engines/rules';
   if (name === 'git') return '/engines/git/tools';
+  // agents is now top-level, redirect if somehow accessed
+  if (name === 'agents') return '/agents';
   return `/engines/${name}`;
 }
 
@@ -212,9 +218,21 @@ export default function App() {
       if (tgt) navigate(defaultEngineRoute(tgt), { replace: true });
     }
   }, [mainIdx, loc.pathname, uiEngines]);
+  // Normalize Agents root
+  React.useEffect(() => {
+    if (mainIdx === 2 && loc.pathname === '/agents') {
+      navigate('/agents', { replace: false });
+    }
+  }, [mainIdx, loc.pathname]);
+  // Normalize Workflows root
+  React.useEffect(() => {
+    if (mainIdx === 3 && loc.pathname === '/workflows') {
+      navigate('/workflows', { replace: false });
+    }
+  }, [mainIdx, loc.pathname]);
   // Normalize Diagnostics root to a concrete sub-route so tabs highlight consistently
   React.useEffect(() => {
-    if (mainIdx === 2 && (loc.pathname === '/diagnostics' || loc.pathname === '/diagnostics/')) {
+    if (mainIdx === 4 && (loc.pathname === '/diagnostics' || loc.pathname === '/diagnostics/')) {
       navigate('/diagnostics/overview', { replace: true });
     }
   }, [mainIdx, loc.pathname]);
@@ -291,25 +309,21 @@ export default function App() {
       <Tabs value={mainIdx} onChange={(_, v) => {
         if (v === 0) navigate('/dashboard');
         else if (v === 1) navigate('/engines');
-        else if (v === 2) navigate('/diagnostics');
+        else if (v === 2) navigate('/agents');
+        else if (v === 3) navigate('/workflows');
+        else if (v === 4) navigate('/diagnostics');
       }} centered>
         <Tab icon={<DashboardIcon />} iconPosition="start" label="Dashboard" component={Link} to="/dashboard" />
-        <Tab icon={<StorageIcon />} iconPosition="start" label="MCPs" component={Link} to="/engines" />
+        <Tab icon={<StorageIcon />} iconPosition="start" label="Tools" component={Link} to="/engines" />
+        <Tab icon={<SmartToyIcon />} iconPosition="start" label="Agents" component={Link} to="/agents" />
+        <Tab icon={<AccountTreeIcon />} iconPosition="start" label="Workflows" component={Link} to="/workflows" />
         <Tab icon={<ManageSearchIcon />} iconPosition="start" label="Diagnostics" component={Link} to="/diagnostics" />
       </Tabs>
       {mainIdx === 1 && (
         <Tabs value={uiEngIdx} onChange={(_, v) => {
           const tgt = uiEngines[v];
           if (tgt) {
-            // Navigate to engine default route
-          if (tgt === 'context') navigate('/engines/context/resources');
-          else if (tgt === 'think') navigate('/engines/think/workflows');
-          else if (tgt === 'agents') navigate('/engines/agents');
-          else if (tgt === 'personas') navigate('/engines/personas');
-          else if (tgt === 'rules') navigate('/engines/rules');
-          else if (tgt === 'jira') navigate('/engines/jira/tools');
-          else if (tgt === 'git') navigate('/engines/git/tools');
-          else navigate(`/engines/${tgt}`);
+            navigate(defaultEngineRoute(tgt));
           }
         }} centered sx={{
           '& .MuiTab-root': { fontSize: 12, minHeight: 36, py: 0.5, textTransform: 'none' },
@@ -342,18 +356,14 @@ export default function App() {
       )}
       {mainIdx === 1 && selEngine === 'think' && (
         <Tabs value={engSubIdx} onChange={(_, v) => {
-          if (v === 0) navigate('/engines/think/workflows');
-          else if (v === 1) navigate('/engines/think/prompts');
-          else if (v === 2) navigate('/engines/think/runs');
-          else if (v === 3) navigate('/engines/think/tools');
+          if (v === 0) navigate('/engines/think/prompts');
+          else if (v === 1) navigate('/engines/think/tools');
         }} centered sx={{
           '& .MuiTab-root': { fontSize: 12, minHeight: 36, py: 0.5, textTransform: 'none', color: 'text.secondary' },
           '& .Mui-selected': { color: 'primary.main !important' },
           '& .MuiTabs-indicator': { height: 2, backgroundColor: 'primary.light' }
         }}>
-          <Tab label="Workflows" component={Link} to="/engines/think/workflows" />
           <Tab label="Prompts" component={Link} to="/engines/think/prompts" />
-          <Tab label="Runs" component={Link} to="/engines/think/runs" />
           <Tab label="Tools" component={Link} to="/engines/think/tools" />
         </Tabs>
       )}
@@ -415,7 +425,7 @@ export default function App() {
         </Tabs>
       )}
       {/* Diagnostics subtabs */}
-      {mainIdx === 2 && (
+      {mainIdx === 4 && (
         <Tabs value={diagSubIdx} centered sx={{
           '& .MuiTab-root': { fontSize: 12, minHeight: 32, py: 0.5, textTransform: 'none', color: 'text.secondary' },
           '& .Mui-selected': { color: 'primary.main !important' },
@@ -435,6 +445,19 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<Dashboard />} />
+
+          {/* Top-level Agents routes */}
+          <Route path="/agents" element={<Agents />} />
+          <Route path="/agents/new" element={<AgentWizard />} />
+          <Route path="/agents/edit/:name" element={<AgentDetail />} />
+          <Route path="/agents/run/:name/:id" element={<AgentRun />} />
+
+          {/* Top-level Workflows routes */}
+          <Route path="/workflows" element={<ThinkWorkflows />} />
+          <Route path="/workflows/new" element={<ThinkWorkflowEditor />} />
+          <Route path="/workflows/edit/:id" element={<ThinkWorkflowEditor />} />
+          <Route path="/workflows/runs" element={<ThinkRuns />} />
+
           <Route path="/search" element={<Navigate to="/ctx/search" replace />} />
           <Route path="/repos" element={<Navigate to="/ctx/repos" replace />} />
           {/* Legacy routes (back-compat) */}
@@ -454,6 +477,7 @@ export default function App() {
           <Route path="/engines/context/repos" element={<Repos />} />
           <Route path="/engines/context/tools" element={<ContextTools />} />
 
+          {/* Keep old think/workflows routes for backward compatibility */}
           <Route path="/engines/think/workflows" element={<ThinkWorkflows />} />
           <Route path="/engines/think/workflows/new" element={<ThinkWorkflowEditor />} />
           <Route path="/engines/think/workflows/edit/:id" element={<ThinkWorkflowEditor />} />
@@ -473,6 +497,7 @@ export default function App() {
           <Route path="/engines/rules/tools" element={<RulesTools />} />
           <Route path="/engines/rules/new" element={<RuleEditor />} />
           <Route path="/engines/rules/edit/:name" element={<RuleEditor />} />
+          {/* Keep old agents routes for backward compatibility */}
           <Route path="/engines/agents" element={<Agents />} />
           <Route path="/engines/agents/new" element={<AgentWizard />} />
           <Route path="/engines/agents/edit/:name" element={<AgentDetail />} />

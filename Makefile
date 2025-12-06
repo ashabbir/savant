@@ -125,7 +125,7 @@ ui-install:
 
 # Run frontend dev server (hot reload) - requires hub running
 ui-dev:
-	@docker compose run --rm -p 5173:5173 frontend /bin/sh -lc 'cd /app/frontend && npm install --include=dev && npm run dev -- --host 0.0.0.0'
+	@docker compose run --rm -p 5173:5173 frontend /bin/sh -lc 'cd /app/frontend && (npm ci || npm install --include=dev) && npm run dev -- --host 0.0.0.0'
 
 # Start hub + frontend dev server together (hot reload)
 dev-ui:

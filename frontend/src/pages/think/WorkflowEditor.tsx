@@ -1,7 +1,8 @@
 import React from 'react';
 import ReactFlow, { Background, Controls, MiniMap, addEdge, Connection, Edge, Node, useNodesState, useEdgesState } from 'reactflow';
 import 'reactflow/dist/style.css';
-import { Alert, Autocomplete, Box, Button, Divider, Grid2 as Grid, IconButton, LinearProgress, Paper, Stack, TextField, Tooltip, Typography, Dialog, DialogTitle, DialogContent, DialogActions, MenuItem, Chip, Snackbar, Tabs, Tab, useTheme, GlobalStyles } from '@mui/material';
+import Grid from '@mui/material/Unstable_Grid2';
+import { Alert, Autocomplete, Box, Button, Divider, IconButton, LinearProgress, Paper, Stack, TextField, Tooltip, Typography, Dialog, DialogTitle, DialogContent, DialogActions, MenuItem, Chip, Snackbar, Tabs, Tab, useTheme, GlobalStyles } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import SaveIcon from '@mui/icons-material/Save';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -575,10 +576,10 @@ export default function ThinkWorkflowEditor() {
         }}
       />
       <Grid container spacing={2} columns={12}>
-        <Grid size={12}>
+        <Grid xs={12}>
         <Stack direction="row" spacing={0.5} alignItems="center" justifyContent="flex-end">
           <Stack direction="row" spacing={0.5} alignItems="center" sx={{ mr: 'auto' }}>
-            <IconButton onClick={() => nav('/engines/think/workflows')} title="Back to workflows">
+            <IconButton onClick={() => nav('/workflows')} title="Back to workflows">
               <ArrowBackIcon />
             </IconButton>
             {validation && (
@@ -621,7 +622,7 @@ export default function ThinkWorkflowEditor() {
         </Stack>
       </Grid>
       {/* Two-panel layout: Action (left) and Result (right) — 4/8 split */}
-      <Grid size={4}>
+      <Grid xs={4}>
         <Paper sx={{ p: 1, height: PANEL_HEIGHT, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <Box id="workflow-actions-panel" aria-labelledby="workflow-actions-heading" sx={{ flex: 1, overflowY: 'auto', pr: 1 }}>
             <Typography id="workflow-actions-heading" component="span" sx={{ position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap', border: 0 }}>Workflow Actions Panel</Typography>
@@ -743,7 +744,7 @@ export default function ThinkWorkflowEditor() {
           </Box>
         </Paper>
       </Grid>
-      <Grid size={8}>
+      <Grid xs={8}>
         <Paper sx={{ p: 1, height: PANEL_HEIGHT, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           {rd.isFetching && <LinearProgress />}
           {rd.isError && <Alert severity="error">{(rd.error as any)?.message || 'Failed to load'}</Alert>}

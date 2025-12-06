@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import Grid from '@mui/material/Grid2';
+import Grid from '@mui/material/Unstable_Grid2';
 import Paper from '@mui/material/Paper';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -47,7 +47,7 @@ export default function SmallMultiplesMulti({
       <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1 }}>{title}</Typography>
       <Grid container spacing={1}>
         {series.map((s) => (
-          <Grid key={s.id} size={{ xs: 12, sm: 6, md: 3 }}>
+          <Grid key={s.id} xs={12} sm={6} md={3}>
             <Box sx={{ p: 1, border: '1px solid', borderColor: 'divider', borderRadius: 1 }}>
               <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
                 {s.title || s.id}

@@ -59,6 +59,7 @@ module Savant
         list << { module: 'hub', method: 'GET', path: '/diagnostics/jira', description: 'Jira credentials presence (no secrets leaked)' }
         list << { module: 'hub', method: 'GET', path: '/diagnostics/connections', description: 'Active SSE/stdio connections' }
         list << { module: 'hub', method: 'GET', path: '/diagnostics/agent', description: 'Agent runtime: memory + telemetry' }
+        list << { module: 'hub', method: 'DELETE', path: '/diagnostics/agent', description: 'Clear agent logs and session data' }
         list << { module: 'hub', method: 'GET', path: '/diagnostics/agent/trace', description: 'Download agent trace log' }
         list << { module: 'hub', method: 'GET', path: '/diagnostics/agent/session', description: 'Download agent session memory JSON' }
         list << { module: 'hub', method: 'GET', path: '/diagnostics/workflows', description: 'Workflow engine telemetry (recent events)' }
@@ -202,6 +203,7 @@ module Savant
         return diagnostics(req) if req.get? && req.path_info == '/diagnostics'
         return diagnostics_jira(req) if req.get? && req.path_info == '/diagnostics/jira'
         return diagnostics_agent(req) if req.get? && %w[/diagnostics/agent /diagnostics/agents].include?(req.path_info)
+        return diagnostics_agent_clear(req) if req.delete? && %w[/diagnostics/agent /diagnostics/agents].include?(req.path_info)
         return diagnostics_agent_trace(req) if req.get? && req.path_info == '/diagnostics/agent/trace'
         return diagnostics_agent_session(req) if req.get? && req.path_info == '/diagnostics/agent/session'
         return diagnostics_connections(req) if req.get? && req.path_info == '/diagnostics/connections'
@@ -761,7 +763,7 @@ module Savant
         {
           'Access-Control-Allow-Origin' => allow_origin,
           'Access-Control-Allow-Headers' => 'content-type, x-savant-user-id',
-          'Access-Control-Allow-Methods' => 'GET, POST, OPTIONS'
+          'Access-Control-Allow-Methods' => 'GET, POST, DELETE, OPTIONS'
         }
       end
 
@@ -1095,6 +1097,45 @@ module Savant
           return respond(500, { error: 'session_parse_error', message: e.message })
         end
         [200, { 'Content-Type' => 'application/json' }.merge(cors_headers), [JSON.generate(js)]]
+      end
+
+      # DELETE /diagnostics/agent -> clear agent logs and session
+      def diagnostics_agent_clear(_req)
+        base = base_path
+        session_path = File.join(base, '.savant', 'session.json')
+        trace_path = File.join(base, 'logs', 'agent_trace.log')
+
+        cleared = []
+        errors = []
+
+        # Clear session.json
+        if File.file?(session_path)
+          begin
+            File.delete(session_path)
+            cleared << 'session.json'
+          rescue StandardError => e
+            errors << { file: 'session.json', error: e.message }
+          end
+        end
+
+        # Clear agent_trace.log
+        if File.file?(trace_path)
+          begin
+            File.truncate(trace_path, 0)
+            cleared << 'agent_trace.log'
+          rescue StandardError => e
+            errors << { file: 'agent_trace.log', error: e.message }
+          end
+        end
+
+        # Also clear agent events from recorder
+        begin
+          @recorder.clear(type: 'reasoning_step') if @recorder.respond_to?(:clear)
+        rescue StandardError
+          # ignore if clear method not available
+        end
+
+        respond(200, { cleared: cleared, errors: errors, message: "Cleared #{cleared.length} file(s)" })
       end
 
       def normalize_tool_spec(spec)

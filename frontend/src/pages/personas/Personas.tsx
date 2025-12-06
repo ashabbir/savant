@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import Grid from '@mui/material/Grid2';
+import Grid from '@mui/material/Unstable_Grid2';
 import Paper from '@mui/material/Paper';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
@@ -71,7 +71,7 @@ export default function Personas() {
 
   return (
     <Grid container spacing={2}>
-      <Grid size={{ xs: 12, md: 4 }}>
+      <Grid xs={12} md={4}>
         <Paper sx={{ p: 1, height: PANEL_HEIGHT, display: 'flex', flexDirection: 'column' }}>
           <Box display="flex" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
             <Typography variant="subtitle1" sx={{ fontSize: 12 }}>Personas</Typography>
@@ -126,7 +126,7 @@ export default function Personas() {
           </List>
         </Paper>
       </Grid>
-      <Grid size={{ xs: 12, md: 8 }}>
+      <Grid xs={12} md={8}>
         <Stack spacing={2}>
           <Paper sx={{ p: 2, height: PANEL_HEIGHT, display: 'flex', flexDirection: 'column' }}>
             <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between">

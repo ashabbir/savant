@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import Box from '@mui/material/Box';
-import Grid from '@mui/material/Grid2';
+import Grid from '@mui/material/Unstable_Grid2';
 import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
 import IconButton from '@mui/material/IconButton';
@@ -216,7 +216,7 @@ export default function DiagnosticsOverview() {
       {/* Main Grid */}
       <Grid container spacing={1.5} sx={{ flex: 1, minHeight: 0 }}>
         {/* Left Column - Quick Cards + Requests (scrollable) */}
-        <Grid size={{ xs: 12, md: 4 }}>
+        <Grid xs={12} md={4}>
           <Stack spacing={1.5} sx={{ height: '100%', overflow: 'auto' }}>
             {/* Quick Cards: Workflows + API Health */}
             <Paper sx={{ p: 1.5, cursor: 'pointer' }} onClick={() => navigate('/diagnostics/workflows')}>
@@ -361,7 +361,7 @@ export default function DiagnosticsOverview() {
         </Grid>
 
         {/* Middle Column - Database & Config (scrollable) */}
-        <Grid size={{ xs: 12, md: 4 }}>
+        <Grid xs={12} md={4}>
           <Stack spacing={1.5} sx={{ height: '100%', overflow: 'auto', pr: 0.5 }}>
             {/* Engines */}
             <Paper sx={{ p: 1.5 }}>
@@ -549,7 +549,7 @@ export default function DiagnosticsOverview() {
         </Grid>
 
         {/* Right Column - Database, Mounts & Config (scrollable) */}
-        <Grid size={{ xs: 12, md: 4 }}>
+        <Grid xs={12} md={4}>
           <Stack spacing={1.5} sx={{ height: '100%', overflow: 'auto' }}>
             {/* LLM Models */}
             <Paper sx={{ p: 1.5 }}>

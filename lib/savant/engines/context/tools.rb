@@ -57,23 +57,27 @@ module Savant
           end
 
           tool 'fts_search', description: 'Full‑text search over indexed repos (filter by repo name(s))',
-                             schema: { type: 'object', properties: { q: { type: 'string' }, repo: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }, { type: 'null' }] }, limit: { type: 'integer', minimum: 1, maximum: 100 } }, required: ['q'] } do |_ctx, a|
+                             schema: { type: 'object', properties: { q: { type: 'string' }, query: { type: 'string' }, repo: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }, { type: 'null' }] }, limit: { type: 'integer', minimum: 1, maximum: 100 } } } do |_ctx, a|
             limit = begin
               Integer(a['limit'] || 10)
             rescue StandardError
               10
             end
-            engine.search(q: (a['q'] || '').to_s, repo: a['repo'], limit: limit)
+            # Accept both 'q' and 'query' as parameter names
+            query_text = (a['q'] || a['query'] || '').to_s
+            engine.search(q: query_text, repo: a['repo'], limit: limit)
           end
 
           tool 'memory_search', description: 'Search memory_bank markdown in DB FTS (filter by repo name(s))',
-                                schema: { type: 'object', properties: { q: { type: 'string' }, repo: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }, { type: 'null' }] }, limit: { type: 'integer', minimum: 1, maximum: 100 } }, required: ['q'] } do |_ctx, a|
+                                schema: { type: 'object', properties: { q: { type: 'string' }, query: { type: 'string' }, repo: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }, { type: 'null' }] }, limit: { type: 'integer', minimum: 1, maximum: 100 } } } do |_ctx, a|
             limit = begin
               Integer(a['limit'] || 20)
             rescue StandardError
               20
             end
-            engine.search_memory(q: (a['q'] || '').to_s, repo: a['repo'], limit: limit)
+            # Accept both 'q' and 'query' as parameter names
+            query_text = (a['q'] || a['query'] || '').to_s
+            engine.search_memory(q: query_text, repo: a['repo'], limit: limit)
           end
 
           tool 'memory_resources_list', description: 'List memory_bank resources from DB (optional repo filter)',
