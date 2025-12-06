@@ -7,6 +7,7 @@ import TimelineIcon from '@mui/icons-material/Timeline';
 import ViewModuleIcon from '@mui/icons-material/ViewModule';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import StopIcon from '@mui/icons-material/Stop';
+import DeleteSweepIcon from '@mui/icons-material/DeleteSweep';
 import { getUserId, loadConfig } from '../../api';
 
 type ReasoningEvent = {
@@ -51,6 +52,27 @@ export default function DiagnosticsAgent() {
     setTracePath(js && js.trace_path);
     setSelected(0);
     setLoading(false);
+  }
+
+  async function clearLogs() {
+    if (!window.confirm('Are you sure you want to clear all agent logs and session data? This action cannot be undone.')) {
+      return;
+    }
+    setLoading(true);
+    try {
+      const base = loadConfig().baseUrl || 'http://localhost:9999';
+      const res = await fetch(`${base}/diagnostics/agent`, {
+        method: 'DELETE',
+        headers: { 'x-savant-user-id': getUserId() }
+      });
+      const result = await res.json();
+      console.log('Clear result:', result);
+      // Reload after clearing
+      await load();
+    } catch (err) {
+      console.error('Failed to clear logs:', err);
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
@@ -162,6 +184,13 @@ export default function DiagnosticsAgent() {
             <span>
               <IconButton size="small" onClick={load} disabled={loading}>
                 <RefreshIcon fontSize="small" />
+              </IconButton>
+            </span>
+          </Tooltip>
+          <Tooltip title="Clear all logs">
+            <span>
+              <IconButton size="small" onClick={clearLogs} disabled={loading} color="error">
+                <DeleteSweepIcon fontSize="small" />
               </IconButton>
             </span>
           </Tooltip>

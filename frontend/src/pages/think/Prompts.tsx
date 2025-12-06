@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useThinkPrompts, useThinkPrompt, thinkPromptsDelete, useThinkWorkflows } from '../../api';
 import Box from '@mui/material/Box';
 import Stack from '@mui/material/Stack';
-import Grid from '@mui/material/Grid2';
+import Grid from '@mui/material/Unstable_Grid2';
 import Paper from '@mui/material/Paper';
 import List from '@mui/material/List';
 import ListItem from '@mui/material/ListItem';
@@ -58,7 +58,7 @@ export default function ThinkPrompts() {
 
   return (
     <Grid container spacing={2}>
-      <Grid size={{ xs: 12, md: 4 }}>
+      <Grid xs={12} md={4}>
         <Paper sx={{ p: 1, height: PANEL_HEIGHT, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
             <Typography variant="subtitle1" sx={{ fontSize: 12 }}>Prompts</Typography>
@@ -108,7 +108,7 @@ export default function ThinkPrompts() {
           </Box>
         </Paper>
       </Grid>
-      <Grid size={{ xs: 12, md: 8 }}>
+      <Grid xs={12} md={8}>
         <Paper sx={{ p: 2, height: PANEL_HEIGHT, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between">
             <Stack spacing={0.5}>
@@ -132,7 +132,7 @@ export default function ThinkPrompts() {
                             size="small"
                             label={wf.label}
                             clickable
-                            onClick={() => nav(`/engines/think/workflows/edit/${wf.id}`)}
+                            onClick={() => nav(`/workflows/edit/${wf.id}`)}
                             sx={{ mb: 0.5 }}
                           />
                         ))}

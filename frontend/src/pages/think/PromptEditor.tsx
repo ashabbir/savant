@@ -1,5 +1,5 @@
 import React from 'react';
-import Grid from '@mui/material/Grid2';
+import Grid from '@mui/material/Unstable_Grid2';
 import { Alert, Box, Chip, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, LinearProgress, Paper, Snackbar, Stack, TextField, Tooltip, Typography, Button } from '@mui/material';
 import SaveIcon from '@mui/icons-material/Save';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -85,7 +85,7 @@ export default function PromptEditor() {
 
   return (
     <Grid container spacing={2}>
-      <Grid size={{ xs: 12, md: 4 }}>
+      <Grid xs={12} md={4}>
         <Paper sx={{ p: 1, height: PANEL_HEIGHT, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             <Stack direction="row" alignItems="center" justifyContent="space-between">
               <Typography variant="subtitle1" sx={{ fontSize: 12 }}>{isNew ? 'Create Prompt' : `Edit Prompt (${routeVersion})`}</Typography>
@@ -154,7 +154,7 @@ export default function PromptEditor() {
                   ) : (
                     <Stack direction="row" spacing={1} flexWrap="wrap">
                       {usingWorkflows.map((w: any) => (
-                        <Chip key={w.id} label={w.name || w.id} onClick={() => nav(`/engines/think/workflows/edit/${w.id}`)} clickable size="small" />
+                        <Chip key={w.id} label={w.name || w.id} onClick={() => nav(`/workflows/edit/${w.id}`)} clickable size="small" />
                       ))}
                     </Stack>
                   )}
@@ -167,7 +167,7 @@ export default function PromptEditor() {
           </Box>
         </Paper>
       </Grid>
-      <Grid size={{ xs: 12, md: 8 }}>
+      <Grid xs={12} md={8}>
         <Paper sx={{ p: 1, height: PANEL_HEIGHT, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
             <Typography variant="subtitle1" sx={{ fontSize: 12 }}>Prompt Markdown</Typography>

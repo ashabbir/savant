@@ -5,6 +5,7 @@ require_relative '../logging/logger'
 require 'digest'
 require_relative '../logging/event_recorder'
 require_relative '../framework/engine/runtime_context'
+require_relative 'cancel'
 require_relative '../llm/adapter'
 require_relative 'prompt_builder'
 require_relative 'output_parser'
@@ -16,7 +17,7 @@ module Savant
     class Runtime
       DEFAULT_MAX_STEPS = (ENV['AGENT_MAX_STEPS'] || '25').to_i
 
-      def initialize(goal:, slm_model: nil, llm_model: nil, logger: nil, base_path: nil, forced_tool: nil, forced_args: nil, forced_finish: false, forced_final: nil)
+      def initialize(goal:, slm_model: nil, llm_model: nil, logger: nil, base_path: nil, forced_tool: nil, forced_args: nil, forced_finish: false, forced_final: nil, cancel_key: nil)
         @goal = goal.to_s
         @context = Savant::Framework::Runtime.current
         @base_path = base_path || default_base_path
@@ -37,6 +38,7 @@ module Savant
         @forced_tool_used = false
         @forced_finish = !!forced_finish
         @forced_final = forced_final&.to_s
+        @cancel_key = cancel_key
       end
 
       def run(max_steps: @max_steps, dry_run: false)
@@ -57,6 +59,15 @@ module Savant
           end
         end
         loop do
+          # Cooperative cancellation check
+          if @cancel_key && Savant::Agent::Cancel.signal?(@cancel_key)
+            final_text = 'Canceled by user'
+            finish_action = { 'action' => 'finish', 'tool_name' => '', 'args' => {}, 'final' => final_text, 'reasoning' => 'canceled' }
+            @memory.append_step(index: steps + 1, action: finish_action, final: final_text)
+            @memory.snapshot!
+            emit_step_event(steps: steps + 1, model: nil, usage: {}, action: finish_action)
+            return { status: 'canceled', steps: steps + 1, final: final_text, memory_path: @memory.path, transcript: @memory.full_data }
+          end
           steps += 1
           break if steps > max_steps
 
@@ -79,7 +90,7 @@ module Savant
               @memory.append_step(index: finish_index, action: finish_action, final: final_text)
               @memory.snapshot!
               emit_step_event(steps: finish_index, model: nil, usage: {}, action: finish_action)
-              return { status: 'ok', steps: finish_index, final: final_text, memory_path: @memory.path }
+              return { status: 'ok', steps: finish_index, final: final_text, memory_path: @memory.path, transcript: @memory.full_data }
             end
             next
           end
@@ -91,7 +102,7 @@ module Savant
             @memory.append_step(index: steps, action: finish_action, final: final_text)
             @memory.snapshot!
             emit_step_event(steps: steps, model: nil, usage: {}, action: finish_action)
-            return { status: 'ok', steps: steps, final: final_text, memory_path: @memory.path }
+            return { status: 'ok', steps: steps, final: final_text, memory_path: @memory.path, transcript: @memory.full_data }
           end
 
           tool_specs = begin
@@ -117,6 +128,15 @@ module Savant
             # ignore
           end
           action, usage, model = decide_and_parse(prompt: prompt, model: model, allowed_tools: base_tools, step: steps)
+          # Re-check cancellation after potentially long LLM call
+          if @cancel_key && Savant::Agent::Cancel.signal?(@cancel_key)
+            final_text = 'Canceled by user'
+            finish_action = { 'action' => 'finish', 'tool_name' => '', 'args' => {}, 'final' => final_text, 'reasoning' => 'canceled' }
+            @memory.append_step(index: steps + 1, action: finish_action, final: final_text)
+            @memory.snapshot!
+            emit_step_event(steps: steps + 1, model: nil, usage: {}, action: finish_action)
+            return { status: 'canceled', steps: steps + 1, final: final_text, memory_path: @memory.path, transcript: @memory.full_data }
+          end
           emit_step_event(steps: steps, model: model, usage: usage, action: action)
           begin
             act = (action['action'] || '').to_s
@@ -146,11 +166,11 @@ module Savant
           when 'finish'
             @memory.append_step(index: steps, action: action, final: action['final'])
             @memory.snapshot!
-            return { status: 'ok', steps: steps, final: action['final'], memory_path: @memory.path }
+            return { status: 'ok', steps: steps, final: action['final'], memory_path: @memory.path, transcript: @memory.full_data }
           when 'error'
             @memory.append_error(action)
             @memory.snapshot!
-            return { status: 'error', steps: steps, error: action['final'] || 'agent_error', memory_path: @memory.path }
+            return { status: 'error', steps: steps, error: action['final'] || 'agent_error', memory_path: @memory.path, transcript: @memory.full_data }
           else
             @memory.append_error({ type: 'invalid_action', raw: action })
             @memory.snapshot!
@@ -158,7 +178,7 @@ module Savant
           end
         end
 
-        { status: 'stopped', reason: 'max_steps', steps: max_steps, memory_path: @memory.path }
+        { status: 'stopped', reason: 'max_steps', steps: max_steps, memory_path: @memory.path, transcript: @memory.full_data }
       end
 
       private
@@ -270,7 +290,7 @@ module Savant
         nil
       end
 
-      def retry_fix_json(model:, _prompt:, raw:)
+      def retry_fix_json(model:, prompt:, raw:)
         fix_prompt = <<~MD
           The previous output did not match the required JSON schema. Only return a single valid JSON object matching the schema. No prose.
           Previous output:

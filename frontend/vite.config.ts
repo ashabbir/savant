@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react-swc';
+import react from '@vitejs/plugin-react';
+import emotionPlugin from '@emotion/babel-plugin';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -8,13 +9,20 @@ const r = (p: string) => path.resolve(__dirname, 'node_modules', p);
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    // Use Babel-based React plugin and enable Emotion via direct import
+    react({
+      babel: {
+        plugins: [
+          [emotionPlugin as any, { sourceMap: true, autoLabel: 'dev-only', labelFormat: '[local]' }],
+        ],
+      },
+    }),
+  ],
+  // Let Vite auto-optimize MUI/Emotion; forcing them can break default interop
   optimizeDeps: {
-    include: [
-      '@mui/material', '@mui/icons-material', '@emotion/react', '@emotion/styled',
-      'react-router-dom', 'react-router'
-    ],
-    exclude: ['internmap']
+    include: ['react-router-dom', 'react-router'],
+    exclude: ['internmap'],
   },
   resolve: {
     alias: {

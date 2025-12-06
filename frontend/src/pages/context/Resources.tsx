@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { MemoryResource, useMemoryResource, useMemoryResources, useRepoStatus } from '../../api';
-import Grid from '@mui/material/Grid2';
+import Grid from '@mui/material/Unstable_Grid2';
 import Paper from '@mui/material/Paper';
 import List from '@mui/material/List';
 import ListItem from '@mui/material/ListItem';
@@ -53,7 +53,7 @@ export default function ContextResources() {
 
   return (
     <Grid container spacing={2}>
-      <Grid size={{ xs: 12, md: 4 }}>
+      <Grid xs={12} md={4}>
         <Paper sx={{ p: 1, height: PANEL_HEIGHT, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
             <Typography variant="subtitle1" sx={{ fontSize: 12 }}>Memory Resources</Typography>
@@ -84,7 +84,7 @@ export default function ContextResources() {
           </Box>
         </Paper>
       </Grid>
-      <Grid size={{ xs: 12, md: 8 }}>
+      <Grid xs={12} md={8}>
         <Paper sx={{ p: 2, height: PANEL_HEIGHT, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <Typography variant="subtitle1" sx={{ fontSize: 12 }}>{sel ? sel.metadata.title : 'Select a resource'}</Typography>
           {content.isFetching && <LinearProgress />}

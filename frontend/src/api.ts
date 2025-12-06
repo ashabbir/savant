@@ -660,7 +660,7 @@ export async function agentsDelete(name: string) {
   return res.data as { ok: boolean };
 }
 
-export type AgentRun = { id: number; input: string; output_summary?: string; status?: string; duration_ms?: number; created_at: string };
+export type AgentRun = { id: number; input: string; output_summary?: string; status?: string; duration_ms?: number; created_at: string; steps?: number | null; final?: string | null };
 export function useAgentRuns(name: string | null) {
   return useQuery<{ runs: AgentRun[] }>({
     queryKey: ['agents', 'runs', name],
@@ -680,6 +680,21 @@ export async function agentRun(name: string, input: string, maxSteps?: number) {
 export async function agentRunRead(name: string, runId: number) {
   const res = await client().post('/agents/tools/agents_run_read/call', { params: { name, run_id: runId } });
   return res.data as { id: number; transcript: any };
+}
+
+export async function agentRunCancel(name: string) {
+  const res = await client().post('/agents/tools/agents_run_cancel/call', { params: { name } });
+  return res.data as { ok: boolean };
+}
+
+export async function agentRunDelete(name: string, runId: number) {
+  const res = await client().post('/agents/tools/agents_run_delete/call', { params: { name, run_id: runId } });
+  return res.data as { ok: boolean };
+}
+
+export async function agentRunsClearAll(name: string) {
+  const res = await client().post('/agents/tools/agents_runs_clear_all/call', { params: { name } });
+  return res.data as { deleted_count: number };
 }
 
 // Hub stats for diagnostics

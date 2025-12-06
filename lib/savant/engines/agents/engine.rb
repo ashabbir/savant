@@ -49,6 +49,14 @@ module Savant
       def run_read(name:, run_id:)
         @ops.run_read(name: name, run_id: run_id)
       end
+
+      def run_delete(name:, run_id:)
+        @ops.run_delete(name: name, run_id: run_id)
+      end
+
+      def runs_clear_all(name:)
+        @ops.runs_clear_all(name: name)
+      end
     end
   end
 end

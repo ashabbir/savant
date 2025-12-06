@@ -1,5 +1,5 @@
 import React from 'react';
-import Grid from '@mui/material/Grid2';
+import Grid from '@mui/material/Unstable_Grid2';
 import Paper from '@mui/material/Paper';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
@@ -98,7 +98,7 @@ export default function APIHealth() {
   return (
     <Grid container spacing={2}>
       {/* Jira Credentials Panel */}
-      <Grid size={{ xs: 12 }}>
+      <Grid xs={12}>
         <Paper sx={{ p: 1.5 }}>
           <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
             <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
@@ -157,7 +157,7 @@ export default function APIHealth() {
           )}
         </Paper>
       </Grid>
-      <Grid size={{ xs: 12 }}>
+      <Grid xs={12}>
         <Paper sx={{ p: 2 }}>
           <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
             <Typography variant="h6">API Health</Typography>
