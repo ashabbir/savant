@@ -52,6 +52,7 @@ export default function AgentDetail() {
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [transcript, setTranscript] = useState<any>(null);
+  const [runMeta, setRunMeta] = useState<{ id: number; status?: string; output_summary?: string; duration_ms?: number } | null>(null);
 
   useEffect(() => {
     const a = agent.data;
@@ -62,9 +63,10 @@ export default function AgentDetail() {
   useEffect(() => {
     const run = search.get('run');
     if (name && run) {
-      agentRunRead(name, Number(run)).then((d)=> setTranscript(d.transcript)).catch(()=>setTranscript(null));
+      agentRunRead(name, Number(run)).then((d)=> { setTranscript(d.transcript); setRunMeta({ id: d.id, status: (d as any).status, output_summary: (d as any).output_summary, duration_ms: (d as any).duration_ms }); }).catch(()=>{ setTranscript(null); setRunMeta(null); });
     } else {
       setTranscript(null);
+      setRunMeta(null);
     }
   }, [name, search]);
 
@@ -111,13 +113,26 @@ export default function AgentDetail() {
 
       <Grid size={{ xs: 12, md: 6 }}>
         <Paper sx={{ p:2, display: 'flex', flexDirection: 'column', gap: 1 }}>
-          <Typography variant="subtitle1">Run Transcript</Typography>
+          <Stack direction="row" alignItems="center" justifyContent="space-between">
+            <Typography variant="subtitle1">Run Transcript</Typography>
+            {runMeta && (
+              <Stack direction="row" spacing={1} alignItems="center">
+                <Chip size="small" label={`#${runMeta.id}`} />
+                {runMeta.status && <Chip size="small" color={runMeta.status === 'ok' ? 'success' : 'warning'} label={runMeta.status} />}
+                {typeof runMeta.duration_ms === 'number' && <Chip size="small" label={`${runMeta.duration_ms} ms`} />}
+              </Stack>
+            )}
+          </Stack>
           <Divider />
-          {!transcript && <Alert severity="info">Select a run from Agents list and click View.</Alert>}
+          {!transcript && (
+            <>
+              {runMeta?.output_summary && <Alert severity={runMeta.status === 'ok' ? 'success' : 'error'} sx={{ mb: 1 }}>{runMeta.output_summary}</Alert>}
+              <Alert severity="info">No transcript was persisted for this run. Check Diagnostics → Agent or engine logs for details.</Alert>
+            </>
+          )}
           {transcript && <TranscriptView transcript={transcript} />}
         </Paper>
       </Grid>
     </Grid>
   );
 }
-
