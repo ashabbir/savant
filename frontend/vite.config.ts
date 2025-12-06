@@ -10,12 +10,14 @@ const r = (p: string) => path.resolve(__dirname, 'node_modules', p);
 export default defineConfig({
   plugins: [react()],
   optimizeDeps: {
-    include: ['@mui/material', '@mui/icons-material', '@emotion/react', '@emotion/styled', 'react-router-dom', 'react-router']
+    include: [
+      '@mui/material', '@mui/icons-material', '@emotion/react', '@emotion/styled',
+      'react-router-dom', 'react-router', 'internmap', 'd3-array'
+    ]
   },
   resolve: {
     alias: {
-      'react-router-dom': r('react-router-dom/dist/index.js'),
-      'react-router': r('react-router/dist/index.js')
+      'react-router-dom': r('react-router-dom/dist/index.js')
     }
   },
   server: {
