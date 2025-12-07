@@ -18,8 +18,9 @@ module Savant
       # prompts are missing.
       def migrate_from_think_prompts
         begin
-          existing = load_catalog rescue []
-          return false unless existing.is_a?(Array) && existing.empty?
+          existing = begin load_catalog rescue [] end
+          existing = [] unless existing.is_a?(Array)
+          existing_names = existing.map { |r| (r['name'] || r[:name]).to_s }
 
           think_root = File.join(@base, 'lib', 'savant', 'engines', 'think')
           reg_path = File.join(think_root, 'prompts.yml')
@@ -29,30 +30,33 @@ module Savant
           versions = reg['versions'] || {}
           return false unless versions.is_a?(Hash) && !versions.empty?
 
-          rows = []
+          added = 0
           versions.each do |ver, rel|
+            name = ver.to_s
+            next if existing_names.include?(name)
             next unless rel.is_a?(String)
             path = File.join(think_root, rel)
             next unless File.file?(path)
             md = File.read(path)
-            # Summary = first non-empty line without markdown header markers
             summary = begin
-              first_line = md.lines.find { |l| !l.strip.empty? }&.strip || ver.to_s
+              first_line = md.lines.find { |l| !l.strip.empty? }&.strip || name
               first_line.sub(/^#+\s*/, '')[0, 160]
             rescue StandardError
-              ver.to_s
+              name
             end
-            rows << {
-              'name' => ver.to_s,
+            existing << {
+              'name' => name,
               'version' => 1,
               'summary' => summary,
               'prompt_md' => md,
               'tags' => ['think']
             }
+            existing_names << name
+            added += 1
           end
-          return false if rows.empty?
+          return false if added.zero?
 
-          write_catalog(rows)
+          write_catalog(existing)
           true
         rescue StandardError
           false
