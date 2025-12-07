@@ -7,6 +7,7 @@ require_relative '../../../lib/savant/engines/agents/ops'
 RSpec.describe Savant::Agents::Ops do
   class FakeDB
     attr_reader :agents, :personas, :rulesets, :runs
+
     def initialize
       @agents = []
       @personas = []
@@ -21,7 +22,7 @@ RSpec.describe Savant::Agents::Ops do
         name = params[0]
         row = @personas.find { |p| p[:name] == name }
         FakeRes.new(row ? [{ 'id' => row[:id].to_s }] : [])
-      when /INSERT INTO personas/ 
+      when /INSERT INTO personas/
         @seq += 1
         @personas << { id: @seq, name: params[0] }
         FakeRes.new([{ 'id' => @seq.to_s }])
@@ -39,13 +40,14 @@ RSpec.describe Savant::Agents::Ops do
       end
     end
 
-    def exec(sql)
+    def exec(_sql)
       FakeRes.new([])
     end
 
     def create_ruleset(name, content)
       row = @rulesets.find { |r| r[:name] == name }
       return row[:id] if row
+
       @seq += 1
       @rulesets << { id: @seq, name: name, content: content }
       @seq
@@ -53,19 +55,20 @@ RSpec.describe Savant::Agents::Ops do
 
     def get_ruleset_by_name(name)
       row = @rulesets.find { |r| r[:name] == name }
-      row && row.transform_keys(&:to_s)
+      row&.transform_keys(&:to_s)
     end
 
-    def create_agent(name:, persona_id: nil, driver_prompt: nil, rule_set_ids: [], favorite: false)
+    def create_agent(name:, persona_id: nil, driver_prompt: nil, driver_name: nil, rule_set_ids: [], favorite: false)
       row = @agents.find { |a| a[:name] == name }
       if row
         row[:persona_id] = persona_id unless persona_id.nil?
         row[:driver_prompt] = driver_prompt unless driver_prompt.nil?
+        row[:driver_name] = driver_name unless driver_name.nil?
         row[:rule_set_ids] = rule_set_ids unless rule_set_ids.nil?
-        row[:favorite] = !!favorite unless favorite.nil?
+        row[:favorite] = !favorite.nil? unless favorite.nil?
       else
         @seq += 1
-        row = { id: @seq, name: name, persona_id: persona_id, driver_prompt: driver_prompt, rule_set_ids: rule_set_ids, favorite: !!favorite, run_count: 0, created_at: Time.now.utc.iso8601, updated_at: Time.now.utc.iso8601 }
+        row = { id: @seq, name: name, persona_id: persona_id, driver_prompt: driver_prompt, driver_name: driver_name, rule_set_ids: rule_set_ids, favorite: !favorite.nil?, run_count: 0, created_at: Time.now.utc.iso8601, updated_at: Time.now.utc.iso8601 }
         @agents << row
       end
       row[:id]
@@ -110,18 +113,22 @@ RSpec.describe Savant::Agents::Ops do
       def initialize(rows)
         @rows = rows
       end
+
       def [](idx)
         @rows[idx]
       end
+
       def ntuples
         @rows.length
       end
+
       def to_a
         @rows
       end
     end
 
     private
+
     def stringify(h)
       h.transform_values do |v|
         case v
@@ -168,4 +175,3 @@ RSpec.describe Savant::Agents::Ops do
     expect(detail[:id]).to eq(runs.first[:id])
   end
 end
-
