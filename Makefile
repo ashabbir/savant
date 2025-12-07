@@ -1,219 +1,89 @@
-.PHONY: dev up quickstart logs logs-all down ps migrate migrate-reset fts smoke mcp-test jira-test jira-self \
-  repo-index-all repo-index-repo repo-delete-all repo-delete-repo repo-status \
-  demo-engine demo-run demo-call hub hub-logs hub-down hub-local hub-local-logs ls \
-  ui-build ui-install ui-dev dev-ui ui-open frontend-stop \
-  build package checksum clean-dist formula tag release
+.PHONY: dev-ui dev-server ls ps pg ui-build-local
 
-# Ensure rbenv shims take precedence in Make subshells
-# (Reverted) Do not globally override PATH; use explicit rbenv shim per target.
+INDEXER_CMD ?= bundle exec ruby ./bin/context_repo_indexer
+PG_CMD ?= psql
 
-# Development mode: bypass offline license gating for all Make targets
+# Minimal dev targets with sensible defaults
 export SAVANT_DEV ?= 1
+HUB_BASE ?= http://localhost:9999
 
-dev:
-	@docker compose up -d --remove-orphans
-	@$(MAKE) ui-build || true
-	@docker compose stop frontend || true
-	@docker compose rm -f -s -v frontend || true
-	@echo ""
-	@echo "========================================="
-	@echo "  Savant is ready!"
-	@echo "  UI:        http://localhost:9999/ui"
-	@echo "  Hub:       http://localhost:9999"
-	@echo "  React Dev: http://localhost:5173 (make ui-dev)"
-	@echo "========================================="
-
-up:
-	@$(MAKE) dev
-	@$(MAKE) migrate
-	@$(MAKE) fts
-	@$(MAKE) reindex-all
-	@echo "========================================="
-	@echo "  Stack is up, DB migrated (non-destructive), FTS ready."
-	@echo "  Repos indexed; UI:        http://localhost:9999/ui"
-	@echo "                 Hub:       http://localhost:9999"
-	@echo "                 React Dev: http://localhost:5173 (use: make ui-dev)"
-	@echo "========================================="
-
-quickstart:
-	@rm -f .cache/indexer.json logs/context_repo_indexer.log
-	@$(MAKE) dev
-	@$(MAKE) migrate
-	@$(MAKE) fts
-	@echo ""
-	@echo "========================================="
-	@echo "  Quickstart complete!"
-	@echo "  DB migrated (non-destructive) and FTS ready."
-	@echo "  Hub:       http://localhost:9999"
-	@echo "  React UI:  http://localhost:5173"
-	@echo "  UI build:  http://localhost:9999/ui"
-	@echo "-----------------------------------------"
-	@echo "  Next steps before using search:"
-	@echo "    make repo-index-all      # index all repos"
-	@echo "    make repo-index-repo repo=<name>"
-	@echo "    make ui-build"	# to build the UI
-	@echo "-----------------------------------------"
-	@echo "  Need a clean dev reset? Use: make migrate-reset"
-	@echo "  Start MCP servers manually when ready:"
-	@echo "    DATABASE_URL=postgres://context:contextpw@localhost:5433/contextdb \\"
-	@echo "      SAVANT_PATH=$(CURDIR) MCP_SERVICE=context bundle exec ruby ./bin/mcp_server"
-	@echo "========================================="
-
-logs:
-	@docker compose logs -f indexer-ruby postgres
-
-logs-all:
-	@docker compose logs -f postgres hub frontend
-
-down:
-	@docker compose down -v
-
-ps:
-	@docker compose ps
-
-migrate:
-	@docker compose exec -T -e SAVANT_DEV=$(SAVANT_DEV) indexer-ruby ./bin/db_migrate || true
-
-migrate-reset:
-	@docker compose exec -T -e SAVANT_DEV=$(SAVANT_DEV) -e SAVANT_DESTRUCTIVE=1 indexer-ruby ./bin/db_migrate || true
-
-fts:
-	@docker compose exec -T -e SAVANT_DEV=$(SAVANT_DEV) indexer-ruby ./bin/db_fts || true
-
-smoke:
-	@docker compose exec -T -e SAVANT_DEV=$(SAVANT_DEV) indexer-ruby ./bin/db_smoke || true
-
-# Context Repo Indexer (under Context engine)
-repo-index-all:
-	@mkdir -p logs
-	@docker compose exec -T -e SAVANT_DEV=$(SAVANT_DEV) indexer-ruby ./bin/context_repo_indexer index all 2>&1 | tee -a logs/context_repo_indexer.log
-
-
-repo-index-repo:
-	@test -n "$(repo)" || (echo "usage: make repo-index-repo repo=<name>" && exit 2)
-	@mkdir -p logs
-	@docker compose exec -T -e SAVANT_DEV=$(SAVANT_DEV) indexer-ruby ./bin/context_repo_indexer index $(repo) 2>&1 | tee -a logs/context_repo_indexer.log
-
-repo-delete-all:
-	@docker compose exec -T -e SAVANT_DEV=$(SAVANT_DEV) indexer-ruby ./bin/context_repo_indexer delete all
-
-repo-delete-repo:
-	@test -n "$(repo)" || (echo "usage: make repo-delete-repo repo=<name>" && exit 2)
-	@docker compose exec -T -e SAVANT_DEV=$(SAVANT_DEV) indexer-ruby ./bin/context_repo_indexer delete $(repo)
-
-repo-status:
-	@docker compose exec -T -e SAVANT_DEV=$(SAVANT_DEV) indexer-ruby ./bin/context_repo_indexer status
-
-# Convenience targets for PRD frontend/backend flow
-reindex-all:
-	@$(MAKE) repo-delete-all || true
-	@$(MAKE) repo-index-all
-
-index-repo:
-	@$(MAKE) repo-index-repo repo=$(repo)
-
-delete-repo:
-	@$(MAKE) repo-delete-repo repo=$(repo)
-
-# Build static UI and serve under Hub at /ui
-ui-build:
-	@docker compose run --rm -T frontend /bin/sh -lc 'cd /app/frontend && (npm ci || npm install --include=dev) && npm run build -- --base=/ui/ && rm -rf /app/public/ui && mkdir -p /app/public/ui && cp -r dist/* /app/public/ui/'
-
-# Install frontend dependencies only (no build)
-ui-install:
-	@docker compose run --rm -T frontend /bin/sh -lc 'cd /app/frontend && npm install --include=dev'
-
-# Run frontend dev server (hot reload) - requires hub running
-ui-dev:
-	@docker compose run --rm -p 5173:5173 frontend /bin/sh -lc 'cd /app/frontend && (npm ci || npm install --include=dev) && npm run dev -- --host 0.0.0.0'
-
-# Start hub + frontend dev server together (hot reload)
+# Start the frontend dev server (Vite)
 dev-ui:
-	@docker compose up -d postgres hub
-	@echo "Hub starting at http://localhost:9999"
-	@echo "Starting frontend dev server with hot reload..."
-	@docker compose run --rm -p 5173:5173 frontend /bin/sh -lc 'cd /app/frontend && npm install --include=dev && npm run dev -- --host 0.0.0.0'
+	@echo "Starting frontend dev server (Vite) with hot reload..."
+	@echo "API:    $(HUB_BASE)"
+	@echo "UI:     http://localhost:5173"
+	@bash -lc ' \
+	  if command -v npm >/dev/null 2>&1; then :; \
+	  elif [ -s "$$NVM_DIR/nvm.sh" ]; then . "$$NVM_DIR/nvm.sh"; \
+	  elif [ -s "$$HOME/.nvm/nvm.sh" ]; then . "$$HOME/.nvm/nvm.sh"; \
+	  fi; \
+	  if ! command -v npm >/dev/null 2>&1; then \
+	    echo "npm not found. Install Node (e.g., brew install node) or load nvm"; exit 127; \
+	  fi; \
+	  cd frontend && (npm ci || npm install --include=dev) && VITE_HUB_BASE=$(HUB_BASE) npm run dev -- --host 0.0.0.0 \
+	'
 
-ui-open:
-	@echo "Open: http://localhost:9999/ui"
+# Start the Rails API server only
+dev-server:
+	@echo "Starting Rails API on 0.0.0.0:9999..."
+	@bash -lc '[ -n "$$DATABASE_URL" ] && echo "Using DATABASE_URL=$$DATABASE_URL" || echo "Using config/database.yml (no DATABASE_URL set)"'
+	@cd server && $(HOME)/.rbenv/shims/bundle exec rails s -b 0.0.0.0 -p 9999
 
-frontend-stop:
-	@docker compose stop frontend || true
-
-# Hub service
-hub:
-	@docker compose up -d hub
-
-hub-logs:
-	@docker compose logs -f hub
-
-hub-down:
-	@docker compose stop hub
-
-# Usage: make mcp-test q='User' limit=5 repo=crawler
-mcp-test:
-	@sh -lc 'Q="$(q)"; R="$(repo)"; L="$(limit)"; [ -n "$$Q" ] || Q="User"; [ -n "$$L" ] || L=5; if [ -n "$$R" ]; then RJSON="\"$$R\""; else RJSON=null; fi; \
-	  printf "{\"tool\":\"fts_search\",\"q\":\"%s\",\"repo\":%s,\"limit\":%s}\n" "$$Q" "$$RJSON" "$$L" | SAVANT_DEV=$(SAVANT_DEV) SAVANT_PATH=$(PWD) DATABASE_URL=postgres://context:contextpw@localhost:5433/contextdb $(HOME)/.rbenv/shims/bundle exec ruby ./bin/mcp_server'
-
-# Usage: make jira-test jql='project = ABC order by updated desc' limit=5
-jira-test:
-	@sh -lc 'JQL="$(jql)"; L="$(limit)"; [ -n "$$JQL" ] || { echo "usage: make jira-test jql=... [limit=10]"; exit 2; }; [ -n "$$L" ] || L=10; \
-	  printf "{\"tool\":\"jira_search\",\"jql\":\"%s\",\"limit\":%s}\n" "$$JQL" "$$L" | SAVANT_DEV=$(SAVANT_DEV) SAVANT_PATH=$(PWD) $(HOME)/.rbenv/shims/bundle exec ruby ./bin/mcp_server'
-
-# Quick auth check for Jira credentials
-jira-self:
-	@sh -lc 'printf "{\"tool\":\"jira_self\"}\n" | SAVANT_DEV=$(SAVANT_DEV) SAVANT_PATH=$(PWD) $(HOME)/.rbenv/shims/bundle exec ruby ./bin/mcp_server'
-
-# Demo engine helpers
-demo-engine:
-	@ruby ./bin/savant generate engine demo --with-db --force || true
-
-demo-run:
-	@MCP_SERVICE=demo ruby ./bin/mcp_server
-
-demo-call:
-	@ruby ./bin/savant call 'demo/hello' --service=demo --input='{"name":"dev"}'
-
-# Run Hub locally (no Docker)
-hub-local:
-	@SAVANT_DEV=$(SAVANT_DEV) SAVANT_PATH=$(PWD) $(HOME)/.rbenv/shims/bundle exec ruby ./bin/savant hub
-
-hub-local-logs:
-	@tail -f /tmp/savant/hub.log
+# Build the frontend and copy to public/ui for Rails/Hub to serve
+ui-build-local:
+	@echo "Building frontend and staging to public/ui..."
+	@bash -lc ' \
+	  if command -v npm >/dev/null 2>&1; then :; \
+	  elif [ -s "$$NVM_DIR/nvm.sh" ]; then . "$$NVM_DIR/nvm.sh"; \
+	  elif [ -s "$$HOME/.nvm/nvm.sh" ]; then . "$$HOME/.nvm/nvm.sh"; \
+	  fi; \
+	  if ! command -v npm >/dev/null 2>&1; then \
+	    echo "npm not found. Install Node (e.g., brew install node) or load nvm"; exit 127; \
+	  fi; \
+	  cd frontend && (npm ci || npm install --include=dev) && npm run build; \
+	  rm -rf ../public/ui && mkdir -p ../public/ui && cp -R dist/* ../public/ui/ \
+	'
+	@echo "UI built → public/ui"
 
 ls:
-	@awk -F':' '/^[[:alnum:]_.-]+:([^=]|$$)/ {print $$1}' $(MAKEFILE_LIST) | grep -v '^\.' | sort -u
+	@printf "Available make commands:\n";
+	@$(MAKE) -pRrq | awk -F: '/^[^.#][^\t =]+:/ {print $$1}' | sort -u | grep -v '^\.PHONY$$'
 
-# -----------------------------
-# Distribution (MVP)
-# -----------------------------
-DIST_DIR := $(CURDIR)/dist
+ps:
+	@printf "Running make processes:\n";
+	@ps -ef | grep '[m]ake' | grep -v "make ps"
 
-build:
-	@bash ./scripts/build/build.sh
+pg:
+	@if [ -n "$(DATABASE_URL)" ]; then \
+	  echo "Connecting via DATABASE_URL"; \
+	  $(PG_CMD) "$(DATABASE_URL)"; \
+	else \
+	  echo "Connecting via default psql settings"; \
+	  $(PG_CMD); \
+	fi
 
-package:
-	@bash ./scripts/package/package.sh
+.PHONY: repo-index repo-delete repo-index-all repo-delete-all repo-reindex-all repo-status
 
-checksum:
-	@bash ./scripts/release/checksum.sh
+repo-index:
+	@if [ -z "$(repo)" ]; then \
+	  echo "Usage: make repo-index repo=<name>"; exit 1; \
+	fi
+	$(INDEXER_CMD) index $(repo)
 
-clean-dist:
-	@rm -rf $(DIST_DIR)
+repo-delete:
+	@if [ -z "$(repo)" ]; then \
+	  echo "Usage: make repo-delete repo=<name>"; exit 1; \
+	fi
+	$(INDEXER_CMD) delete $(repo)
 
-# Generate Homebrew formula from dist/checksums.txt
-formula:
-	@RELEASE_BASE_URL=$(RELEASE_BASE_URL) ruby ./scripts/release/generate_formula.rb
-	@echo "Formula generated at packaging/homebrew/savant.rb"
+repo-index-all:
+	$(INDEXER_CMD) index all
 
-# Tag the repository with VERSION=v0.1.0
-tag:
-	@test -n "$(VERSION)" || (echo "usage: make tag VERSION=v0.1.0" && exit 2)
-	@git tag -a $(VERSION) -m "Savant $(VERSION)" && git push origin $(VERSION)
+repo-delete-all:
+	$(INDEXER_CMD) delete all
 
-# Create a GitHub release and upload artifacts (requires gh)
-release:
-	@test -n "$(VERSION)" || (echo "usage: make release VERSION=v0.1.0" && exit 2)
-	@test -x "$$(command -v gh)" || (echo "gh CLI is required for release" && exit 2)
-	@gh release create $(VERSION) dist/*.tar.gz --title "Savant $(VERSION)" --notes "Automated release"
-	@echo "Release created. Set RELEASE_BASE_URL=https://github.com/ashabbir/savant/releases/download and run: make formula"
+repo-reindex-all: repo-delete-all repo-index-all
+	@echo "Reindexed all configured repos"
+
+repo-status:
+	$(INDEXER_CMD) status
