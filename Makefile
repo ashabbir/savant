@@ -1,4 +1,4 @@
-.PHONY: dev-ui dev-server ls ps pg ui-build-local
+.PHONY: dev-ui dev-server ls ps pg ui-build-local db-migrate db-fts db-smoke db-status
 
 INDEXER_CMD ?= bundle exec ruby ./bin/context_repo_indexer
 PG_CMD ?= psql
@@ -45,6 +45,23 @@ ui-build-local:
 	'
 	@echo "UI built → public/ui"
 
+# Database tasks (non-destructive by default)
+db-migrate:
+	@echo "Applying DB migrations (non-destructive, versioned)..."
+	@$(HOME)/.rbenv/shims/bundle exec ruby ./bin/db_migrate
+
+db-fts:
+	@echo "Ensuring FTS index on chunks.chunk_text..."
+	@$(HOME)/.rbenv/shims/bundle exec ruby ./bin/db_fts
+
+db-smoke:
+	@echo "Running DB smoke check (connect + migrations + FTS)..."
+	@$(HOME)/.rbenv/shims/bundle exec ruby ./bin/db_smoke
+
+db-status:
+	@echo "DB status via psql (override with PGHOST/PGPORT/PGUSER/PGPASSWORD)"
+	@$(PG_CMD) -lqt 2>/dev/null | awk '{print $$1}' | sed '/^$$/d' || true
+
 ls:
 	@printf "Available make commands:\n";
 	@$(MAKE) -pRrq | awk -F: '/^[^.#][^\t =]+:/ {print $$1}' | sort -u | grep -v '^\.PHONY$$'
@@ -58,8 +75,14 @@ pg:
 	  echo "Connecting via DATABASE_URL"; \
 	  $(PG_CMD) "$(DATABASE_URL)"; \
 	else \
-	  echo "Connecting via default psql settings"; \
-	  $(PG_CMD); \
+	  config_env=$$(ruby -rjson -e 'path = File.join("config", "settings.json"); if File.exist?(path); settings = JSON.parse(File.read(path)); db = settings["database"]; if db; env = []; env << "PGHOST=#{db["host"]}" if db["host"]; env << "PGPORT=#{db["port"]}" if db["port"]; env << "PGUSER=#{db["user"]}" if db["user"]; env << "PGPASSWORD=#{db["password"]}" if db["password"]; env << "PGDATABASE=#{db["db"]}" if db["db"]; print env.join(" "); end; end'); \
+	  if [ -n "$$config_env" ]; then \
+	    echo "Connecting via config/settings.json"; \
+	    env $$config_env $(PG_CMD); \
+	  else \
+	    echo "Connecting via default psql settings"; \
+	    $(PG_CMD) -d postgres; \
+	  fi; \
 	fi
 
 .PHONY: repo-index repo-delete repo-index-all repo-delete-all repo-reindex-all repo-status

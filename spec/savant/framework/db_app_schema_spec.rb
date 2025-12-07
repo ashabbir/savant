@@ -13,8 +13,8 @@ RSpec.describe Savant::Framework::DB do
     false
   end
   before(:all) do
-    # Prefer explicit DATABASE_URL; fall back to docker-compose default mapping
-    ENV['DATABASE_URL'] ||= 'postgres://context:contextpw@localhost:5433/contextdb'
+    # Prefer explicit DATABASE_URL; fall back to local default DB name 'savant'
+    ENV['DATABASE_URL'] ||= 'postgres://localhost:5432/savant'
   end
 
   let(:db) { described_class.new }
