@@ -28,7 +28,7 @@ module Savant
       def initialize(url = ENV.fetch('DATABASE_URL', nil))
         @url = url
         @mutex = Mutex.new
-        @conn = PG.connect(@url)
+        @conn = connect!
         configure_client_min_messages
       end
 
@@ -63,7 +63,7 @@ module Savant
         rescue StandardError
           nil
         end
-        @conn = PG.connect(@url)
+        @conn = connect!
         configure_client_min_messages
       end
 
@@ -190,6 +190,7 @@ module Savant
             name TEXT NOT NULL UNIQUE,
             persona_id INTEGER REFERENCES personas(id) ON DELETE SET NULL,
             driver_prompt TEXT,
+            driver_name TEXT,
             rule_set_ids INTEGER[],
             favorite BOOLEAN NOT NULL DEFAULT FALSE,
             run_count INTEGER NOT NULL DEFAULT 0,
@@ -314,8 +315,18 @@ module Savant
       # Fetch an existing repo id by name or insert it with path.
       # @return [Integer] repo id
       def find_or_create_repo(name, root)
-        res = exec_params('SELECT id FROM repos WHERE name=$1', [name])
-        return res[0]['id'].to_i if res.ntuples.positive?
+        res = exec_params('SELECT id, root_path FROM repos WHERE name=$1', [name])
+        if res.ntuples.positive?
+          id = res[0]['id'].to_i
+          existing_root = res[0]['root_path']
+          begin
+            # If the repo already exists but the root_path has changed (e.g., different host mount), update it
+            exec_params('UPDATE repos SET root_path=$1 WHERE id=$2', [root, id]) if existing_root.to_s != root.to_s && !root.to_s.empty?
+          rescue StandardError
+            # best-effort; continue with existing id
+          end
+          return id
+        end
 
         res = exec_params('INSERT INTO repos(name, root_path) VALUES($1,$2) RETURNING id', [name, root])
         res[0]['id'].to_i
@@ -347,6 +358,15 @@ module Savant
           SQL
         )
         true
+      end
+
+      # Check if a file row exists for a repo id and relative path.
+      # @param repo_id [Integer]
+      # @param rel_path [String]
+      # @return [Boolean]
+      def file_exists?(repo_id, rel_path)
+        res = exec_params('SELECT 1 FROM files WHERE repo_id=$1 AND rel_path=$2 LIMIT 1', [repo_id, rel_path])
+        res.ntuples.positive?
       end
 
       # Delete files for a repo not present in `keep_rels`.
@@ -463,14 +483,16 @@ module Savant
       # =========================
       # App CRUD: Agents
       # =========================
-      def create_agent(name:, persona_id: nil, driver_prompt: nil, rule_set_ids: [], favorite: false)
-        params = [name, persona_id, driver_prompt, int_array_encoder.encode(rule_set_ids), favorite]
+      def create_agent(name:, persona_id: nil, driver_prompt: nil, driver_name: nil, rule_set_ids: [], favorite: false)
+        params = [name, persona_id, driver_prompt, driver_name, int_array_encoder.encode(rule_set_ids), favorite]
         res = exec_params(
           <<~SQL, params
-            INSERT INTO agents(name, persona_id, driver_prompt, rule_set_ids, favorite)
-            VALUES($1,$2,$3,$4,$5)
+            INSERT INTO agents(name, persona_id, driver_prompt, driver_name, rule_set_ids, favorite)
+            VALUES($1,$2,$3,$4,$5,$6)
             ON CONFLICT (name) DO UPDATE
-            SET persona_id=EXCLUDED.persona_id, driver_prompt=EXCLUDED.driver_prompt,
+            SET persona_id=EXCLUDED.persona_id,
+                driver_prompt=COALESCE(EXCLUDED.driver_prompt, agents.driver_prompt),
+                driver_name=COALESCE(EXCLUDED.driver_name, agents.driver_name),
                 rule_set_ids=EXCLUDED.rule_set_ids, favorite=EXCLUDED.favorite, updated_at=NOW()
             RETURNING id
           SQL
@@ -554,17 +576,21 @@ module Savant
         params = []
         idx = 1
         unless description.nil?
-          sets << "description=$#{idx}"; params << description; idx += 1
+          sets << "description=$#{idx}"
+          params << description
+          idx += 1
         end
         unless graph.nil?
-          sets << "graph=$#{idx}::jsonb"; params << JSON.generate(graph); idx += 1
+          sets << "graph=$#{idx}::jsonb"
+          params << JSON.generate(graph)
+          idx += 1
         end
         unless favorite.nil?
-          sets << "favorite=$#{idx}"; params << (favorite ? true : false); idx += 1
+          sets << "favorite=$#{idx}"
+          params << (favorite ? true : false)
+          idx += 1
         end
-        unless run_count_delta.to_i.zero?
-          sets << "run_count=run_count + #{run_count_delta.to_i}"
-        end
+        sets << "run_count=run_count + #{run_count_delta.to_i}" unless run_count_delta.to_i.zero?
         sets << 'updated_at=NOW()'
         params << id
         sql = "UPDATE workflows SET #{sets.join(', ')} WHERE id=$#{idx}"
@@ -622,8 +648,9 @@ module Savant
       end
 
       private
+
       def project_root
-        base = (ENV['SAVANT_PATH'] && !ENV['SAVANT_PATH'].empty?) ? ENV['SAVANT_PATH'] : File.expand_path('../../..', __dir__)
+        base = ENV['SAVANT_PATH'] && !ENV['SAVANT_PATH'].empty? ? ENV['SAVANT_PATH'] : File.expand_path('../../..', __dir__)
         File.expand_path(base)
       end
 
@@ -649,6 +676,50 @@ module Savant
       def mark_migration_applied!(version)
         exec_params('INSERT INTO schema_migrations(version) VALUES($1) ON CONFLICT (version) DO NOTHING', [version])
         true
+      end
+
+      # Establish a PG connection using, in order of precedence:
+      # 1) DATABASE_URL
+      # 2) Rails database.yml (when running under Rails)
+      # 3) libpq env (PGHOST/PGPORT/PGUSER/PGPASSWORD/PGDATABASE)
+      # 4) Sensible local defaults for non‑Docker: dbname=savant on localhost:5432
+      def connect!
+        # 1) Explicit URL
+        if @url && !@url.to_s.empty?
+          return PG.connect(@url)
+        end
+
+        # 2) Rails config if present
+        begin
+          if defined?(ActiveRecord::Base) && ActiveRecord::Base.respond_to?(:connection_db_config)
+            cfg = ActiveRecord::Base.connection_db_config
+            if cfg
+              h = cfg.configuration_hash
+              params = {}
+              params[:host] = h[:host] if h[:host]
+              params[:port] = h[:port] if h[:port]
+              params[:dbname] = h[:database] if h[:database]
+              params[:user] = h[:username] if h[:username]
+              params[:password] = h[:password] if h[:password]
+              return PG.connect(params) if params[:dbname]
+            end
+          end
+        rescue StandardError
+          # fall through to env/defaults
+        end
+
+        # 3) If libpq env is present, let PG pick it up
+        if ENV['PGDATABASE'] || ENV['PGHOST'] || ENV['PGUSER'] || ENV['PGPASSWORD']
+          return PG.connect
+        end
+
+        # 4) Sensible local default (non‑Docker): dbname=savant on localhost:5432
+        params = { dbname: 'savant' }
+        params[:host] = ENV['PGHOST'] && !ENV['PGHOST'].empty? ? ENV['PGHOST'] : 'localhost'
+        params[:port] = (ENV['PGPORT'] || 5432).to_i
+        params[:user] = ENV['PGUSER'] if ENV['PGUSER'] && !ENV['PGUSER'].empty?
+        params[:password] = ENV['PGPASSWORD'] if ENV['PGPASSWORD'] && !ENV['PGPASSWORD'].empty?
+        PG.connect(params)
       end
 
       def text_array_encoder

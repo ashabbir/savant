@@ -5,9 +5,12 @@ require_relative '../lib/savant/framework/db'
 
 begin
   db = Savant::Framework::DB.new
-  db.migrate_tables
+  applied = db.apply_migrations
   db.ensure_fts
-  puts 'DB SMOKE OK'
+  # Run a couple of safe checks without modifying data
+  db.exec('SELECT 1')
+  db.exec("SELECT to_regclass('public.repos')")
+  puts "DB SMOKE OK (applied=#{applied.length})"
   exit 0
 rescue StandardError => e
   warn "DB SMOKE ERROR: #{e.class}: #{e.message}"
