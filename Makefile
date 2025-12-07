@@ -75,13 +75,13 @@ pg:
 	  echo "Connecting via DATABASE_URL"; \
 	  $(PG_CMD) "$(DATABASE_URL)"; \
 	else \
-	  config_env=$$(ruby -rjson -e 'path = File.join("config", "settings.json"); if File.exist?(path); settings = JSON.parse(File.read(path)); db = settings["database"]; if db; env = []; env << "PGHOST=#{db["host"]}" if db["host"]; env << "PGPORT=#{db["port"]}" if db["port"]; env << "PGUSER=#{db["user"]}" if db["user"]; env << "PGPASSWORD=#{db["password"]}" if db["password"]; env << "PGDATABASE=#{db["db"]}" if db["db"]; print env.join(" "); end; end'); \
+		  config_env=$$(ruby -rjson -e 'path = File.join("config", "settings.json"); if File.exist?(path); settings = JSON.parse(File.read(path)); db = settings["database"]; if db; env = []; host = (db["host"] || "").to_s; host = "localhost" if host.empty? || host == "postgres"; env << "PGHOST=#{host}"; env << "PGPORT=#{db["port"]}" if db["port"]; env << "PGUSER=#{db["user"]}" if db["user"]; env << "PGPASSWORD=#{db["password"]}" if db["password"]; env << "PGDATABASE=#{db["db"] || "savant"}"; print env.join(" "); end; end'); \
 	  if [ -n "$$config_env" ]; then \
 	    echo "Connecting via config/settings.json"; \
 	    env $$config_env $(PG_CMD); \
 	  else \
 	    echo "Connecting via default psql settings"; \
-	    $(PG_CMD) -d postgres; \
+		    $(PG_CMD) -h localhost -p 5432 -d savant; \
 	  fi; \
 	fi
 
