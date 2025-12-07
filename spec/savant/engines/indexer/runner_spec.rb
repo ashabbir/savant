@@ -86,6 +86,10 @@ RSpec.describe Savant::Indexer::Runner do
     ns = mtime.nsec + (mtime.to_i * 1_000_000_000)
     cache['r::a.rb'] = { 'size' => 10, 'mtime_ns' => ns }
 
+    # Seed DB with existing file row so unchanged? check can skip
+    rid = db.find_or_create_repo('r', '/repo')
+    db.upsert_file(rid, 'r', 'a.rb', 10, ns)
+
     res = runner.run(repo_name: 'r', verbose: false)
     expect(res).to include(total: 1, changed: 0, skipped: 1, errors: 0)
     expect(db.chunks.values.flatten).to be_empty

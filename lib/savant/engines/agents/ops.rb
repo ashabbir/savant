@@ -6,6 +6,7 @@ require 'time'
 require_relative '../../framework/db'
 require_relative '../../framework/boot'
 require_relative '../../agent/runtime'
+require_relative '../drivers/ops'
 
 module Savant
   module Agents
@@ -24,13 +25,14 @@ module Savant
       def get(name:)
         row = @db.find_agent_by_name(name)
         raise 'not_found' unless row
+
         to_agent_hash(row)
       end
 
       def create(name:, persona:, driver:, rules: [], favorite: false)
         persona_id = ensure_persona(name: persona)
         rule_ids = ensure_rules(rules)
-        id = @db.create_agent(name: name, persona_id: persona_id, driver_prompt: driver, rule_set_ids: rule_ids, favorite: favorite)
+        id = @db.create_agent(name: name, persona_id: persona_id, driver_name: driver, rule_set_ids: rule_ids, favorite: favorite)
         row = @db.get_agent(id)
         to_agent_hash(row)
       end
@@ -38,6 +40,7 @@ module Savant
       def update(name:, persona: nil, driver: nil, rules: nil, favorite: nil)
         row = @db.find_agent_by_name(name)
         raise 'not_found' unless row
+
         persona_id = row['persona_id']
         persona_id = ensure_persona(name: persona) if !persona.nil? && !persona.to_s.strip.empty?
         rule_ids = nil
@@ -47,25 +50,57 @@ module Savant
         id = @db.create_agent(
           name: name,
           persona_id: persona_id,
-          driver_prompt: driver.nil? ? row['driver_prompt'] : driver,
+          driver_prompt: row['driver_prompt'],
+          driver_name: driver.nil? ? row['driver_name'] : driver,
           rule_set_ids: rule_ids || parse_int_array(row['rule_set_ids']),
-          favorite: favorite.nil? ? (row['favorite'] == 't' || row['favorite'] == true) : !!favorite
+          favorite: favorite.nil? ? ['t', true].include?(row['favorite']) : !favorite.nil?
         )
         got = @db.get_agent(id)
         to_agent_hash(got)
       end
 
       def delete(name:)
-        @db.delete_agent_by_name(name) > 0
+        @db.delete_agent_by_name(name).positive?
       end
 
       def run(name:, input:, max_steps: nil, dry_run: false, user_id: nil)
         agent = @db.find_agent_by_name(name)
         raise 'not_found' unless agent
 
-        # Boot core runtime using selected persona; then override driver prompt to agent's driver
-        context = Savant::Boot.initialize!(persona_name: persona_name(agent), skip_git: true, base_path: @base_path)
-        context.driver_prompt = { version: 'agent', prompt_md: (agent['driver_prompt'] || '').to_s }
+        # In dry-run, avoid full boot dependencies; set up a minimal runtime and finish immediately.
+        if dry_run
+          # Ensure minimal runtime context exists
+          if Savant::Framework::Runtime.current.nil?
+            Savant::Framework::Runtime.current = Savant::RuntimeContext.new(
+              session_id: "dry_#{Time.now.to_i}",
+              persona: { name: 'savant-engineer', version: 'dry', prompt_md: '' },
+              driver_prompt: nil,
+              amr_rules: { version: 'dry', rules: [] },
+              repo: nil,
+              memory: {},
+              logger: Savant::Logging::Logger.new(io: nil, file_path: File.join(@base_path, 'logs', 'agent_runtime.log'), json: true, service: 'agent', level: ENV['LOG_LEVEL'] || 'error'),
+              multiplexer: nil
+            )
+          end
+        else
+          # Boot core runtime using selected persona; then override driver prompt to agent's driver
+          context = Savant::Boot.initialize!(persona_name: persona_name(agent), skip_git: true, base_path: @base_path)
+
+          # Resolve driver: prefer Drivers engine by name; fallback to raw prompt text if not found
+          raw = (agent['driver_prompt'] || '').to_s
+          driver_prompt = nil
+          unless raw.empty?
+            begin
+              drv = Savant::Drivers::Ops.new(root: @base_path).get(name: raw)
+              driver_prompt = { version: drv[:version], prompt_md: drv[:prompt_md], name: drv[:name] } if drv && drv[:prompt_md]
+            rescue StandardError
+              driver_prompt = nil
+            end
+          end
+          # Fallback: if raw looks like a prompt (multi-line or long), use it directly for backward compatibility
+          driver_prompt = { version: 'legacy', prompt_md: raw } if driver_prompt.nil? && !raw.empty? && (raw.include?("\n") || raw.length > 120)
+          context.driver_prompt = driver_prompt if driver_prompt
+        end
 
         # Prepare cancellation key (per user if available)
         cancel_key = Savant::Agent::Cancel.key_for(agent_name: name, user_id: user_id)
@@ -74,7 +109,11 @@ module Savant
           Savant::Agent::Cancel.clear(cancel_key)
         rescue StandardError
         end
-        rt = Savant::Agent::Runtime.new(goal: input.to_s, base_path: @base_path, cancel_key: cancel_key)
+        # For dry-run, force an immediate finish to avoid LLM/tool calls.
+        forced_finish = dry_run ? true : false
+        forced_final = dry_run ? 'Dry run complete.' : nil
+        rt = Savant::Agent::Runtime.new(goal: input.to_s, base_path: @base_path, cancel_key: cancel_key,
+                                        forced_finish: forced_finish, forced_final: forced_final)
         begin
           Savant::Logging::EventRecorder.global.record({ type: 'agent_run_started', mcp: 'agent', agent: name, goal: input.to_s, ts: Time.now.utc.iso8601, timestamp: Time.now.to_i })
         rescue StandardError
@@ -96,7 +135,11 @@ module Savant
             if transcript.nil?
               mpath = res[:memory_path] || res['memory_path']
               if mpath && File.file?(mpath)
-                transcript = JSON.parse(File.read(mpath)) rescue nil
+                transcript = begin
+                  JSON.parse(File.read(mpath))
+                rescue StandardError
+                  nil
+                end
               end
             end
           end
@@ -131,13 +174,18 @@ module Savant
       def runs_list(name:, limit: 50)
         agent = @db.find_agent_by_name(name)
         raise 'not_found' unless agent
+
         rows = @db.list_agent_runs(agent['id'], limit: limit)
         rows.map do |r|
           steps_count = nil
           final_text = nil
           begin
             if r['full_transcript'] && !r['full_transcript'].to_s.empty?
-              t = JSON.parse(r['full_transcript']) rescue nil
+              t = begin
+                JSON.parse(r['full_transcript'])
+              rescue StandardError
+                nil
+              end
               if t.is_a?(Hash)
                 steps = t['steps'] || t[:steps] || []
                 steps_count = steps.is_a?(Array) ? steps.size : nil
@@ -167,7 +215,7 @@ module Savant
             duration_ms: r['duration_ms']&.to_i,
             created_at: r['created_at'],
             steps: steps_count,
-            final: (r['output_summary'] && !r['output_summary'].to_s.empty?) ? r['output_summary'] : final_text
+            final: r['output_summary'] && !r['output_summary'].to_s.empty? ? r['output_summary'] : final_text
           }
         end
       end
@@ -175,8 +223,10 @@ module Savant
       def run_read(name:, run_id:)
         agent = @db.find_agent_by_name(name)
         raise 'not_found' unless agent
+
         res = @db.exec_params('SELECT * FROM agent_runs WHERE id=$1 AND agent_id=$2', [run_id.to_i, agent['id']])
         raise 'not_found' if res.ntuples.zero?
+
         row = res[0]
         payload = row['full_transcript']
         parsed = begin
@@ -196,6 +246,7 @@ module Savant
       def run_delete(name:, run_id:)
         agent = @db.find_agent_by_name(name)
         raise 'not_found' unless agent
+
         res = @db.exec_params('DELETE FROM agent_runs WHERE id=$1 AND agent_id=$2', [run_id.to_i, agent['id']])
         res.cmd_tuples.positive?
       end
@@ -203,11 +254,13 @@ module Savant
       def runs_clear_all(name:)
         agent = @db.find_agent_by_name(name)
         raise 'not_found' unless agent
+
         res = @db.exec_params('DELETE FROM agent_runs WHERE agent_id=$1', [agent['id']])
         { deleted_count: res.cmd_tuples }
       end
 
       private
+
       def default_base_path
         if ENV['SAVANT_PATH'] && !ENV['SAVANT_PATH'].empty?
           ENV['SAVANT_PATH']
@@ -218,8 +271,10 @@ module Savant
 
       def ensure_persona(name:)
         return nil if name.to_s.strip.empty?
+
         row = @db.exec_params('SELECT id FROM personas WHERE name=$1', [name])
         return row[0]['id'].to_i if row.ntuples.positive?
+
         @db.create_ruleset('__noop__', '') # ensure encoders warmed up
         res = @db.exec_params('INSERT INTO personas(name, content) VALUES($1,$2) RETURNING id', [name, nil])
         res[0]['id'].to_i
@@ -230,11 +285,11 @@ module Savant
         ids = []
         list.each do |name|
           got = @db.get_ruleset_by_name(name)
-          if got
-            ids << got['id'].to_i
-          else
-            ids << @db.create_ruleset(name, nil)
-          end
+          ids << if got
+                   got['id'].to_i
+                 else
+                   @db.create_ruleset(name, nil)
+                 end
         end
         ids
       end
@@ -242,6 +297,7 @@ module Savant
       def persona_name(agent_row)
         pid = agent_row['persona_id']
         return 'savant-engineer' unless pid
+
         res = @db.exec_params('SELECT name FROM personas WHERE id=$1', [pid])
         res.ntuples.positive? ? res[0]['name'] : 'savant-engineer'
       end
@@ -275,10 +331,10 @@ module Savant
           name: row['name'],
           persona_id: row['persona_id']&.to_i,
           persona_name: persona_name,
-          driver: row['driver_prompt'],
+          driver: row['driver_name'] && !row['driver_name'].to_s.empty? ? row['driver_name'] : row['driver_prompt'],
           rule_set_ids: rule_ids,
           rules_names: rules_names,
-          favorite: row['favorite'] == 't' || row['favorite'] == true,
+          favorite: ['t', true].include?(row['favorite']),
           run_count: row['run_count']&.to_i,
           last_run_at: row['last_run_at'],
           created_at: row['created_at'],
@@ -288,8 +344,9 @@ module Savant
 
       def parse_int_array(pg_array_text)
         return [] if pg_array_text.nil?
+
         # PG returns like "{1,2,3}"; quick parse
-        pg_array_text.to_s.delete('{}').split(',').map { |s| s.to_i }
+        pg_array_text.to_s.delete('{}').split(',').map(&:to_i)
       end
 
       def monotonic
