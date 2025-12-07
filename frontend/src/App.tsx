@@ -156,7 +156,7 @@ function useEngineSubIndex(engineName: string | undefined) {
 
 function defaultEngineRoute(name: string): string {
   if (name === 'context') return '/engines/context/resources';
-  if (name === 'think') return THINK_PROMPTS_PATH;  // Default to prompts since workflows is top-level
+  if (name === 'think') return '/engines/think/tools';  // Prompts moved to Drivers
   if (name === 'jira') return '/engines/jira/tools';
   if (name === 'personas') return '/engines/personas';
   if (name === 'drivers') return '/engines/drivers';
@@ -198,16 +198,16 @@ function formatUptime(seconds: number): string {
 }
 
 function RedirectToToolsPrompts() {
-  return <Navigate to={THINK_PROMPTS_PATH} replace />;
+  return <Navigate to={'/engines/drivers'} replace />;
 }
 
 function RedirectToToolsPromptsNew() {
-  return <Navigate to={THINK_PROMPTS_NEW_PATH} replace />;
+  return <Navigate to={'/engines/drivers/new'} replace />;
 }
 
 function RedirectToToolsPromptsEdit() {
   const { version } = useParams<{ version: string }>();
-  return <Navigate to={thinkPromptsEditPath(version || '')} replace />;
+  return <Navigate to={`/engines/drivers/edit/${version || ''}`} replace />;
 }
 
 export default function App() {
