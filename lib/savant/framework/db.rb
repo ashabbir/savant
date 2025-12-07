@@ -30,6 +30,17 @@ module Savant
         @mutex = Mutex.new
         @conn = connect!
         configure_client_min_messages
+        # Zero-setup: apply non-destructive migrations automatically unless disabled
+        begin
+          auto = (ENV['SAVANT_AUTO_MIGRATE'] || '1') != '0'
+          if auto
+            ensure_schema_migrations!
+            apply_migrations
+            ensure_fts
+          end
+        rescue StandardError
+          # best-effort; do not crash caller if migrations cannot be applied
+        end
       end
 
       def connection
@@ -686,7 +697,31 @@ module Savant
       def connect!
         # 1) Explicit URL
         if @url && !@url.to_s.empty?
-          return PG.connect(@url)
+          begin
+            return PG.connect(@url)
+          rescue PG::ConnectionBad => e
+            # If the DB in the URL does not exist, try to create it using the same host/port/user
+            begin
+              m = @url.match(%r{postgresql?://([^/]+)/([^?]+)})
+              if m
+                hostport = m[1]
+                dbname = m[2]
+                # Split host:port
+                host, port = hostport.split(':', 2)
+                admin_params = {}
+                admin_params[:host] = host if host && !host.empty?
+                admin_params[:port] = port.to_i if port
+                admin_params[:dbname] = 'postgres'
+                admin = PG.connect(admin_params)
+                admin.exec("CREATE DATABASE \"#{dbname}\"")
+                admin.close
+                return PG.connect(@url)
+              end
+            rescue StandardError
+              raise e
+            end
+            raise e
+          end
         end
 
         # 2) Rails config if present
@@ -710,7 +745,22 @@ module Savant
 
         # 3) If libpq env is present, let PG pick it up
         if ENV['PGDATABASE'] || ENV['PGHOST'] || ENV['PGUSER'] || ENV['PGPASSWORD']
-          return PG.connect
+          begin
+            return PG.connect
+          rescue PG::ConnectionBad => e
+            # Try to auto-create the target database if missing
+            begin
+              target_db = ENV['PGDATABASE'] || 'savant'
+              host = ENV['PGHOST'] || 'localhost'
+              port = (ENV['PGPORT'] || 5432).to_i
+              admin = PG.connect(host: host, port: port, dbname: 'postgres', user: ENV['PGUSER'], password: ENV['PGPASSWORD'])
+              admin.exec("CREATE DATABASE \"#{target_db}\"")
+              admin.close
+              return PG.connect
+            rescue StandardError
+              raise e
+            end
+          end
         end
 
         # 4) Sensible local default (non‑Docker): dbname=savant on localhost:5432
@@ -719,7 +769,21 @@ module Savant
         params[:port] = (ENV['PGPORT'] || 5432).to_i
         params[:user] = ENV['PGUSER'] if ENV['PGUSER'] && !ENV['PGUSER'].empty?
         params[:password] = ENV['PGPASSWORD'] if ENV['PGPASSWORD'] && !ENV['PGPASSWORD'].empty?
-        PG.connect(params)
+        begin
+          return PG.connect(params)
+        rescue PG::ConnectionBad => e
+          # Create database if missing using connection to 'postgres'
+          begin
+            admin_params = params.dup
+            admin_params[:dbname] = 'postgres'
+            admin = PG.connect(admin_params)
+            admin.exec("CREATE DATABASE \"#{params[:dbname]}\"")
+            admin.close
+            return PG.connect(params)
+          rescue StandardError
+            raise e
+          end
+        end
       end
 
       def text_array_encoder
