@@ -59,6 +59,7 @@ module Savant
         list << { module: 'hub', method: 'GET', path: '/diagnostics/jira', description: 'Jira credentials presence (no secrets leaked)' }
         list << { module: 'hub', method: 'GET', path: '/diagnostics/connections', description: 'Active SSE/stdio connections' }
         list << { module: 'hub', method: 'GET', path: '/diagnostics/agent', description: 'Agent runtime: memory + telemetry' }
+        list << { module: 'hub', method: 'DELETE', path: '/diagnostics/agent', description: 'Clear agent logs and session data' }
         list << { module: 'hub', method: 'GET', path: '/diagnostics/agent/trace', description: 'Download agent trace log' }
         list << { module: 'hub', method: 'GET', path: '/diagnostics/agent/session', description: 'Download agent session memory JSON' }
         list << { module: 'hub', method: 'GET', path: '/diagnostics/workflows', description: 'Workflow engine telemetry (recent events)' }
@@ -202,6 +203,7 @@ module Savant
         return diagnostics(req) if req.get? && req.path_info == '/diagnostics'
         return diagnostics_jira(req) if req.get? && req.path_info == '/diagnostics/jira'
         return diagnostics_agent(req) if req.get? && %w[/diagnostics/agent /diagnostics/agents].include?(req.path_info)
+        return diagnostics_agent_clear(req) if req.delete? && %w[/diagnostics/agent /diagnostics/agents].include?(req.path_info)
         return diagnostics_agent_trace(req) if req.get? && req.path_info == '/diagnostics/agent/trace'
         return diagnostics_agent_session(req) if req.get? && req.path_info == '/diagnostics/agent/session'
         return diagnostics_connections(req) if req.get? && req.path_info == '/diagnostics/connections'
@@ -663,25 +665,19 @@ module Savant
               tables = %w[repos files blobs file_blob_map chunks personas rulesets agents agent_runs workflows workflow_steps workflow_runs]
               details = []
               tables.each do |t|
-                begin
-                  # Column presence
-                  cols = conn.exec_params("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name=$1", [t]).map { |r| r['column_name'] }
-                  # Row count
-                  cnt = conn.exec("SELECT COUNT(*) AS c FROM #{t}")[0]['c'].to_i
-                  # Relation size in bytes
-                  sz = conn.exec_params("SELECT pg_total_relation_size($1::regclass) AS bytes", [t])[0]['bytes'].to_i
-                  # Last activity timestamp
-                  last_at = nil
-                  if cols.include?('updated_at')
-                    last_at = conn.exec("SELECT MAX(updated_at) AS m FROM #{t}")[0]['m']
-                  end
-                  if !last_at && cols.include?('created_at')
-                    last_at = conn.exec("SELECT MAX(created_at) AS m FROM #{t}")[0]['m']
-                  end
-                  details << { name: t, rows: cnt, size_bytes: sz, last_at: last_at }
-                rescue StandardError => e
-                  details << { name: t, error: e.message }
-                end
+                # Column presence
+                cols = conn.exec_params("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name=$1", [t]).map { |r| r['column_name'] }
+                # Row count
+                cnt = conn.exec("SELECT COUNT(*) AS c FROM #{t}")[0]['c'].to_i
+                # Relation size in bytes
+                sz = conn.exec_params('SELECT pg_total_relation_size($1::regclass) AS bytes', [t])[0]['bytes'].to_i
+                # Last activity timestamp
+                last_at = nil
+                last_at = conn.exec("SELECT MAX(updated_at) AS m FROM #{t}")[0]['m'] if cols.include?('updated_at')
+                last_at = conn.exec("SELECT MAX(created_at) AS m FROM #{t}")[0]['m'] if !last_at && cols.include?('created_at')
+                details << { name: t, rows: cnt, size_bytes: sz, last_at: last_at }
+              rescue StandardError => e
+                details << { name: t, error: e.message }
               end
               db[:tables] = details
             rescue StandardError => e
@@ -761,7 +757,7 @@ module Savant
         {
           'Access-Control-Allow-Origin' => allow_origin,
           'Access-Control-Allow-Headers' => 'content-type, x-savant-user-id',
-          'Access-Control-Allow-Methods' => 'GET, POST, OPTIONS'
+          'Access-Control-Allow-Methods' => 'GET, POST, DELETE, OPTIONS'
         }
       end
 
@@ -827,6 +823,7 @@ module Savant
           logger = nil
         end
 
+        last_error = nil
         tool_candidates.each do |name_variant|
           started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
           logger&.info(event: 'tool.call start', name: name_variant, user: user_id)
@@ -834,29 +831,33 @@ module Savant
           begin
             manager.specs
             reg = manager.send(:registrar)
-            result = reg.call(name_variant, params, ctx: { engine: engine_name, user_id: user_id })
+            result = reg.call(name_variant, params, ctx: { service: engine_name, engine: engine_name, user_id: user_id })
             dur = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round
             logger&.info(event: 'tool.call finish', name: name_variant, duration_ms: dur)
             return result
-          rescue StandardError
+          rescue StandardError => e
+            # Record the last seen error to surface if no variant succeeds
+            last_error = e
             # try next strategy
           end
 
           # Try public registrar accessor
           if manager.respond_to?(:registrar)
             begin
-              result = manager.registrar.call(name_variant, params, ctx: { engine: engine_name, user_id: user_id })
+              result = manager.registrar.call(name_variant, params, ctx: { service: engine_name, engine: engine_name, user_id: user_id })
               dur = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round
               logger&.info(event: 'tool.call finish', name: name_variant, duration_ms: dur)
               return result
-            rescue StandardError
+            rescue StandardError => e
+              last_error = e
               # Hot reload fallback
               begin
                 result = hot_reload_and_call(engine_name, name_variant, params, user_id)
                 dur = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round
                 logger&.info(event: 'tool.call finish', name: name_variant, duration_ms: dur)
                 return result
-              rescue StandardError
+              rescue StandardError => e2
+                last_error = e2
                 # try next candidate
               end
             end
@@ -872,19 +873,21 @@ module Savant
             end
             logger&.info(event: 'tool.call finish', name: name_variant, duration_ms: dur)
             return result
-          rescue StandardError
+          rescue StandardError => e
+            last_error = e
             begin
               result = hot_reload_and_call(engine_name, name_variant, params, user_id)
               dur = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round
               logger&.info(event: 'tool.call finish', name: name_variant, duration_ms: dur)
               return result
-            rescue StandardError
+            rescue StandardError => e2
+              last_error = e2
               # continue loop
             end
           end
         end
-        # All variants failed; re-raise using original name
-        raise StandardError, 'Unknown tool'
+        # All variants failed; surface the most recent error if available for better diagnostics
+        raise(last_error || StandardError.new('Unknown tool'))
       end
 
       # Load fresh engine + tools for the given engine and dispatch the tool call.
@@ -896,7 +899,7 @@ module Savant
         engine = mod.const_get(:Engine).new
         tools_mod = mod.const_get(:Tools)
         reg = tools_mod.build_registrar(engine)
-        reg.call(tool, params, ctx: { engine: engine_name, user_id: user_id })
+        reg.call(tool, params, ctx: { service: engine_name, engine: engine_name, user_id: user_id })
       end
 
       def sse_headers
@@ -1095,6 +1098,45 @@ module Savant
           return respond(500, { error: 'session_parse_error', message: e.message })
         end
         [200, { 'Content-Type' => 'application/json' }.merge(cors_headers), [JSON.generate(js)]]
+      end
+
+      # DELETE /diagnostics/agent -> clear agent logs and session
+      def diagnostics_agent_clear(_req)
+        base = base_path
+        session_path = File.join(base, '.savant', 'session.json')
+        trace_path = File.join(base, 'logs', 'agent_trace.log')
+
+        cleared = []
+        errors = []
+
+        # Clear session.json
+        if File.file?(session_path)
+          begin
+            File.delete(session_path)
+            cleared << 'session.json'
+          rescue StandardError => e
+            errors << { file: 'session.json', error: e.message }
+          end
+        end
+
+        # Clear agent_trace.log
+        if File.file?(trace_path)
+          begin
+            File.truncate(trace_path, 0)
+            cleared << 'agent_trace.log'
+          rescue StandardError => e
+            errors << { file: 'agent_trace.log', error: e.message }
+          end
+        end
+
+        # Also clear agent events from recorder
+        begin
+          @recorder.clear(type: 'reasoning_step') if @recorder.respond_to?(:clear)
+        rescue StandardError
+          # ignore if clear method not available
+        end
+
+        respond(200, { cleared: cleared, errors: errors, message: "Cleared #{cleared.length} file(s)" })
       end
 
       def normalize_tool_spec(spec)

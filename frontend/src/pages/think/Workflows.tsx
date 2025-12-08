@@ -2,7 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useThinkWorkflows, useThinkWorkflowRead } from '../../api';
 import { useNavigate } from 'react-router-dom';
 import Box from '@mui/material/Box';
-import Grid from '@mui/material/Grid2';
+import Grid from '@mui/material/Unstable_Grid2';
 import Tabs from '@mui/material/Tabs';
 import Tab from '@mui/material/Tab';
 import Stack from '@mui/material/Stack';
@@ -165,19 +165,19 @@ export default function ThinkWorkflows() {
 
   return (
     <Grid container spacing={2}>
-      <Grid size={4}>
+      <Grid xs={4}>
         <Paper sx={{ p: 1, height: 'calc(100vh - 260px)', display: 'flex', flexDirection: 'column' }}>
           <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
             <Typography variant="subtitle1" sx={{ fontSize: 12 }}>Workflows</Typography>
             <Stack direction="row" spacing={1} alignItems="center">
               <Tooltip title="New Workflow">
-                <IconButton size="small" color="primary" onClick={() => navigate('/engines/think/workflows/new')}>
+                <IconButton size="small" color="primary" onClick={() => navigate('/workflows/new')}>
                   <AddCircleIcon fontSize="small" />
                 </IconButton>
               </Tooltip>
               <Tooltip title={sel ? 'Edit Workflow' : 'Select a workflow'}>
                 <span>
-                  <IconButton size="small" color="primary" disabled={!sel} onClick={() => sel && navigate(`/engines/think/workflows/edit/${sel}`)}>
+                  <IconButton size="small" color="primary" disabled={!sel} onClick={() => sel && navigate(`/workflows/edit/${sel}`)}>
                     <EditIcon fontSize="small" />
                   </IconButton>
                 </span>
@@ -204,7 +204,7 @@ export default function ThinkWorkflows() {
           <List dense sx={{ flex: 1, overflowY: 'auto' }}>
             {filteredWorkflows.map(w => (
               <ListItem key={w.id} disablePadding>
-                <ListItemButton selected={sel === w.id} onClick={() => setSel(w.id)} onDoubleClick={()=>navigate(`/engines/think/workflows/edit/${w.id}`)}>
+                <ListItemButton selected={sel === w.id} onClick={() => setSel(w.id)} onDoubleClick={()=>navigate(`/workflows/edit/${w.id}`)}>
                   <ListItemText
                     primary={
                       <Box display="flex" alignItems="center" gap={1}>
@@ -220,7 +220,7 @@ export default function ThinkWorkflows() {
           </List>
         </Paper>
       </Grid>
-      <Grid size={8}>
+      <Grid xs={8}>
         <Paper sx={{ p: 2, height: 'calc(100vh - 260px)', display: 'flex', flexDirection: 'column' }}>
           <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between">
             <Stack spacing={0.5}>

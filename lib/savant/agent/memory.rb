@@ -10,7 +10,7 @@ module Savant
     class Memory
       DEFAULT_PATH = '.savant/session.json'
 
-      attr_reader :data, :path
+      attr_reader :data, :full_data, :path
 
       def initialize(base_path:, logger: nil)
         @base_path = base_path
@@ -22,15 +22,24 @@ module Savant
           summaries: [],
           state: {}
         }
+        # Preserve complete, non-truncated history separately
+        @full_data = {
+          steps: [],
+          errors: [],
+          summaries: [],
+          state: {}
+        }
         ensure_dir
       end
 
       def append_step(step)
         @data[:steps] << step
+        @full_data[:steps] << step
       end
 
       def append_error(err)
         @data[:errors] << err
+        @full_data[:errors] << err
       end
 
       def snapshot!
@@ -61,6 +70,7 @@ module Savant
         keep = @data[:steps].last(5)
         summarized = { index: 'summary', note: "Summarized #{@data[:steps].size - 5} earlier steps" }
         @data[:steps] = [summarized] + keep
+        # Do NOT mutate @full_data; it must retain the full history for persistence
       end
     end
   end

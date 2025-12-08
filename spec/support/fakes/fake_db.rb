@@ -63,6 +63,10 @@ module Support
       true
     end
 
+    def file_exists?(repo_id, rel_path)
+      @files.key?([repo_id, rel_path])
+    end
+
     def delete_missing_files(_repo_id, kept)
       # no-op for fake, could simulate by pruning @files keys not in kept
       @kept = kept

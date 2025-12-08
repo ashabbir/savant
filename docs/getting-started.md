@@ -43,6 +43,36 @@ open http://localhost:9999/ui || true
 
 Tip: Most engines (Git, Think, Personas, Rules) work without a database. Context search requires a Postgres DB and indexing (see Advanced below).
 
+## 3.1) Dev Mode (Rails + Vite, hot reload)
+
+- One command: `make dev`
+- Starts Rails, the Vite dev server, and the Hub together; hub logs go to `logs/hub.log`.
+- `make ls` now prints only `dev`, keeping the focus on this single entrypoint.
+- Opens two servers:
+  - API: http://localhost:9999 (Hub endpoints)
+  - UI (HMR): http://localhost:5173
+- Edits to `frontend/` hot-reload instantly in the browser.
+
+To serve static UI under Rails (no hot reload):
+- Build UI: `make ui-build-local` (copies `frontend/dist` into `public/ui`).
+- Start API: `make rails-up` (serves static UI from `/ui`).
+- Open: `http://localhost:9999/ui`.
+
+Indexing via Rake (inside Rails):
+
+```bash
+cd server
+export DATABASE_URL=postgres://context:contextpw@localhost:5432/contextdb
+bundle exec rake savant:index_all            # all repos
+bundle exec rake 'savant:index[myrepo]'      # single repo
+bundle exec rake savant:status               # status
+```
+
+Tips
+- The UI calls the Hub at `http://localhost:9999` by default; override in the UI settings (top-right gear) or via `VITE_HUB_BASE` when using dev server.
+- `make dev` is the only target you need to launch the local dev stack; the new `make ls` output simply reiterates this command.
+- When you need to build or inspect the static UI, use `make ui-build-local`; start Rails alone with `make rails-up`.
+
 ## 4) Optional: use a cloned repo for UI/config
 
 Some features (static UI, custom settings) work best with a local repo clone. Set `SAVANT_PATH` to point at the repo so the binary picks up config and assets.
@@ -55,32 +85,47 @@ savant hub
 
 ## 5) Advanced: Context search (DB + indexing)
 
-Context search requires Postgres and indexing. Use Docker for a quick setup, and point the brew-installed `savant` at the repo for config and UI:
+Context search requires Postgres and indexing. No Docker is required:
 
 ```bash
-# Clone the repo and set SAVANT_PATH so Savant finds config and UI
+# Clone the repo and set settings
 git clone https://github.com/ashabbir/savant.git
 cd savant
 cp config/settings.example.json config/settings.json
 export SAVANT_PATH="$(pwd)"
+export DATABASE_URL=postgres://context:contextpw@localhost:5432/contextdb
 
-# Start Postgres + Hub via Docker, run migrations and FTS
-make quickstart
+# Prepare DB (local Postgres, zero-setup)
+# Defaults (override with DB_ENV, PG* env or DATABASE_URL):
+#  - development: savant_development
+#  - test:        savant_test
+make db-create                 # create DB if missing (env=development by default)
+make db-migrate                # apply only new migrations (idempotent)
+make db-fts                    # ensure GIN FTS index on chunks.chunk_text
+make db-smoke                  # quick connectivity + tables check (non-destructive)
+
+# Switch to test database
+make db-create DB_ENV=test
+make db-migrate DB_ENV=test
 
 # Index your repos (edit config/settings.json first)
 make repo-index-all
 
-# Start MCP Context with DB
-DATABASE_URL=postgres://context:contextpw@localhost:5433/contextdb \
-  MCP_SERVICE=context savant serve --transport=stdio
+# Option A: Use Rails JSON-RPC endpoint
+curl -s -H 'content-type: application/json' \
+  -X POST http://localhost:9999/rpc \
+  -d '{"id":1,"method":"context.fts_search","params":{"q":"term","limit":5}}'
+
+# Option B: Use stdio MCP server directly
+MCP_SERVICE=context bundle exec ruby ./bin/mcp_server
 ```
 
 ## Troubleshooting
 
 - Activation: `savant status` shows current state and license file path.
-- DB connectivity: ensure Docker is running; `make logs` for Postgres/indexer logs.
-- No search results: verify `config/settings.json` repo paths; re-run `make repo-index-all`.
-- UI: if `/ui` is empty, run `make ui-build` in the repo then `savant hub` with `SAVANT_PATH` pointing at the repo.
+- DB connectivity: ensure your local Postgres is reachable; set `DATABASE_URL`.
+ - No search results: verify `config/settings.json` repo paths; re-run `make repo-index-all`.
+ - UI: if `/ui` is empty, run `make ui-build-local` then start Rails.
 
 ## From Source (alternative)
 
@@ -93,3 +138,20 @@ bundle install
 make quickstart && make repo-index-all && make ui-build
 ./bin/savant run --skip-git
 ```
+
+## Agents UI — Create and Run
+
+Create an agent from the UI:
+- Open the UI → MCPs tab → select “agents”.
+- Click the “+” (New Agent).
+- Fill fields:
+  - Name: unique id for the agent
+  - Persona: pick from Personas engine
+  - Driver: mission + endpoint description (free text)
+  - Rules: optional list from Rules engine
+- Save Agent. The agent appears in the list.
+
+Run an agent (UI):
+- Select an agent from the list.
+- Enter input in “Enter input for run…” and click Run.
+- Recent runs show below; click View to open the chat-style transcript.

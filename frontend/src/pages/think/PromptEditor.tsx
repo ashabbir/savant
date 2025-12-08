@@ -1,5 +1,5 @@
 import React from 'react';
-import Grid from '@mui/material/Grid2';
+import Grid from '@mui/material/Unstable_Grid2';
 import { Alert, Box, Chip, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, LinearProgress, Paper, Snackbar, Stack, TextField, Tooltip, Typography, Button } from '@mui/material';
 import SaveIcon from '@mui/icons-material/Save';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -11,6 +11,7 @@ import SaveAltIcon from '@mui/icons-material/SaveAlt';
 import { useNavigate, useParams } from 'react-router-dom';
 import Viewer from '../../components/Viewer';
 import { ThinkPrompts, useThinkPrompt, useThinkPrompts, thinkPromptsCreate, thinkPromptsDelete, thinkPromptsUpdate, useThinkWorkflows } from '../../api';
+import { THINK_PROMPTS_PATH } from './routes';
 
 const PANEL_HEIGHT = 'calc(100vh - 260px)';
 
@@ -56,7 +57,7 @@ export default function PromptEditor() {
       await thinkPromptsUpdate({ version: routeVersion as string, prompt_md: promptMd });
     }
     setSnack('Saved');
-    setTimeout(() => nav('/engines/think/prompts'), 700);
+    setTimeout(() => nav(THINK_PROMPTS_PATH), 700);
   };
 
   const onDelete = async () => {
@@ -64,7 +65,7 @@ export default function PromptEditor() {
     await thinkPromptsDelete(routeVersion);
     setSnack('Deleted');
     setConfirmOpen(false);
-    nav('/engines/think/prompts');
+    nav(THINK_PROMPTS_PATH);
   };
 
   const resolvedPath = React.useMemo(() => {
@@ -85,7 +86,7 @@ export default function PromptEditor() {
 
   return (
     <Grid container spacing={2}>
-      <Grid size={{ xs: 12, md: 4 }}>
+      <Grid xs={12} md={4}>
         <Paper sx={{ p: 1, height: PANEL_HEIGHT, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             <Stack direction="row" alignItems="center" justifyContent="space-between">
               <Typography variant="subtitle1" sx={{ fontSize: 12 }}>{isNew ? 'Create Prompt' : `Edit Prompt (${routeVersion})`}</Typography>
@@ -100,7 +101,7 @@ export default function PromptEditor() {
                 </Tooltip>
               )}
               <Tooltip title="Back to prompts">
-                <IconButton onClick={() => nav('/engines/think/prompts')}>
+                <IconButton onClick={() => nav(THINK_PROMPTS_PATH)}>
                   <ArrowBackIcon fontSize="small" />
                 </IconButton>
               </Tooltip>
@@ -154,7 +155,7 @@ export default function PromptEditor() {
                   ) : (
                     <Stack direction="row" spacing={1} flexWrap="wrap">
                       {usingWorkflows.map((w: any) => (
-                        <Chip key={w.id} label={w.name || w.id} onClick={() => nav(`/engines/think/workflows/edit/${w.id}`)} clickable size="small" />
+                        <Chip key={w.id} label={w.name || w.id} onClick={() => nav(`/workflows/edit/${w.id}`)} clickable size="small" />
                       ))}
                     </Stack>
                   )}
@@ -167,7 +168,7 @@ export default function PromptEditor() {
           </Box>
         </Paper>
       </Grid>
-      <Grid size={{ xs: 12, md: 8 }}>
+      <Grid xs={12} md={8}>
         <Paper sx={{ p: 1, height: PANEL_HEIGHT, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
             <Typography variant="subtitle1" sx={{ fontSize: 12 }}>Prompt Markdown</Typography>

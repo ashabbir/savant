@@ -5,14 +5,22 @@ require 'spec_helper'
 require 'savant/framework/db'
 
 RSpec.describe Savant::Framework::DB do
+  def db_available?
+    test = described_class.new
+    test.exec('SELECT 1')
+    true
+  rescue StandardError
+    false
+  end
   before(:all) do
-    # Prefer explicit DATABASE_URL; fall back to docker-compose default mapping
-    ENV['DATABASE_URL'] ||= 'postgres://context:contextpw@localhost:5433/contextdb'
+    # Prefer explicit DATABASE_URL; fall back to local default DB name 'savant'
+    ENV['DATABASE_URL'] ||= 'postgres://localhost:5432/savant'
   end
 
   let(:db) { described_class.new }
 
   it 'migrates schema including app tables' do
+    skip 'requires local Postgres at DATABASE_URL' unless db_available?
     db.migrate_tables
     db.ensure_fts
 
@@ -27,6 +35,7 @@ RSpec.describe Savant::Framework::DB do
   end
 
   it 'supports CRUD for personas, rulesets, agents and runs' do
+    skip 'requires local Postgres at DATABASE_URL' unless db_available?
     db.migrate_tables
 
     pid = db.create_persona('Reviewer', 'Be concise and strict')
@@ -64,6 +73,7 @@ RSpec.describe Savant::Framework::DB do
   end
 
   it 'supports workflows, steps, and runs' do
+    skip 'requires local Postgres at DATABASE_URL' unless db_available?
     db.migrate_tables
 
     wid = db.create_workflow(
@@ -100,4 +110,3 @@ RSpec.describe Savant::Framework::DB do
     expect(wruns.length).to eq(1)
   end
 end
-

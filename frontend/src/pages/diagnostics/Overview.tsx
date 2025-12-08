@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import Box from '@mui/material/Box';
-import Grid from '@mui/material/Grid2';
+import Grid from '@mui/material/Unstable_Grid2';
 import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
 import IconButton from '@mui/material/IconButton';
@@ -66,6 +66,7 @@ function normalizeModelProgress(model: any): number | null {
   return null;
 }
 
+
 export default function DiagnosticsOverview() {
   const navigate = useNavigate();
   const hub = useHubInfo();
@@ -80,6 +81,7 @@ export default function DiagnosticsOverview() {
   const llmModelList = llmModels?.models || [];
   const llmRuntime = diag.data?.llm_runtime;
   // Removed FTS Query Test state
+
 
   // Build small multiples per engine using recent requests time-series
   const engineSeries: SmallSeries[] = React.useMemo(() => {
@@ -216,7 +218,7 @@ export default function DiagnosticsOverview() {
       {/* Main Grid */}
       <Grid container spacing={1.5} sx={{ flex: 1, minHeight: 0 }}>
         {/* Left Column - Quick Cards + Requests (scrollable) */}
-        <Grid size={{ xs: 12, md: 4 }}>
+        <Grid xs={12} md={4}>
           <Stack spacing={1.5} sx={{ height: '100%', overflow: 'auto' }}>
             {/* Quick Cards: Workflows + API Health */}
             <Paper sx={{ p: 1.5, cursor: 'pointer' }} onClick={() => navigate('/diagnostics/workflows')}>
@@ -361,7 +363,7 @@ export default function DiagnosticsOverview() {
         </Grid>
 
         {/* Middle Column - Database & Config (scrollable) */}
-        <Grid size={{ xs: 12, md: 4 }}>
+        <Grid xs={12} md={4}>
           <Stack spacing={1.5} sx={{ height: '100%', overflow: 'auto', pr: 0.5 }}>
             {/* Engines */}
             <Paper sx={{ p: 1.5 }}>
@@ -549,7 +551,7 @@ export default function DiagnosticsOverview() {
         </Grid>
 
         {/* Right Column - Database, Mounts & Config (scrollable) */}
-        <Grid size={{ xs: 12, md: 4 }}>
+        <Grid xs={12} md={4}>
           <Stack spacing={1.5} sx={{ height: '100%', overflow: 'auto' }}>
             {/* LLM Models */}
             <Paper sx={{ p: 1.5 }}>
@@ -686,72 +688,6 @@ export default function DiagnosticsOverview() {
               )}
             </Paper>
 
-            {/* Secrets */}
-            <Paper sx={{ p: 1.5 }}>
-              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>Secrets</Typography>
-              {diag.data && (diag.data as any).secrets ? (
-                <Stack spacing={1}>
-                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-                    <Chip
-                      size="small"
-                      icon={(diag.data as any).secrets.exists ? <CheckCircleIcon /> : <ErrorIcon />}
-                      label={`Path: ${(diag.data as any).secrets.path || 'unknown'}`}
-                      variant="outlined"
-                      color={(diag.data as any).secrets.exists ? 'success' : 'warning'}
-                    />
-                    {(diag.data as any).secrets.users && (
-                      <Chip size="small" label={`Users: ${(diag.data as any).secrets.users}`} variant="outlined" />
-                    )}
-                    {(diag.data as any).secrets.services && (
-                      <Chip size="small" label={`Services: ${((diag.data as any).secrets.services || []).join(', ') || 'n/a'}`} variant="outlined" />
-                    )}
-                  </Stack>
-                  <Typography variant="caption" color="text.secondary">
-                    {(diag.data as any).secrets.exists
-                      ? 'Values are redacted server-side.'
-                      : 'File not found. Create it at the path shown above.'}
-                  </Typography>
-                </Stack>
-              ) : (
-                <Typography variant="caption" color="text.secondary">Not available</Typography>
-              )}
-            </Paper>
-            {/* Mounts */}
-            <Paper sx={{ p: 1.5 }}>
-              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>Mounts</Typography>
-              {diag.data && (
-                <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
-                  {Object.entries(diag.data.mounts || {}).map(([k, v]) => (
-                    <Chip
-                      key={k}
-                      size="small"
-                      icon={v ? <CheckCircleIcon /> : <ErrorIcon />}
-                      label={k}
-                      color={v ? 'success' : 'warning'}
-                      variant={v ? 'filled' : 'outlined'}
-                    />
-                  ))}
-                </Stack>
-              )}
-            </Paper>
-
-            {/* Config */}
-            <Paper sx={{ p: 1.5 }}>
-              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>Configuration</Typography>
-              {diag.data && (
-                <Stack spacing={0.5}>
-                  <Typography variant="caption" sx={{ fontFamily: 'monospace' }}>
-                    <strong>Base:</strong> {diag.data.base_path}
-                  </Typography>
-                  <Typography variant="caption" sx={{ fontFamily: 'monospace' }}>
-                    <strong>Settings:</strong> {diag.data.settings_path}
-                  </Typography>
-                  {diag.data.config_error && (
-                    <Alert severity="error" sx={{ py: 0, mt: 0.5 }}>{diag.data.config_error}</Alert>
-                  )}
-                </Stack>
-              )}
-            </Paper>
           </Stack>
         </Grid>
       </Grid>

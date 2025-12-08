@@ -27,7 +27,7 @@ module Savant
         tool = normalize_tool_name(name)
         with_tool_logging(tool, request_id, args) do
           ensure_service
-          registrar.call(tool, args || {}, ctx: { engine: engine, request_id: request_id, logger: logger })
+          registrar.call(tool, args || {}, ctx: { service: service, engine: engine, request_id: request_id, logger: logger })
         end
       end
 

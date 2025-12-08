@@ -3,11 +3,17 @@ Savant Codebase Overview
 Purpose
 - Local repository indexer and MCP servers for fast, private code search and Jira access. Ruby services store chunked repo content in Postgres with FTS and expose tools over MCP stdio for editors.
 
+Important Documents:
+docs/getting-started.md
+docs/savant-foundation.md
+docs/savant-instructions.md
+docs/savant-vision.md
+
 Architecture
 - Indexer: scans configured repos, hashes/dedupes files, chunks content, and writes to Postgres tables (`repos`, `files`, `blobs`, `file_blob_map`, `chunks`). FTS index on `chunks.chunk_text` powers ranked search.
 - MCP servers: stdio JSON-RPC interface; a single service is active per process via `MCP_SERVICE` (e.g., `context` or `jira`). Tools are advertised by the active service’s registrar and calls are delegated to its Engine.
 - Config: `config/settings.json` drives indexer limits, repo list, MCP listen options, and DB connection defaults (see `config/schema.json`, `config/settings.example.json`).
-- Docker: `docker-compose.yml` runs Postgres and optional Ruby services; Makefile wraps common flows.
+- Rails API: `server/` hosts a Rails API serving health and JSON-RPC endpoints; use local Postgres via `DATABASE_URL`.
 
 Key Components (Ruby)
 - `lib/savant/config.rb`:
@@ -52,14 +58,13 @@ Configuration
 - Env vars: `DATABASE_URL`, `SAVANT_PATH`, `LOG_LEVEL`, Jira creds (`JIRA_*`).
 
 Runtime Modes
-- Direct (host): run Ruby scripts with `DATABASE_URL` set (Context) and Jira envs (Jira).
-- Docker: use `docker compose` services; Postgres exposed on 5433; volumes mount host repos for indexing.
+- Rails API: run `make rails-up` (serves `/healthz` and `/rpc`).
+- Direct (stdio): run Ruby scripts with `DATABASE_URL` set (Context) and Jira envs (Jira).
 - MCP editors (Cline/Claude Code): run via stdio; configure commands and env per README examples.
 
 Makefile Highlights
-- Stack bootstrap: `make quickstart` (starts Docker stack + migrations/FTS, no indexing).
-- Dev lifecycle: `make dev`, `make logs`, `make down`, `make ps`.
-- DB: `make migrate` (destructive reset), `make fts`, `make smoke`.
+- Rails: `make rails-setup`, `make rails-up`.
+- DB: `make rails-migrate` (reset: `make migrate-reset`), `make rails-fts`, `make smoke`.
 - Indexing: `make repo-index-all`, `make repo-index-repo repo=<name>`, `make repo-delete-all`, `make repo-delete-repo repo=<name>`, `make repo-status`.
 - MCP: `make mcp`, `make mcp-context(-run)`, `make mcp-jira(-run)`, tests (`make mcp-test`, `make jira-test`, `make jira-self`).
 - Quality checks: `bundle exec rspec`, `bundle exec rubocop`, and `bundle exec guard` for watch mode.
@@ -77,8 +82,7 @@ Logs
 Security & Secrets
 - No secrets stored in repo. Jira credentials via env or optional config file. Avoid committing `.env`; `.env.example` is provided.
 
-Getting Started
-- Configure `config/settings.json` (copy from example), run `make quickstart` to boot Postgres/hub + migrations/FTS (no indexing), then run `make repo-index-all` when ready. After indexing, query via MCP (`make mcp-test q='term'`).
+- Configure `config/settings.json` (copy from example), run `make rails-migrate` then `make rails-fts`, then run `make repo-index-all`. Start API with `make rails-up` and query via `/rpc` or MCP stdio.
 - Scaffold a new MCP service via generator: `bundle exec ruby ./bin/savant generate engine <name> [--with-db]`, then run with `MCP_SERVICE=<name> ruby ./bin/mcp_server`.
 
 Not In Scope

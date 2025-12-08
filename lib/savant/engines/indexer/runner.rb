@@ -69,6 +69,7 @@ module Savant
         progress = verbose ? @log.progress_bar(title: 'indexing', total: files.length) : nil
         kept = []
         kind_counts = Hash.new(0)
+        skip_reasons = Hash.new(0)
         repo_indexed = 0
         repo_skipped = 0
         repo_errors = 0
@@ -80,6 +81,7 @@ module Savant
               stat = File.stat(abs)
               if too_large?(stat.size)
                 repo_skipped += 1
+                skip_reasons[:too_large] += 1
                 log_skip(rel, "too_large size=#{stat.size}B max=#{@config.max_bytes}B", verbose)
                 progress&.increment
                 next
@@ -87,19 +89,22 @@ module Savant
 
               key = cache_key(repo['name'], rel)
               meta = { 'size' => stat.size, 'mtime_ns' => to_ns(stat.mtime) }
-              if unchanged?(key, meta)
+              if unchanged?(key, meta) && @store.file_exists?(repo_id, rel)
                 repo_skipped += 1
+                skip_reasons[:cached] += 1
                 log_skip(rel, 'unchanged', verbose)
                 progress&.increment
                 next
               end
 
               lang = Language.from_rel_path(rel)
+              kind_counts[lang] += 1
               allowed = @config.languages
               # Always allow memory_bank markdown and doc-like files regardless of language allowlist;
               # otherwise enforce allowlist
               if !allowed.empty? && !allowed.include?(lang) && lang != 'memory_bank' && !doc_like?(rel, lang)
                 repo_skipped += 1
+                skip_reasons[:unsupported_lang] += 1
                 log_skip(rel, "unsupported_lang lang=#{lang}", verbose)
                 progress&.increment
                 next
@@ -107,6 +112,7 @@ module Savant
 
               if binary_file?(abs)
                 repo_skipped += 1
+                skip_reasons[:binary] += 1
                 log_skip(rel, 'binary', verbose)
                 progress&.increment
                 next
@@ -115,6 +121,7 @@ module Savant
               # Skip non-markdown files in memory_bank directories
               if Language.in_memory_dir_but_not_markdown?(rel)
                 repo_skipped += 1
+                skip_reasons[:memory_bank_non_md] += 1
                 log_skip(rel, 'memory_bank_non_markdown', verbose)
                 progress&.increment
                 next
@@ -128,12 +135,12 @@ module Savant
               @store.map_file(file_id, blob_id)
 
               @cache[key] = meta
-              kind_counts[lang] += 1
               repo_indexed += 1
               progress&.increment
             rescue StandardError => e
               repo_skipped += 1
               repo_errors += 1
+              skip_reasons[:error] += 1
               @log.debug("error: repo=#{repo['name']} item=#{rel} class=#{e.class} msg=#{e.message.inspect}") if verbose
               progress&.increment
               next
@@ -147,30 +154,33 @@ module Savant
           end
         end
 
-        if kind_counts.any?
-          counts_line = kind_counts.map { |k, v| "#{k}=#{v}" }.join(' ')
-          @log.info("counts: #{counts_line}")
-          mb = kind_counts['memory_bank'] || 0
-          # Doc-only (exclude memory_bank which is tracked separately)
-          doc_only_langs = (DOC_TEXT_EXTS + %w[md mdx markdown]).uniq
-          # Code files exclude doc-only and memory_bank
-          non_code = (doc_only_langs + %w[memory_bank]).uniq
-          @log.info("memory_bank: #{mb}")
-          doc_breakdown = kind_counts.select { |k, _| doc_only_langs.include?(k) }
-          code_breakdown = kind_counts.reject { |k, _| non_code.include?(k) }
-          @log.info("doc_files_breakdown: #{doc_breakdown.map { |k, v| "#{k}=#{v}" }.join(' ')}") unless doc_breakdown.empty?
-          @log.info("code_files_breakdown: #{code_breakdown.map { |k, v| "#{k}=#{v}" }.join(' ')}") unless code_breakdown.empty?
-        end
         progress&.finish
-        @log.repo_footer(indexed: repo_indexed, skipped: repo_skipped, errors: repo_errors)
 
-        # include derived counts for aggregation in summary
+        # Output detailed stats
         doc_only_langs = (DOC_TEXT_EXTS + %w[md mdx markdown]).uniq
         non_code = (doc_only_langs + %w[memory_bank]).uniq
+        doc_breakdown = kind_counts.select { |k, _| doc_only_langs.include?(k) }
+        code_breakdown = kind_counts.reject { |k, _| non_code.include?(k) }
+        mb_count = kind_counts['memory_bank'] || 0
+
+        @log.repo_stats(
+          name: repo['name'],
+          total: files.length,
+          indexed: repo_indexed,
+          skipped: repo_skipped,
+          errors: repo_errors,
+          skip_reasons: skip_reasons,
+          type_counts: kind_counts,
+          code_breakdown: code_breakdown,
+          doc_breakdown: doc_breakdown,
+          memory_bank: mb_count
+        )
+
         doc_files = kind_counts.sum { |k, v| doc_only_langs.include?(k) ? v : 0 }
         code_files = kind_counts.sum { |k, v| non_code.include?(k) ? 0 : v }
         { indexed: repo_indexed, skipped: repo_skipped, errors: repo_errors,
-          memory_bank: kind_counts['memory_bank'] || 0, doc_files: doc_files, code_files: code_files }
+          memory_bank: mb_count, doc_files: doc_files, code_files: code_files,
+          type_counts: kind_counts, skip_reasons: skip_reasons }
       end
 
       # rubocop:enable Metrics/AbcSize

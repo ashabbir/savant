@@ -43,6 +43,10 @@ module Savant
         @db.delete_missing_files(repo_id, kept_rel_paths)
       end
 
+      def file_exists?(repo_id, rel_path)
+        @db.file_exists?(repo_id, rel_path)
+      end
+
       # Execute the given block within a DB transaction when available.
       # @yield [] block executed transactionally
       # @return [Object] yield result

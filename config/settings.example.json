@@ -55,11 +55,11 @@
     "fields": ["key", "summary", "status", "assignee", "updated"]
   },
   "database": {
-    "host": "postgres",
+    "host": "localhost",
     "port": 5432,
-    "db": "contextdb",
-    "user": "context",
-    "password": "contextpw"
+    "db": "savant",
+    "user": "",
+    "password": ""
   },
   "agent": {
     "maxSteps": 25,
