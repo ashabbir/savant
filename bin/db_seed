@@ -1,0 +1,64 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'json'
+require_relative '../lib/savant/framework/db'
+
+def env_flag(name, default = nil)
+  v = ENV[name]
+  (v && !v.to_s.empty?) ? v : default
+end
+
+db_env = (env_flag('DB_ENV', env_flag('RAILS_ENV', env_flag('RACK_ENV', 'development')))).to_s
+db_name = env_flag('DB_NAME', db_env == 'test' ? 'savant_test' : 'savant_development')
+
+begin
+  # Hint PG which DB to use when not providing DATABASE_URL
+  ENV['PGDATABASE'] ||= db_name
+
+  db = Savant::Framework::DB.new
+
+  # Personas (idempotent)
+  personas = [
+    ['savant-engineer', nil],
+    ['architect', nil],
+    ['reviewer', nil]
+  ]
+  persona_ids = {}
+  personas.each do |name, content|
+    pid = db.create_persona(name, content)
+    persona_ids[name] = pid
+  end
+
+  # Rulesets (idempotent)
+  rules = [
+    ['Default', "- Keep responses concise\n- No secrets or PII\n- Cite file paths where relevant"],
+    ['SafeOps', "- Never execute destructive commands without confirmation\n- Prefer read-only tools where possible"]
+  ]
+  rule_ids = {}
+  rules.each do |name, content|
+    rid = db.create_ruleset(name, content)
+    rule_ids[name] = rid
+  end
+
+  # Sample Agent (idempotent via upsert on name)
+  begin
+    db.create_agent(
+      name: 'Sample Agent',
+      persona_id: persona_ids['savant-engineer'],
+      driver_prompt: nil,
+      driver_name: 'search',
+      rule_set_ids: [rule_ids['Default']].compact,
+      favorite: true
+    )
+  rescue StandardError
+    # ignore
+  end
+
+  puts({ ok: true, db: db_name, personas: persona_ids.keys, rulesets: rule_ids.keys, agents: ['Sample Agent'] }.to_json)
+  exit 0
+rescue StandardError => e
+  warn({ ok: false, error: e.message, class: e.class.name }.to_json)
+  exit 1
+end
+
