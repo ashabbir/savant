@@ -1,0 +1,37 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'pg'
+
+def env_flag(name, default = nil)
+  v = ENV[name]
+  (v && !v.to_s.empty?) ? v : default
+end
+
+db_env = (env_flag('DB_ENV', env_flag('RAILS_ENV', env_flag('RACK_ENV', 'development')))).to_s
+db_name = env_flag('DB_NAME', db_env == 'test' ? 'savant_test' : 'savant_development')
+host = env_flag('PGHOST', 'localhost')
+port = (env_flag('PGPORT', 5432)).to_i
+user = env_flag('PGUSER', nil)
+password = env_flag('PGPASSWORD', nil)
+
+params = { host: host, port: port, dbname: 'postgres' }
+params[:user] = user if user
+params[:password] = password if password
+
+begin
+  conn = PG.connect(params)
+  exists = conn.exec_params('SELECT 1 FROM pg_database WHERE datname=$1', [db_name]).ntuples.positive?
+  unless exists
+    conn.exec("CREATE DATABASE \"#{db_name}\"")
+    puts "Created database #{db_name}"
+  else
+    puts "Database #{db_name} already exists"
+  end
+  conn.close
+  exit 0
+rescue StandardError => e
+  warn "DB CREATE ERROR: #{e.class}: #{e.message}"
+  exit 1
+end
+

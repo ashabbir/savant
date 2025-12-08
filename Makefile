@@ -1,7 +1,9 @@
-.PHONY: dev-ui dev-server ls ps pg ui-build-local db-migrate db-fts db-smoke db-status
+.PHONY: dev-ui dev-server ls ps pg ui-build-local db-migrate db-fts db-smoke db-status db-drop db-create db-seed
 
 INDEXER_CMD ?= bundle exec ruby ./bin/context_repo_indexer
 PG_CMD ?= psql
+DB_ENV ?= development
+DB_NAME ?= $(if $(filter $(DB_ENV),test),savant_test,savant_development)
 
 # Minimal dev targets with sensible defaults
 export SAVANT_DEV ?= 1
@@ -48,7 +50,7 @@ ui-build-local:
 # Database tasks (non-destructive by default)
 db-migrate:
 	@echo "Applying DB migrations (non-destructive, versioned)..."
-	@$(HOME)/.rbenv/shims/bundle exec ruby ./bin/db_migrate
+	@DB_NAME=$(DB_NAME) PGDATABASE=$(DB_NAME) $(HOME)/.rbenv/shims/bundle exec ruby ./bin/db_migrate
 
 db-fts:
 	@echo "Ensuring FTS index on chunks.chunk_text..."
@@ -56,11 +58,23 @@ db-fts:
 
 db-smoke:
 	@echo "Running DB smoke check (connect + migrations + FTS)..."
-	@$(HOME)/.rbenv/shims/bundle exec ruby ./bin/db_smoke
+	@DB_NAME=$(DB_NAME) PGDATABASE=$(DB_NAME) $(HOME)/.rbenv/shims/bundle exec ruby ./bin/db_smoke
 
 db-status:
 	@echo "DB status via psql (override with PGHOST/PGPORT/PGUSER/PGPASSWORD)"
 	@$(PG_CMD) -lqt 2>/dev/null | awk '{print $$1}' | sed '/^$$/d' || true
+
+db-drop:
+	@echo "Dropping database $(DB_NAME) (env=$(DB_ENV))..."
+	@DB_ENV=$(DB_ENV) DB_NAME=$(DB_NAME) $(HOME)/.rbenv/shims/bundle exec ruby ./bin/db_drop
+
+db-create:
+	@echo "Creating database $(DB_NAME) (env=$(DB_ENV))..."
+	@DB_ENV=$(DB_ENV) DB_NAME=$(DB_NAME) $(HOME)/.rbenv/shims/bundle exec ruby ./bin/db_create
+
+db-seed:
+	@echo "Seeding database $(DB_NAME) (env=$(DB_ENV))..."
+	@DB_ENV=$(DB_ENV) DB_NAME=$(DB_NAME) $(HOME)/.rbenv/shims/bundle exec ruby ./bin/db_seed
 
 ls:
 	@printf "Available make commands:\n";
@@ -75,13 +89,14 @@ pg:
 	  echo "Connecting via DATABASE_URL"; \
 	  $(PG_CMD) "$(DATABASE_URL)"; \
 	else \
-		  config_env=$$(ruby -rjson -e 'path = File.join("config", "settings.json"); if File.exist?(path); settings = JSON.parse(File.read(path)); db = settings["database"]; if db; env = []; host = (db["host"] || "").to_s; host = "localhost" if host.empty? || host == "postgres"; env << "PGHOST=#{host}"; env << "PGPORT=#{db["port"]}" if db["port"]; env << "PGUSER=#{db["user"]}" if db["user"]; env << "PGPASSWORD=#{db["password"]}" if db["password"]; env << "PGDATABASE=#{db["db"] || "savant"}"; print env.join(" "); end; end'); \
+		  config_env=$$(ruby -rjson -e 'path = File.join("config", "settings.json"); if File.exist?(path); settings = JSON.parse(File.read(path)); db = settings["database"]; if db; env = []; host = (db["host"] || "").to_s; host = "localhost" if host.empty? || host == "postgres"; env << "PGHOST=#{host}"; env << "PGPORT=#{db["port"]}" if db["port"]; # ignore user/password from settings to avoid missing roles on local
+		  env << "PGDATABASE=#{db["db"] || "$(DB_NAME)"}"; print env.join(" "); end; end'); \
 	  if [ -n "$$config_env" ]; then \
 	    echo "Connecting via config/settings.json"; \
 	    env $$config_env $(PG_CMD); \
 	  else \
 	    echo "Connecting via default psql settings"; \
-		    $(PG_CMD) -h localhost -p 5432 -d savant; \
+		    $(PG_CMD) -h localhost -p 5432 -d $(DB_NAME); \
 	  fi; \
 	fi
 
