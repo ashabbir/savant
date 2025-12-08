@@ -1,4 +1,4 @@
-.PHONY: dev-ui dev-server ls ps pg ui-build-local db-migrate db-fts db-smoke db-status db-drop db-create db-seed db-drop-all db-create-all db-migrate-all db-reset
+.PHONY: dev-ui dev-server ls ps pg ui-build-local db-migrate db-fts db-smoke db-status db-drop db-create db-seed db-migrate-status
 
 INDEXER_CMD ?= bundle exec ruby ./bin/context_repo_indexer
 PG_CMD ?= psql
@@ -50,8 +50,15 @@ ui-build-local:
 
 # Database tasks (non-destructive by default)
 db-migrate:
-	@echo "Applying DB migrations (non-destructive, versioned)..."
-	@DB_NAME=$(DB_NAME) PGDATABASE=$(DB_NAME) $(HOME)/.rbenv/shims/bundle exec ruby ./bin/db_migrate
+	@bash -lc 'set -e; for env in $(DB_ENVS); do \
+	  name=$$( [ "$$env" = test ] && echo savant_test || echo savant_development ); \
+	  echo "Applying DB migrations (non-destructive, versioned) on $$name..."; \
+	  DB_ENV=$$env DB_NAME=$$name PGDATABASE=$$name $(HOME)/.rbenv/shims/bundle exec ruby ./bin/db_migrate; \
+	done'
+
+db-migrate-status:
+	@echo "Showing migration status for $(DB_ENV) (DB_NAME=$(DB_NAME))..."
+	@cd server && RAILS_ENV=$(DB_ENV) $(HOME)/.rbenv/shims/bundle exec rails db:migrate:status
 
 db-fts:
 	@echo "Ensuring FTS index on chunks.chunk_text..."
@@ -66,49 +73,27 @@ db-status:
 	@$(PG_CMD) -lqt 2>/dev/null | awk '{print $$1}' | sed '/^$$/d' || true
 
 db-drop:
-	@echo "Dropping database $(DB_NAME) (env=$(DB_ENV))..."
-	@DB_ENV=$(DB_ENV) DB_NAME=$(DB_NAME) $(HOME)/.rbenv/shims/bundle exec ruby ./bin/db_drop
-
-db-create:
-	@echo "Creating database $(DB_NAME) (env=$(DB_ENV))..."
-	@DB_ENV=$(DB_ENV) DB_NAME=$(DB_NAME) $(HOME)/.rbenv/shims/bundle exec ruby ./bin/db_create
-
-db-seed:
-	@echo "Seeding database $(DB_NAME) (env=$(DB_ENV))..."
-	@DB_ENV=$(DB_ENV) DB_NAME=$(DB_NAME) $(HOME)/.rbenv/shims/bundle exec ruby ./bin/db_seed
-
-db-drop-all:
 	@bash -lc 'set -e; for env in $(DB_ENVS); do \
 	  name=$$( [ "$$env" = test ] && echo savant_test || echo savant_development ); \
 	  echo "Dropping $$name (env=$$env)..."; \
 	  DB_ENV=$$env DB_NAME=$$name $(HOME)/.rbenv/shims/bundle exec ruby ./bin/db_drop; \
 	done'
 
-db-create-all:
+db-create:
 	@bash -lc 'set -e; for env in $(DB_ENVS); do \
 	  name=$$( [ "$$env" = test ] && echo savant_test || echo savant_development ); \
 	  echo "Creating $$name (env=$$env)..."; \
 	  DB_ENV=$$env DB_NAME=$$name $(HOME)/.rbenv/shims/bundle exec ruby ./bin/db_create; \
 	done'
 
-db-migrate-all:
-    @bash -lc 'set -e; for env in $(DB_ENVS); do \
-      name=$$( [ "$$env" = test ] && echo savant_test || echo savant_development ); \
-      echo "Migrating $$name (env=$$env)..."; \
-      DB_ENV=$$env DB_NAME=$$name PGDATABASE=$$name $(HOME)/.rbenv/shims/bundle exec ruby ./bin/db_migrate; \
-    done'
+db-seed:
+	@bash -lc 'set -e; for env in $(DB_ENVS); do \
+	  name=$$( [ "$$env" = test ] && echo savant_test || echo savant_development ); \
+	  echo "Seeding $$name (env=$$env)..."; \
+	  DB_ENV=$$env DB_NAME=$$name $(HOME)/.rbenv/shims/bundle exec ruby ./bin/db_seed; \
+	done'
 
-db-seed-all:
-    @bash -lc 'set -e; for env in $(DB_ENVS); do \
-      name=$$( [ "$$env" = test ] && echo savant_test || echo savant_development ); \
-      echo "Seeding $$name (env=$$env)..."; \
-      DB_ENV=$$env DB_NAME=$$name $(HOME)/.rbenv/shims/bundle exec ruby ./bin/db_seed; \
-    done'
 
-db-setup-all: db-create-all db-migrate-all db-seed-all
-
-db-reset: db-drop-all db-create-all db-migrate-all
-	@echo "Reset complete for development and test"
 
 ls:
 	@printf "Available make commands:\n";
@@ -123,7 +108,7 @@ pg:
 	  echo "Connecting via DATABASE_URL"; \
 	  $(PG_CMD) "$(DATABASE_URL)"; \
 	else \
-		  config_env=$$(ruby -rjson -e 'path = File.join("config", "settings.json"); if File.exist?(path); settings = JSON.parse(File.read(path)); db = settings["database"]; if db; env = []; host = (db["host"] || "").to_s; host = "localhost" if host.empty? || host == "postgres"; env << "PGHOST=#{host}"; env << "PGPORT=#{db["port"]}" if db["port"]; # ignore user/password from settings to avoid missing roles on local
+			  config_env=$$(ruby -rjson -e 'path = File.join("config", "settings.json"); if File.exist?(path); settings = JSON.parse(File.read(path)); db = settings["database"]; if db; env = []; host = (db["host"] || "").to_s; host = "localhost" if host.empty? || host == "postgres"; env << "PGHOST=#{host}"; env << "PGPORT=#{db["port"]}" if db["port"]; # ignore user/password from settings to avoid missing roles on local \
 		  env << "PGDATABASE=#{db["db"] || "$(DB_NAME)"}"; print env.join(" "); end; end'); \
 	  if [ -n "$$config_env" ]; then \
 	    echo "Connecting via config/settings.json"; \
