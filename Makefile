@@ -1,9 +1,10 @@
-.PHONY: dev-ui dev-server ls ps pg ui-build-local db-migrate db-fts db-smoke db-status db-drop db-create db-seed
+.PHONY: dev-ui dev-server ls ps pg ui-build-local db-migrate db-fts db-smoke db-status db-drop db-create db-seed db-drop-all db-create-all db-migrate-all db-reset
 
 INDEXER_CMD ?= bundle exec ruby ./bin/context_repo_indexer
 PG_CMD ?= psql
 DB_ENV ?= development
 DB_NAME ?= $(if $(filter $(DB_ENV),test),savant_test,savant_development)
+DB_ENVS := development test
 
 # Minimal dev targets with sensible defaults
 export SAVANT_DEV ?= 1
@@ -75,6 +76,39 @@ db-create:
 db-seed:
 	@echo "Seeding database $(DB_NAME) (env=$(DB_ENV))..."
 	@DB_ENV=$(DB_ENV) DB_NAME=$(DB_NAME) $(HOME)/.rbenv/shims/bundle exec ruby ./bin/db_seed
+
+db-drop-all:
+	@bash -lc 'set -e; for env in $(DB_ENVS); do \
+	  name=$$( [ "$$env" = test ] && echo savant_test || echo savant_development ); \
+	  echo "Dropping $$name (env=$$env)..."; \
+	  DB_ENV=$$env DB_NAME=$$name $(HOME)/.rbenv/shims/bundle exec ruby ./bin/db_drop; \
+	done'
+
+db-create-all:
+	@bash -lc 'set -e; for env in $(DB_ENVS); do \
+	  name=$$( [ "$$env" = test ] && echo savant_test || echo savant_development ); \
+	  echo "Creating $$name (env=$$env)..."; \
+	  DB_ENV=$$env DB_NAME=$$name $(HOME)/.rbenv/shims/bundle exec ruby ./bin/db_create; \
+	done'
+
+db-migrate-all:
+    @bash -lc 'set -e; for env in $(DB_ENVS); do \
+      name=$$( [ "$$env" = test ] && echo savant_test || echo savant_development ); \
+      echo "Migrating $$name (env=$$env)..."; \
+      DB_ENV=$$env DB_NAME=$$name PGDATABASE=$$name $(HOME)/.rbenv/shims/bundle exec ruby ./bin/db_migrate; \
+    done'
+
+db-seed-all:
+    @bash -lc 'set -e; for env in $(DB_ENVS); do \
+      name=$$( [ "$$env" = test ] && echo savant_test || echo savant_development ); \
+      echo "Seeding $$name (env=$$env)..."; \
+      DB_ENV=$$env DB_NAME=$$name $(HOME)/.rbenv/shims/bundle exec ruby ./bin/db_seed; \
+    done'
+
+db-setup-all: db-create-all db-migrate-all db-seed-all
+
+db-reset: db-drop-all db-create-all db-migrate-all
+	@echo "Reset complete for development and test"
 
 ls:
 	@printf "Available make commands:\n";
