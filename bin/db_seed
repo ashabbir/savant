@@ -256,6 +256,31 @@ begin
     rescue StandardError
       ops.create(name: 'code_review', summary: summary, prompt_md: code_review_md, tags: %w[review workflow])
     end
+
+    # Seed/Update the 'search' driver prompt
+    search_md = <<~MD
+      Objective: Given the Goal (run input), search local indexed repos and memory bank, then produce a concise, accurate summary.
+
+      Required steps:
+
+      action=tool, tool_name=context.fts_search, args={"q": Goal, "repo": null, "limit": 10}
+      action=tool, tool_name=context.memory_search, args={"q": Goal, "repo": null, "limit": 10}
+      action=reason (optional): synthesize findings if needed
+      action=finish: deliver a concise summary
+      Constraints:
+
+      Do not output action="finish" before at least one tool call.
+      Use fully qualified tool names exactly as listed.
+      ONE JSON object per step with keys: action, tool_name, args, final, reasoning.
+      Map Goal verbatim to args.q. Keep reasoning short.
+    MD
+    search_summary = 'Default search driver (Context FTS + Memory)'
+    begin
+      ops.get(name: 'search')
+      ops.update(name: 'search', summary: search_summary, prompt_md: search_md, tags: %w[search summary])
+    rescue StandardError
+      ops.create(name: 'search', summary: search_summary, prompt_md: search_md, tags: %w[search summary])
+    end
   rescue StandardError
     # ignore driver seeding errors
   end
