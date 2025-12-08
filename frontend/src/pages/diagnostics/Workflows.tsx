@@ -1,5 +1,5 @@
 import React from 'react';
-import Grid from '@mui/material/Grid2';
+import Grid from '@mui/material/Unstable_Grid2';
 import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
 import LinearProgress from '@mui/material/LinearProgress';
@@ -169,7 +169,7 @@ export default function DiagnosticsWorkflows() {
   };
   return (
     <Grid container spacing={2}>
-      <Grid size={{ xs: 12 }}>
+      <Grid xs={12}>
         <Paper sx={{ p: 2 }}>
           <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
             <Typography variant="h6">Workflow Telemetry</Typography>
@@ -240,7 +240,7 @@ export default function DiagnosticsWorkflows() {
           </Typography>
         </Paper>
       </Grid>
-      <Grid size={{ xs: 12 }}>
+      <Grid xs={12}>
         <Paper sx={{ p: 2 }}>
           <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
             <Typography variant="h6">Saved Workflow Runs</Typography>

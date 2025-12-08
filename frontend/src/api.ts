@@ -619,6 +619,138 @@ export async function rulesCatalogWrite(yaml: string) {
   return res.data as { ok: boolean; count: number };
 }
 
+// AGENTS engine API
+export type AgentSummary = { id: number; name: string; favorite: boolean; run_count?: number; last_run_at?: string | null };
+export type AgentsList = { agents: AgentSummary[] };
+export type Agent = { id: number; name: string; persona_id?: number | null; persona_name?: string | null; driver: string; rule_set_ids: number[]; rules_names?: string[]; favorite: boolean; run_count?: number; last_run_at?: string | null };
+
+export function useAgents() {
+  return useQuery<AgentsList>({
+    queryKey: ['agents', 'list'],
+    queryFn: async () => {
+      const res = await client().post('/agents/tools/agents_list/call', { params: {} });
+      return res.data as AgentsList;
+    }
+  });
+}
+
+export function useAgent(name: string | null) {
+  return useQuery<Agent>({
+    queryKey: ['agents', 'get', name],
+    queryFn: async () => {
+      const res = await client().post('/agents/tools/agents_get/call', { params: { name } });
+      return res.data as Agent;
+    },
+    enabled: !!name
+  });
+}
+
+export async function agentsCreate(payload: { name: string; persona: string; driver: string; rules?: string[]; favorite?: boolean }) {
+  const res = await client().post('/agents/tools/agents_create/call', { params: payload });
+  return res.data as Agent;
+}
+
+export async function agentsUpdate(payload: { name: string; persona?: string; driver?: string; rules?: string[]; favorite?: boolean }) {
+  const res = await client().post('/agents/tools/agents_update/call', { params: payload });
+  return res.data as Agent;
+}
+
+// DRIVERS engine API (similar to personas)
+export type DriverSummary = { name: string; version: number; summary: string; tags?: string[] };
+export type DriversList = { drivers: DriverSummary[] };
+export function useDrivers(filter: string = '') {
+  return useQuery<DriversList>({
+    queryKey: ['drivers', 'list', filter],
+    queryFn: async () => {
+      const res = await client().post('/drivers/tools/drivers_list/call', { params: { filter: filter || undefined } });
+      return res.data as DriversList;
+    }
+  });
+}
+
+export type Driver = { name: string; version: number; summary: string; tags?: string[]; prompt_md: string; notes?: string };
+export function useDriver(name: string | null) {
+  return useQuery<Driver>({
+    queryKey: ['drivers', 'get', name],
+    queryFn: async () => {
+      const res = await client().post('/drivers/tools/drivers_get/call', { params: { name } });
+      return res.data as Driver;
+    },
+    enabled: !!name
+  });
+}
+
+export async function driversCreate(payload: { name: string; summary: string; prompt_md: string; tags?: string[]; notes?: string | null }) {
+  const res = await client().post('/drivers/tools/drivers_create/call', { params: payload });
+  return res.data as { ok: boolean; name: string };
+}
+
+export async function driversUpdate(payload: { name: string; summary?: string; prompt_md?: string; tags?: string[]; notes?: string | null }) {
+  const res = await client().post('/drivers/tools/drivers_update/call', { params: payload });
+  return res.data as { ok: boolean; name: string };
+}
+
+export async function driversDelete(name: string) {
+  const res = await client().post('/drivers/tools/drivers_delete/call', { params: { name } });
+  return res.data as { ok: boolean; deleted: boolean };
+}
+
+export function useDriversCreate() { return useMutation({ mutationFn: driversCreate }); }
+export function useDriversUpdate() { return useMutation({ mutationFn: driversUpdate }); }
+export function useDriversDelete() { return useMutation({ mutationFn: driversDelete }); }
+
+export async function driversCatalogRead() {
+  const res = await client().post('/drivers/tools/drivers_catalog_read/call', { params: {} });
+  return res.data as { catalog_yaml: string };
+}
+
+export async function driversCatalogWrite(yaml: string) {
+  const res = await client().post('/drivers/tools/drivers_catalog_write/call', { params: { yaml } });
+  return res.data as { ok: boolean; count: number };
+}
+
+export async function agentsDelete(name: string) {
+  const res = await client().post('/agents/tools/agents_delete/call', { params: { name } });
+  return res.data as { ok: boolean };
+}
+
+export type AgentRun = { id: number; input: string; output_summary?: string; status?: string; duration_ms?: number; created_at: string; steps?: number | null; final?: string | null };
+export function useAgentRuns(name: string | null) {
+  return useQuery<{ runs: AgentRun[] }>({
+    queryKey: ['agents', 'runs', name],
+    queryFn: async () => {
+      const res = await client().post('/agents/tools/agents_runs_list/call', { params: { name } });
+      return res.data as { runs: AgentRun[] };
+    },
+    enabled: !!name
+  });
+}
+
+export async function agentRun(name: string, input: string, maxSteps?: number) {
+  const res = await client().post('/agents/tools/agents_run/call', { params: { name, input, max_steps: maxSteps } });
+  return res.data as { status: string; duration_ms?: number; result?: any };
+}
+
+export async function agentRunRead(name: string, runId: number) {
+  const res = await client().post('/agents/tools/agents_run_read/call', { params: { name, run_id: runId } });
+  return res.data as { id: number; transcript: any };
+}
+
+export async function agentRunCancel(name: string) {
+  const res = await client().post('/agents/tools/agents_run_cancel/call', { params: { name } });
+  return res.data as { ok: boolean };
+}
+
+export async function agentRunDelete(name: string, runId: number) {
+  const res = await client().post('/agents/tools/agents_run_delete/call', { params: { name, run_id: runId } });
+  return res.data as { ok: boolean };
+}
+
+export async function agentRunsClearAll(name: string) {
+  const res = await client().post('/agents/tools/agents_runs_clear_all/call', { params: { name } });
+  return res.data as { deleted_count: number };
+}
+
 // Hub stats for diagnostics
 export type RequestRecord = {
   id: number;

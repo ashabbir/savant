@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useThinkRuns, useThinkRun, thinkRunDelete } from '../../api';
-import Grid from '@mui/material/Grid2';
+import Grid from '@mui/material/Unstable_Grid2';
 import Paper from '@mui/material/Paper';
 import List from '@mui/material/List';
 import ListItem from '@mui/material/ListItem';
@@ -101,7 +101,7 @@ export default function ThinkRuns() {
 
   return (
     <Grid container spacing={2}>
-      <Grid size={{ xs: 12, md: 4 }}>
+      <Grid xs={12} md={4}>
         <Paper sx={{ p: 1, height: PANEL_HEIGHT, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <Typography variant="subtitle1" sx={{ px: 1, py: 1 }}>Runs</Typography>
           {isLoading && <LinearProgress />}
@@ -119,7 +119,7 @@ export default function ThinkRuns() {
           </Box>
         </Paper>
       </Grid>
-      <Grid size={{ xs: 12, md: 8 }}>
+      <Grid xs={12} md={8}>
         <Paper sx={{ p: 2, height: PANEL_HEIGHT, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <Stack direction="row" justifyContent="space-between" alignItems="center"> 
             <Typography variant="subtitle1">Run state — {title}</Typography>

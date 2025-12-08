@@ -2,6 +2,7 @@
 
 source 'https://rubygems.org'
 
+gem 'rails', '~> 7.1'
 gem 'async', '~> 2.10'
 gem 'async-websocket', '~> 0.25'
 gem 'console', '~> 1.29.0'

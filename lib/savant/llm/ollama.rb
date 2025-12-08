@@ -76,6 +76,9 @@ module Savant
         def http_post(uri, body:, headers: {})
           http = Net::HTTP.new(uri.host, uri.port)
           http.use_ssl = uri.scheme == 'https'
+          # Increase timeouts for LLM inference which can take time
+          http.read_timeout = 300  # 5 minutes for LLM generation
+          http.open_timeout = 10   # 10 seconds to establish connection
           req = Net::HTTP::Post.new(uri.request_uri)
           headers.each { |k, v| req[k] = v }
           req.body = body
@@ -85,6 +88,8 @@ module Savant
         def http_get(uri, headers: {})
           http = Net::HTTP.new(uri.host, uri.port)
           http.use_ssl = uri.scheme == 'https'
+          http.read_timeout = 30   # 30 seconds for GET requests
+          http.open_timeout = 10   # 10 seconds to establish connection
           req = Net::HTTP::Get.new(uri.request_uri)
           headers.each { |k, v| req[k] = v }
           http.request(req)

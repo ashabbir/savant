@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Link, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
+import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { AppBar, Toolbar, Typography, Tabs, Tab, IconButton, Container, Alert, Snackbar, Chip, Box, Tooltip, Stack } from '@mui/material';
 import SettingsIcon from '@mui/icons-material/Settings';
 import { ThemeProvider } from '@mui/material/styles';
@@ -19,14 +19,22 @@ import ThinkTools from './pages/think/Tools';
 import ThinkWorkflowEditor from './pages/think/WorkflowEditor';
 import ThinkPrompts from './pages/think/Prompts';
 import PromptEditor from './pages/think/PromptEditor';
+import { THINK_PROMPTS_EDIT_PATTERN, THINK_PROMPTS_NEW_PATH, THINK_PROMPTS_PATH, thinkPromptsEditPath } from './pages/think/routes';
 import ThinkRuns from './pages/think/Runs';
 import WorkflowRuns from './pages/workflow/Runs';
 import Personas from './pages/personas/Personas';
 import PersonasTools from './pages/personas/Tools';
 import PersonaEditor from './pages/personas/PersonaEditor';
+import Drivers from './pages/drivers/Drivers';
+import DriversTools from './pages/drivers/Tools';
+import DriverEditor from './pages/drivers/DriverEditor';
 import RulesPage from './pages/rules/Rules';
 import RulesTools from './pages/rules/Tools';
 import RuleEditor from './pages/rules/RuleEditor';
+import Agents from './pages/agents/Agents';
+import AgentWizard from './pages/agents/AgentWizard';
+import AgentDetail from './pages/agents/AgentDetail';
+import AgentRun from './pages/agents/AgentRun';
 import JiraTools from './pages/jira/Tools';
 import GitTools from './pages/git/Tools';
 import ContextTools from './pages/context/Tools';
@@ -39,6 +47,8 @@ import HubIcon from '@mui/icons-material/Hub';
 import StorageIcon from '@mui/icons-material/Storage';
 import ManageSearchIcon from '@mui/icons-material/ManageSearch';
 import CodeIcon from '@mui/icons-material/Code';
+import SmartToyIcon from '@mui/icons-material/SmartToy';
+import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import SettingsDialog from './components/SettingsDialog';
 import { onAppEvent } from './utils/bus';
 
@@ -46,7 +56,9 @@ function useMainTabIndex() {
   const { pathname } = useLocation();
   if (pathname === '/dashboard' || pathname === '/') return 0;
   if (pathname.startsWith('/engines')) return 1;
-  if (pathname.startsWith('/diagnostics')) return 2;
+  if (pathname.startsWith('/agents')) return 2;
+  if (pathname.startsWith('/workflows')) return 3;
+  if (pathname.startsWith('/diagnostics')) return 4;
   return 0;
 }
 
@@ -67,8 +79,11 @@ function useThinkSubIndex() {
 }
 
 function sortEngines(engines: string[]): string[] {
-  const order = ['context', 'think', 'personas', 'rules', 'jira', 'git'];
-  return engines.sort((a, b) => {
+  // Filter out agents since it's a top-level tab now
+  // Keep 'think' for Prompts/Tools sub-pages
+  const filtered = engines.filter(e => e !== 'agents');
+  const order = ['context', 'think', 'personas', 'drivers', 'rules', 'jira', 'git'];
+  return filtered.sort((a, b) => {
     const aIdx = order.indexOf(a);
     const bIdx = order.indexOf(b);
     if (aIdx === -1 && bIdx === -1) return a.localeCompare(b);
@@ -83,6 +98,17 @@ function useSelectedEngine(hub: ReturnType<typeof useHubInfo>['data']) {
   const seg = pathname.split('/').filter(Boolean);
   const rawEngines = (hub?.engines || []).map((e) => e.name);
   const engines = sortEngines(rawEngines);
+  const isToolsAlias = pathname.startsWith('/engines/tools');
+  if (isToolsAlias) {
+    const thinkIdx = engines.indexOf('think');
+    if (thinkIdx >= 0) {
+      return {
+        engines,
+        name: engines[thinkIdx],
+        index: thinkIdx,
+      };
+    }
+  }
   const idx = seg[0] === 'engines' && seg[1] ? engines.indexOf(seg[1]) : -1;
   return {
     engines,
@@ -103,13 +129,15 @@ function useEngineSubIndex(engineName: string | undefined) {
     return 0;
   }
   if (engineName === 'think') {
-    if (pathname.includes('/workflows')) return 0;
-    if (pathname.includes('/prompts')) return 1;
-    if (pathname.includes('/runs')) return 2;
-    if (pathname.includes('/think/tools')) return 3;
+    if (pathname.includes('/tools/prompts') || pathname.includes('/think/prompts')) return 0;
+    if (pathname.includes('/think/tools')) return 1;
     return 0;
   }
   if (engineName === 'personas') {
+    if (pathname.includes('/tools')) return 1;
+    return 0;
+  }
+  if (engineName === 'drivers') {
     if (pathname.includes('/tools')) return 1;
     return 0;
   }
@@ -128,11 +156,14 @@ function useEngineSubIndex(engineName: string | undefined) {
 
 function defaultEngineRoute(name: string): string {
   if (name === 'context') return '/engines/context/resources';
-  if (name === 'think') return '/engines/think/workflows';
+  if (name === 'think') return '/engines/think/tools';  // Prompts moved to Drivers
   if (name === 'jira') return '/engines/jira/tools';
   if (name === 'personas') return '/engines/personas';
+  if (name === 'drivers') return '/engines/drivers';
   if (name === 'rules') return '/engines/rules';
   if (name === 'git') return '/engines/git/tools';
+  // agents is now top-level, redirect if somehow accessed
+  if (name === 'agents') return '/agents';
   return `/engines/${name}`;
 }
 
@@ -164,6 +195,19 @@ function formatUptime(seconds: number): string {
   if (days > 0) return `${days}d ${hours}h`;
   if (hours > 0) return `${hours}h ${mins}m`;
   return `${mins}m`;
+}
+
+function RedirectToToolsPrompts() {
+  return <Navigate to={'/engines/drivers'} replace />;
+}
+
+function RedirectToToolsPromptsNew() {
+  return <Navigate to={'/engines/drivers/new'} replace />;
+}
+
+function RedirectToToolsPromptsEdit() {
+  const { version } = useParams<{ version: string }>();
+  return <Navigate to={`/engines/drivers/edit/${version || ''}`} replace />;
 }
 
 export default function App() {
@@ -207,9 +251,21 @@ export default function App() {
       if (tgt) navigate(defaultEngineRoute(tgt), { replace: true });
     }
   }, [mainIdx, loc.pathname, uiEngines]);
+  // Normalize Agents root
+  React.useEffect(() => {
+    if (mainIdx === 2 && loc.pathname === '/agents') {
+      navigate('/agents', { replace: false });
+    }
+  }, [mainIdx, loc.pathname]);
+  // Normalize Workflows root
+  React.useEffect(() => {
+    if (mainIdx === 3 && loc.pathname === '/workflows') {
+      navigate('/workflows', { replace: false });
+    }
+  }, [mainIdx, loc.pathname]);
   // Normalize Diagnostics root to a concrete sub-route so tabs highlight consistently
   React.useEffect(() => {
-    if (mainIdx === 2 && (loc.pathname === '/diagnostics' || loc.pathname === '/diagnostics/')) {
+    if (mainIdx === 4 && (loc.pathname === '/diagnostics' || loc.pathname === '/diagnostics/')) {
       navigate('/diagnostics/overview', { replace: true });
     }
   }, [mainIdx, loc.pathname]);
@@ -286,24 +342,21 @@ export default function App() {
       <Tabs value={mainIdx} onChange={(_, v) => {
         if (v === 0) navigate('/dashboard');
         else if (v === 1) navigate('/engines');
-        else if (v === 2) navigate('/diagnostics');
+        else if (v === 2) navigate('/agents');
+        else if (v === 3) navigate('/workflows');
+        else if (v === 4) navigate('/diagnostics');
       }} centered>
         <Tab icon={<DashboardIcon />} iconPosition="start" label="Dashboard" component={Link} to="/dashboard" />
-        <Tab icon={<StorageIcon />} iconPosition="start" label="MCPs" component={Link} to="/engines" />
+        <Tab icon={<StorageIcon />} iconPosition="start" label="Tools" component={Link} to="/engines" />
+        <Tab icon={<SmartToyIcon />} iconPosition="start" label="Agents" component={Link} to="/agents" />
+        <Tab icon={<AccountTreeIcon />} iconPosition="start" label="Workflows" component={Link} to="/workflows" />
         <Tab icon={<ManageSearchIcon />} iconPosition="start" label="Diagnostics" component={Link} to="/diagnostics" />
       </Tabs>
       {mainIdx === 1 && (
         <Tabs value={uiEngIdx} onChange={(_, v) => {
           const tgt = uiEngines[v];
           if (tgt) {
-            // Navigate to engine default route
-          if (tgt === 'context') navigate('/engines/context/resources');
-          else if (tgt === 'think') navigate('/engines/think/workflows');
-          else if (tgt === 'personas') navigate('/engines/personas');
-          else if (tgt === 'rules') navigate('/engines/rules');
-          else if (tgt === 'jira') navigate('/engines/jira/tools');
-          else if (tgt === 'git') navigate('/engines/git/tools');
-          else navigate(`/engines/${tgt}`);
+            navigate(defaultEngineRoute(tgt));
           }
         }} centered sx={{
           '& .MuiTab-root': { fontSize: 12, minHeight: 36, py: 0.5, textTransform: 'none' },
@@ -336,18 +389,14 @@ export default function App() {
       )}
       {mainIdx === 1 && selEngine === 'think' && (
         <Tabs value={engSubIdx} onChange={(_, v) => {
-          if (v === 0) navigate('/engines/think/workflows');
-          else if (v === 1) navigate('/engines/think/prompts');
-          else if (v === 2) navigate('/engines/think/runs');
-          else if (v === 3) navigate('/engines/think/tools');
+          if (v === 0) navigate(THINK_PROMPTS_PATH);
+          else if (v === 1) navigate('/engines/think/tools');
         }} centered sx={{
           '& .MuiTab-root': { fontSize: 12, minHeight: 36, py: 0.5, textTransform: 'none', color: 'text.secondary' },
           '& .Mui-selected': { color: 'primary.main !important' },
           '& .MuiTabs-indicator': { height: 2, backgroundColor: 'primary.light' }
         }}>
-          <Tab label="Workflows" component={Link} to="/engines/think/workflows" />
-          <Tab label="Prompts" component={Link} to="/engines/think/prompts" />
-          <Tab label="Runs" component={Link} to="/engines/think/runs" />
+          <Tab label="Prompts" component={Link} to={THINK_PROMPTS_PATH} />
           <Tab label="Tools" component={Link} to="/engines/think/tools" />
         </Tabs>
       )}
@@ -375,6 +424,19 @@ export default function App() {
         }}>
           <Tab label="Browse" component={Link} to="/engines/rules" />
           <Tab label="Tools" component={Link} to="/engines/rules/tools" />
+        </Tabs>
+      )}
+      {mainIdx === 1 && (uiSelEngine || selEngine) === 'drivers' && (
+        <Tabs value={engSubIdx} onChange={(_, v) => {
+          if (v === 0) navigate('/engines/drivers');
+          else if (v === 1) navigate('/engines/drivers/tools');
+        }} centered sx={{
+          '& .MuiTab-root': { fontSize: 12, minHeight: 36, py: 0.5, textTransform: 'none', color: 'text.secondary' },
+          '& .Mui-selected': { color: 'primary.main !important' },
+          '& .MuiTabs-indicator': { height: 2, backgroundColor: 'primary.light' }
+        }}>
+          <Tab label="Browse" component={Link} to="/engines/drivers" />
+          <Tab label="Tools" component={Link} to="/engines/drivers/tools" />
         </Tabs>
       )}
       {mainIdx === 1 && selEngine === 'workflow' && (
@@ -409,7 +471,7 @@ export default function App() {
         </Tabs>
       )}
       {/* Diagnostics subtabs */}
-      {mainIdx === 2 && (
+      {mainIdx === 4 && (
         <Tabs value={diagSubIdx} centered sx={{
           '& .MuiTab-root': { fontSize: 12, minHeight: 32, py: 0.5, textTransform: 'none', color: 'text.secondary' },
           '& .Mui-selected': { color: 'primary.main !important' },
@@ -429,6 +491,19 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<Dashboard />} />
+
+          {/* Top-level Agents routes */}
+          <Route path="/agents" element={<Agents />} />
+          <Route path="/agents/new" element={<AgentWizard />} />
+          <Route path="/agents/edit/:name" element={<AgentDetail />} />
+          <Route path="/agents/run/:name/:id" element={<AgentRun />} />
+
+          {/* Top-level Workflows routes */}
+          <Route path="/workflows" element={<ThinkWorkflows />} />
+          <Route path="/workflows/new" element={<ThinkWorkflowEditor />} />
+          <Route path="/workflows/edit/:id" element={<ThinkWorkflowEditor />} />
+          <Route path="/workflows/runs" element={<ThinkRuns />} />
+
           <Route path="/search" element={<Navigate to="/ctx/search" replace />} />
           <Route path="/repos" element={<Navigate to="/ctx/repos" replace />} />
           {/* Legacy routes (back-compat) */}
@@ -437,7 +512,7 @@ export default function App() {
           <Route path="/ctx/repos" element={<Repos />} />
           <Route path="/think" element={<ThinkWorkflows />} />
           <Route path="/think/workflows" element={<ThinkWorkflows />} />
-          <Route path="/think/prompts" element={<ThinkPrompts />} />
+          <Route path="/think/prompts" element={<RedirectToToolsPrompts />} />
           <Route path="/think/runs" element={<ThinkRuns />} />
           <Route path="/personas" element={<Personas />} />
 
@@ -448,12 +523,17 @@ export default function App() {
           <Route path="/engines/context/repos" element={<Repos />} />
           <Route path="/engines/context/tools" element={<ContextTools />} />
 
+          <Route path={THINK_PROMPTS_PATH} element={<ThinkPrompts />} />
+          <Route path={THINK_PROMPTS_NEW_PATH} element={<PromptEditor />} />
+          <Route path={THINK_PROMPTS_EDIT_PATTERN} element={<PromptEditor />} />
+
+          {/* Keep old think/workflows routes for backward compatibility */}
           <Route path="/engines/think/workflows" element={<ThinkWorkflows />} />
           <Route path="/engines/think/workflows/new" element={<ThinkWorkflowEditor />} />
           <Route path="/engines/think/workflows/edit/:id" element={<ThinkWorkflowEditor />} />
-          <Route path="/engines/think/prompts" element={<ThinkPrompts />} />
-          <Route path="/engines/think/prompts/new" element={<PromptEditor />} />
-          <Route path="/engines/think/prompts/edit/:version" element={<PromptEditor />} />
+          <Route path="/engines/think/prompts" element={<RedirectToToolsPrompts />} />
+          <Route path="/engines/think/prompts/new" element={<RedirectToToolsPromptsNew />} />
+          <Route path="/engines/think/prompts/edit/:version" element={<RedirectToToolsPromptsEdit />} />
           <Route path="/engines/think/runs" element={<ThinkRuns />} />
           <Route path="/engines/think/tools" element={<ThinkTools />} />
           <Route path="/engines/workflow/runs" element={<WorkflowRuns />} />
@@ -467,6 +547,16 @@ export default function App() {
           <Route path="/engines/rules/tools" element={<RulesTools />} />
           <Route path="/engines/rules/new" element={<RuleEditor />} />
           <Route path="/engines/rules/edit/:name" element={<RuleEditor />} />
+          {/* Drivers engine routes */}
+          <Route path="/engines/drivers" element={<Drivers />} />
+          <Route path="/engines/drivers/tools" element={<DriversTools />} />
+          <Route path="/engines/drivers/new" element={<DriverEditor />} />
+          <Route path="/engines/drivers/edit/:name" element={<DriverEditor />} />
+          {/* Keep old agents routes for backward compatibility */}
+          <Route path="/engines/agents" element={<Agents />} />
+          <Route path="/engines/agents/new" element={<AgentWizard />} />
+          <Route path="/engines/agents/edit/:name" element={<AgentDetail />} />
+          <Route path="/engines/agents/run/:name/:id" element={<AgentRun />} />
           {/* Workflows editor moved under Think engine */}
           {/* Legacy shortcuts */}
           <Route path="/rules" element={<RulesPage />} />
@@ -509,7 +599,7 @@ export default function App() {
         )}
         <Typography variant="caption" sx={{ opacity: 0.9 }}>github.com/ashabbir</Typography>
       </Box>
-      </Box>
+    </Box>
       <SettingsDialog
         open={open}
         onClose={() => setOpen(false)}

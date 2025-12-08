@@ -2,50 +2,45 @@
 # frozen_string_literal: true
 
 require 'yaml'
+require_relative '../../framework/db'
 
 module Savant
   module Personas
-    # Ops for Personas engine: loads YAML catalog and implements list/get.
+    # Ops for Personas engine: DB-backed CRUD for persona catalog.
     class Ops
-      def initialize(root: nil)
-        @base = root || default_base_path
-        @data_path = File.join(@base, 'lib', 'savant', 'engines', 'personas', 'personas.yml')
+      def initialize(db: nil)
+        @db = db || Savant::Framework::DB.new
       end
 
       # List personas with optional filter on name|tags|summary
-      # @return [Hash] { personas: [{ name, version, summary, tags? }] }
+      # @return [Hash] { personas: [{ name, version, summary, tags }] }
       def list(filter: nil)
-        rows = load_catalog.map do |p|
+        rows = @db.list_personas(filter: filter)
+        personas = rows.map do |r|
           {
-            name: p['name'],
-            version: p['version'],
-            summary: p['summary'],
-            tags: p['tags']
+            name: r['name'],
+            version: r['version'].to_i,
+            summary: r['summary'],
+            tags: parse_pg_array(r['tags'])
           }
         end
-        if filter && !filter.to_s.strip.empty?
-          q = filter.to_s.downcase
-          rows = rows.select do |r|
-            [r[:name], r[:summary], Array(r[:tags]).join(' ')].compact.any? { |v| v.to_s.downcase.include?(q) }
-          end
-        end
-        { personas: rows }
+        { personas: personas }
       end
 
       # Get a persona by name
-      # @return [Hash] or raises 'NOT_FOUND'
+      # @return [Hash] or raises 'not_found'
       def get(name:)
         key = name.to_s.strip
         raise 'invalid_input: name required' if key.empty?
 
-        row = load_catalog.find { |p| p['name'] == key }
+        row = @db.get_persona_by_name(key)
         raise 'not_found' unless row
 
         {
           name: row['name'],
-          version: row['version'],
+          version: row['version'].to_i,
           summary: row['summary'],
-          tags: row['tags'],
+          tags: parse_pg_array(row['tags']),
           prompt_md: row['prompt_md'],
           notes: row['notes']
         }
@@ -53,14 +48,8 @@ module Savant
 
       # Read a single persona as YAML text
       def read_persona_yaml(name:)
-        n = normalize_name(name)
-        raise 'invalid_input: name required' if n.empty?
-
-        rows = load_catalog
-        row = rows.find { |p| p['name'] == n }
-        raise 'not_found' unless row
-
-        { persona_yaml: YAML.dump(row) }
+        data = get(name: name)
+        { persona_yaml: YAML.dump(stringify_keys(data)) }
       end
 
       # Overwrite a single persona from YAML
@@ -76,39 +65,65 @@ module Savant
                 end
         raise 'invalid_input: yaml must define a persona' if entry.empty?
 
-        # Ensure required fields and name alignment
-        entry['name'] = n if entry['name'].to_s.strip.empty?
-        raise 'name_mismatch' unless entry['name'].to_s == n
+        entry_name = (entry['name'] || entry[:name]).to_s.strip
+        entry_name = n if entry_name.empty?
+        raise 'name_mismatch' unless entry_name == n
 
-        validate_entry!(entry)
+        existing = @db.get_persona_by_name(n)
+        raise 'not_found' unless existing
 
-        rows = load_catalog
-        idx = rows.index { |p| p['name'] == n }
-        raise 'not_found' unless idx
+        prev_ver = existing['version'].to_i
+        new_ver = prev_ver + 1
 
-        # Bump version on YAML overwrite
-        prev = rows[idx]
-        prev_ver = coerce_version(prev['version'])
-        entry['version'] = (prev_ver || 0) + 1
-        rows[idx] = entry
-        write_yaml(@data_path, YAML.dump(rows))
+        @db.update_persona(
+          name: n,
+          version: new_ver,
+          summary: entry['summary'] || entry[:summary],
+          prompt_md: entry['prompt_md'] || entry[:prompt_md],
+          tags: entry['tags'] || entry[:tags],
+          notes: entry['notes'] || entry[:notes]
+        )
         { ok: true, name: n }
       rescue Psych::SyntaxError => e
         raise "load_error: yaml syntax - #{e.message}"
       end
 
-      # Read full catalog
+      # Read full catalog as YAML
       def catalog_read
-        raise 'load_error: personas.yml not found' unless File.file?(@data_path)
-
-        { catalog_yaml: File.read(@data_path) }
+        rows = @db.list_personas
+        catalog = rows.map do |r|
+          {
+            'name' => r['name'],
+            'version' => r['version'].to_i,
+            'summary' => r['summary'],
+            'tags' => parse_pg_array(r['tags']),
+            'prompt_md' => r['prompt_md'],
+            'notes' => r['notes']
+          }.compact
+        end
+        { catalog_yaml: YAML.dump(catalog) }
       end
 
-      # Overwrite full catalog
+      # Overwrite full catalog (replaces all personas)
       def catalog_write(yaml:)
         text = yaml.to_s
         rows = parse_and_validate_catalog(text)
-        write_yaml(@data_path, YAML.dump(rows))
+
+        # Delete all existing, then insert new
+        existing = @db.list_personas
+        existing.each { |r| @db.delete_persona(r['name']) }
+
+        rows.each do |entry|
+          @db.create_persona(
+            entry['name'],
+            nil,
+            version: entry['version'] || 1,
+            summary: entry['summary'],
+            prompt_md: entry['prompt_md'],
+            tags: entry['tags'],
+            notes: entry['notes']
+          )
+        end
         { ok: true, count: rows.size }
       end
 
@@ -117,21 +132,18 @@ module Savant
         n = normalize_name(name)
         raise 'invalid_input: name required' if n.empty?
 
-        rows = load_catalog
-        raise 'already_exists' if rows.any? { |p| p['name'] == n }
+        existing = @db.get_persona_by_name(n)
+        raise 'already_exists' if existing
 
-        entry = {
-          'name' => n,
-          'version' => 1,
-          'summary' => summary.to_s.strip,
-          'prompt_md' => prompt_md.to_s
-        }
-        t = Array(tags).map(&:to_s).reject(&:empty?)
-        entry['tags'] = t unless t.empty?
-        entry['notes'] = notes.to_s unless notes.nil? || notes.to_s.strip.empty?
-        validate_entry!(entry)
-        rows << entry
-        write_yaml(@data_path, YAML.dump(rows))
+        @db.create_persona(
+          n,
+          nil,
+          version: 1,
+          summary: summary.to_s.strip,
+          prompt_md: prompt_md.to_s,
+          tags: Array(tags).map(&:to_s).reject(&:empty?),
+          notes: notes
+        )
         { ok: true, name: n }
       end
 
@@ -140,41 +152,23 @@ module Savant
         n = normalize_name(name)
         raise 'invalid_input: name required' if n.empty?
 
-        rows = load_catalog
-        idx = rows.index { |p| p['name'] == n }
-        raise 'not_found' unless idx
+        existing = @db.get_persona_by_name(n)
+        raise 'not_found' unless existing
 
-        cur = rows[idx].dup
-        # Only update scalar fields when an explicit non-nil value is provided;
-        # avoid clobbering existing values with empty strings from nil.to_s
-        cur['summary'] = fields[:summary].to_s if fields.key?(:summary) && !fields[:summary].nil?
-        cur['prompt_md'] = fields[:prompt_md].to_s if fields.key?(:prompt_md) && !fields[:prompt_md].nil?
+        prev_ver = existing['version'].to_i
+        new_ver = prev_ver + 1
+
+        update_fields = { version: new_ver }
+        update_fields[:summary] = fields[:summary].to_s if fields.key?(:summary) && !fields[:summary].nil?
+        update_fields[:prompt_md] = fields[:prompt_md].to_s if fields.key?(:prompt_md) && !fields[:prompt_md].nil?
         if fields.key?(:tags)
-          tags = Array(fields[:tags]).map(&:to_s).reject(&:empty?)
-          if tags.empty?
-            cur.delete('tags')
-          else
-            cur['tags'] = tags
-          end
+          update_fields[:tags] = Array(fields[:tags]).map(&:to_s).reject(&:empty?)
         end
         if fields.key?(:notes)
-          v = fields[:notes]
-          if v.nil? || v.to_s.strip.empty?
-            cur.delete('notes')
-          else
-            cur['notes'] = v.to_s
-          end
+          update_fields[:notes] = fields[:notes].nil? ? nil : fields[:notes].to_s
         end
-        # Bump version automatically (integer)
-        begin
-          prev_ver = coerce_version(cur['version'])
-          cur['version'] = (prev_ver || 0) + 1
-        rescue StandardError
-          cur['version'] = 1
-        end
-        validate_entry!(cur)
-        rows[idx] = cur
-        write_yaml(@data_path, YAML.dump(rows))
+
+        @db.update_persona(name: n, **update_fields)
         { ok: true, name: n }
       end
 
@@ -183,35 +177,29 @@ module Savant
         n = normalize_name(name)
         raise 'invalid_input: name required' if n.empty?
 
-        rows = load_catalog
-        before = rows.length
-        rows = rows.reject { |p| p['name'] == n }
-        deleted = rows.length < before
-        write_yaml(@data_path, YAML.dump(rows))
+        deleted = @db.delete_persona(n)
         { ok: true, deleted: deleted }
       end
 
       private
 
-      def default_base_path
-        if ENV['SAVANT_PATH'] && !ENV['SAVANT_PATH'].empty?
-          ENV['SAVANT_PATH']
-        else
-          File.expand_path('../../../..', __dir__)
-        end
+      def normalize_name(name)
+        name.to_s.strip
       end
 
-      def load_catalog
-        raise 'load_error: personas.yml not found' unless File.file?(@data_path)
+      def parse_pg_array(val)
+        return [] if val.nil?
+        return val if val.is_a?(Array)
 
-        data = YAML.safe_load(File.read(@data_path))
-        rows = data.is_a?(Array) ? data : []
-        rows.each { |p| validate_entry!(p) }
-        rows
-      rescue Psych::SyntaxError => e
-        raise "load_error: yaml syntax - #{e.message}"
-      rescue StandardError => e
-        raise e
+        # PG returns text[] as "{a,b,c}" string
+        if val.is_a?(String) && val.start_with?('{') && val.end_with?('}')
+          return val[1..-2].split(',').map(&:strip).reject(&:empty?)
+        end
+        []
+      end
+
+      def stringify_keys(hash)
+        hash.transform_keys(&:to_s)
       end
 
       def parse_and_validate_catalog(yaml_text)
@@ -231,14 +219,6 @@ module Savant
         raise 'invalid_data: version must be integer >= 1' unless v.is_a?(Integer) && v >= 1
 
         p['version'] = v
-      end
-
-      def normalize_name(name)
-        name.to_s.strip
-      end
-
-      def write_yaml(path, text)
-        File.write(path, text)
       end
 
       def coerce_version(v)
