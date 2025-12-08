@@ -2,101 +2,45 @@
 # frozen_string_literal: true
 
 require 'yaml'
+require_relative '../../framework/db'
 
 module Savant
   module Drivers
-    # Ops for Drivers engine: loads YAML catalog of driver prompt templates.
+    # Ops for Drivers engine: DB-backed CRUD for driver prompt catalog.
     class Ops
-      def initialize(root: nil)
-        @base = root || default_base_path
-        @data_path = File.join(@base, 'lib', 'savant', 'engines', 'drivers', 'drivers.yml')
-      end
-
-      # One-time migration: import Think prompts (prompts.yml + markdown files)
-      # into Drivers catalog if Drivers catalog is empty.
-      # Safe to call repeatedly; no-ops when drivers already present or Think
-      # prompts are missing.
-      def migrate_from_think_prompts
-        begin
-          existing = begin load_catalog rescue [] end
-          existing = [] unless existing.is_a?(Array)
-          existing_names = existing.map { |r| (r['name'] || r[:name]).to_s }
-
-          think_root = File.join(@base, 'lib', 'savant', 'engines', 'think')
-          reg_path = File.join(think_root, 'prompts.yml')
-          return false unless File.file?(reg_path)
-
-          reg = YAML.safe_load(File.read(reg_path)) || {}
-          versions = reg['versions'] || {}
-          return false unless versions.is_a?(Hash) && !versions.empty?
-
-          added = 0
-          versions.each do |ver, rel|
-            name = ver.to_s
-            next if existing_names.include?(name)
-            next unless rel.is_a?(String)
-            path = File.join(think_root, rel)
-            next unless File.file?(path)
-            md = File.read(path)
-            summary = begin
-              first_line = md.lines.find { |l| !l.strip.empty? }&.strip || name
-              first_line.sub(/^#+\s*/, '')[0, 160]
-            rescue StandardError
-              name
-            end
-            existing << {
-              'name' => name,
-              'version' => 1,
-              'summary' => summary,
-              'prompt_md' => md,
-              'tags' => ['think']
-            }
-            existing_names << name
-            added += 1
-          end
-          return false if added.zero?
-
-          write_catalog(existing)
-          true
-        rescue StandardError
-          false
-        end
+      def initialize(db: nil)
+        @db = db || Savant::Framework::DB.new
       end
 
       # List drivers with optional filter on name|tags|summary
-      # @return [Hash] { drivers: [{ name, version, summary, tags? }] }
+      # @return [Hash] { drivers: [{ name, version, summary, tags }] }
       def list(filter: nil)
-        rows = load_catalog.map do |p|
+        rows = @db.list_drivers(filter: filter)
+        drivers = rows.map do |r|
           {
-            name: p['name'],
-            version: p['version'],
-            summary: p['summary'],
-            tags: p['tags']
+            name: r['name'],
+            version: r['version'].to_i,
+            summary: r['summary'],
+            tags: parse_pg_array(r['tags'])
           }
         end
-        if filter && !filter.to_s.strip.empty?
-          q = filter.to_s.downcase
-          rows = rows.select do |r|
-            [r[:name], r[:summary], Array(r[:tags]).join(' ')].compact.any? { |v| v.to_s.downcase.include?(q) }
-          end
-        end
-        { drivers: rows }
+        { drivers: drivers }
       end
 
       # Get a driver by name
-      # @return [Hash] or raises 'NOT_FOUND'
+      # @return [Hash] or raises 'not_found'
       def get(name:)
         key = name.to_s.strip
         raise 'invalid_input: name required' if key.empty?
 
-        row = load_catalog.find { |p| p['name'] == key }
+        row = @db.get_driver_by_name(key)
         raise 'not_found' unless row
 
         {
           name: row['name'],
-          version: row['version'],
+          version: row['version'].to_i,
           summary: row['summary'],
-          tags: row['tags'],
+          tags: parse_pg_array(row['tags']),
           prompt_md: row['prompt_md'],
           notes: row['notes']
         }
@@ -104,14 +48,8 @@ module Savant
 
       # Read a single driver as YAML text
       def read_driver_yaml(name:)
-        n = normalize_name(name)
-        raise 'invalid_input: name required' if n.empty?
-
-        rows = load_catalog
-        row = rows.find { |p| p['name'] == n }
-        raise 'not_found' unless row
-
-        { driver_yaml: YAML.dump(row) }
+        data = get(name: name)
+        { driver_yaml: YAML.dump(stringify_keys(data)) }
       end
 
       # Overwrite a single driver from YAML
@@ -121,19 +59,38 @@ module Savant
 
         data = safe_yaml_load(yaml)
         validate_entry!(data)
-        rows = load_catalog
-        idx = rows.index { |p| p['name'] == n }
-        raise 'not_found' unless idx
 
-        rows[idx] = data
-        write_catalog(rows)
+        existing = @db.get_driver_by_name(n)
+        raise 'not_found' unless existing
+
+        prev_ver = existing['version'].to_i
+        new_ver = prev_ver + 1
+
+        @db.update_driver(
+          name: n,
+          version: new_ver,
+          summary: data['summary'],
+          prompt_md: data['prompt_md'],
+          tags: data['tags'],
+          notes: data['notes']
+        )
         { ok: true, name: n }
       end
 
-      # Read entire catalog
+      # Read entire catalog as YAML
       def catalog_read
-        rows = load_catalog
-        { catalog_yaml: YAML.dump(rows) }
+        rows = @db.list_drivers
+        catalog = rows.map do |r|
+          {
+            'name' => r['name'],
+            'version' => r['version'].to_i,
+            'summary' => r['summary'],
+            'tags' => parse_pg_array(r['tags']),
+            'prompt_md' => r['prompt_md'],
+            'notes' => r['notes']
+          }.compact
+        end
+        { catalog_yaml: YAML.dump(catalog) }
       end
 
       # Overwrite catalog with YAML array
@@ -142,7 +99,21 @@ module Savant
         raise 'invalid_yaml: expected an array' unless rows.is_a?(Array)
 
         rows.each { |p| validate_entry!(p) }
-        write_catalog(rows)
+
+        # Delete all existing, then insert new
+        existing = @db.list_drivers
+        existing.each { |r| @db.delete_driver(r['name']) }
+
+        rows.each do |entry|
+          @db.create_driver(
+            name: entry['name'],
+            version: entry['version'] || 1,
+            summary: entry['summary'],
+            prompt_md: entry['prompt_md'],
+            tags: entry['tags'],
+            notes: entry['notes']
+          )
+        end
         { ok: true, count: rows.length }
       end
 
@@ -151,20 +122,17 @@ module Savant
         n = normalize_name(name)
         raise 'invalid_input: name required' if n.empty?
 
-        rows = load_catalog
-        raise 'conflict: name already exists' if rows.any? { |p| p['name'] == n }
+        existing = @db.get_driver_by_name(n)
+        raise 'conflict: name already exists' if existing
 
-        entry = {
-          'name' => n,
-          'version' => 1,
-          'summary' => summary.to_s,
-          'prompt_md' => prompt_md.to_s,
-          'tags' => Array(tags).map(&:to_s),
-          'notes' => notes
-        }
-        validate_entry!(entry)
-        rows << entry
-        write_catalog(rows)
+        @db.create_driver(
+          name: n,
+          version: 1,
+          summary: summary.to_s,
+          prompt_md: prompt_md.to_s,
+          tags: Array(tags).map(&:to_s).reject(&:empty?),
+          notes: notes
+        )
         { ok: true, name: n }
       end
 
@@ -172,58 +140,47 @@ module Savant
         n = normalize_name(name)
         raise 'invalid_input: name required' if n.empty?
 
-        rows = load_catalog
-        idx = rows.index { |p| p['name'] == n }
-        raise 'not_found' unless idx
+        existing = @db.get_driver_by_name(n)
+        raise 'not_found' unless existing
 
-        row = rows[idx]
-        row['summary'] = summary unless summary.nil?
-        row['prompt_md'] = prompt_md unless prompt_md.nil?
-        row['tags'] = Array(tags).map(&:to_s) unless tags.nil?
-        row['notes'] = notes unless notes.nil?
-        row['version'] = (row['version'].to_i <= 0 ? 1 : row['version'].to_i) + 1
-        validate_entry!(row)
-        rows[idx] = row
-        write_catalog(rows)
+        prev_ver = existing['version'].to_i
+        new_ver = prev_ver + 1
+
+        update_fields = { version: new_ver }
+        update_fields[:summary] = summary unless summary.nil?
+        update_fields[:prompt_md] = prompt_md unless prompt_md.nil?
+        update_fields[:tags] = Array(tags).map(&:to_s) unless tags.nil?
+        update_fields[:notes] = notes unless notes.nil?
+
+        @db.update_driver(name: n, **update_fields)
         { ok: true, name: n }
       end
 
       def delete(name:)
         n = normalize_name(name)
-        rows = load_catalog
-        before = rows.length
-        rows = rows.reject { |p| p['name'] == n }
-        write_catalog(rows)
-        { ok: true, deleted: rows.length < before }
+        deleted = @db.delete_driver(n)
+        { ok: true, deleted: deleted }
       end
 
       private
 
-      def default_base_path
-        if ENV['SAVANT_PATH'] && !ENV['SAVANT_PATH'].empty?
-          ENV['SAVANT_PATH']
-        else
-          File.expand_path('../../../..', __dir__)
+      def normalize_name(name)
+        name.to_s.strip
+      end
+
+      def parse_pg_array(val)
+        return [] if val.nil?
+        return val if val.is_a?(Array)
+
+        # PG returns text[] as "{a,b,c}" string
+        if val.is_a?(String) && val.start_with?('{') && val.end_with?('}')
+          return val[1..-2].split(',').map(&:strip).reject(&:empty?)
         end
+        []
       end
 
-      def load_catalog
-        ensure_data_file!
-        YAML.safe_load(File.read(@data_path), permitted_classes: [], aliases: false) || []
-      rescue Psych::SyntaxError => e
-        raise "invalid_yaml: #{e.message}"
-      end
-
-      def write_catalog(rows)
-        File.write(@data_path, YAML.dump(rows))
-      end
-
-      def ensure_data_file!
-        dir = File.dirname(@data_path)
-        Dir.mkdir(dir) unless Dir.exist?(dir)
-        return if File.exist?(@data_path)
-
-        File.write(@data_path, YAML.dump([]))
+      def stringify_keys(hash)
+        hash.transform_keys(&:to_s)
       end
 
       def safe_yaml_load(text)
@@ -245,15 +202,12 @@ module Savant
       def coerce_version(v)
         return nil if v.nil?
         return v if v.is_a?(Integer)
+
         if v.is_a?(String) && (m = v.match(/(\d+)/))
           return m[1].to_i
         end
 
         nil
-      end
-
-      def normalize_name(name)
-        name.to_s.strip
       end
     end
   end

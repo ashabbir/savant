@@ -11,18 +11,20 @@ import Autocomplete from '@mui/material/Autocomplete';
 import Divider from '@mui/material/Divider';
 import Tooltip from '@mui/material/Tooltip';
 import Stack from '@mui/material/Stack';
-import { agentsCreate, getErrorMessage, usePersonas, useRules } from '../../api';
+import { agentsCreate, getErrorMessage, usePersonas, useRules, useDrivers } from '../../api';
 import { useNavigate } from 'react-router-dom';
 
 export default function AgentWizard() {
   const nav = useNavigate();
   const personas = usePersonas('');
   const rules = useRules('');
+  const drivers = useDrivers('');
   const personaOptions = useMemo(() => (personas.data?.personas || []).map(p=>p.name), [personas.data]);
+  const driverOptions = useMemo(() => (drivers.data?.drivers || []).map(d=>d.name), [drivers.data]);
   const ruleOptions = useMemo(() => (rules.data?.rules || []).map(r=>r.name), [rules.data]);
   const [name, setName] = useState('');
   const [persona, setPersona] = useState<string | null>(null);
-  const [driver, setDriver] = useState('');
+  const [driver, setDriver] = useState<string | null>(null);
   const [selRules, setSelRules] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -30,17 +32,14 @@ export default function AgentWizard() {
   async function create() {
     setBusy(true); setError(null);
     try {
-      await agentsCreate({ name, persona: persona || '', driver, rules: selRules });
+      await agentsCreate({ name, persona: persona || '', driver: driver || '', rules: selRules });
       nav('/agents');
     } catch (e:any) {
       setError(getErrorMessage(e));
     } finally { setBusy(false); }
   }
 
-  function insertSearchDriver() {
-    const tmpl = `Objective: Given the Goal (run input), search local indexed repos and memory bank, then produce a concise, accurate summary.\n\nRequired steps:\n1) action=tool, tool_name=context.fts_search, args={"q": Goal, "repo": null, "limit": 10}\n2) action=tool, tool_name=context.memory_search, args={"q": Goal, "repo": null, "limit": 10}\n3) action=reason (optional): synthesize findings if needed\n4) action=finish: deliver a concise summary\n\nConstraints:\n- Do not output action="finish" before at least one tool call.\n- Use fully qualified tool names exactly as listed.\n- ONE JSON object per step with keys: action, tool_name, args, final, reasoning.\n- Map Goal verbatim to args.q. Keep reasoning short.`;
-    setDriver((prev) => (prev && prev.trim().length > 0) ? prev + "\n\n" + tmpl : tmpl);
-  }
+  function insertSearchDriver() {}
 
   return (
     <Grid container spacing={2}>
@@ -59,7 +58,12 @@ export default function AgentWizard() {
               onChange={(_, v)=>setPersona(v)}
               renderInput={(params)=>(<TextField {...params} label="Persona" />)}
             />
-            <TextField label="Driver (mission + endpoint)" value={driver} onChange={(e)=>setDriver(e.target.value)} fullWidth multiline minRows={4} />
+            <Autocomplete
+              options={driverOptions}
+              value={driver}
+              onChange={(_, v)=>setDriver(v)}
+              renderInput={(params)=>(<TextField {...params} label="Driver" />)}
+            />
             <Autocomplete
               multiple
               options={ruleOptions}

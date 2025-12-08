@@ -10,10 +10,30 @@ def usage!
   exit 2
 end
 
+# Simple logger that outputs just the message (no timestamp/level prefix)
+class SimpleLogger
+  def initialize(io = $stdout)
+    @io = io
+  end
+
+  def info(msg)
+    @io.puts(msg.is_a?(Hash) ? msg[:message] : msg)
+  end
+
+  def debug(_msg); end
+  def trace(_msg); end
+  def warn(msg)
+    info(msg)
+  end
+  def error(msg)
+    info(msg)
+  end
+end
+
 cmd = ARGV.shift
 usage! unless cmd
 
-logger = Savant::Logging::Logger.new(io: $stdout, json: false, service: 'context.repo_indexer')
+logger = SimpleLogger.new($stdout)
 repo_indexer = Savant::Context::FS::RepoIndexer.new(db: Savant::Framework::DB.new, logger: logger)
 
 begin
@@ -24,9 +44,11 @@ begin
     started = Time.now
     mode = repo ? "repo=#{repo}" : 'all'
     puts "CTX INDEX START ts=#{started.utc.iso8601} mode=#{mode}"
+    puts '---'
     res = repo_indexer.index(repo: repo, verbose: true)
     finished = Time.now
     dur = (finished - started).round(3)
+    puts '---'
     msg = "CTX INDEX DONE ts=#{finished.utc.iso8601} duration_s=#{dur} " \
           "total=#{res[:total]} changed=#{res[:changed]} skipped=#{res[:skipped]}"
     puts msg

@@ -9,6 +9,8 @@ mounts:
     path: "/personas"
   - engine: "rules"
     path: "/rules"
+  - engine: "drivers"
+    path: "/drivers"
   - engine: "jira"
     path: "/jira"
   - engine: "agents"

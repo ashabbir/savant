@@ -655,6 +655,60 @@ export async function agentsUpdate(payload: { name: string; persona?: string; dr
   return res.data as Agent;
 }
 
+// DRIVERS engine API (similar to personas)
+export type DriverSummary = { name: string; version: number; summary: string; tags?: string[] };
+export type DriversList = { drivers: DriverSummary[] };
+export function useDrivers(filter: string = '') {
+  return useQuery<DriversList>({
+    queryKey: ['drivers', 'list', filter],
+    queryFn: async () => {
+      const res = await client().post('/drivers/tools/drivers_list/call', { params: { filter: filter || undefined } });
+      return res.data as DriversList;
+    }
+  });
+}
+
+export type Driver = { name: string; version: number; summary: string; tags?: string[]; prompt_md: string; notes?: string };
+export function useDriver(name: string | null) {
+  return useQuery<Driver>({
+    queryKey: ['drivers', 'get', name],
+    queryFn: async () => {
+      const res = await client().post('/drivers/tools/drivers_get/call', { params: { name } });
+      return res.data as Driver;
+    },
+    enabled: !!name
+  });
+}
+
+export async function driversCreate(payload: { name: string; summary: string; prompt_md: string; tags?: string[]; notes?: string | null }) {
+  const res = await client().post('/drivers/tools/drivers_create/call', { params: payload });
+  return res.data as { ok: boolean; name: string };
+}
+
+export async function driversUpdate(payload: { name: string; summary?: string; prompt_md?: string; tags?: string[]; notes?: string | null }) {
+  const res = await client().post('/drivers/tools/drivers_update/call', { params: payload });
+  return res.data as { ok: boolean; name: string };
+}
+
+export async function driversDelete(name: string) {
+  const res = await client().post('/drivers/tools/drivers_delete/call', { params: { name } });
+  return res.data as { ok: boolean; deleted: boolean };
+}
+
+export function useDriversCreate() { return useMutation({ mutationFn: driversCreate }); }
+export function useDriversUpdate() { return useMutation({ mutationFn: driversUpdate }); }
+export function useDriversDelete() { return useMutation({ mutationFn: driversDelete }); }
+
+export async function driversCatalogRead() {
+  const res = await client().post('/drivers/tools/drivers_catalog_read/call', { params: {} });
+  return res.data as { catalog_yaml: string };
+}
+
+export async function driversCatalogWrite(yaml: string) {
+  const res = await client().post('/drivers/tools/drivers_catalog_write/call', { params: { yaml } });
+  return res.data as { ok: boolean; count: number };
+}
+
 export async function agentsDelete(name: string) {
   const res = await client().post('/agents/tools/agents_delete/call', { params: { name } });
   return res.data as { ok: boolean };

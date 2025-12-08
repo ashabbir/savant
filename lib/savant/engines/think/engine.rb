@@ -7,6 +7,7 @@ require 'digest'
 require 'fileutils'
 require 'securerandom'
 require_relative '../../version'
+require_relative '../../framework/db'
 
 module Savant
   module Think
@@ -23,12 +24,12 @@ module Savant
     # - workflows_graph
     # rubocop:disable Metrics/ClassLength
     class Engine
-      def initialize(env: ENV)
+      def initialize(env: ENV, db: nil)
         @env = env
         @base = resolve_base_path
         @root = File.join(@base, 'lib', 'savant', 'engines', 'think')
         @limits = load_think_limits
-        sync_workflows_to_root
+        @db = db || Savant::Framework::DB.new
       end
 
       # Return prompt markdown for a version from prompts.yml
@@ -224,54 +225,88 @@ module Savant
         { ok: errs.empty?, errors: errs }
       end
 
-      # Create a workflow from a Think graph
+      # Create a workflow from a Think graph in database
       def workflows_create_from_graph(workflow:, graph:)
         id = normalize_workflow_id(workflow)
         raise 'INVALID_ID' if id.nil? || id.empty?
 
-        path = workflow_path_for(id)
-        raise 'ALREADY_EXISTS' if File.exist?(path)
+        existing = @db.get_think_workflow(id)
+        raise 'ALREADY_EXISTS' if existing
 
-        yaml = think_graph_to_yaml(id: id, graph: graph)
-        write_yaml_with_backup(path, yaml)
+        # Validate and build workflow from graph
+        errs = validate_think_graph(graph)
+        raise "VALIDATION_FAILED: #{errs.join('; ')}" unless errs.empty?
+
+        h = build_workflow_from_graph(id, graph)
+        @db.create_think_workflow(
+          workflow_id: id,
+          name: h['name'],
+          description: h['description'],
+          driver_version: h['driver_version'],
+          rules: h['rules'],
+          version: h['version'],
+          steps: h['steps']
+        )
         { ok: true, id: id }
       end
 
-      # Update existing workflow from graph
+      # Update existing workflow from graph in database
       def workflows_update_from_graph(workflow:, graph:)
         id = normalize_workflow_id(workflow)
         raise 'INVALID_ID' if id.nil? || id.empty?
 
-        path = resolve_workflow_path(id)
-        raise 'WORKFLOW_NOT_FOUND' unless path
+        existing = @db.get_think_workflow(id)
+        raise 'WORKFLOW_NOT_FOUND' unless existing
 
-        yaml = think_graph_to_yaml(id: id, graph: graph)
-        write_yaml_with_backup(path, yaml)
+        # Validate and build workflow from graph
+        errs = validate_think_graph(graph)
+        raise "VALIDATION_FAILED: #{errs.join('; ')}" unless errs.empty?
+
+        h = build_workflow_from_graph(id, graph)
+        @db.update_think_workflow(
+          workflow_id: id,
+          name: h['name'],
+          description: h['description'],
+          driver_version: h['driver_version'],
+          rules: h['rules'],
+          version: h['version'],
+          steps: h['steps']
+        )
         { ok: true, id: id }
       end
 
-      # Write raw YAML for a workflow (full replacement)
+      # Write raw YAML for a workflow (full replacement) to database
       def workflows_write_yaml(workflow:, yaml:)
         id = normalize_workflow_id(workflow)
         raise 'INVALID_ID' if id.nil? || id.empty?
 
-        path = resolve_workflow_path(id)
-        raise 'WORKFLOW_NOT_FOUND' unless path
+        # Parse YAML to extract fields
+        h = safe_yaml(yaml.to_s)
+        raise 'INVALID_YAML: steps required' unless h['steps'].is_a?(Array) && h['steps'].any?
 
-        # Basic sanity check parse
-        _h = safe_yaml(yaml.to_s)
-        write_yaml_with_backup(path, yaml.to_s)
+        existing = @db.get_think_workflow(id)
+        raise 'WORKFLOW_NOT_FOUND' unless existing
+
+        @db.update_think_workflow(
+          workflow_id: id,
+          name: h['name'],
+          description: h['description'],
+          driver_version: h['driver_version'],
+          rules: h['rules'],
+          version: (h['version'] || existing['version'].to_i + 1).to_i,
+          steps: h['steps']
+        )
         { ok: true, id: id }
       end
 
-      # Delete a workflow YAML
+      # Delete a workflow from database
       def workflows_delete(workflow:)
         id = normalize_workflow_id(workflow)
-        path = resolve_workflow_path(id)
-        raise 'WORKFLOW_NOT_FOUND' unless path
+        existing = @db.get_think_workflow(id)
+        raise 'WORKFLOW_NOT_FOUND' unless existing
 
-        FileUtils.rm_f(path)
-        { ok: true, deleted: true }
+        deleted = @db.delete_think_workflow(id)
+        { ok: true, deleted: deleted }
       end
 
       def guess_workflow_from_filename(filename)
@@ -348,42 +383,40 @@ module Savant
         end
       end
 
-      # List workflows from filesystem
+      # List workflows from database
       # @return [Hash] { workflows: [ { id:, version:, desc: } ] }
       def workflows_list(filter: nil)
-        dir = File.join(@root, 'workflows')
-        entries = Dir.exist?(dir) ? Dir.children(dir).select { |f| f.end_with?('.yaml', '.yml') } : []
-        rows = entries.filter_map do |fn|
-          id = File.basename(fn, File.extname(fn))
-          next if filter && !id.include?(filter.to_s)
-
-          begin
-            h = safe_yaml(read_text_utf8(File.join(dir, fn)))
-            name = h['name'] || id
-            drv = (h['driver_version'] || 'stable').to_s
-            rules = Array(h['rules']).map(&:to_s).reject(&:empty?)
-            {
-              id: id,
-              version: (h['version'] || '1.0').to_s,
-              desc: h['description'] || '',
-              name: name.to_s,
-              driver_version: drv,
-              rules: rules
-            }
-          rescue StandardError
-            # Skip invalid or unreadable workflow files during listing
-            nil
-          end
+        rows = @db.list_think_workflows(filter: filter)
+        workflows = rows.map do |row|
+          rules = parse_pg_array(row['rules'])
+          {
+            id: row['workflow_id'],
+            version: (row['version'] || 1).to_s,
+            desc: row['description'] || '',
+            name: (row['name'] || row['workflow_id']).to_s,
+            driver_version: (row['driver_version'] || 'stable').to_s,
+            rules: rules
+          }
         end
-        { workflows: rows.compact }
+        { workflows: workflows }
       end
 
-      # Read raw workflow YAML
+      # Read raw workflow YAML from database
       def workflows_read(workflow:)
-        path = resolve_workflow_path(workflow)
-        raise 'WORKFLOW_NOT_FOUND' unless path
+        row = @db.get_think_workflow(workflow)
+        raise 'WORKFLOW_NOT_FOUND' unless row
 
-        { workflow_yaml: read_text_utf8(path) }
+        # Reconstruct YAML from DB record
+        h = {
+          'id' => row['workflow_id'],
+          'name' => row['name'],
+          'description' => row['description'],
+          'driver_version' => row['driver_version'],
+          'rules' => parse_pg_array(row['rules']),
+          'version' => row['version'].to_i,
+          'steps' => row['steps']
+        }
+        { workflow_yaml: YAML.dump(h) }
       end
 
       # For MCP initialize handshake
@@ -451,18 +484,29 @@ module Savant
       end
 
       def load_workflow(id)
-        path = resolve_workflow_path(id)
-        raise 'WORKFLOW_NOT_FOUND' unless path
+        row = @db.get_think_workflow(id)
+        raise 'WORKFLOW_NOT_FOUND' unless row
 
-        h = safe_yaml(read_text_utf8(path))
-        steps = h['steps']
+        steps = row['steps']
         raise 'YAML_SCHEMA_VIOLATION: steps missing' unless steps.is_a?(Array) && steps.any?
 
         steps.each do |s|
-          raise 'YAML_SCHEMA_VIOLATION: id required' unless s['id'].is_a?(String) && !s['id'].empty?
-          raise 'YAML_SCHEMA_VIOLATION: call required' unless s['call'].is_a?(String) && !s['call'].empty?
+          s_id = s['id'] || s[:id]
+          s_call = s['call'] || s[:call]
+          raise 'YAML_SCHEMA_VIOLATION: id required' unless s_id.is_a?(String) && !s_id.empty?
+          raise 'YAML_SCHEMA_VIOLATION: call required' unless s_call.is_a?(String) && !s_call.empty?
         end
-        h
+
+        # Return hash compatible with old YAML structure
+        {
+          'id' => row['workflow_id'],
+          'name' => row['name'],
+          'description' => row['description'],
+          'driver_version' => row['driver_version'] || 'stable',
+          'rules' => parse_pg_array(row['rules']),
+          'version' => row['version'].to_i,
+          'steps' => steps
+        }
       end
 
       def resolve_workflow_path(id)
@@ -536,11 +580,19 @@ module Savant
         g
       end
 
-      # Convert Think graph to YAML
-      def think_graph_to_yaml(id:, graph:)
-        errs = validate_think_graph(graph)
-        raise "VALIDATION_FAILED: #{errs.join('; ')}" unless errs.empty?
+      def parse_pg_array(val)
+        return [] if val.nil?
+        return val if val.is_a?(Array)
 
+        # PG returns text[] as "{a,b,c}" string
+        if val.is_a?(String) && val.start_with?('{') && val.end_with?('}')
+          return val[1..-2].split(',').map(&:strip).reject(&:empty?)
+        end
+        []
+      end
+
+      # Build workflow hash from graph (for DB storage)
+      def build_workflow_from_graph(id, graph)
         # Build deps from edges if provided; otherwise rely on nodes.deps
         nodes = Array(graph['nodes']).map { |n| { 'id' => n['id'].to_s, 'call' => n['call'].to_s, 'deps' => Array(n['deps']).map(&:to_s), 'input_template' => n['input_template'], 'capture_as' => n['capture_as'] } }
         edges = Array(graph['edges']).map { |e| [e['source'].to_s, e['target'].to_s] }
@@ -578,7 +630,7 @@ module Savant
           h['capture_as'] = cap if cap.is_a?(String) && !cap.empty?
           h
         end
-        payload = {
+        {
           'id' => id,
           'name' => name || id,
           'description' => desc || '',
@@ -587,6 +639,14 @@ module Savant
           'version' => version,
           'steps' => steps
         }
+      end
+
+      # Convert Think graph to YAML (legacy, still used for some cases)
+      def think_graph_to_yaml(id:, graph:)
+        errs = validate_think_graph(graph)
+        raise "VALIDATION_FAILED: #{errs.join('; ')}" unless errs.empty?
+
+        payload = build_workflow_from_graph(id, graph)
         YAML.dump(payload)
       end
 

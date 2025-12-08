@@ -11,7 +11,7 @@
     Call out missing tests and unclear naming or structure.
     Suggest concrete next steps and keep comments concise.
 - name: savant-engineer
-  version: 1
+  version: 2
   summary: Default engineer persona for Savant runtime and tests.
   tags:
   - engineer

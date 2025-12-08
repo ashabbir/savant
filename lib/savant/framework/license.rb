@@ -25,17 +25,21 @@ module Savant
         env_path = ENV['SAVANT_LICENSE_PATH']
         return env_path unless env_path.nil? || env_path.empty?
 
-        home = Dir.home rescue '.'
+        home = begin
+          Dir.home
+        rescue StandardError
+          '.'
+        end
         File.join(home, '.savant', 'license.json')
       end
 
       # Return the salt. Prefer build-time constant if present; fall back to env; else dev default.
       def secret_salt
-        if defined?(Savant::Framework::LicenseSalt::SECRET_SALT) && Savant::Framework::LicenseSalt::SECRET_SALT && !Savant::Framework::LicenseSalt::SECRET_SALT.empty?
-          return Savant::Framework::LicenseSalt::SECRET_SALT
-        end
+        return Savant::Framework::LicenseSalt::SECRET_SALT if defined?(Savant::Framework::LicenseSalt::SECRET_SALT) && Savant::Framework::LicenseSalt::SECRET_SALT && !Savant::Framework::LicenseSalt::SECRET_SALT.empty?
+
         env = ENV['SAVANT_SECRET_SALT']
         return env unless env.nil? || env.empty?
+
         'DEVELOPMENT_ONLY_CHANGE_ME'
       end
 
@@ -118,6 +122,7 @@ module Savant
         # Only applies when SAVANT_PATH is explicitly set to a source tree.
         base = ENV['SAVANT_PATH']
         return false if base.nil? || base.empty?
+
         File.directory?(File.join(base, '.git'))
       end
     end

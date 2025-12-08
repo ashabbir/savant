@@ -11,6 +11,7 @@ import SaveAltIcon from '@mui/icons-material/SaveAlt';
 import { useNavigate, useParams } from 'react-router-dom';
 import Viewer from '../../components/Viewer';
 import { ThinkPrompts, useThinkPrompt, useThinkPrompts, thinkPromptsCreate, thinkPromptsDelete, thinkPromptsUpdate, useThinkWorkflows } from '../../api';
+import { THINK_PROMPTS_PATH } from './routes';
 
 const PANEL_HEIGHT = 'calc(100vh - 260px)';
 
@@ -56,7 +57,7 @@ export default function PromptEditor() {
       await thinkPromptsUpdate({ version: routeVersion as string, prompt_md: promptMd });
     }
     setSnack('Saved');
-    setTimeout(() => nav('/engines/think/prompts'), 700);
+    setTimeout(() => nav(THINK_PROMPTS_PATH), 700);
   };
 
   const onDelete = async () => {
@@ -64,7 +65,7 @@ export default function PromptEditor() {
     await thinkPromptsDelete(routeVersion);
     setSnack('Deleted');
     setConfirmOpen(false);
-    nav('/engines/think/prompts');
+    nav(THINK_PROMPTS_PATH);
   };
 
   const resolvedPath = React.useMemo(() => {
@@ -100,7 +101,7 @@ export default function PromptEditor() {
                 </Tooltip>
               )}
               <Tooltip title="Back to prompts">
-                <IconButton onClick={() => nav('/engines/think/prompts')}>
+                <IconButton onClick={() => nav(THINK_PROMPTS_PATH)}>
                   <ArrowBackIcon fontSize="small" />
                 </IconButton>
               </Tooltip>

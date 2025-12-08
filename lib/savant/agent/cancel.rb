@@ -11,7 +11,7 @@ module Savant
       module_function
 
       def key_for(agent_name:, user_id: nil)
-        user = (user_id && !user_id.to_s.empty?) ? user_id.to_s : 'default'
+        user = user_id && !user_id.to_s.empty? ? user_id.to_s : 'default'
         "agent:#{agent_name}:#{user}"
       end
 
@@ -31,4 +31,3 @@ module Savant
     end
   end
 end
-

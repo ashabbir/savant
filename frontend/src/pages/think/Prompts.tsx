@@ -28,6 +28,7 @@ import Button from '@mui/material/Button';
 import { getErrorMessage } from '../../api';
 import Viewer from '../../components/Viewer';
 import { useNavigate } from 'react-router-dom';
+import { THINK_PROMPTS_NEW_PATH, thinkPromptsEditPath } from './routes';
 
 const PANEL_HEIGHT = 'calc(100vh - 260px)';
 
@@ -64,13 +65,13 @@ export default function ThinkPrompts() {
             <Typography variant="subtitle1" sx={{ fontSize: 12 }}>Prompts</Typography>
             <Stack direction="row" spacing={1}>
               <Tooltip title="New Prompt">
-                <IconButton size="small" color="primary" onClick={() => nav('/engines/think/prompts/new')}>
+                <IconButton size="small" color="primary" onClick={() => nav(THINK_PROMPTS_NEW_PATH)}>
                   <AddCircleIcon fontSize="small" />
                 </IconButton>
               </Tooltip>
               <Tooltip title={sel ? 'Edit Prompt' : 'Select a prompt'}>
                 <span>
-                  <IconButton size="small" color="primary" disabled={!sel} onClick={() => sel && nav(`/engines/think/prompts/edit/${sel}`)}>
+                  <IconButton size="small" color="primary" disabled={!sel} onClick={() => sel && nav(thinkPromptsEditPath(sel))}>
                     <EditIcon fontSize="small" />
                   </IconButton>
                 </span>
@@ -91,7 +92,7 @@ export default function ThinkPrompts() {
             <List dense>
               {filtered.map(v => (
                 <ListItem key={v.version} disablePadding>
-                  <ListItemButton selected={sel === v.version} onClick={() => setSel(v.version)} onDoubleClick={() => nav(`/engines/think/prompts/edit/${v.version}`)}>
+                  <ListItemButton selected={sel === v.version} onClick={() => setSel(v.version)} onDoubleClick={() => nav(thinkPromptsEditPath(v.version))}>
                     <ListItemText
                       primary={
                         <Box display="flex" alignItems="center" gap={1}>

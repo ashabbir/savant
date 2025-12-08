@@ -21,7 +21,7 @@ export default defineConfig({
   ],
   // Let Vite auto-optimize MUI/Emotion; forcing them can break default interop
   optimizeDeps: {
-    include: ['react-router-dom', 'react-router'],
+    include: ['react-router-dom', 'react-router', '@mui/material', '@mui/material/styles', '@emotion/react', '@emotion/styled'],
     exclude: ['internmap'],
   },
   resolve: {

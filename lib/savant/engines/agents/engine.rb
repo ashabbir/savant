@@ -38,8 +38,8 @@ module Savant
       end
 
       # Runs
-      def run(name:, input:, max_steps: nil, dry_run: false)
-        @ops.run(name: name, input: input, max_steps: max_steps, dry_run: dry_run)
+      def run(name:, input:, max_steps: nil, dry_run: false, user_id: nil)
+        @ops.run(name: name, input: input, max_steps: max_steps, dry_run: dry_run, user_id: user_id)
       end
 
       def runs_list(name:, limit: 50)
@@ -57,7 +57,10 @@ module Savant
       def runs_clear_all(name:)
         @ops.runs_clear_all(name: name)
       end
+
+      def run_cancel(name:, user_id: nil)
+        @ops.run_cancel(name: name, user_id: user_id)
+      end
     end
   end
 end
-

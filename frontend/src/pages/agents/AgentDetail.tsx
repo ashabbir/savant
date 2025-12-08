@@ -11,7 +11,7 @@ import Autocomplete from '@mui/material/Autocomplete';
 import Divider from '@mui/material/Divider';
 import Tooltip from '@mui/material/Tooltip';
 import Stack from '@mui/material/Stack';
-import { agentsUpdate, getErrorMessage, useAgent, usePersonas, useRules } from '../../api';
+import { agentsUpdate, getErrorMessage, useAgent, useDrivers, usePersonas, useRules } from '../../api';
 import { useNavigate, useParams } from 'react-router-dom';
 
 export default function AgentDetail() {
@@ -23,6 +23,8 @@ export default function AgentDetail() {
   const rules = useRules('');
   const personaOptions = useMemo(() => (personas.data?.personas || []).map(p=>p.name), [personas.data]);
   const ruleOptions = useMemo(() => (rules.data?.rules || []).map(r=>r.name), [rules.data]);
+  const drivers = useDrivers('');
+  const driverOptions = useMemo(() => (drivers.data?.drivers || []).map(d => d.name), [drivers.data]);
   const [persona, setPersona] = useState<string | null>(null);
   const [driver, setDriver] = useState('');
   const [selRules, setSelRules] = useState<string[]>([]);
@@ -74,7 +76,12 @@ export default function AgentDetail() {
               onChange={(_, v)=>setPersona(v)}
               renderInput={(params)=>(<TextField {...params} label="Persona" />)}
             />
-            <TextField label="Driver (mission + endpoint)" value={driver} onChange={(e)=>setDriver(e.target.value)} fullWidth multiline minRows={4} />
+            <Autocomplete
+              options={driverOptions}
+              value={driver}
+              onChange={(_, v)=>setDriver(v)}
+              renderInput={(params)=>(<TextField {...params} label="Driver" />)}
+            />
             <Autocomplete
               multiple
               options={ruleOptions}

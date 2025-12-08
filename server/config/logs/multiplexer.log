@@ -1,0 +1,7 @@
+{"timestamp":"2025-12-06T04:29:23Z","level":"error","service":"multiplexer","tool":null,"event":"engine_spawn_failed","engine":"context","error":"context RPC timeout"}
+{"timestamp":"2025-12-06T04:29:53Z","level":"error","service":"multiplexer","tool":null,"event":"engine_spawn_failed","engine":"git","error":"git RPC timeout"}
+{"timestamp":"2025-12-06T04:30:23Z","level":"error","service":"multiplexer","tool":null,"event":"engine_spawn_failed","engine":"think","error":"think RPC timeout"}
+{"timestamp":"2025-12-06T04:30:53Z","level":"error","service":"multiplexer","tool":null,"event":"engine_spawn_failed","engine":"personas","error":"personas RPC timeout"}
+{"timestamp":"2025-12-06T04:31:23Z","level":"error","service":"multiplexer","tool":null,"event":"engine_spawn_failed","engine":"rules","error":"rules RPC timeout"}
+{"timestamp":"2025-12-06T04:31:53Z","level":"error","service":"multiplexer","tool":null,"event":"engine_spawn_failed","engine":"jira","error":"jira RPC timeout"}
+{"timestamp":"2025-12-06T04:32:23Z","level":"error","service":"multiplexer","tool":null,"event":"engine_spawn_failed","engine":"workflow","error":"workflow RPC timeout"}
