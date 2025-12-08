@@ -128,21 +128,15 @@ module Savant
                   tables = %w[repos files blobs file_blob_map chunks personas rulesets agents agent_runs workflows workflow_steps workflow_runs]
                   details = []
                   tables.each do |t|
-                    begin
-                      cols = conn.exec_params("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name=$1", [t]).map { |r| r['column_name'] }
-                      cnt = conn.exec("SELECT COUNT(*) AS c FROM #{t}")[0]['c'].to_i
-                      sz = conn.exec_params("SELECT pg_total_relation_size($1::regclass) AS bytes", [t])[0]['bytes'].to_i
-                      last_at = nil
-                      if cols.include?('updated_at')
-                        last_at = conn.exec("SELECT MAX(updated_at) AS m FROM #{t}")[0]['m']
-                      end
-                      if !last_at && cols.include?('created_at')
-                        last_at = conn.exec("SELECT MAX(created_at) AS m FROM #{t}")[0]['m']
-                      end
-                      details << { name: t, rows: cnt, size_bytes: sz, last_at: last_at }
-                    rescue StandardError => e
-                      details << { name: t, error: e.message }
-                    end
+                    cols = conn.exec_params("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name=$1", [t]).map { |r| r['column_name'] }
+                    cnt = conn.exec("SELECT COUNT(*) AS c FROM #{t}")[0]['c'].to_i
+                    sz = conn.exec_params('SELECT pg_total_relation_size($1::regclass) AS bytes', [t])[0]['bytes'].to_i
+                    last_at = nil
+                    last_at = conn.exec("SELECT MAX(updated_at) AS m FROM #{t}")[0]['m'] if cols.include?('updated_at')
+                    last_at = conn.exec("SELECT MAX(created_at) AS m FROM #{t}")[0]['m'] if !last_at && cols.include?('created_at')
+                    details << { name: t, rows: cnt, size_bytes: sz, last_at: last_at }
+                  rescue StandardError => e
+                    details << { name: t, error: e.message }
                   end
                   db[:tables] = details
                 rescue StandardError

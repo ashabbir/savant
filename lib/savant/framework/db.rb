@@ -450,14 +450,61 @@ module Savant
       end
 
       # =========================
-      # App CRUD: Personas
+      # App CRUD: Personas (extended)
       # =========================
-      def create_persona(name, content)
+      def create_persona(name, content = nil, version: 1, summary: nil, prompt_md: nil, tags: nil, notes: nil)
+        tags_encoded = tags.nil? ? nil : text_array_encoder.encode(Array(tags))
         res = exec_params(
-          'INSERT INTO personas(name, content) VALUES($1,$2) ON CONFLICT (name) DO UPDATE SET content=EXCLUDED.content RETURNING id',
-          [name, content]
+          <<~SQL, [name, content, version, summary, prompt_md, tags_encoded, notes]
+            INSERT INTO personas(name, content, version, summary, prompt_md, tags, notes)
+            VALUES($1, $2, $3, $4, $5, $6, $7)
+            ON CONFLICT (name) DO UPDATE SET
+              content = COALESCE(EXCLUDED.content, personas.content),
+              version = EXCLUDED.version,
+              summary = COALESCE(EXCLUDED.summary, personas.summary),
+              prompt_md = COALESCE(EXCLUDED.prompt_md, personas.prompt_md),
+              tags = COALESCE(EXCLUDED.tags, personas.tags),
+              notes = COALESCE(EXCLUDED.notes, personas.notes),
+              updated_at = NOW()
+            RETURNING id
+          SQL
         )
         res[0]['id'].to_i
+      end
+
+      def update_persona(name:, version: nil, summary: nil, prompt_md: nil, tags: nil, notes: nil)
+        sets = ['updated_at = NOW()']
+        params = []
+        idx = 1
+        unless version.nil?
+          sets << "version = $#{idx}"
+          params << version
+          idx += 1
+        end
+        unless summary.nil?
+          sets << "summary = $#{idx}"
+          params << summary
+          idx += 1
+        end
+        unless prompt_md.nil?
+          sets << "prompt_md = $#{idx}"
+          params << prompt_md
+          idx += 1
+        end
+        unless tags.nil?
+          sets << "tags = $#{idx}"
+          params << text_array_encoder.encode(Array(tags))
+          idx += 1
+        end
+        unless notes.nil?
+          sets << "notes = $#{idx}"
+          params << notes
+          idx += 1
+        end
+        params << name
+        sql = "UPDATE personas SET #{sets.join(', ')} WHERE name = $#{idx} RETURNING id"
+        res = exec_params(sql, params)
+        res.ntuples.positive? ? res[0]['id'].to_i : nil
       end
 
       def get_persona_by_name(name)
@@ -465,20 +512,80 @@ module Savant
         res.ntuples.positive? ? res[0] : nil
       end
 
-      def list_personas
-        res = exec('SELECT * FROM personas ORDER BY name ASC')
+      def list_personas(filter: nil)
+        if filter && !filter.to_s.strip.empty?
+          q = "%#{filter}%"
+          res = exec_params(
+            "SELECT * FROM personas WHERE name ILIKE $1 OR summary ILIKE $1 OR array_to_string(tags, ' ') ILIKE $1 ORDER BY name ASC",
+            [q]
+          )
+        else
+          res = exec('SELECT * FROM personas ORDER BY name ASC')
+        end
         res.to_a
       end
 
+      def delete_persona(name)
+        res = exec_params('DELETE FROM personas WHERE name = $1 RETURNING id', [name])
+        res.ntuples.positive?
+      end
+
       # =========================
-      # App CRUD: Rulesets
+      # App CRUD: Rulesets (extended)
       # =========================
-      def create_ruleset(name, content)
+      def create_ruleset(name, content = nil, version: 1, summary: nil, rules_md: nil, tags: nil, notes: nil)
+        tags_encoded = tags.nil? ? nil : text_array_encoder.encode(Array(tags))
         res = exec_params(
-          'INSERT INTO rulesets(name, content) VALUES($1,$2) ON CONFLICT (name) DO UPDATE SET content=EXCLUDED.content RETURNING id',
-          [name, content]
+          <<~SQL, [name, content, version, summary, rules_md, tags_encoded, notes]
+            INSERT INTO rulesets(name, content, version, summary, rules_md, tags, notes)
+            VALUES($1, $2, $3, $4, $5, $6, $7)
+            ON CONFLICT (name) DO UPDATE SET
+              content = COALESCE(EXCLUDED.content, rulesets.content),
+              version = EXCLUDED.version,
+              summary = COALESCE(EXCLUDED.summary, rulesets.summary),
+              rules_md = COALESCE(EXCLUDED.rules_md, rulesets.rules_md),
+              tags = COALESCE(EXCLUDED.tags, rulesets.tags),
+              notes = COALESCE(EXCLUDED.notes, rulesets.notes),
+              updated_at = NOW()
+            RETURNING id
+          SQL
         )
         res[0]['id'].to_i
+      end
+
+      def update_ruleset(name:, version: nil, summary: nil, rules_md: nil, tags: nil, notes: nil)
+        sets = ['updated_at = NOW()']
+        params = []
+        idx = 1
+        unless version.nil?
+          sets << "version = $#{idx}"
+          params << version
+          idx += 1
+        end
+        unless summary.nil?
+          sets << "summary = $#{idx}"
+          params << summary
+          idx += 1
+        end
+        unless rules_md.nil?
+          sets << "rules_md = $#{idx}"
+          params << rules_md
+          idx += 1
+        end
+        unless tags.nil?
+          sets << "tags = $#{idx}"
+          params << text_array_encoder.encode(Array(tags))
+          idx += 1
+        end
+        unless notes.nil?
+          sets << "notes = $#{idx}"
+          params << notes
+          idx += 1
+        end
+        params << name
+        sql = "UPDATE rulesets SET #{sets.join(', ')} WHERE name = $#{idx} RETURNING id"
+        res = exec_params(sql, params)
+        res.ntuples.positive? ? res[0]['id'].to_i : nil
       end
 
       def get_ruleset_by_name(name)
@@ -486,9 +593,196 @@ module Savant
         res.ntuples.positive? ? res[0] : nil
       end
 
-      def list_rulesets
-        res = exec('SELECT * FROM rulesets ORDER BY name ASC')
+      def list_rulesets(filter: nil)
+        if filter && !filter.to_s.strip.empty?
+          q = "%#{filter}%"
+          res = exec_params(
+            "SELECT * FROM rulesets WHERE name ILIKE $1 OR summary ILIKE $1 OR array_to_string(tags, ' ') ILIKE $1 ORDER BY name ASC",
+            [q]
+          )
+        else
+          res = exec('SELECT * FROM rulesets ORDER BY name ASC')
+        end
         res.to_a
+      end
+
+      def delete_ruleset(name)
+        res = exec_params('DELETE FROM rulesets WHERE name = $1 RETURNING id', [name])
+        res.ntuples.positive?
+      end
+
+      # =========================
+      # App CRUD: Drivers
+      # =========================
+      def create_driver(name:, version: 1, summary: nil, prompt_md: nil, tags: nil, notes: nil)
+        tags_encoded = tags.nil? ? nil : text_array_encoder.encode(Array(tags))
+        res = exec_params(
+          <<~SQL, [name, version, summary, prompt_md, tags_encoded, notes]
+            INSERT INTO drivers(name, version, summary, prompt_md, tags, notes)
+            VALUES($1, $2, $3, $4, $5, $6)
+            ON CONFLICT (name) DO UPDATE SET
+              version = EXCLUDED.version,
+              summary = COALESCE(EXCLUDED.summary, drivers.summary),
+              prompt_md = COALESCE(EXCLUDED.prompt_md, drivers.prompt_md),
+              tags = COALESCE(EXCLUDED.tags, drivers.tags),
+              notes = COALESCE(EXCLUDED.notes, drivers.notes),
+              updated_at = NOW()
+            RETURNING id
+          SQL
+        )
+        res[0]['id'].to_i
+      end
+
+      def update_driver(name:, version: nil, summary: nil, prompt_md: nil, tags: nil, notes: nil)
+        sets = ['updated_at = NOW()']
+        params = []
+        idx = 1
+        unless version.nil?
+          sets << "version = $#{idx}"
+          params << version
+          idx += 1
+        end
+        unless summary.nil?
+          sets << "summary = $#{idx}"
+          params << summary
+          idx += 1
+        end
+        unless prompt_md.nil?
+          sets << "prompt_md = $#{idx}"
+          params << prompt_md
+          idx += 1
+        end
+        unless tags.nil?
+          sets << "tags = $#{idx}"
+          params << text_array_encoder.encode(Array(tags))
+          idx += 1
+        end
+        unless notes.nil?
+          sets << "notes = $#{idx}"
+          params << notes
+          idx += 1
+        end
+        params << name
+        sql = "UPDATE drivers SET #{sets.join(', ')} WHERE name = $#{idx} RETURNING id"
+        res = exec_params(sql, params)
+        res.ntuples.positive? ? res[0]['id'].to_i : nil
+      end
+
+      def get_driver_by_name(name)
+        res = exec_params('SELECT * FROM drivers WHERE name=$1', [name])
+        res.ntuples.positive? ? res[0] : nil
+      end
+
+      def list_drivers(filter: nil)
+        if filter && !filter.to_s.strip.empty?
+          q = "%#{filter}%"
+          res = exec_params(
+            "SELECT * FROM drivers WHERE name ILIKE $1 OR summary ILIKE $1 OR array_to_string(tags, ' ') ILIKE $1 ORDER BY name ASC",
+            [q]
+          )
+        else
+          res = exec('SELECT * FROM drivers ORDER BY name ASC')
+        end
+        res.to_a
+      end
+
+      def delete_driver(name)
+        res = exec_params('DELETE FROM drivers WHERE name = $1 RETURNING id', [name])
+        res.ntuples.positive?
+      end
+
+      # =========================
+      # App CRUD: Think Workflows
+      # =========================
+      def create_think_workflow(workflow_id:, name: nil, description: nil, driver_version: 'stable', rules: nil, version: 1, steps:)
+        rules_encoded = rules.nil? ? nil : text_array_encoder.encode(Array(rules))
+        steps_json = steps.is_a?(String) ? steps : JSON.generate(steps)
+        res = exec_params(
+          <<~SQL, [workflow_id, name || workflow_id, description, driver_version, rules_encoded, version, steps_json]
+            INSERT INTO think_workflows(workflow_id, name, description, driver_version, rules, version, steps)
+            VALUES($1, $2, $3, $4, $5, $6, $7::jsonb)
+            ON CONFLICT (workflow_id) DO UPDATE SET
+              name = COALESCE(EXCLUDED.name, think_workflows.name),
+              description = COALESCE(EXCLUDED.description, think_workflows.description),
+              driver_version = COALESCE(EXCLUDED.driver_version, think_workflows.driver_version),
+              rules = COALESCE(EXCLUDED.rules, think_workflows.rules),
+              version = EXCLUDED.version,
+              steps = EXCLUDED.steps,
+              updated_at = NOW()
+            RETURNING id
+          SQL
+        )
+        res[0]['id'].to_i
+      end
+
+      def update_think_workflow(workflow_id:, name: nil, description: nil, driver_version: nil, rules: nil, version: nil, steps: nil)
+        sets = ['updated_at = NOW()']
+        params = []
+        idx = 1
+        unless name.nil?
+          sets << "name = $#{idx}"
+          params << name
+          idx += 1
+        end
+        unless description.nil?
+          sets << "description = $#{idx}"
+          params << description
+          idx += 1
+        end
+        unless driver_version.nil?
+          sets << "driver_version = $#{idx}"
+          params << driver_version
+          idx += 1
+        end
+        unless rules.nil?
+          sets << "rules = $#{idx}"
+          params << text_array_encoder.encode(Array(rules))
+          idx += 1
+        end
+        unless version.nil?
+          sets << "version = $#{idx}"
+          params << version
+          idx += 1
+        end
+        unless steps.nil?
+          sets << "steps = $#{idx}::jsonb"
+          params << (steps.is_a?(String) ? steps : JSON.generate(steps))
+          idx += 1
+        end
+        params << workflow_id
+        sql = "UPDATE think_workflows SET #{sets.join(', ')} WHERE workflow_id = $#{idx} RETURNING id"
+        res = exec_params(sql, params)
+        res.ntuples.positive? ? res[0]['id'].to_i : nil
+      end
+
+      def get_think_workflow(workflow_id)
+        res = exec_params('SELECT * FROM think_workflows WHERE workflow_id = $1', [workflow_id])
+        return nil if res.ntuples.zero?
+
+        row = res[0]
+        row['steps'] = JSON.parse(row['steps']) if row['steps'].is_a?(String)
+        row
+      end
+
+      def list_think_workflows(filter: nil)
+        if filter && !filter.to_s.strip.empty?
+          q = "%#{filter}%"
+          res = exec_params(
+            "SELECT * FROM think_workflows WHERE workflow_id ILIKE $1 OR name ILIKE $1 OR description ILIKE $1 ORDER BY workflow_id ASC",
+            [q]
+          )
+        else
+          res = exec('SELECT * FROM think_workflows ORDER BY workflow_id ASC')
+        end
+        res.to_a.map do |row|
+          row['steps'] = JSON.parse(row['steps']) if row['steps'].is_a?(String)
+          row
+        end
+      end
+
+      def delete_think_workflow(workflow_id)
+        res = exec_params('DELETE FROM think_workflows WHERE workflow_id = $1 RETURNING id', [workflow_id])
+        res.ntuples.positive?
       end
 
       # =========================
@@ -763,8 +1057,10 @@ module Savant
           end
         end
 
-        # 4) Sensible local default (non‑Docker): dbname=savant on localhost:5432
-        params = { dbname: 'savant' }
+        # 4) Sensible local default (non‑Docker): dbname per env on localhost:5432
+        env = (ENV['DB_ENV'] && !ENV['DB_ENV'].empty?) ? ENV['DB_ENV'] : ((ENV['RAILS_ENV'] && !ENV['RAILS_ENV'].empty?) ? ENV['RAILS_ENV'] : (ENV['RACK_ENV'] && !ENV['RACK_ENV'].empty?) ? ENV['RACK_ENV'] : 'development')
+        default_db = env.to_s == 'test' ? 'savant_test' : 'savant_development'
+        params = { dbname: default_db }
         params[:host] = ENV['PGHOST'] && !ENV['PGHOST'].empty? ? ENV['PGHOST'] : 'localhost'
         params[:port] = (ENV['PGPORT'] || 5432).to_i
         params[:user] = ENV['PGUSER'] if ENV['PGUSER'] && !ENV['PGUSER'].empty?

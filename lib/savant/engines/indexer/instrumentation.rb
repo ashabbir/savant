@@ -45,16 +45,41 @@ module Savant
       end
 
       def repo_header(name:, total:, strategy:)
-        info("name: #{name}")
-        info("total_files: #{total}")
-        info("walk_strategy: #{strategy}")
+        info("repo=#{name} files=#{total} strategy=#{strategy}")
       end
 
+      # rubocop:disable Metrics/AbcSize
+      def repo_stats(name:, total:, indexed:, skipped:, errors:, skip_reasons:, type_counts:,
+                     code_breakdown:, doc_breakdown:, memory_bank:)
+        # Summary line: repo=name files=N (type1=N type2=N ...)
+        types_str = type_counts.sort_by { |_, v| -v }.map { |k, v| "#{k}=#{v}" }.join(' ')
+        info("  files: #{total} (#{types_str})")
+
+        # Breakdown by category
+        if code_breakdown.any?
+          code_str = code_breakdown.sort_by { |_, v| -v }.map { |k, v| "#{k}=#{v}" }.join(' ')
+          info("  code: #{code_breakdown.values.sum} (#{code_str})")
+        end
+        if doc_breakdown.any?
+          doc_str = doc_breakdown.sort_by { |_, v| -v }.map { |k, v| "#{k}=#{v}" }.join(' ')
+          info("  docs: #{doc_breakdown.values.sum} (#{doc_str})")
+        end
+        info("  memory_bank: #{memory_bank}") if memory_bank.positive?
+
+        # Indexing results
+        info("  indexed: #{indexed} skipped: #{skipped} errors: #{errors}")
+
+        # Skip reasons breakdown
+        if skip_reasons.any?
+          reasons_str = skip_reasons.sort_by { |_, v| -v }.map { |k, v| "#{k}=#{v}" }.join(' ')
+          info("  skip_reasons: #{reasons_str}")
+        end
+        info('')
+      end
+      # rubocop:enable Metrics/AbcSize
+
       def repo_footer(indexed:, skipped:, errors: 0)
-        info("indexed: #{indexed}")
-        info("skipped: #{skipped}")
-        info("errors: #{errors}")
-        info('====')
+        # Legacy footer - kept for compatibility but stats now handled by repo_stats
       end
 
       def progress_bar(title:, total:)
@@ -86,61 +111,21 @@ module Savant
       end
 
       # Fallback textual progress reporter for non-TTY environments.
+      # Quiet mode (default) suppresses progress output since detailed stats shown at end.
       class TextProgress
-        CHECKPOINTS = [0, 20, 40, 60, 80, 100].freeze
-
-        def initialize(logger, title:, total:)
-          @logger = logger
+        def initialize(_logger, title:, total:, quiet: true)
           @title = title
           @total = total
           @current = 0
-          @checkpoints = if @total.to_i <= 0
-                           [100]
-                         else
-                           CHECKPOINTS.dup
-                         end
-          log_remaining_checkpoints(initial_percentage)
+          @quiet = quiet
         end
 
         def increment
           @current += 1
-          log_remaining_checkpoints
         end
 
         def finish
           @current = @total
-          log_remaining_checkpoints(percentage)
-        end
-
-        private
-
-        def log_remaining_checkpoints(current_pct = percentage)
-          while (next_cp = @checkpoints.first) && current_pct >= next_cp
-            log(next_cp)
-            @checkpoints.shift
-          end
-        end
-
-        def log(pct)
-          bar = build_bar(pct)
-          @logger.info("progress: #{@title} #{bar} #{pct}% (#{@current}/#{@total})")
-        end
-
-        def percentage
-          return 100 if @total.to_i <= 0
-
-          ((@current.to_f / @total) * 100).round
-        end
-
-        def initial_percentage
-          @total.to_i <= 0 ? 100 : 0
-        end
-
-        def build_bar(pct)
-          total_ticks = 20
-          filled = ((pct / 100.0) * total_ticks).round.clamp(0, total_ticks)
-          empty = total_ticks - filled
-          "[#{'#' * filled}#{'.' * empty}]"
         end
       end
     end

@@ -93,7 +93,48 @@ Notes
 
 ## Getting Started
 
-Prereqs: Docker, Ruby + Bundler (for stdio runs).
+Prereqs: Ruby 3.2 + Bundler, local Postgres. Docker is no longer required.
+
+### Run (Rails API, no Docker)
+
+1) Set your database URL (example):
+
+```
+export DATABASE_URL=postgres://context:contextpw@localhost:5432/contextdb
+```
+
+2) Prepare DB (idempotent):
+
+```
+make rails-migrate
+make rails-fts
+cd server && DATABASE_URL=$DATABASE_URL bundle exec rake savant:setup   # migrate + ensure FTS + index
+```
+
+3) Build the UI (optional):
+
+```
+make ui-build-local
+```
+
+4) Dev mode (Rails + Vite, hot reload, Hub):
+
+```
+make dev
+```
+
+Notes:
+- `make dev` now starts Rails, the Vite dev server, and the Hub together; the Hub log is written to `logs/hub.log`.
+- `make ls` shows only `dev` so the new flow stays focused on that single command.
+- UI (dev): http://localhost:5173 (HMR; edits reflect immediately)
+- API:      http://localhost:9999 (Hub endpoints mounted in Rails)
+- Health:   GET http://localhost:9999/healthz
+- JSON-RPC: POST http://localhost:9999/rpc
+
+Indexing via Rake (Rails)
+- All repos: `cd server && DATABASE_URL=$DATABASE_URL bundle exec rake savant:index_all`
+- Single repo: `cd server && DATABASE_URL=$DATABASE_URL bundle exec rake 'savant:index[myrepo]'`
+- Status: `cd server && DATABASE_URL=$DATABASE_URL bundle exec rake savant:status`
 
 ### Boot Runtime (Quick Start)
 
