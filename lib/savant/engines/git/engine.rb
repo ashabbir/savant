@@ -14,7 +14,7 @@ module Savant
 
       def initialize
         super()
-        @logger = Savant::Logging::Logger.new(io: $stdout, json: true, service: 'git.engine')
+        @logger = Savant::Logging::MongoLogger.new(service: 'git.engine')
         @ops = Savant::Git::Ops.new
       end
 

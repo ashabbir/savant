@@ -27,6 +27,7 @@ module Savant
         env_logs = ENV['SAVANT_LOG_PATH']
         @logs_dir = logs_dir || (env_logs && !env_logs.empty? ? env_logs : File.join(base_path, 'logs'))
         @hub_logger = init_hub_logger
+        @hub_mongo_logger = init_hub_mongo_logger
         @recorder = Savant::Logging::EventRecorder.global
         @connections = Savant::Hub::Connections.global
         @stats = { total: 0, by_engine: Hash.new(0), by_status: Hash.new(0), by_method: Hash.new(0), recent: [] }
@@ -109,6 +110,15 @@ module Savant
         nil
       end
 
+      def init_hub_mongo_logger
+        begin
+          require_relative '../logging/mongo_logger'
+          Savant::Logging::MongoLogger.new(service: 'hub', collection: 'hub')
+        rescue StandardError
+          nil
+        end
+      end
+
       def log_request(req, status, duration_ms, response_body = nil)
         # Track stats
         engine = req.path_info.split('/').reject(&:empty?).first || 'hub'
@@ -164,9 +174,8 @@ module Savant
           # ignore
         end
 
-        return unless hub_logger
-
-        hub_logger.info(
+        if hub_logger
+          hub_logger.info(
           event: 'http_request',
           method: req.request_method,
           path: req.path_info,
@@ -174,7 +183,20 @@ module Savant
           duration_ms: duration_ms,
           user: req.env['savant.user_id'],
           query: req.query_string.to_s.empty? ? nil : req.query_string
-        )
+          )
+        end
+
+        if @hub_mongo_logger
+          @hub_mongo_logger.info(
+            event: 'http_request',
+            method: req.request_method,
+            path: req.path_info,
+            status: status,
+            duration_ms: duration_ms,
+            user: req.env['savant.user_id'],
+            query: req.query_string.to_s.empty? ? nil : req.query_string
+          )
+        end
       rescue StandardError
         # ignore logging errors
       end
