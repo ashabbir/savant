@@ -15,6 +15,8 @@ gem 'rackup'
 gem 'summarize'
 gem 'tty-logger', '~> 0.6'
 gem 'webrick'
+gem 'mongo', '~> 2.20'
+gem 'bootsnap', require: false
 
 group :development do
   gem 'guard', '~> 2.18', require: false

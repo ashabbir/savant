@@ -455,67 +455,354 @@ begin
   end
 
   # =========================
-  # Think Workflows (from YAML files)
+  # Think Workflows
+  # NOTE: Workflows no longer have driver_version or rules fields.
+  # Drivers are now managed by the Drivers engine separately.
   # =========================
-  workflows_dir = File.expand_path('../lib/savant/engines/think/workflows', __dir__)
   workflow_ids = []
 
-  if Dir.exist?(workflows_dir)
-    Dir.glob(File.join(workflows_dir, '*.{yml,yaml}')).each do |wf_path|
-      next if File.basename(wf_path).start_with?('_') # skip template
+  workflows_yaml = {
+    'example_workflow' => <<~YAML,
+      ---
+      id: example_workflow
+      name: Example WF
+      description: One-line description so think_workflows_list can display helpful text.
+      version: 4
+      steps:
+      - id: '1'
+        call: prompt_say
+        input_template:
+          text: 'Example workflow running for {{params.ticket_key}}\n\n      '
+      - id: '2'
+        deps:
+        - '1'
+        call: prompt_say
+        input_template:
+          text: "✅ Finished {{workflow}} for {{params.ticket_key}}\n"
+    YAML
+    'develop_ticket_v1' => <<~YAML,
+      ---
+      id: develop_ticket_v1
+      name: develop_ticket_v1
+      description: WF for development of a ticket
+      version: 3
+      steps:
+      - id: '1'
+        call: jira_get_issue
+        input_template:
+          key: "{{params.issueKey}}"
+        capture_as: ticket
+      - id: '2'
+        call: ci.checkout
+        deps:
+        - '1'
+        input_template:
+          ref: "{{params.base_branch}}"
+      - id: '3'
+        call: ci.create_branch
+        deps:
+        - '2'
+        input_template:
+          name: "{{params.feature_branch}}"
+      - id: '4'
+        call: fts_search
+        deps:
+        - '3'
+        input_template:
+          q: "{{params.issueKey}}"
+        capture_as: code_refs
+      - id: '5'
+        call: ci.run_tests
+        deps:
+        - '4'
+        input_template:
+          ref: "{{params.feature_branch}}"
+      - id: '6'
+        call: ci.open_pr
+        deps:
+        - '5'
+        input_template:
+          title: "[{{params.issueKey}}] {{params.title}}"
+          base: "{{params.base_branch}}"
+          head: "{{params.feature_branch}}"
+    YAML
+    'ticket_grooming_v1' => <<~YAML,
+      ---
+      id: ticket_grooming_v1
+      name: Ticket Grooming
+      description: 'Ticket grooming workflow '
+      version: 3
+      steps:
+      - id: 1
+        name: fetch_ticket
+        call: jira_get_issue
+        input_template:
+          key: "{{params.issueKey}}"
+        capture_as: ticket
+      - id: 2
+        name: scan_repo_context
+        call: fts_search
+        deps:
+        - 1
+        input_template:
+          q: "{{params.issueKey}} OR {{ticket.fields.summary}}"
+        capture_as: similar_code
+      - id: 3
+        name: enumerate_resources
+        call: memory_resources_list
+        deps:
+        - 1
+        input_template:
+          repo:
+        capture_as: resources
+      - id: 4
+        name: planning_guides
+        call: fts_search
+        deps:
+        - 3
+        input_template:
+          q: ACCEPTANCE CRITERIA|CONTRIBUTING|DESIGN|ADR|PLAYBOOK|README
+        capture_as: guidelines
+      - id: 5
+        name: list_diffs
+        call: prompt_say
+        deps:
+        - 2
+        input_template:
+          text: look at all the changes in repo and list them file by file.
+    YAML
+    'code_review_initial' => <<~YAML,
+      ---
+      id: code_review_initial
+      name: Code Review Initial
+      description: 'Phase 1 of code review: Data collection, quality gates, and initial
+        analysis. Uses GitLab MCP for diffs (non-blocking). Writes intermediate state file
+        for code_review_final to consume.'
+      version: 1
+      steps:
+      - id: announce_start
+        call: prompt_say
+        input_template:
+          text: |
+            Code Review Initial (Phase 1/2)
 
-      begin
-        wf_data = YAML.safe_load(File.read(wf_path), permitted_classes: [], aliases: true)
-        next unless wf_data.is_a?(Hash) && wf_data['steps'].is_a?(Array)
+            Collecting data -> Running quality gates -> Analyzing code
+            Will write intermediate state to: .savant/code-review/{ticket}-state.json
+      - id: load_config
+        call: local.read
+        deps:
+        - announce_start
+        input_template:
+          files:
+          - ".cline/config.yml"
+        capture_as: config_raw
+      - id: parse_config
+        call: analysis.parse_yaml
+        deps:
+        - load_config
+        input_template:
+          yaml: "{{config_raw}}"
+          extract:
+          - project_gitlab
+          - project_code
+        capture_as: project
+      - id: normalize_mr_param
+        call: analysis.normalize_text
+        deps:
+        - parse_config
+        input_template:
+          text: "{{params.mr_iid}}"
+          strip: "!"
+          type: integer
+        capture_as: mr_iid
+      - id: fetch_mr
+        call: gitlab.get_merge_request
+        deps:
+        - normalize_mr_param
+        input_template:
+          project: "{{project.project_gitlab}}"
+          mr_iid: "{{mr_iid}}"
+        capture_as: mr_data
+      - id: fetch_mr_changes
+        call: gitlab.get_merge_request_changes
+        deps:
+        - fetch_mr
+        input_template:
+          project: "{{project.project_gitlab}}"
+          mr_iid: "{{mr_iid}}"
+        capture_as: mr_changes_data
+      - id: checkout_branch
+        call: local.exec
+        deps:
+        - fetch_mr
+        input_template:
+          cmd: |
+            git fetch origin {{mr_data.source_branch}} 2>&1 && \
+            git checkout {{mr_data.source_branch}} 2>&1 || echo "SKIPPED: git checkout failed or not a git repo"
+        capture_as: checkout_raw
+      - id: safe_dev_migrate_on_checkout
+        call: local.exec
+        deps:
+        - checkout_branch
+        input_template:
+          cmd: |
+            if ls config/database.yml db/schema.rb Gemfile >/dev/null 2>&1; then \
+              (bundle exec rake db:migrate RAILS_ENV=development 2>&1 || echo "SKIPPED_DEV_MIGRATE"); \
+            else \
+              echo "SKIPPED: no Rails DB files"; \
+            fi
+          note: Run a safe development migration after checkout; harmless no-op if no migrations
+            pending.
+        capture_as: safe_dev_migrate_raw
+      - id: extract_changed_files_from_gitlab
+        call: analysis.extract_changed_paths
+        deps:
+        - fetch_mr_changes
+        input_template:
+          changes: "{{mr_changes_data}}"
+          note: Extract file list from GitLab MR changes API (non-blocking)
+        capture_as: changed_files_list
+      - id: extract_diffs_from_gitlab
+        call: analysis.extract_diffs
+        deps:
+        - fetch_mr_changes
+        input_template:
+          changes: "{{mr_changes_data}}"
+          note: Extract full diffs from GitLab MR changes API (non-blocking)
+        capture_as: full_diff_text
+      - id: diff_summary
+        call: analysis.diff_summary
+        deps:
+        - extract_diffs_from_gitlab
+        - extract_changed_files_from_gitlab
+        input_template:
+          diff: "{{full_diff_text}}"
+          note: Summarize changed files, languages, LOC, and intent (compact).
+        capture_as: change_summary
+      - id: get_metadata
+        call: local.exec
+        deps:
+        - fetch_mr
+        input_template:
+          cmd: |
+            echo "sha=$(git rev-parse --short HEAD 2>/dev/null || echo 'unknown')"
+            echo "date=$(date +%Y-%m-%d)"
+            echo "timestamp=$(date +%Y%m%d-%H%M%S)"
+        capture_as: metadata_raw
+      - id: analyze_metadata
+        call: analysis.parse_first_line
+        deps:
+        - get_metadata
+        input_template:
+          text: "{{metadata_raw}}"
+        capture_as: metadata
+      - id: describe_diff_summary
+        call: analysis.diff_summary
+        deps:
+        - diff_summary
+        input_template:
+          diff: "{{change_summary}}"
+          note: Create a short diff description for the review brief.
+        capture_as: brief
+      - id: quality_gates
+        call: analysis.evaluate_quality
+        deps:
+        - diff_summary
+        input_template:
+          data: "{{change_summary}}"
+        capture_as: quality_results
+    YAML
+    'code_review_final' => <<~YAML
+      ---
+      id: code_review_final
+      name: Code Review Final
+      description: 'Phase 2 of code review: Impact analysis, cross-repo search, visual diagrams,
+        and final safety decision. Reads intermediate state from code_review_initial. All
+        operations are non-blocking (no local git/shell commands).'
+      version: 4
+      steps:
+      - id: '1'
+        call: prompt_say
+        input_template:
+          text: |
+            Code Review Final (Phase 2/2)
 
-        wf_id = wf_data['id'] || File.basename(wf_path, File.extname(wf_path))
-        db.create_think_workflow(
-          workflow_id: wf_id,
-          name: wf_data['name'] || wf_id,
-          description: wf_data['description'],
-          driver_version: wf_data['driver_version'] || 'stable',
-          rules: wf_data['rules'],
-          version: (wf_data['version'] || 1).to_i,
-          steps: wf_data['steps']
-        )
-        workflow_ids << wf_id
-      rescue StandardError => e
-        warn "Warning: Failed to seed workflow #{wf_path}: #{e.message}"
-      end
-    end
-  end
+            Loading state -> Impact analysis -> Visual diagrams -> Final verdict
+            Reading from: .savant/code-review/{{params.ticket}}-*-state.json
+      - id: '2'
+        call: local.exec
+        deps:
+        - '1'
+        input_template:
+          cmd: 'ls -t .savant/code-review/{{params.ticket}}-*-state.json 2>/dev/null | head
+            -1 || echo "NOT_FOUND"
 
-  # Add example_workflow if not already seeded from files
-  unless workflow_ids.include?('example_workflow')
+            '
+          note: Find most recent state file for ticket
+        capture_as: state_file_path_raw
+      - id: '3'
+        call: analysis.parse_first_line
+        deps:
+        - '2'
+        input_template:
+          text: "{{state_file_path_raw}}"
+          note: Extract file path from command output
+        capture_as: state_file_path
+      - id: '4'
+        call: local.read
+        deps:
+        - '3'
+        input_template:
+          files:
+          - "{{state_file_path}}"
+        capture_as: state_json_raw
+      - id: '5'
+        call: analysis.parse_json
+        deps:
+        - '4'
+        input_template:
+          json: "{{state_json_raw}}"
+          note: Parse intermediate state JSON
+        capture_as: state
+      - id: '6'
+        call: analysis.validate_code_review_state
+        deps:
+        - '5'
+        input_template:
+          state: "{{state}}"
+          note: |
+            LLM validates state has required fields:
+            {
+              "valid": bool,
+              "missing_fields": [...],
+              "error": "..." or null
+            }
+        capture_as: state_validation
+      - id: '7'
+        call: prompt_say
+        deps:
+        - '6'
+        input_template:
+          text: |
+            State Loaded: {{state.ticket}}
+
+            MR: !{{state.mr_iid}}
+            Date: {{state.date}}
+            Commit: {{state.commit_sha}}
+            Quality: {{state.quality_summary.overall_status}}
+    YAML
+  }
+
+  workflows_yaml.each do |workflow_id, yaml_text|
+    data = YAML.safe_load(yaml_text) || {}
     db.create_think_workflow(
-      workflow_id: 'example_workflow',
-      name: 'Example Workflow',
-      description: 'One-line description so think_workflows_list can display helpful text.',
-      driver_version: 'stable',
-      rules: [],
-      version: 1,
-      steps: [
-        {
-          'id' => 'bootstrap_driver',
-          'call' => 'think_driver_prompt',
-          'input_template' => { 'version' => 'stable' },
-          'capture_as' => '__driver'
-        },
-        {
-          'id' => 'example_task',
-          'deps' => ['bootstrap_driver'],
-          'call' => 'prompt_say',
-          'input_template' => { 'text' => "Example workflow running for {{params.ticket_key}}\n" }
-        },
-        {
-          'id' => 'conclude',
-          'deps' => ['example_task'],
-          'call' => 'prompt_say',
-          'input_template' => { 'text' => "Finished {{workflow}} for {{params.ticket_key}}\n" }
-        }
-      ]
+      workflow_id: workflow_id,
+      name: data['name'] || workflow_id,
+      description: data['description'] || '',
+      version: (data['version'] || 1).to_i,
+      steps: data['steps'] || []
     )
-    workflow_ids << 'example_workflow'
+    workflow_ids << workflow_id
   end
 
   # =========================
@@ -534,7 +821,7 @@ begin
     # ignore
   end
 
-  puts({
+  result = {
     ok: true,
     db: db_name,
     personas: persona_ids.keys,
@@ -542,9 +829,13 @@ begin
     rulesets: ruleset_ids.keys,
     workflows: workflow_ids,
     agents: ['Sample Agent']
-  }.to_json)
+  }
+
+  # Pretty-print JSON for better readability in CLI output
+  puts JSON.pretty_generate(result)
   exit 0
 rescue StandardError => e
-  warn({ ok: false, error: e.message, class: e.class.name }.to_json)
+  error_payload = { ok: false, error: e.message, class: e.class.name }
+  warn JSON.pretty_generate(error_payload)
   exit 1
 end

@@ -125,7 +125,7 @@ module Savant
                 db[:counts] = { repos: r1[0]['c'].to_i, files: r2[0]['c'].to_i, chunks: r3[0]['c'].to_i }
                 # Detailed per-table stats for UI table
                 begin
-                  tables = %w[repos files blobs file_blob_map chunks personas rulesets agents agent_runs workflows workflow_steps workflow_runs]
+                  tables = %w[repos files blobs file_blob_map chunks personas rulesets agents agent_runs]
                   details = []
                   tables.each do |t|
                     cols = conn.exec_params("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name=$1", [t]).map { |r| r['column_name'] }

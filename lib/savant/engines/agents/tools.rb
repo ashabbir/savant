@@ -34,9 +34,10 @@ module Savant
                                   persona: { type: 'string' },
                                   driver: { type: 'string' },
                                   rules: { type: 'array', items: { type: 'string' } },
-                                  favorite: { type: 'boolean' }
+                                  favorite: { type: 'boolean' },
+                                  instructions: { type: 'string' }
                                 }, required: %w[name persona driver] } do |_ctx, a|
-            eng.create(name: a['name'], persona: a['persona'], driver: a['driver'], rules: a['rules'] || [], favorite: a['favorite'] || false)
+            eng.create(name: a['name'], persona: a['persona'], driver: a['driver'], rules: a['rules'] || [], favorite: a['favorite'] || false, instructions: a['instructions'])
           end
 
           tool 'agents_update', description: 'Update an agent (partial)',
@@ -45,9 +46,30 @@ module Savant
                                   persona: { type: 'string' },
                                   driver: { type: 'string' },
                                   rules: { type: 'array', items: { type: 'string' } },
-                                  favorite: { type: 'boolean' }
+                                  favorite: { type: 'boolean' },
+                                  instructions: { type: 'string' }
                                 }, required: ['name'] } do |_ctx, a|
-            eng.update(name: a['name'], persona: a['persona'], driver: a['driver'], rules: a['rules'], favorite: a['favorite'])
+            logger = (_ctx && _ctx[:logger]) || begin
+              require_relative '../../logging/logger'
+              Savant::Logging::Logger.new(io: $stdout, json: true, service: 'agents')
+            rescue StandardError
+              nil
+            end
+            # Coerce favorite properly if present (handle string values from some clients)
+            favorite_param = if a.key?('favorite')
+              val = a['favorite']
+              if val.is_a?(TrueClass) || val.is_a?(FalseClass)
+                val
+              else
+                %w[true 1 t yes y].include?(val.to_s.strip.downcase)
+              end
+            else
+              nil
+            end
+            logger&.info(event: 'agents_update start', name: a['name'], persona: a['persona'], driver: a['driver'], rules: a['rules'], favorite_raw: a['favorite'], favorite: favorite_param)
+            res = eng.update(name: a['name'], persona: a['persona'], driver: a['driver'], rules: a['rules'], favorite: favorite_param, instructions: a['instructions'])
+            logger&.info(event: 'agents_update finish', name: a['name'], favorite: res[:favorite]) rescue nil
+            res
           end
 
           tool 'agents_delete', description: 'Delete an agent', schema: { type: 'object', properties: { name: { type: 'string' } }, required: ['name'] } do |_ctx, a|

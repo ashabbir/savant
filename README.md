@@ -93,39 +93,47 @@ Notes
 
 ## Getting Started
 
-Prereqs: Ruby 3.2 + Bundler, local Postgres. Docker is no longer required.
+Prereqs: Ruby 3.2 + Bundler, and a local Postgres instance. Docker is not required.
 
-### Run (Rails API, no Docker)
+> Postgres Only: SQLite is not supported. Savant targets Postgres (tested on 13+) and relies on JSONB and GIN indexes for FTS. Ensure a local Postgres is running and accessible.
 
-1) Set your database URL (example):
+### Run (Rails API + UI, no Docker)
+
+1) Configure Postgres (example):
 
 ```
 export DATABASE_URL=postgres://context:contextpw@localhost:5432/contextdb
 ```
 
-2) Prepare DB (idempotent):
+2) Prepare the database (idempotent):
 
 ```
-make rails-migrate
-make rails-fts
-cd server && DATABASE_URL=$DATABASE_URL bundle exec rake savant:setup   # migrate + ensure FTS + index
+# Run migrations and ensure FTS indexes
+make db-migrate
+make db-fts
+
+# Optional smoke/seed helpers
+make db-smoke
+make db-seed
 ```
 
-3) Build the UI (optional):
+3) Build the UI bundle (optional; for Rails to serve static UI at /ui):
 
 ```
 make ui-build-local
 ```
 
-4) Dev mode (Rails + Vite, hot reload, Hub):
+4) Start dev servers (Rails API + Vite):
 
 ```
-make dev
+# Terminal A: Rails API on http://localhost:9999
+make dev-server
+
+# Terminal B: Frontend with HMR on http://localhost:5173
+make dev-ui
 ```
 
 Notes:
-- `make dev` now starts Rails, the Vite dev server, and the Hub together; the Hub log is written to `logs/hub.log`.
-- `make ls` shows only `dev` so the new flow stays focused on that single command.
 - UI (dev): http://localhost:5173 (HMR; edits reflect immediately)
 - API:      http://localhost:9999 (Hub endpoints mounted in Rails)
 - Health:   GET http://localhost:9999/healthz
@@ -292,22 +300,17 @@ See [Agent Runtime docs](memory_bank/agent_runtime.md) for detailed architecture
 
 ### Full Stack Setup
 
-1) Quick stack (Postgres + Hub, no indexing):
+1) Database setup (Postgres + FTS):
 ```
-make quickstart
-```
-
-2) Migrate + FTS (Context search):
-```
-make migrate && make fts
+make db-migrate && make db-fts
 ```
 
-3) Index repos (see config/settings.json):
+2) Index repos (see config/settings.json):
 ```
 make repo-index-all
 ```
 
-4) Offline activation
+3) Offline activation
    - Production (brew/packaged): required before engine/MCP boot.
    - Development (git checkout): bypassed automatically; see below for details.
 ```
@@ -315,8 +318,8 @@ make repo-index-all
 ./bin/savant status
 ```
 
-5) UI
-- Static: `make ui-build` then open http://localhost:9999/ui
+4) UI
+- Static: `make ui-build-local` then open http://localhost:9999/ui
 - Dev: `make dev-ui` then open http://localhost:5173 (Hub at http://localhost:9999)
 
 6) MCP Multiplexer (stdio)
