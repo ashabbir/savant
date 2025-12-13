@@ -33,7 +33,7 @@ module Savant
 
       # Initialize the engine with a namespaced logger and context ops.
       def initialize
-        @logger = Savant::Logging::Logger.new(io: $stdout, json: true, service: 'context.engine')
+        @logger = Savant::Logging::MongoLogger.new(service: 'context.engine')
         @log = @logger
         @db = Savant::Framework::DB.new
         @ops = Savant::Context::Ops.new(db: @db)

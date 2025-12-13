@@ -21,7 +21,7 @@ A Struct-based container holding all runtime state:
 Savant::RuntimeContext.new(
   session_id: String,       # Unique session identifier
   persona: Hash,            # Loaded persona (name, version, prompt_md)
-  driver_prompt: Hash,      # Think driver prompt (version, hash, prompt_md)
+  driver_prompt: Hash,      # Drivers prompt (name, version, hash, prompt_md)
   amr_rules: Hash,          # AMR ruleset (version, rules array)
   repo: Hash,               # Git repository context (path, branch, commit)
   memory: Hash,             # Session memory (ephemeral + persistent_path)
@@ -35,7 +35,7 @@ Savant::RuntimeContext.new(
 # Access anywhere in the codebase
 Savant::Framework::Runtime.current.persona
 Savant::Framework::Runtime.current.session_id
-Savant::Framework::Runtime.current.driver_prompt[:version]
+Savant::Framework::Runtime.current.driver_prompt[:name]
 ```
 
 **Serialization:**
@@ -59,7 +59,7 @@ Main initializer orchestrating the boot sequence:
 ```ruby
 context = Savant::Boot.initialize!(
   persona_name: 'savant-engineer',  # Default persona
-  driver_version: nil,              # nil = latest
+  driver_name: 'developer',         # Default driver (from Drivers engine)
   base_path: nil,                   # nil = auto-detect
   skip_git: false                   # Skip repo detection
 )
@@ -83,9 +83,9 @@ context = Savant::Boot.initialize!(
    - Error: `BootError` if persona not found
 
 4. **Driver Prompt Loading**
-   - Uses `Savant::Think::Engine` to load driver prompt
-   - Returns: version, sha256 hash, prompt markdown
-   - Defaults to latest version from `lib/savant/engines/think/prompts.yml`
+   - Uses `Savant::Drivers::Ops` to load driver prompt by name
+   - Returns: name, version, sha256 hash, prompt markdown
+   - Defaults to `developer` driver seeded in Postgres
 
 5. **AMR Rules Loading**
    - Reads `lib/savant/engines/amr/rules.yml`

@@ -90,7 +90,7 @@ when 'run'
       puts "\n📊 Runtime Status:"
       puts "  Session ID:      #{context.session_id}"
       puts "  Persona:         #{context.persona[:name]} (v#{context.persona[:version]})"
-      puts "  Driver:          #{context.driver_prompt[:version]}"
+      puts "  Driver:          #{context.driver_prompt[:name]} (v#{context.driver_prompt[:version]})"
       puts "  AMR Rules:       #{context.amr_rules[:rules].size} rules loaded"
       puts "  Repository:      #{context.repo ? context.repo[:path] : 'none detected'}"
       if context.repo
@@ -151,7 +151,7 @@ when 'review'
     puts "\n📊 Runtime Status:"
     puts "  Session ID:      #{context.session_id}"
     puts "  Persona:         #{context.persona[:name]} (v#{context.persona[:version]})"
-    puts "  Driver:          #{context.driver_prompt[:version]}"
+    puts "  Driver:          #{context.driver_prompt[:name]} (v#{context.driver_prompt[:version]})"
     puts "  Repository:      #{context.repo ? context.repo[:path] : 'none detected'}"
     puts "    Branch:        #{context.repo[:branch]}" if context.repo
     puts "\n⚠️  MR Review logic not yet implemented (coming in next iteration)."
@@ -184,7 +184,7 @@ when 'workflow'
     puts "  Session ID:      #{context.session_id}"
     puts "  Workflow:        #{workflow_name}"
     puts "  Persona:         #{context.persona[:name]} (v#{context.persona[:version]})"
-    puts "  Driver:          #{context.driver_prompt[:version]}"
+    puts "  Driver:          #{context.driver_prompt[:name]} (v#{context.driver_prompt[:version]})"
     params = begin
       JSON.parse(options[:params] || '{}')
     rescue JSON::ParserError
