@@ -32,7 +32,7 @@ module Savant
       # - last_output [String,nil]
       # - system [String,nil]
       # - tools_hint [Array<String>,nil]
-      def build(goal:, memory:, last_output: nil, system: nil, tools_hint: nil, tools_catalog: nil)
+      def build(goal:, memory:, last_output: nil, system: nil, tools_hint: nil, tools_catalog: nil, agent_instructions: nil)
         persona = @runtime&.persona || {}
         driver = @runtime&.driver_prompt || {}
         amr = @runtime&.amr_rules || {}
@@ -42,6 +42,7 @@ module Savant
         sections << header_section
         sections << section('Persona', persona[:prompt_md] || persona[:summary])
         sections << section('Driver', driver[:prompt_md])
+        sections << section('Agent Instructions', agent_instructions)
         sections << section('AMR Rules', summarize_rules(amr[:rules]))
         sections << section('Repo', repo_to_text(repo)) if repo
         sections << section('Goal', goal)

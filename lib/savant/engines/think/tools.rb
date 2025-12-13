@@ -34,10 +34,9 @@ module Savant
             nxt.call(ctx, name, a2)
           end
 
-          tool 'think_driver_prompt', description: 'Return versioned driver prompt markdown',
-                                      schema: { type: 'object', properties: { version: { type: 'string' } } } do |_ctx, a|
-            eng.driver_prompt(version: a['version'])
-          end
+          # NOTE: Driver prompts have moved to the Drivers engine (drivers_get, drivers_list).
+          # Workflows should explicitly include a step that calls drivers_get if they need
+          # a driver prompt.
 
           tool 'think_plan', description: 'Initialize a workflow run and return first instruction',
                              schema: { type: 'object', properties: { workflow: { type: 'string' }, params: { type: 'object' }, run_id: { type: 'string' }, start_fresh: { type: 'boolean' } }, required: ['workflow'] } do |_ctx, a|
@@ -91,46 +90,9 @@ module Savant
             eng.workflows_delete(workflow: a['workflow'])
           end
 
-          tool 'think_prompts_list', description: 'List available Think prompt versions',
-                                     schema: { type: 'object', properties: {} } do |_ctx, _a|
-            eng.prompts_list
-          end
-
-          tool 'think_prompts_read', description: 'Read a Think prompt markdown by version',
-                                     schema: { type: 'object', properties: { version: { type: 'string' } } } do |_ctx, a|
-            eng.driver_prompt(version: a['version'])
-          end
-
-          # Catalog read/write for prompts.yml
-          tool 'think_prompts_catalog_read', description: 'Read prompts.yml catalog',
-                                             schema: { type: 'object', properties: {} } do |_ctx, _a|
-            eng.prompts_catalog_read
-          end
-
-          tool 'think_prompts_catalog_write', description: 'Overwrite prompts.yml catalog',
-                                              schema: { type: 'object', properties: { yaml: { type: 'string' } }, required: ['yaml'] } do |_ctx, a|
-            eng.prompts_catalog_write(yaml: a['yaml'] || '')
-          end
-
-          # CRUD for individual prompt versions (markdown files + registry update)
-          tool 'think_prompts_create', description: 'Create a new Think prompt version',
-                                       schema: { type: 'object', properties: { version: { type: 'string' }, prompt_md: { type: 'string' }, path: { type: 'string' } }, required: %w[version prompt_md] } do |_ctx, a|
-            eng.prompts_create(version: a['version'], prompt_md: a['prompt_md'], path: a['path'])
-          end
-
-          tool 'think_prompts_update', description: 'Update an existing Think prompt markdown (optionally rename version)',
-                                       schema: { type: 'object', properties: { version: { type: 'string' }, prompt_md: { type: 'string' }, new_version: { type: 'string' } }, required: %w[version] } do |_ctx, a|
-            eng.prompts_update(version: a['version'], prompt_md: a['prompt_md'], new_version: a['new_version'])
-          end
-
-          tool 'think_prompts_delete', description: 'Delete a Think prompt version',
-                                       schema: { type: 'object', properties: { version: { type: 'string' } }, required: %w[version] } do |_ctx, a|
-            eng.prompts_delete(version: a['version'])
-          end
-
-          tool 'prompt_say', description: 'Display a message to the LLM/user (no-op for engine)',
-                             schema: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'] } do |_ctx, a|
-            { message: a['text'].to_s, display: true, timestamp: Time.now.utc.iso8601 }
+          tool 'think_say', description: 'Output a message during workflow execution',
+                            schema: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'] } do |_ctx, a|
+            { message: a['text'].to_s, timestamp: Time.now.utc.iso8601 }
           end
 
           tool 'think_limits_read', description: 'Read Think engine limits/config',

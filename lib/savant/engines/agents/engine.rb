@@ -25,12 +25,12 @@ module Savant
         @ops.get(name: name)
       end
 
-      def create(name:, persona:, driver:, rules: [], favorite: false)
-        @ops.create(name: name, persona: persona, driver: driver, rules: rules, favorite: favorite)
+      def create(name:, persona:, driver:, rules: [], favorite: false, instructions: nil)
+        @ops.create(name: name, persona: persona, driver: driver, rules: rules, favorite: favorite, instructions: instructions)
       end
 
-      def update(name:, persona: nil, driver: nil, rules: nil, favorite: nil)
-        @ops.update(name: name, persona: persona, driver: driver, rules: rules, favorite: favorite)
+      def update(name:, persona: nil, driver: nil, rules: nil, favorite: nil, instructions: nil)
+        @ops.update(name: name, persona: persona, driver: driver, rules: rules, favorite: favorite, instructions: instructions)
       end
 
       def delete(name:)

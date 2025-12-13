@@ -17,9 +17,6 @@ import Dashboard from './pages/Dashboard';
 import ThinkWorkflows from './pages/think/Workflows';
 import ThinkTools from './pages/think/Tools';
 import ThinkWorkflowEditor from './pages/think/WorkflowEditor';
-import ThinkPrompts from './pages/think/Prompts';
-import PromptEditor from './pages/think/PromptEditor';
-import { THINK_PROMPTS_EDIT_PATTERN, THINK_PROMPTS_NEW_PATH, THINK_PROMPTS_PATH, thinkPromptsEditPath } from './pages/think/routes';
 import ThinkRuns from './pages/think/Runs';
 import WorkflowRuns from './pages/workflow/Runs';
 import Personas from './pages/personas/Personas';
@@ -73,8 +70,7 @@ function useContextSubIndex() {
 
 function useThinkSubIndex() {
   const { pathname } = useLocation();
-  if (pathname.startsWith('/think/prompts')) return 1;
-  if (pathname.startsWith('/think/runs')) return 2;
+  if (pathname.startsWith('/think/runs')) return 1;
   return 0;
 }
 
@@ -129,8 +125,7 @@ function useEngineSubIndex(engineName: string | undefined) {
     return 0;
   }
   if (engineName === 'think') {
-    if (pathname.includes('/tools/prompts') || pathname.includes('/think/prompts')) return 0;
-    if (pathname.includes('/think/tools')) return 1;
+    if (pathname.includes('/think/tools')) return 0;
     return 0;
   }
   if (engineName === 'personas') {
@@ -197,18 +192,6 @@ function formatUptime(seconds: number): string {
   return `${mins}m`;
 }
 
-function RedirectToToolsPrompts() {
-  return <Navigate to={'/engines/drivers'} replace />;
-}
-
-function RedirectToToolsPromptsNew() {
-  return <Navigate to={'/engines/drivers/new'} replace />;
-}
-
-function RedirectToToolsPromptsEdit() {
-  const { version } = useParams<{ version: string }>();
-  return <Navigate to={`/engines/drivers/edit/${version || ''}`} replace />;
-}
 
 export default function App() {
   const [open, setOpen] = useState(false);
@@ -389,14 +372,12 @@ export default function App() {
       )}
       {mainIdx === 1 && selEngine === 'think' && (
         <Tabs value={engSubIdx} onChange={(_, v) => {
-          if (v === 0) navigate(THINK_PROMPTS_PATH);
-          else if (v === 1) navigate('/engines/think/tools');
+          if (v === 0) navigate('/engines/think/tools');
         }} centered sx={{
           '& .MuiTab-root': { fontSize: 12, minHeight: 36, py: 0.5, textTransform: 'none', color: 'text.secondary' },
           '& .Mui-selected': { color: 'primary.main !important' },
           '& .MuiTabs-indicator': { height: 2, backgroundColor: 'primary.light' }
         }}>
-          <Tab label="Prompts" component={Link} to={THINK_PROMPTS_PATH} />
           <Tab label="Tools" component={Link} to="/engines/think/tools" />
         </Tabs>
       )}
@@ -512,7 +493,7 @@ export default function App() {
           <Route path="/ctx/repos" element={<Repos />} />
           <Route path="/think" element={<ThinkWorkflows />} />
           <Route path="/think/workflows" element={<ThinkWorkflows />} />
-          <Route path="/think/prompts" element={<RedirectToToolsPrompts />} />
+          <Route path="/think/prompts" element={<Navigate to="/engines/drivers" replace />} />
           <Route path="/think/runs" element={<ThinkRuns />} />
           <Route path="/personas" element={<Personas />} />
 
@@ -523,17 +504,16 @@ export default function App() {
           <Route path="/engines/context/repos" element={<Repos />} />
           <Route path="/engines/context/tools" element={<ContextTools />} />
 
-          <Route path={THINK_PROMPTS_PATH} element={<ThinkPrompts />} />
-          <Route path={THINK_PROMPTS_NEW_PATH} element={<PromptEditor />} />
-          <Route path={THINK_PROMPTS_EDIT_PATTERN} element={<PromptEditor />} />
 
           {/* Keep old think/workflows routes for backward compatibility */}
           <Route path="/engines/think/workflows" element={<ThinkWorkflows />} />
           <Route path="/engines/think/workflows/new" element={<ThinkWorkflowEditor />} />
           <Route path="/engines/think/workflows/edit/:id" element={<ThinkWorkflowEditor />} />
-          <Route path="/engines/think/prompts" element={<RedirectToToolsPrompts />} />
-          <Route path="/engines/think/prompts/new" element={<RedirectToToolsPromptsNew />} />
-          <Route path="/engines/think/prompts/edit/:version" element={<RedirectToToolsPromptsEdit />} />
+          {/* Prompts moved to Drivers engine */}
+          <Route path="/engines/think/prompts" element={<Navigate to="/engines/drivers" replace />} />
+          <Route path="/engines/think/prompts/*" element={<Navigate to="/engines/drivers" replace />} />
+          <Route path="/engines/tools/prompts" element={<Navigate to="/engines/drivers" replace />} />
+          <Route path="/engines/tools/prompts/*" element={<Navigate to="/engines/drivers" replace />} />
           <Route path="/engines/think/runs" element={<ThinkRuns />} />
           <Route path="/engines/think/tools" element={<ThinkTools />} />
           <Route path="/engines/workflow/runs" element={<WorkflowRuns />} />

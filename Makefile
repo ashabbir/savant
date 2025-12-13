@@ -1,10 +1,11 @@
-.PHONY: dev-ui dev-server ls ps pg ui-build-local db-migrate db-fts db-smoke db-status db-drop db-create db-seed db-migrate-status
+.PHONY: dev-ui dev-server kill-dev-server ls ps pg mongosh ui-build-local db-migrate db-fts db-smoke db-status db-drop db-create db-seed db-migrate-status db-reset
 
 INDEXER_CMD ?= bundle exec ruby ./bin/context_repo_indexer
 PG_CMD ?= psql
 DB_ENV ?= development
 DB_NAME ?= $(if $(filter $(DB_ENV),test),savant_test,savant_development)
 DB_ENVS := development test
+MONGO_DB ?= $(if $(filter $(DB_ENV),test),savant_test,savant_development)
 
 # Minimal dev targets with sensible defaults
 export SAVANT_DEV ?= 1
@@ -31,6 +32,18 @@ dev-server:
 	@echo "Starting Rails API on 0.0.0.0:9999..."
 	@bash -lc '[ -n "$$DATABASE_URL" ] && echo "Using DATABASE_URL=$$DATABASE_URL" || echo "Using config/database.yml (no DATABASE_URL set)"'
 	@cd server && $(HOME)/.rbenv/shims/bundle exec rails s -b 0.0.0.0 -p 9999
+
+# Kill the Rails dev server
+kill-dev-server:
+	@echo "Stopping Rails dev server..."
+	@pkill -f "puma.*9999" 2>/dev/null || pkill -f "rails s" 2>/dev/null || true
+	@rm -f server/tmp/pids/server.pid
+	@sleep 1
+	@if lsof -i :9999 -sTCP:LISTEN >/dev/null 2>&1; then \
+	  echo "Warning: Port 9999 still in use"; \
+	else \
+	  echo "Server stopped. Port 9999 is free."; \
+	fi
 
 # Build the frontend and copy to public/ui for Rails/Hub to serve
 ui-build-local:
@@ -84,6 +97,8 @@ db-create:
 	  name=$$( [ "$$env" = test ] && echo savant_test || echo savant_development ); \
 	  echo "Creating $$name (env=$$env)..."; \
 	  DB_ENV=$$env DB_NAME=$$name $(HOME)/.rbenv/shims/bundle exec ruby ./bin/db_create; \
+	  echo "Ensuring FTS indexes on $$name..."; \
+	  DB_ENV=$$env DB_NAME=$$name $(HOME)/.rbenv/shims/bundle exec ruby ./bin/db_fts; \
 	done'
 
 db-seed:
@@ -92,6 +107,9 @@ db-seed:
 	  echo "Seeding $$name (env=$$env)..."; \
 	  DB_ENV=$$env DB_NAME=$$name $(HOME)/.rbenv/shims/bundle exec ruby ./bin/db_seed; \
 	done'
+
+db-reset: db-drop db-create db-migrate db-seed
+	@echo "Database reset complete for development and test"
 
 
 
@@ -103,21 +121,21 @@ ps:
 	@printf "Running make processes:\n";
 	@ps -ef | grep '[m]ake' | grep -v "make ps"
 
+# Connect to PostgreSQL (local installation)
 pg:
 	@if [ -n "$(DATABASE_URL)" ]; then \
 	  echo "Connecting via DATABASE_URL"; \
 	  $(PG_CMD) "$(DATABASE_URL)"; \
 	else \
-			  config_env=$$(ruby -rjson -e 'path = File.join("config", "settings.json"); if File.exist?(path); settings = JSON.parse(File.read(path)); db = settings["database"]; if db; env = []; host = (db["host"] || "").to_s; host = "localhost" if host.empty? || host == "postgres"; env << "PGHOST=#{host}"; env << "PGPORT=#{db["port"]}" if db["port"]; # ignore user/password from settings to avoid missing roles on local \
-		  env << "PGDATABASE=#{db["db"] || "$(DB_NAME)"}"; print env.join(" "); end; end'); \
-	  if [ -n "$$config_env" ]; then \
-	    echo "Connecting via config/settings.json"; \
-	    env $$config_env $(PG_CMD); \
-	  else \
-	    echo "Connecting via default psql settings"; \
-		    $(PG_CMD) -h localhost -p 5432 -d $(DB_NAME); \
-	  fi; \
+	  echo "Connecting to PostgreSQL ($(DB_NAME))..."; \
+	  $(PG_CMD) -h localhost -p 5432 -d $(DB_NAME); \
 	fi
+
+# Connect to MongoDB (local installation)
+# Install: brew install mongodb-community
+mongosh:
+	@echo "Connecting to MongoDB ($(MONGO_DB))..."
+	@mongosh "mongodb://localhost:27017/$(MONGO_DB)"
 
 .PHONY: repo-index repo-delete repo-index-all repo-delete-all repo-reindex-all repo-status
 

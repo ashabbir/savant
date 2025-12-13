@@ -1,29 +1,47 @@
+### Logs
 /logs/
+/log/
+server/logs/
+server/log/
 lib/logs/
-lib/logs/*
-config/settings.json
+*.log
+
+### Cache / Temp / Build / Coverage
+/.cache/
+/tmp/
+/cache/
+/build/
+/dist/
+/coverage/
+server/tmp/
+server/.cache/
+
+### Environment / Secrets / Tooling
 .env
-.cache
+secrets.yml
+config/settings.json
 .bundle/
+.savant/
+*.DS_Store*
 .claude
 .cline
 .clinerules
 CLAUDE.md
-coverage/*
-*.DS_Store*
-.savant/*
-secrets.yml
+
+### Frontend artifacts
 frontend/node_modules/
 frontend/dist/
+
+### Generated static assets served by Rails
 public/
 
+### Think prompts/workflows (allowlisted exceptions)
 lib/savant/think/prompts/*
 !lib/savant/think/prompts/savant*
-
 
 lib/savant/think/workflows/*
 !lib/savant/think/workflows/savat*
 !lib/savant/think/workflows/_template*
 
-
+### Misc
 *bak*

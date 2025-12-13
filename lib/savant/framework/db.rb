@@ -111,10 +111,7 @@ module Savant
       # @return [true]
       def migrate_tables
         # Destructive reset: drop and recreate all tables/indexes
-        # App tables (agents/workflows/personas/rules):
-        exec('DROP TABLE IF EXISTS workflow_runs CASCADE')
-        exec('DROP TABLE IF EXISTS workflow_steps CASCADE')
-        exec('DROP TABLE IF EXISTS workflows CASCADE')
+        # App tables (agents/personas/rules):
         exec('DROP TABLE IF EXISTS agent_runs CASCADE')
         exec('DROP TABLE IF EXISTS agents CASCADE')
         exec('DROP TABLE IF EXISTS rulesets CASCADE')
@@ -176,7 +173,7 @@ module Savant
         SQL
         exec('CREATE INDEX idx_chunks_blob ON chunks(blob_id)')
 
-        # App schema — agents/personas/rules/workflows
+        # App schema — agents/personas/rules
         exec(<<~SQL)
           CREATE TABLE personas (
             id SERIAL PRIMARY KEY,
@@ -202,6 +199,7 @@ module Savant
             persona_id INTEGER REFERENCES personas(id) ON DELETE SET NULL,
             driver_prompt TEXT,
             driver_name TEXT,
+            instructions TEXT,
             rule_set_ids INTEGER[],
             favorite BOOLEAN NOT NULL DEFAULT FALSE,
             run_count INTEGER NOT NULL DEFAULT 0,
@@ -226,58 +224,29 @@ module Savant
         SQL
         exec('CREATE INDEX idx_agent_runs_agent ON agent_runs(agent_id)')
 
-        exec(<<~SQL)
-          CREATE TABLE workflows (
-            id SERIAL PRIMARY KEY,
-            name TEXT NOT NULL UNIQUE,
-            description TEXT,
-            graph JSONB,
-            favorite BOOLEAN NOT NULL DEFAULT FALSE,
-            run_count INTEGER NOT NULL DEFAULT 0,
-            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-          );
-        SQL
-
-        exec(<<~SQL)
-          CREATE TABLE workflow_steps (
-            id SERIAL PRIMARY KEY,
-            workflow_id INTEGER NOT NULL REFERENCES workflows(id) ON DELETE CASCADE,
-            name TEXT NOT NULL,
-            step_type TEXT NOT NULL,
-            config JSONB,
-            position INTEGER
-          );
-        SQL
-        exec('CREATE INDEX idx_workflow_steps_workflow ON workflow_steps(workflow_id)')
-
-        exec(<<~SQL)
-          CREATE TABLE workflow_runs (
-            id SERIAL PRIMARY KEY,
-            workflow_id INTEGER NOT NULL REFERENCES workflows(id) ON DELETE CASCADE,
-            input TEXT,
-            output TEXT,
-            status TEXT,
-            duration_ms BIGINT,
-            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-            transcript JSONB
-          );
-        SQL
-        exec('CREATE INDEX idx_workflow_runs_workflow ON workflow_runs(workflow_id)')
         true
       end
 
       # Ensure the GIN FTS index on `chunks.chunk_text` exists.
       # @return [true]
       def ensure_fts
+        return true unless table_exists?('chunks')
+
         exec(<<~SQL)
           CREATE INDEX IF NOT EXISTS idx_chunks_fts ON chunks USING GIN (to_tsvector('english', chunk_text));
         SQL
         true
+      rescue PG::UndefinedTable
+        true
+      end
+
+      def table_exists?(name)
+        res = exec_params("SELECT to_regclass($1)", [name.to_s])
+        res.ntuples.positive? && !res[0]['to_regclass'].nil?
       end
 
       # Apply versioned migrations from db/migrations non-destructively.
-      # Returns an array of applied versions.
+      # Returns an array of hashes { version:, file: }.
       def apply_migrations(dir = default_migrations_dir)
         ensure_schema_migrations!
         files = Dir.glob(File.join(dir, '*')).sort
@@ -293,7 +262,7 @@ module Savant
             exec(sql)
             mark_migration_applied!(version)
           end
-          applied << version
+          applied << { version: version, file: File.basename(path) }
         end
         applied
       end
@@ -339,7 +308,7 @@ module Savant
           return id
         end
 
-        res = exec_params('INSERT INTO repos(name, root_path) VALUES($1,$2) RETURNING id', [name, root])
+        res = exec_params('INSERT INTO repos(name, root_path, created_at, updated_at) VALUES($1,$2,NOW(),NOW()) RETURNING id', [name, root])
         res[0]['id'].to_i
       end
 
@@ -456,8 +425,8 @@ module Savant
         tags_encoded = tags.nil? ? nil : text_array_encoder.encode(Array(tags))
         res = exec_params(
           <<~SQL, [name, content, version, summary, prompt_md, tags_encoded, notes]
-            INSERT INTO personas(name, content, version, summary, prompt_md, tags, notes)
-            VALUES($1, $2, $3, $4, $5, $6, $7)
+            INSERT INTO personas(name, content, version, summary, prompt_md, tags, notes, created_at, updated_at)
+            VALUES($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
             ON CONFLICT (name) DO UPDATE SET
               content = COALESCE(EXCLUDED.content, personas.content),
               version = EXCLUDED.version,
@@ -537,8 +506,8 @@ module Savant
         tags_encoded = tags.nil? ? nil : text_array_encoder.encode(Array(tags))
         res = exec_params(
           <<~SQL, [name, content, version, summary, rules_md, tags_encoded, notes]
-            INSERT INTO rulesets(name, content, version, summary, rules_md, tags, notes)
-            VALUES($1, $2, $3, $4, $5, $6, $7)
+            INSERT INTO rulesets(name, content, version, summary, rules_md, tags, notes, created_at, updated_at)
+            VALUES($1, $2, $3, $4, $5, $6, $7, NOW(), NOW())
             ON CONFLICT (name) DO UPDATE SET
               content = COALESCE(EXCLUDED.content, rulesets.content),
               version = EXCLUDED.version,
@@ -618,8 +587,8 @@ module Savant
         tags_encoded = tags.nil? ? nil : text_array_encoder.encode(Array(tags))
         res = exec_params(
           <<~SQL, [name, version, summary, prompt_md, tags_encoded, notes]
-            INSERT INTO drivers(name, version, summary, prompt_md, tags, notes)
-            VALUES($1, $2, $3, $4, $5, $6)
+            INSERT INTO drivers(name, version, summary, prompt_md, tags, notes, created_at, updated_at)
+            VALUES($1, $2, $3, $4, $5, $6, NOW(), NOW())
             ON CONFLICT (name) DO UPDATE SET
               version = EXCLUDED.version,
               summary = COALESCE(EXCLUDED.summary, drivers.summary),
@@ -694,18 +663,17 @@ module Savant
       # =========================
       # App CRUD: Think Workflows
       # =========================
-      def create_think_workflow(workflow_id:, name: nil, description: nil, driver_version: 'stable', rules: nil, version: 1, steps:)
-        rules_encoded = rules.nil? ? nil : text_array_encoder.encode(Array(rules))
+      # NOTE: driver_version and rules have been removed from workflows.
+      # Driver prompts are now managed by the Drivers engine.
+      def create_think_workflow(workflow_id:, name: nil, description: nil, version: 1, steps:)
         steps_json = steps.is_a?(String) ? steps : JSON.generate(steps)
         res = exec_params(
-          <<~SQL, [workflow_id, name || workflow_id, description, driver_version, rules_encoded, version, steps_json]
-            INSERT INTO think_workflows(workflow_id, name, description, driver_version, rules, version, steps)
-            VALUES($1, $2, $3, $4, $5, $6, $7::jsonb)
+          <<~SQL, [workflow_id, name || workflow_id, description, version, steps_json]
+            INSERT INTO think_workflows(workflow_id, name, description, version, steps)
+            VALUES($1, $2, $3, $4, $5::jsonb)
             ON CONFLICT (workflow_id) DO UPDATE SET
               name = COALESCE(EXCLUDED.name, think_workflows.name),
               description = COALESCE(EXCLUDED.description, think_workflows.description),
-              driver_version = COALESCE(EXCLUDED.driver_version, think_workflows.driver_version),
-              rules = COALESCE(EXCLUDED.rules, think_workflows.rules),
               version = EXCLUDED.version,
               steps = EXCLUDED.steps,
               updated_at = NOW()
@@ -715,7 +683,7 @@ module Savant
         res[0]['id'].to_i
       end
 
-      def update_think_workflow(workflow_id:, name: nil, description: nil, driver_version: nil, rules: nil, version: nil, steps: nil)
+      def update_think_workflow(workflow_id:, name: nil, description: nil, version: nil, steps: nil)
         sets = ['updated_at = NOW()']
         params = []
         idx = 1
@@ -727,16 +695,6 @@ module Savant
         unless description.nil?
           sets << "description = $#{idx}"
           params << description
-          idx += 1
-        end
-        unless driver_version.nil?
-          sets << "driver_version = $#{idx}"
-          params << driver_version
-          idx += 1
-        end
-        unless rules.nil?
-          sets << "rules = $#{idx}"
-          params << text_array_encoder.encode(Array(rules))
           idx += 1
         end
         unless version.nil?
@@ -788,17 +746,20 @@ module Savant
       # =========================
       # App CRUD: Agents
       # =========================
-      def create_agent(name:, persona_id: nil, driver_prompt: nil, driver_name: nil, rule_set_ids: [], favorite: false)
-        params = [name, persona_id, driver_prompt, driver_name, int_array_encoder.encode(rule_set_ids), favorite]
+      def create_agent(name:, persona_id: nil, driver_prompt: nil, driver_name: nil, rule_set_ids: [], favorite: false, instructions: nil)
+        params = [name, persona_id, driver_prompt, driver_name, int_array_encoder.encode(rule_set_ids), favorite, instructions]
         res = exec_params(
           <<~SQL, params
-            INSERT INTO agents(name, persona_id, driver_prompt, driver_name, rule_set_ids, favorite)
-            VALUES($1,$2,$3,$4,$5,$6)
+            INSERT INTO agents(name, persona_id, driver_prompt, driver_name, rule_set_ids, favorite, instructions, created_at, updated_at)
+            VALUES($1,$2,$3,$4,$5,$6,$7,NOW(),NOW())
             ON CONFLICT (name) DO UPDATE
             SET persona_id=EXCLUDED.persona_id,
                 driver_prompt=COALESCE(EXCLUDED.driver_prompt, agents.driver_prompt),
                 driver_name=COALESCE(EXCLUDED.driver_name, agents.driver_name),
-                rule_set_ids=EXCLUDED.rule_set_ids, favorite=EXCLUDED.favorite, updated_at=NOW()
+                rule_set_ids=EXCLUDED.rule_set_ids,
+                favorite=EXCLUDED.favorite,
+                instructions=COALESCE(EXCLUDED.instructions, agents.instructions),
+                updated_at=NOW()
             RETURNING id
           SQL
         )
@@ -856,102 +817,6 @@ module Savant
 
       # =========================
       # App CRUD: Workflows
-      # =========================
-      def create_workflow(name:, description: nil, graph: nil, favorite: false)
-        graph_json = graph.nil? ? nil : JSON.generate(graph)
-        res = exec_params(
-          <<~SQL, [name, description, graph_json, favorite]
-            INSERT INTO workflows(name, description, graph, favorite)
-            VALUES($1,$2,$3::jsonb,$4)
-            ON CONFLICT (name) DO NOTHING
-            RETURNING id
-          SQL
-        )
-        if res.ntuples.zero?
-          # already exists; fetch id
-          got = exec_params('SELECT id FROM workflows WHERE name=$1', [name])
-          got[0]['id'].to_i
-        else
-          res[0]['id'].to_i
-        end
-      end
-
-      def update_workflow(id:, description: nil, graph: nil, favorite: nil, run_count_delta: 0)
-        sets = []
-        params = []
-        idx = 1
-        unless description.nil?
-          sets << "description=$#{idx}"
-          params << description
-          idx += 1
-        end
-        unless graph.nil?
-          sets << "graph=$#{idx}::jsonb"
-          params << JSON.generate(graph)
-          idx += 1
-        end
-        unless favorite.nil?
-          sets << "favorite=$#{idx}"
-          params << (favorite ? true : false)
-          idx += 1
-        end
-        sets << "run_count=run_count + #{run_count_delta.to_i}" unless run_count_delta.to_i.zero?
-        sets << 'updated_at=NOW()'
-        params << id
-        sql = "UPDATE workflows SET #{sets.join(', ')} WHERE id=$#{idx}"
-        exec_params(sql, params)
-        true
-      end
-
-      def get_workflow(id)
-        res = exec_params('SELECT * FROM workflows WHERE id=$1', [id])
-        res.ntuples.positive? ? res[0] : nil
-      end
-
-      def find_workflow_by_name(name)
-        res = exec_params('SELECT * FROM workflows WHERE name=$1', [name])
-        res.ntuples.positive? ? res[0] : nil
-      end
-
-      def list_workflows
-        res = exec('SELECT * FROM workflows ORDER BY name ASC')
-        res.to_a
-      end
-
-      def add_workflow_step(workflow_id:, name:, step_type:, config: nil, position: nil)
-        cfg = config.nil? ? nil : JSON.generate(config)
-        res = exec_params(
-          <<~SQL, [workflow_id, name, step_type, cfg, position]
-            INSERT INTO workflow_steps(workflow_id, name, step_type, config, position)
-            VALUES($1,$2,$3,$4::jsonb,$5)
-            RETURNING id
-          SQL
-        )
-        res[0]['id'].to_i
-      end
-
-      def list_workflow_steps(workflow_id)
-        res = exec_params('SELECT * FROM workflow_steps WHERE workflow_id=$1 ORDER BY position NULLS LAST, id ASC', [workflow_id])
-        res.to_a
-      end
-
-      def record_workflow_run(workflow_id:, input:, output:, status:, duration_ms:, transcript: nil)
-        payload = transcript.nil? ? nil : JSON.generate(transcript)
-        res = exec_params(
-          <<~SQL, [workflow_id, input, output, status, duration_ms, payload]
-            INSERT INTO workflow_runs(workflow_id, input, output, status, duration_ms, transcript)
-            VALUES($1,$2,$3,$4,$5,$6)
-            RETURNING id
-          SQL
-        )
-        res[0]['id'].to_i
-      end
-
-      def list_workflow_runs(workflow_id, limit: 50)
-        res = exec_params('SELECT * FROM workflow_runs WHERE workflow_id=$1 ORDER BY id DESC LIMIT $2', [workflow_id, limit])
-        res.to_a
-      end
-
       private
 
       def project_root

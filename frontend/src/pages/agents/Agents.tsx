@@ -27,8 +27,9 @@ import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
 import CloseIcon from '@mui/icons-material/Close';
-import { agentRun, agentRunCancel, agentsDelete, agentRunDelete, agentRunsClearAll, getErrorMessage, useAgent, useAgents, useAgentRuns, getUserId, loadConfig } from '../../api';
+import { agentRun, agentRunCancel, agentsDelete, agentRunDelete, agentRunsClearAll, agentsUpdate, getErrorMessage, useAgent, useAgents, useAgentRuns, getUserId, loadConfig } from '../../api';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 
 const PANEL_HEIGHT = 'calc(100vh - 260px)';
 
@@ -47,6 +48,7 @@ export default function Agents() {
   const { data, isLoading, isError, error, refetch } = useAgents();
   const details = useAgent(sel);
   const runs = useAgentRuns(sel);
+  const [favoriteLoading, setFavoriteLoading] = useState<Record<string, boolean>>({});
   const agents = useMemo(() => {
     const list = data?.agents || [];
     const f = filter.toLowerCase();
@@ -102,6 +104,8 @@ export default function Agents() {
     setLiveRunning(cnt > 0);
   }, [sel, runningCounts]);
 
+  const queryClient = useQueryClient();
+
   return (
     <Grid container spacing={2}>
       <Grid xs={12} md={4}>
@@ -117,19 +121,60 @@ export default function Agents() {
           {isLoading && <LinearProgress />}
           {isError && <Alert severity="error">{getErrorMessage(error as any)}</Alert>}
           <TextField size="small" fullWidth placeholder="Search agents..." value={filter} onChange={(e) => setFilter(e.target.value)} sx={{ mb: 1 }} />
-          <List dense sx={{ flex: 1, overflowY: 'auto' }}>
-            {agents.map((a) => (
-              <ListItem key={a.name} disablePadding secondaryAction={
-                <Stack direction="row" spacing={1} alignItems="center">
-                  {runningMap[a.name] && (
-                    <Chip size="small" color="success" label={`running ${runningCounts[a.name] || 1}`} />
-                  )}
-                  <Chip size="small" label={`runs ${a.run_count || 0}`} />
-                  <IconButton size="small" color={a.favorite ? 'error' : 'default'}>
-                    {a.favorite ? <FavoriteIcon fontSize="small" /> : <FavoriteBorderIcon fontSize="small" />}
+            <List dense sx={{ flex: 1, overflowY: 'auto' }}>
+              {agents.map((a) => (
+                <ListItem key={a.name} disablePadding secondaryAction={
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    {runningMap[a.name] && (
+                      <Chip size="small" color="success" label={`running ${runningCounts[a.name] || 1}`} />
+                    )}
+                    <Chip size="small" label={`runs ${a.run_count || 0}`} />
+                  <IconButton
+                    size="small"
+                    color={a.favorite ? 'error' : 'default'}
+                    disabled={!!favoriteLoading[a.name]}
+                    onClick={async (ev) => {
+                      ev.stopPropagation();
+                      const nextValue = !a.favorite;
+                      setFavoriteLoading((prev) => ({ ...prev, [a.name]: true }));
+                      // Optimistically update cached lists/details for snappy UX
+                      const listKey = ['agents', 'list'] as const;
+                      const getKey = ['agents', 'get', a.name] as const;
+                      const prevList = queryClient.getQueryData(listKey);
+                      const prevGet = queryClient.getQueryData(getKey);
+                      try {
+                        // Update list cache
+                        queryClient.setQueryData(listKey, (old: any) => {
+                          if (!old || !old.agents) return old;
+                          return {
+                            ...old,
+                            agents: old.agents.map((it: any) => it.name === a.name ? { ...it, favorite: nextValue } : it)
+                          };
+                        });
+                        // Update details cache
+                        queryClient.setQueryData(getKey, (old: any) => old ? { ...old, favorite: nextValue } : old);
+                        await agentsUpdate({ name: a.name, favorite: nextValue });
+                        // Revalidate to ensure server truth
+                        await refetch();
+                        queryClient.invalidateQueries(listKey);
+                        queryClient.invalidateQueries(getKey);
+                      } catch (e) {
+                        // Roll back on error
+                        if (prevList) queryClient.setQueryData(listKey, prevList as any);
+                        if (prevGet) queryClient.setQueryData(getKey, prevGet as any);
+                      } finally {
+                        setFavoriteLoading((prev) => {
+                          const next = { ...prev };
+                          delete next[a.name];
+                          return next;
+                        });
+                      }
+                    }}
+                  >
+                    {favoriteLoading[a.name] ? <CircularProgress size={16} /> : (a.favorite ? <FavoriteIcon fontSize="small" /> : <FavoriteBorderIcon fontSize="small" />)}
                   </IconButton>
-                </Stack>
-              }>
+                  </Stack>
+                }>
                 <ListItemButton selected={sel === a.name} onClick={() => setSel(a.name)}>
                   <ListItemText primary={a.name} secondary={a.last_run_at ? `last ${new Date(a.last_run_at).toLocaleString()}` : 'never run'} />
                 </ListItemButton>

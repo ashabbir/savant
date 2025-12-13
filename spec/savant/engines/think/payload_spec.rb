@@ -20,7 +20,6 @@ RSpec.describe 'Savant Think payload handling' do
     File.write(File.join(workflows_dir, 'review_v1.yaml'), <<~YAML)
       name: review_v1
       version: "1.3"
-      driver_version: "stable-2025-11"
       steps:
         - id: lint
           call: context.search
@@ -49,28 +48,12 @@ RSpec.describe 'Savant Think payload handling' do
     require_relative '../../../../lib/savant/engines/think/tools'
     registrar = Savant::Think::Tools.build_registrar(nil)
 
-    # Plan -> driver bootstrap
     plan = registrar.call('think_plan', { 'workflow' => 'review_v1', 'params' => {}, 'run_id' => 'test-run', 'start_fresh' => true }, ctx: {})
-    expect(plan[:instruction][:step_id]).to eq('__driver_bootstrap')
+    expect(plan[:instruction][:step_id]).to eq('lint')
 
-    # Advance driver steps
-    registrar.call('think_next', {
-                     'workflow' => 'review_v1', 'run_id' => 'test-run',
-                     'step_id' => '__driver_bootstrap',
-                     'result_snapshot' => { 'version' => 'stable-2025-11', 'prompt_md' => '...' }
-                   }, ctx: {})
-    nxt2 = registrar.call('think_next', {
-                            'workflow' => 'review_v1', 'run_id' => 'test-run',
-                            'step_id' => '__driver_announce',
-                            'result_snapshot' => { 'ok' => true }
-                          }, ctx: {})
-    expect(nxt2[:instruction][:step_id]).to eq('lint')
-
-    # Build a non-UTF8 snapshot (binary string with invalid bytes)
     bad = "abc\xFF\xFExyz".dup.force_encoding('ASCII-8BIT')
     snapshot = { 'text' => bad, 'list' => [bad] }
 
-    # Submit snapshot; engine should sanitize and persist
     registrar.call('think_next', {
                      'workflow' => 'review_v1', 'run_id' => 'test-run',
                      'step_id' => 'lint',
@@ -81,7 +64,6 @@ RSpec.describe 'Savant Think payload handling' do
     expect(File).to exist(state_path)
     data = JSON.parse(File.read(state_path))
     val = data.dig('vars', 'lint_result')
-    # Invalid bytes should be replaced; strings should be valid UTF-8 in JSON
     expect(val['text'].encoding.name).to eq('UTF-8')
   end
 
@@ -100,9 +82,7 @@ RSpec.describe 'Savant Think payload handling' do
     registrar = Savant::Think::Tools.build_registrar(nil)
 
     plan = registrar.call('think_plan', { 'workflow' => 'review_v1', 'params' => {}, 'run_id' => 'test-run', 'start_fresh' => true }, ctx: {})
-    expect(plan[:instruction][:step_id]).to eq('__driver_bootstrap')
-    registrar.call('think_next', { 'workflow' => 'review_v1', 'run_id' => 'test-run', 'step_id' => '__driver_bootstrap', 'result_snapshot' => { 'version' => 'v', 'prompt_md' => '...' } }, ctx: {})
-    registrar.call('think_next', { 'workflow' => 'review_v1', 'run_id' => 'test-run', 'step_id' => '__driver_announce', 'result_snapshot' => { 'ok' => true } }, ctx: {})
+    expect(plan[:instruction][:step_id]).to eq('lint')
 
     big = 'X' * 10_000
     registrar.call('think_next', { 'workflow' => 'review_v1', 'run_id' => 'test-run', 'step_id' => 'lint', 'result_snapshot' => { 'big' => big } }, ctx: {})
