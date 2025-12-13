@@ -5,6 +5,10 @@ require 'English'
 require 'json'
 require 'yaml'
 require 'fileutils'
+begin
+  require 'mongo'
+rescue LoadError
+end
 require_relative '../../version'
 require_relative 'executor'
 require_relative 'loader'
@@ -18,6 +22,7 @@ module Savant
         @runs_dir = File.join(@base_path, '.savant', 'workflow_runs')
         FileUtils.mkdir_p(@runs_dir)
         @logger = logger || default_logger
+        @mongo_client = init_mongo
       end
 
       def server_info
@@ -50,11 +55,31 @@ module Savant
         run_id = generate_run_id(workflow)
         result, trace = Executor.new(base_path: @base_path, logger: @logger).run(spec: spec, params: params || {}, run_id: run_id)
         persist_state(workflow: workflow, run_id: run_id, state: trace)
+        persist_state_mongo(workflow: workflow, run_id: run_id, state: trace)
         { run_id: run_id, final: result, steps: trace[:steps], status: trace[:status], error: trace[:error] }
       end
 
       # List saved runs
       def runs_list
+        # Try Mongo first
+        if (col = workflow_runs_col)
+          begin
+            docs = col.find({}).sort({ updated_at: -1 }).limit(500).to_a
+            rows = docs.map do |d|
+              {
+                workflow: d['workflow'] || d[:workflow],
+                run_id: d['run_id'] || d[:run_id],
+                steps: Array(d['steps'] || d[:steps]).size,
+                status: d['status'] || d[:status] || 'unknown',
+                updated_at: (d['updated_at'] || d[:updated_at]).is_a?(Time) ? (d['updated_at'] || d[:updated_at]).iso8601 : d['updated_at'] || d[:updated_at]
+              }
+            end
+            return { runs: rows }
+          rescue StandardError
+            # fallback to filesystem
+          end
+        end
+
         rows = []
         Dir.children(@runs_dir).select { |f| f.end_with?('.json') }.each do |fn|
           path = File.join(@runs_dir, fn)
@@ -76,6 +101,16 @@ module Savant
       end
 
       def run_read(workflow:, run_id:)
+        if (col = workflow_runs_col)
+          begin
+            d = col.find({ workflow: workflow, run_id: run_id }).limit(1).first
+            if d
+              state = d['state'] || d[:state]
+              return { state: state.is_a?(Hash) ? state : JSON.parse(state.to_s) }
+            end
+          rescue StandardError
+          end
+        end
         path = File.join(@runs_dir, "#{workflow}__#{run_id}.json")
         raise 'RUN_NOT_FOUND' unless File.file?(path)
 
@@ -83,13 +118,20 @@ module Savant
       end
 
       def run_delete(workflow:, run_id:)
+        deleted = false
+        if (col = workflow_runs_col)
+          begin
+            res = col.delete_many({ workflow: workflow, run_id: run_id })
+            deleted ||= res.deleted_count.to_i > 0
+          rescue StandardError
+          end
+        end
         path = File.join(@runs_dir, "#{workflow}__#{run_id}.json")
         if File.exist?(path)
           FileUtils.rm_f(path)
-          { ok: true, deleted: true }
-        else
-          { ok: true, deleted: false }
+          deleted = true
         end
+        { ok: true, deleted: deleted }
       end
 
       private
@@ -102,6 +144,23 @@ module Savant
       rescue StandardError
         # best-effort persistence only
         nil
+      end
+
+      def persist_state_mongo(workflow:, run_id:, state:)
+        return unless (col = workflow_runs_col)
+        doc = {
+          workflow: workflow,
+          run_id: run_id,
+          steps: state[:steps] || state['steps'] || [],
+          status: state[:status] || state['status'] || 'unknown',
+          updated_at: Time.now.utc,
+          state: state
+        }
+        begin
+          col.insert_one(doc)
+        rescue StandardError
+          # ignore
+        end
       end
 
       def generate_run_id(workflow)
@@ -120,6 +179,29 @@ module Savant
       def default_logger
         require_relative '../../logging/logger'
         Savant::Logging::Logger.new(io: $stdout, file_path: File.join(@base_path, 'logs', 'workflow_engine.log'), json: true, service: 'workflow')
+      end
+
+      def init_mongo
+        return nil unless defined?(Mongo)
+        begin
+          uri = ENV.fetch('MONGO_URI', "mongodb://#{mongo_host}/#{mongo_db_name}")
+          Mongo::Client.new(uri, server_selection_timeout: 2, connect_timeout: 2, socket_timeout: 5)
+        rescue StandardError
+          nil
+        end
+      end
+
+      def workflow_runs_col
+        @mongo_client ? @mongo_client[:workflow_runs] : nil
+      end
+
+      def mongo_host
+        ENV.fetch('MONGO_HOST', 'localhost:27017')
+      end
+
+      def mongo_db_name
+        env = ENV.fetch('SAVANT_ENV', ENV.fetch('RACK_ENV', ENV.fetch('RAILS_ENV', 'development')))
+        env == 'test' ? 'savant_test' : 'savant_development'
       end
     end
   end
