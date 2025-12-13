@@ -8,8 +8,6 @@ import Button from '@mui/material/Button';
 import Alert from '@mui/material/Alert';
 import LinearProgress from '@mui/material/LinearProgress';
 import Autocomplete from '@mui/material/Autocomplete';
-import Divider from '@mui/material/Divider';
-import Tooltip from '@mui/material/Tooltip';
 import Stack from '@mui/material/Stack';
 import { agentsCreate, getErrorMessage, usePersonas, useRules, useDrivers } from '../../api';
 import { useNavigate } from 'react-router-dom';
@@ -25,6 +23,7 @@ export default function AgentWizard() {
   const [name, setName] = useState('');
   const [persona, setPersona] = useState<string | null>(null);
   const [driver, setDriver] = useState<string | null>(null);
+  const [instructions, setInstructions] = useState<string>('');
   const [selRules, setSelRules] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -32,14 +31,12 @@ export default function AgentWizard() {
   async function create() {
     setBusy(true); setError(null);
     try {
-      await agentsCreate({ name, persona: persona || '', driver: driver || '', rules: selRules });
+      await agentsCreate({ name, persona: persona || '', driver: driver || '', rules: selRules, instructions: instructions || undefined });
       nav('/agents');
     } catch (e:any) {
       setError(getErrorMessage(e));
     } finally { setBusy(false); }
   }
-
-  function insertSearchDriver() {}
 
   return (
     <Grid container spacing={2}>
@@ -64,6 +61,15 @@ export default function AgentWizard() {
               onChange={(_, v)=>setDriver(v)}
               renderInput={(params)=>(<TextField {...params} label="Driver" />)}
             />
+            <TextField
+              label="Instructions"
+              value={instructions}
+              onChange={(e)=>setInstructions(e.target.value)}
+              fullWidth
+              multiline
+              minRows={4}
+              placeholder="Describe what the agent should do, steps, guardrails, and success criteria."
+            />
             <Autocomplete
               multiple
               options={ruleOptions}
@@ -72,15 +78,7 @@ export default function AgentWizard() {
               onChange={(_, v)=>setSelRules(v)}
               renderInput={(params)=>(<TextField {...params} label="Rules" />)}
             />
-            <Divider />
-            <Typography variant="subtitle2">Action Helpers</Typography>
-            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-              <Tooltip title="Insert a sensible search + memory + summary driver template">
-                <span>
-                  <Button size="small" variant="outlined" onClick={insertSearchDriver}>Insert Search Driver</Button>
-                </span>
-              </Tooltip>
-            </Stack>
+            
             <Box>
               <Button variant="contained" disabled={!name || !persona || !driver || busy} onClick={create}>Save Agent</Button>
               <Button sx={{ ml: 1 }} onClick={() => nav('/agents')}>Cancel</Button>

@@ -3,6 +3,9 @@ require "active_support/core_ext/integer/time"
 Rails.application.configure do
   # Settings specified here will take precedence over those in config/application.rb.
 
+  # Ensure file-based logs (if used) would reside under server/logs
+  config.paths["log"] = Rails.root.join("logs", "production.log")
+
   # Code is not reloaded between requests.
   config.enable_reloading = false
 

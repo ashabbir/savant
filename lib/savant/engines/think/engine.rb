@@ -13,15 +13,17 @@ module Savant
   module Think
     # Minimal deterministic orchestration engine for Think MCP tools.
     # Implements:
-    # - driver_prompt(version:)
     # - plan(workflow:, params:)
     # - next(workflow:, step_id:, result_snapshot:)
     # - workflows_list(filter:)
     # - workflows_read(workflow:)
-    # - prompts_list
     # - limits
     # - runs_list / run_read / run_delete
     # - workflows_graph
+    #
+    # NOTE: Driver prompts have moved to the Drivers engine (drivers_get, drivers_list).
+    # Workflows should explicitly include a step that calls drivers_get if they need
+    # a driver prompt. The Think engine no longer auto-injects driver bootstrap steps.
     # rubocop:disable Metrics/ClassLength
     class Engine
       def initialize(env: ENV, db: nil)
@@ -30,139 +32,6 @@ module Savant
         @root = File.join(@base, 'lib', 'savant', 'engines', 'think')
         @limits = load_think_limits
         @db = db || Savant::Framework::DB.new
-      end
-
-      # Return prompt markdown for a version from prompts.yml
-      # @return [Hash] { version:, hash:, prompt_md: }
-      def driver_prompt(version: nil)
-        reg_path = File.join(@root, 'prompts.yml')
-        data = safe_yaml(read_text_utf8(reg_path))
-        versions = data['versions'] || {}
-        ver = version && versions[version] ? version : versions.keys.last
-        raise 'PROMPT_NOT_FOUND' unless ver && versions[ver]
-
-        path = versions[ver]
-        # Resolve relative to lib/savant/think/
-        p_path = File.join(@root, path)
-        md = read_text_utf8(p_path)
-        { version: ver, hash: "sha256:#{Digest::SHA256.hexdigest(md)}", prompt_md: md }
-      end
-
-      # List available prompt versions from prompts.yml
-      # @return [Hash] { versions: [ { version:, path: } ] }
-      def prompts_list
-        reg_path = File.join(@root, 'prompts.yml')
-        data = safe_yaml(read_text_utf8(reg_path))
-        versions = data['versions'] || {}
-        rows = versions.map { |ver, path| { version: ver, path: path } }
-        { versions: rows }
-      end
-
-      # Read/write full prompts.yml
-      def prompts_catalog_read
-        path = File.join(@root, 'prompts.yml')
-        raise 'CATALOG_NOT_FOUND' unless File.file?(path)
-
-        { catalog_yaml: read_text_utf8(path) }
-      end
-
-      def prompts_catalog_write(yaml:)
-        path = File.join(@root, 'prompts.yml')
-        data = YAML.safe_load(yaml.to_s) || {}
-        raise 'INVALID_CATALOG' unless data.is_a?(Hash)
-
-        versions = data['versions'] || {}
-        raise 'INVALID_CATALOG: versions must be mapping' unless versions.is_a?(Hash)
-
-        # basic sanity: ensure referenced files are under prompts/
-        versions.each_value do |v|
-          next if v.is_a?(String) && v.start_with?('prompts/')
-
-          raise 'INVALID_CATALOG: each version path must be under prompts/'
-        end
-        File.write(path, YAML.dump({ 'versions' => versions }))
-        { ok: true, count: versions.size }
-      rescue Psych::SyntaxError => e
-        raise "INVALID_CATALOG: #{e.message}"
-      end
-
-      # CRUD for individual prompt versions
-      # Create a new version: writes markdown file and updates registry
-      def prompts_create(version:, prompt_md:, path: nil)
-        ver = normalize_version_key(version)
-        raise 'INVALID_VERSION' if ver.empty?
-
-        reg_path = File.join(@root, 'prompts.yml')
-        reg = safe_yaml(read_text_utf8(reg_path))
-        reg['versions'] ||= {}
-        raise 'ALREADY_EXISTS' if reg['versions'].key?(ver)
-
-        rel = if path && !path.to_s.strip.empty?
-                path.to_s.strip
-              else
-                # derive filename from version key
-                slug = ver.gsub(/[^A-Za-z0-9_.-]/, '_')
-                "prompts/#{slug}.md"
-              end
-        raise 'INVALID_PATH' unless rel.start_with?('prompts/') && rel.end_with?('.md')
-
-        abs = File.join(@root, rel)
-        FileUtils.mkdir_p(File.dirname(abs))
-        File.write(abs, prompt_md.to_s)
-        reg['versions'][ver] = rel
-        File.write(reg_path, YAML.dump(reg))
-        { ok: true, version: ver, path: rel }
-      end
-
-      # Update an existing version's markdown; optionally rename the version key
-      def prompts_update(version:, prompt_md: nil, new_version: nil)
-        ver = normalize_version_key(version)
-        raise 'INVALID_VERSION' if ver.empty?
-
-        reg_path = File.join(@root, 'prompts.yml')
-        reg = safe_yaml(read_text_utf8(reg_path))
-        reg['versions'] ||= {}
-        raise 'NOT_FOUND' unless reg['versions'].key?(ver)
-
-        rel = reg['versions'][ver]
-        abs = File.join(@root, rel)
-        if prompt_md
-          raise 'MISSING_FILE' unless File.file?(abs)
-
-          File.write(abs, prompt_md.to_s)
-        end
-        if new_version && !new_version.to_s.strip.empty? && new_version.to_s != ver
-          new_ver = normalize_version_key(new_version)
-          raise 'ALREADY_EXISTS' if reg['versions'].key?(new_ver)
-
-          reg['versions'].delete(ver)
-          reg['versions'][new_ver] = rel
-          File.write(reg_path, YAML.dump(reg))
-          { ok: true, version: new_ver, path: rel }
-        else
-          File.write(reg_path, YAML.dump(reg))
-          { ok: true, version: ver, path: rel }
-        end
-      end
-
-      # Delete a version mapping and its underlying file (best-effort)
-      def prompts_delete(version:)
-        ver = normalize_version_key(version)
-        raise 'INVALID_VERSION' if ver.empty?
-
-        reg_path = File.join(@root, 'prompts.yml')
-        reg = safe_yaml(read_text_utf8(reg_path))
-        reg['versions'] ||= {}
-        rel = reg['versions'][ver]
-        deleted = false
-        if rel
-          abs = File.join(@root, rel)
-          FileUtils.rm_f(abs)
-          deleted = true
-        end
-        reg['versions'].delete(ver)
-        File.write(reg_path, YAML.dump(reg))
-        { ok: true, deleted: deleted }
       end
 
       # Return current limits/configuration
@@ -242,8 +111,6 @@ module Savant
           workflow_id: id,
           name: h['name'],
           description: h['description'],
-          driver_version: h['driver_version'],
-          rules: h['rules'],
           version: h['version'],
           steps: h['steps']
         )
@@ -267,8 +134,6 @@ module Savant
           workflow_id: id,
           name: h['name'],
           description: h['description'],
-          driver_version: h['driver_version'],
-          rules: h['rules'],
           version: h['version'],
           steps: h['steps']
         )
@@ -291,8 +156,6 @@ module Savant
           workflow_id: id,
           name: h['name'],
           description: h['description'],
-          driver_version: h['driver_version'],
-          rules: h['rules'],
           version: (h['version'] || existing['version'].to_i + 1).to_i,
           steps: h['steps']
         )
@@ -327,11 +190,11 @@ module Savant
       # @param run_id [String, nil] optional explicit run identifier
       # @param start_fresh [Boolean] when true, remove any prior state for this run_id
       # @return [Hash] { instruction:, state:, done: false, run_id: }
+      #
+      # NOTE: Driver bootstrap is no longer auto-injected. Workflows should explicitly
+      # include a step that calls drivers_get if they need a driver prompt.
       def plan(workflow:, params: {}, run_id: nil, start_fresh: true)
         wf = load_workflow(workflow)
-        # Auto-inject driver bootstrap/announce if not present
-        drv_ver = wf['driver_version'] || 'stable-2025-11'
-        wf = inject_driver_step(wf, drv_ver) unless driver_step?(wf)
         graph = build_graph(wf)
         order = topo_order(graph)
         raise 'EMPTY_WORKFLOW' if order.empty?
@@ -384,18 +247,15 @@ module Savant
       end
 
       # List workflows from database
-      # @return [Hash] { workflows: [ { id:, version:, desc: } ] }
+      # @return [Hash] { workflows: [ { id:, version:, desc:, name: } ] }
       def workflows_list(filter: nil)
         rows = @db.list_think_workflows(filter: filter)
         workflows = rows.map do |row|
-          rules = parse_pg_array(row['rules'])
           {
             id: row['workflow_id'],
             version: (row['version'] || 1).to_s,
             desc: row['description'] || '',
-            name: (row['name'] || row['workflow_id']).to_s,
-            driver_version: (row['driver_version'] || 'stable').to_s,
-            rules: rules
+            name: (row['name'] || row['workflow_id']).to_s
           }
         end
         { workflows: workflows }
@@ -411,8 +271,6 @@ module Savant
           'id' => row['workflow_id'],
           'name' => row['name'],
           'description' => row['description'],
-          'driver_version' => row['driver_version'],
-          'rules' => parse_pg_array(row['rules']),
           'version' => row['version'].to_i,
           'steps' => row['steps']
         }
@@ -424,7 +282,7 @@ module Savant
         {
           name: 'savant-think',
           version: Savant::VERSION,
-          description: 'Think MCP: plan/next/driver_prompt/workflows/* — Hint: call think_workflows_list to discover workflows, then use think_plan to start a run.'
+          description: 'Think MCP: workflow orchestration via plan/next/workflows/*. Call think_workflows_list to discover workflows, then use think_plan to start a run. For driver prompts, use the Drivers engine (drivers_get, drivers_list).'
         }
       end
 
@@ -497,13 +355,11 @@ module Savant
           raise 'YAML_SCHEMA_VIOLATION: call required' unless s_call.is_a?(String) && !s_call.empty?
         end
 
-        # Return hash compatible with old YAML structure
+        # Return hash compatible with workflow structure
         {
           'id' => row['workflow_id'],
           'name' => row['name'],
           'description' => row['description'],
-          'driver_version' => row['driver_version'] || 'stable',
-          'rules' => parse_pg_array(row['rules']),
           'version' => row['version'].to_i,
           'steps' => steps
         }
@@ -536,38 +392,6 @@ module Savant
         s.gsub(/[^A-Za-z0-9_.-]/, '_')
       end
 
-      def inject_driver_step(workflow_hash, version)
-        driver_step = {
-          'id' => '__driver_bootstrap',
-          'call' => 'think_driver_prompt',
-          'deps' => [],
-          'input_template' => { 'version' => version },
-          'capture_as' => '__driver'
-        }
-
-        announce_step = {
-          'id' => '__driver_announce',
-          'call' => 'prompt_say',
-          'deps' => ['__driver_bootstrap'],
-          'input_template' => {
-            'text' => "📓 Think Driver: {{__driver.version}}\n\n{{__driver.prompt_md}}\n\n---\nFollow the driver for orchestration & payload discipline."
-          }
-        }
-
-        original = workflow_hash['steps'] || []
-        first_ids = original.select { |s| (s['deps'] || []).empty? }.map { |s| s['id'] }
-        original.each do |s|
-          s['deps'] = Array(s['deps'])
-          s['deps'] << '__driver_announce' if first_ids.include?(s['id'])
-        end
-        workflow_hash['steps'] = [driver_step, announce_step] + original
-        workflow_hash
-      end
-
-      def driver_step?(workflow_hash)
-        (workflow_hash['steps'] || []).any? { |s| s['call'] == 'think_driver_prompt' }
-      end
-
       # Build adjacency list graph id => deps
       def build_graph(workflow_hash)
         g = {}
@@ -578,17 +402,6 @@ module Savant
           g[s['id']] = deps.select { |d| ids.include?(d) }
         end
         g
-      end
-
-      def parse_pg_array(val)
-        return [] if val.nil?
-        return val if val.is_a?(Array)
-
-        # PG returns text[] as "{a,b,c}" string
-        if val.is_a?(String) && val.start_with?('{') && val.end_with?('}')
-          return val[1..-2].split(',').map(&:strip).reject(&:empty?)
-        end
-        []
       end
 
       # Build workflow hash from graph (for DB storage)
@@ -611,11 +424,8 @@ module Savant
 
         desc = graph['description'] || graph[:description]
         desc = desc.to_s if desc
-        drv = graph['driver_version'] || graph[:driver_version]
-        drv = drv.to_s unless drv.nil?
         name = graph['name'] || graph[:name]
         name = name.to_s unless name.nil?
-        rules = Array(graph['rules'] || graph[:rules]).map(&:to_s).reject(&:empty?)
         version = graph['version'] || graph[:version]
         version = version.to_i if version
         version = 1 if version.nil? || version <= 0
@@ -634,8 +444,6 @@ module Savant
           'id' => id,
           'name' => name || id,
           'description' => desc || '',
-          'driver_version' => drv || 'stable',
-          'rules' => rules,
           'version' => version,
           'steps' => steps
         }
@@ -887,10 +695,6 @@ module Savant
         return nil if s.empty?
 
         s.gsub(/[^A-Za-z0-9_.-]/, '_')
-      end
-
-      def normalize_version_key(v)
-        v.to_s.strip
       end
     end
     # rubocop:enable Metrics/ClassLength

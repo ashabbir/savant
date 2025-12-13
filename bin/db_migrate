@@ -1,9 +1,75 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
+require 'pg'
 require_relative '../lib/savant/framework/db'
 
+def env_flag(name, default = nil)
+  v = ENV[name]
+  (v && !v.to_s.empty?) ? v : default
+end
+
+def resolve_env
+  env_flag('DB_ENV', env_flag('RAILS_ENV', env_flag('RACK_ENV', 'development'))).to_s
+end
+
+def db_name_for_env(env)
+  env.to_s == 'test' ? 'savant_test' : 'savant_development'
+end
+
+def pg_conn_params(env)
+  params = { dbname: db_name_for_env(env) }
+  params[:host] = ENV['PGHOST'] if ENV['PGHOST'] && !ENV['PGHOST'].empty?
+  params[:port] = (ENV['PGPORT'] || 5432).to_i
+  params[:user] = ENV['PGUSER'] if ENV['PGUSER'] && !ENV['PGUSER'].empty?
+  params[:password] = ENV['PGPASSWORD'] if ENV['PGPASSWORD'] && !ENV['PGPASSWORD'].empty?
+  params
+end
+
+def schema_versions(env)
+  conn = PG.connect(pg_conn_params(env))
+  rows = conn.exec('SELECT version FROM schema_migrations ORDER BY version').map { |r| r['version'] }
+  conn.close
+  rows
+rescue PG::Error => e
+  warn "DB ERROR: #{e.message}"
+  []
+end
+
+def rails_migration_files
+  @rails_migration_files ||= begin
+    rails_root = File.expand_path('../server', __dir__)
+    Dir.glob(File.join(rails_root, 'db', 'migrate', '*.rb')).each_with_object({}) do |path, map|
+      filename = File.basename(path)
+      version, name = filename.split('_', 2)
+      map[version] = "#{version} #{name.to_s.sub(/\.rb$/, '').tr('_', ' ')}"
+    end
+  end
+end
+
+def run_rails_migrations(env)
+  before = schema_versions(env)
+  rails_root = File.expand_path('../server', __dir__)
+  bundle = File.join(ENV['HOME'] || File.expand_path('~'), '.rbenv/shims/bundle')
+  rubyopt = 'RUBYOPT=-W0'
+  cmd = "#{rubyopt} #{bundle} exec rails db:migrate RAILS_ENV=#{env}"
+  puts "Running Rails migrations for #{env}..."
+  Dir.chdir(rails_root) do
+    success = system(cmd)
+    raise "Rails migrations failed for #{env}" unless success
+  end
+  after = schema_versions(env)
+  new_versions = after - before
+  if new_versions.empty?
+    puts "Rails migrations already up to date for #{env}."
+  else
+    names = new_versions.map { |v| rails_migration_files[v] || v }
+    puts "Rails migrations applied for #{env}: #{names.join(', ')}"
+  end
+end
+
 begin
+  db_env = resolve_env
   db = Savant::Framework::DB.new
   if ENV['SAVANT_DESTRUCTIVE'] == '1'
     warn 'WARNING: destructive migration — dropping and recreating all tables'
@@ -11,8 +77,7 @@ begin
     db.ensure_fts
     puts 'DB RESET COMPLETE (tables + FTS ready)'
   else
-    applied = db.apply_migrations
-    puts "DB MIGRATIONS APPLIED: #{applied.length} (#{applied.join(', ')})"
+    run_rails_migrations(db_env)
   end
   exit 0
 rescue StandardError => e
