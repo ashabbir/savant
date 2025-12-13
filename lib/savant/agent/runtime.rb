@@ -17,6 +17,8 @@ module Savant
     class Runtime
       DEFAULT_MAX_STEPS = (ENV['AGENT_MAX_STEPS'] || '25').to_i
 
+      attr_accessor :agent_instructions
+
       def initialize(goal:, slm_model: nil, llm_model: nil, logger: nil, base_path: nil, forced_tool: nil, forced_args: nil, forced_finish: false, forced_final: nil, cancel_key: nil)
         @goal = goal.to_s
         @context = Savant::Framework::Runtime.current
@@ -39,6 +41,7 @@ module Savant
         @forced_finish = !!forced_finish
         @forced_final = forced_final&.to_s
         @cancel_key = cancel_key
+        @agent_instructions = nil
       end
 
       def run(max_steps: @max_steps, dry_run: false)
@@ -119,7 +122,7 @@ module Savant
 
             "- #{n} — #{d}"
           end.compact
-          prompt = @prompt_builder.build(goal: @goal, memory: @memory.data, last_output: @last_output, tools_hint: tools_hint, tools_catalog: catalog)
+          prompt = @prompt_builder.build(goal: @goal, memory: @memory.data, last_output: @last_output, tools_hint: tools_hint, tools_catalog: catalog, agent_instructions: @agent_instructions)
           begin
             ps = { type: 'prompt_snapshot', mcp: 'agent', run: @run_id, step: steps, length: prompt.length, hash: Digest::SHA256.hexdigest(prompt)[0, 16], text: prompt[0, 1500], ts: Time.now.utc.iso8601, timestamp: Time.now.to_i }
             @trace.record(ps)

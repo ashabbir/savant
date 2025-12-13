@@ -23,7 +23,9 @@ module Savant
         @mounts = mounts # { 'engine_name' => ServiceManager-like }
         @transport = transport
         @sse = SSE.new(heartbeat_interval: heartbeat_interval)
-        @logs_dir = logs_dir || ENV['SAVANT_LOG_PATH'] || '/tmp/savant'
+        # Prefer explicit logs_dir, then env SAVANT_LOG_PATH, otherwise default to repo logs/
+        env_logs = ENV['SAVANT_LOG_PATH']
+        @logs_dir = logs_dir || (env_logs && !env_logs.empty? ? env_logs : File.join(base_path, 'logs'))
         @hub_logger = init_hub_logger
         @recorder = Savant::Logging::EventRecorder.global
         @connections = Savant::Hub::Connections.global
@@ -662,7 +664,7 @@ module Savant
               r3 = conn.exec('SELECT COUNT(*) AS c FROM chunks')
               db[:counts] = { repos: r1[0]['c'].to_i, files: r2[0]['c'].to_i, chunks: r3[0]['c'].to_i }
               # Detailed per-table stats
-              tables = %w[repos files blobs file_blob_map chunks personas rulesets agents agent_runs workflows workflow_steps workflow_runs]
+              tables = %w[repos files blobs file_blob_map chunks personas rulesets agents agent_runs]
               details = []
               tables.each do |t|
                 # Column presence
@@ -753,6 +755,9 @@ module Savant
       end
 
       def cors_headers
+        # Skip CORS headers if rack-cors is handling it (e.g., under Rails)
+        return {} if defined?(Rack::Cors)
+
         allow_origin = ENV['SAVANT_CORS_ORIGIN'] || '*'
         {
           'Access-Control-Allow-Origin' => allow_origin,

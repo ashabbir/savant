@@ -29,15 +29,15 @@ module Savant
         to_agent_hash(row)
       end
 
-      def create(name:, persona:, driver:, rules: [], favorite: false)
+      def create(name:, persona:, driver:, rules: [], favorite: false, instructions: nil)
         persona_id = ensure_persona(name: persona)
         rule_ids = ensure_rules(rules)
-        id = @db.create_agent(name: name, persona_id: persona_id, driver_name: driver, rule_set_ids: rule_ids, favorite: favorite)
+        id = @db.create_agent(name: name, persona_id: persona_id, driver_name: driver, rule_set_ids: rule_ids, favorite: favorite, instructions: instructions)
         row = @db.get_agent(id)
         to_agent_hash(row)
       end
 
-      def update(name:, persona: nil, driver: nil, rules: nil, favorite: nil)
+      def update(name:, persona: nil, driver: nil, rules: nil, favorite: nil, instructions: nil)
         row = @db.find_agent_by_name(name)
         raise 'not_found' unless row
 
@@ -47,13 +47,25 @@ module Savant
         rule_ids = ensure_rules(rules) if rules.is_a?(Array)
 
         # Build update via create_agent upsert semantics
+        fav = if favorite.nil?
+          ['t', true].include?(row['favorite'])
+        else
+          # Coerce to strict boolean to avoid truthiness surprises
+          [true, 'true', '1', 't', 'yes', 'y'].include?(favorite)
+        end
+        begin
+          log = Savant::Logging::Logger.new(io: $stdout, json: true, service: 'agents')
+          log.info(event: 'agents.update', name: name, favorite_in: favorite, favorite_old: row['favorite'], favorite_final: fav)
+        rescue StandardError
+        end
         id = @db.create_agent(
           name: name,
           persona_id: persona_id,
           driver_prompt: row['driver_prompt'],
           driver_name: driver.nil? ? row['driver_name'] : driver,
           rule_set_ids: rule_ids || parse_int_array(row['rule_set_ids']),
-          favorite: favorite.nil? ? ['t', true].include?(row['favorite']) : !favorite.nil?
+          favorite: fav,
+          instructions: instructions.nil? ? row['instructions'] : instructions
         )
         got = @db.get_agent(id)
         to_agent_hash(got)
@@ -114,6 +126,12 @@ module Savant
         forced_final = dry_run ? 'Dry run complete.' : nil
         rt = Savant::Agent::Runtime.new(goal: input.to_s, base_path: @base_path, cancel_key: cancel_key,
                                         forced_finish: forced_finish, forced_final: forced_final)
+        # Pass through any saved agent-specific instructions into the runtime prompt
+        begin
+          rt.agent_instructions = agent['instructions']
+        rescue StandardError
+          rt.agent_instructions = nil
+        end
         begin
           Savant::Logging::EventRecorder.global.record({ type: 'agent_run_started', mcp: 'agent', agent: name, goal: input.to_s, ts: Time.now.utc.iso8601, timestamp: Time.now.to_i })
         rescue StandardError
@@ -332,6 +350,7 @@ module Savant
           persona_id: row['persona_id']&.to_i,
           persona_name: persona_name,
           driver: row['driver_name'] && !row['driver_name'].to_s.empty? ? row['driver_name'] : row['driver_prompt'],
+          instructions: row['instructions'],
           rule_set_ids: rule_ids,
           rules_names: rules_names,
           favorite: ['t', true].include?(row['favorite']),

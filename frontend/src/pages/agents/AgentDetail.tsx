@@ -8,8 +8,6 @@ import Button from '@mui/material/Button';
 import Alert from '@mui/material/Alert';
 import LinearProgress from '@mui/material/LinearProgress';
 import Autocomplete from '@mui/material/Autocomplete';
-import Divider from '@mui/material/Divider';
-import Tooltip from '@mui/material/Tooltip';
 import Stack from '@mui/material/Stack';
 import { agentsUpdate, getErrorMessage, useAgent, useDrivers, usePersonas, useRules } from '../../api';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -27,6 +25,7 @@ export default function AgentDetail() {
   const driverOptions = useMemo(() => (drivers.data?.drivers || []).map(d => d.name), [drivers.data]);
   const [persona, setPersona] = useState<string | null>(null);
   const [driver, setDriver] = useState('');
+  const [instructions, setInstructions] = useState('');
   const [selRules, setSelRules] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -35,6 +34,7 @@ export default function AgentDetail() {
     const a = agent.data as any;
     if (!a) return;
     setDriver(a.driver || '');
+    setInstructions((a.instructions as string) || '');
     if (typeof a.persona_name === 'string' && a.persona_name.length > 0) setPersona(a.persona_name);
     if (Array.isArray(a.rules_names) && a.rules_names.length > 0) setSelRules(a.rules_names);
   }, [agent.data]);
@@ -54,7 +54,7 @@ export default function AgentDetail() {
     if (!name) return;
     setSaving(true); setErr(null);
     try {
-      await agentsUpdate({ name, persona: persona || undefined, driver, rules: selRules.length ? selRules : undefined });
+      await agentsUpdate({ name, persona: persona || undefined, driver, rules: selRules.length ? selRules : undefined, instructions: instructions || undefined });
       await agent.refetch();
       nav('/agents');
     } catch (e:any) { setErr(getErrorMessage(e)); } finally { setSaving(false); }
@@ -82,6 +82,15 @@ export default function AgentDetail() {
               onChange={(_, v)=>setDriver(v)}
               renderInput={(params)=>(<TextField {...params} label="Driver" />)}
             />
+            <TextField
+              label="Instructions"
+              value={instructions}
+              onChange={(e)=>setInstructions(e.target.value)}
+              fullWidth
+              multiline
+              minRows={4}
+              placeholder="Describe what the agent should do, steps, guardrails, and success criteria."
+            />
             <Autocomplete
               multiple
               options={ruleOptions}
@@ -90,19 +99,7 @@ export default function AgentDetail() {
               onChange={(_, v)=>setSelRules(v)}
               renderInput={(params)=>(<TextField {...params} label="Rules" />)}
             />
-            <Divider />
-            <Typography variant="subtitle2">Action Helpers</Typography>
-            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
-              <Tooltip title="Insert a sensible search + memory + summary driver template">
-                <span>
-                  <Button size="small" variant="outlined" onClick={() => {
-                    const tmpl = `Objective: Given the Goal (run input), search local indexed repos and memory bank, then produce a concise, accurate summary.\n\nRequired steps:\n1) action=tool, tool_name=context.fts_search, args={"q": Goal, "repo": null, "limit": 10}\n2) action=tool, tool_name=context.memory_search, args={"q": Goal, "repo": null, "limit": 10}\n3) action=reason (optional): synthesize findings if needed\n4) action=finish: deliver a concise summary\n\nConstraints:\n- Do not output action="finish" before at least one tool call.\n- Use fully qualified tool names exactly as listed.\n- ONE JSON object per step with keys: action, tool_name, args, final, reasoning.\n- Map Goal verbatim to args.q. Keep reasoning short.`;
-                    setDriver((prev) => (prev && prev.trim().length > 0) ? prev + "\n\n" + tmpl : tmpl);
-                  }}>Insert Search Driver</Button>
-                </span>
-              </Tooltip>
-              
-            </Stack>
+            
             <Box>
               <Button variant="contained" disabled={saving} onClick={save}>Save</Button>
               <Button sx={{ ml: 1 }} onClick={() => nav('/agents')}>Cancel</Button>

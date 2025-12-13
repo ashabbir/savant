@@ -25,9 +25,11 @@ import StorageIcon from '@mui/icons-material/Storage';
 import PsychologyIcon from '@mui/icons-material/Psychology';
 import IntegrationInstructionsIcon from '@mui/icons-material/IntegrationInstructions';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
+import QuestionAnswerIcon from '@mui/icons-material/QuestionAnswer';
 import GavelIcon from '@mui/icons-material/Gavel';
 import PersonIcon from '@mui/icons-material/Person';
 import GitHubIcon from '@mui/icons-material/GitHub';
+import JiraIcon from './icons/JiraIcon';
 import { useEngineStatus, useEngineTools, ContextToolSpec } from '../api';
 
 function formatUptime(seconds: number): string {
@@ -42,10 +44,11 @@ const ENGINE_ICONS: Record<string, React.ReactNode> = {
   context: <StorageIcon sx={{ fontSize: 32 }} />,
   git: <GitHubIcon sx={{ fontSize: 32 }} />,
   think: <PsychologyIcon sx={{ fontSize: 32 }} />,
-  jira: <IntegrationInstructionsIcon sx={{ fontSize: 32 }} />,
+  jira: <JiraIcon sx={{ fontSize: 32 }} />,
   personas: <PersonIcon sx={{ fontSize: 32 }} />,
-  drivers: <SmartToyIcon sx={{ fontSize: 32 }} />,
+  drivers: <QuestionAnswerIcon sx={{ fontSize: 32 }} />,
   rules: <GavelIcon sx={{ fontSize: 32 }} />,
+  agents: <SmartToyIcon sx={{ fontSize: 32 }} />,
 };
 
 function formatEngineName(rawName: string): string {
@@ -118,7 +121,14 @@ export default function EngineCard({ name, mount, toolCount }: EngineCardProps) 
           <Box sx={{ color }}>{icon}</Box>
           <Box sx={{ flexGrow: 1 }}>
             <Typography variant="subtitle1" component="div" sx={{ fontWeight: 600 }}>
-              {formatEngineName(status.data?.info?.name || name)}
+              {(() => {
+                const raw = status.data?.info?.name || name;
+                // Force Git engine to display as "GIT"
+                if (name === 'git' || /(^|[\\/\s-])git$/i.test(raw)) return 'GIT';
+                // Force Jira engine to display as "JIRA"
+                if (name === 'jira' || /(^|[\\/\s-])jira$/i.test(raw)) return 'JIRA';
+                return formatEngineName(raw);
+              })()}
             </Typography>
             <Typography variant="caption" color="text.secondary" sx={{ fontFamily: 'monospace' }}>
               {mount}

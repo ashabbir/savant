@@ -2,7 +2,7 @@ import React from 'react';
 import ReactFlow, { Background, Controls, MiniMap, addEdge, Connection, Edge, Node, useNodesState, useEdgesState } from 'reactflow';
 import 'reactflow/dist/style.css';
 import Grid from '@mui/material/Unstable_Grid2';
-import { Alert, Autocomplete, Box, Button, Divider, IconButton, LinearProgress, Paper, Stack, TextField, Tooltip, Typography, Dialog, DialogTitle, DialogContent, DialogActions, MenuItem, Chip, Snackbar, Tabs, Tab, useTheme, GlobalStyles } from '@mui/material';
+import { Alert, Box, Button, Divider, IconButton, LinearProgress, Paper, Stack, TextField, Tooltip, Typography, Dialog, DialogTitle, DialogContent, DialogActions, Chip, Snackbar, Tabs, Tab, useTheme, GlobalStyles } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import SaveIcon from '@mui/icons-material/Save';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -14,7 +14,7 @@ import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import AutoFixHighIcon from '@mui/icons-material/AutoFixHigh';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useThinkPrompts, useThinkWorkflowRead, useRules } from '../../api';
+import { useThinkWorkflowRead } from '../../api';
 import { thinkWorkflowCreateGraph, thinkWorkflowUpdateGraph, thinkWorkflowValidateGraph } from '../../thinkApi';
 import YAML from 'js-yaml';
 import Viewer from '../../components/Viewer';
@@ -44,23 +44,17 @@ function slugifyName(name: string): string {
     .replace(/_{2,}/g, '_');
 }
 
-function cleanRules(list?: string[]) {
-  return (list || []).map((r) => r?.trim() || '').filter(Boolean);
-}
-
-function toGraphPayload(nodes: RFNode[], edges: Edge[], description?: string, driverVersion?: string, name?: string, rules?: string[], version?: number) {
+function toGraphPayload(nodes: RFNode[], edges: Edge[], description?: string, name?: string, version?: number) {
   return {
-    description: description || '',
-    driver_version: driverVersion || 'stable',
     name: name || '',
-    rules: cleanRules(rules),
+    description: description || '',
     version: version || 1,
     nodes: nodes.map(n => ({ id: n.data.id, name: n.data.name, call: n.data.call, input_template: n.data.input_template, capture_as: n.data.capture_as })),
     edges: edges.map(e => ({ source: e.source, target: e.target }))
   };
 }
 
-function toYamlPreview(nodes: RFNode[], edges: Edge[], id: string, description?: string, driverVersion?: string, name?: string, rules?: string[], version?: number) {
+function toYamlPreview(nodes: RFNode[], edges: Edge[], id: string, description?: string, name?: string, version?: number) {
   const ids = nodes.map(n => n.id);
   const indeg: Record<string, number> = {}; ids.forEach(i => indeg[i] = 0);
   const adj: Record<string, string[]> = {};
@@ -86,9 +80,7 @@ function toYamlPreview(nodes: RFNode[], edges: Edge[], id: string, description?:
     if (deps.length) h.deps = deps;
     return h;
   });
-  const clean = cleanRules(rules);
-  const payload: any = { id, name: name || id, description: description || '', driver_version: driverVersion || 'stable', version: version || 1, steps };
-  payload.rules = clean;
+  const payload: any = { id, name: name || id, description: description || '', version: version || 1, steps };
   return YAML.dump(payload);
 }
 
@@ -100,8 +92,6 @@ export default function ThinkWorkflowEditor() {
   const theme = useTheme();
   const [wfId, setWfId] = React.useState(routeId || '');
   const rd = useThinkWorkflowRead(isNew ? '_template' : wfId);
-  const prompts = useThinkPrompts();
-  const rulesList = useRules();
   const init = React.useMemo(() => defaultGraph(), []);
   const [nodes, setNodes, onNodesChange] = useNodesState<RFNode>(init.nodes);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>(init.edges);
@@ -124,10 +114,8 @@ export default function ThinkWorkflowEditor() {
   const [nameDraft, setNameDraft] = React.useState('');
   const [description, setDescription] = React.useState('');
   const [nextId, setNextId] = React.useState(1);
-  const [driverVersion, setDriverVersion] = React.useState('stable');
   const [name, setName] = React.useState('');
   const [version, setVersion] = React.useState(1);
-  const [rules, setRules] = React.useState<string[]>([]);
   const [saveToast, setSaveToast] = React.useState(false);
   const selectedDeps = React.useMemo(() => {
     if (!selId) return [] as string[];
@@ -140,12 +128,6 @@ export default function ThinkWorkflowEditor() {
     const msg = validation.toLowerCase();
     return (msg.includes('ok') || msg.includes('saved')) ? 'success' : 'error';
   }, [validation]);
-  const availableRules = rulesList.data?.rules || [];
-  const selectedRuleObjects = React.useMemo(() => {
-    const map = new Map(availableRules.map((r) => [r.name, r]));
-    return rules.map((name) => map.get(name) || { name });
-  }, [availableRules, rules]);
-
   // Initialize drafts when selection changes
   React.useEffect(() => {
     if (!selectedNode) { setItDraft(''); setItErr(null); setNameDraft(''); return; }
@@ -269,12 +251,9 @@ export default function ThinkWorkflowEditor() {
     try {
       const y = YAML.load(rd.data.workflow_yaml) as any;
       setDescription(typeof y?.description === 'string' ? y.description : '');
-      setDriverVersion(typeof y?.driver_version === 'string' ? y.driver_version : 'stable');
       const fallbackName = y?.name || y?.workflow || y?.id || routeId || '';
       setName(String(fallbackName || ''));
       setVersion(Number(y?.version || 1));
-      const yRules = Array.isArray(y?.rules) ? y.rules.map((r: any)=> String(r || '')) : [];
-      setRules(yRules);
       const steps: any[] = Array.isArray(y?.steps) ? y.steps : [];
         const npos: RFNode[] = steps.map((s, i) => {
           // Parse ID - could be number or string from YAML
@@ -333,25 +312,10 @@ export default function ThinkWorkflowEditor() {
   }, [rd.data?.workflow_yaml, computeLevels, routeId]);
 
   React.useEffect(() => {
-    const list = prompts.data?.versions || [];
-    if (!list.length) return;
-    const versions = list.map(v => v.version);
-    if (driverVersion && versions.includes(driverVersion)) return;
-    const stable = list.find(v => v.version === 'stable');
-    if (stable) { setDriverVersion(stable.version); return; }
-    if (!driverVersion && list[0]?.version) { setDriverVersion(list[0].version); return; }
-    if (!versions.includes(driverVersion)) { setDriverVersion(list[0].version); }
-  }, [driverVersion, prompts.data?.versions]);
-
-  React.useEffect(() => {
     if (!isNew) return;
     const slug = slugifyName(name);
     if (slug && slug !== wfId) setWfId(slug);
   }, [name, isNew, wfId]);
-
-  const addRuleField = () => setRules(r => [...r, '']);
-  const updateRuleField = (idx: number, value: string) => setRules(r => r.map((rule, i) => i === idx ? value : rule));
-  const removeRuleField = (idx: number) => setRules(r => r.filter((_, i) => i !== idx));
 
   const onConnect = React.useCallback((c: Connection) => setEdges((eds) => addEdge(c as any, eds)), []);
 
@@ -453,7 +417,7 @@ export default function ThinkWorkflowEditor() {
     }
     try {
       const nextVersion = isNew ? 1 : (version || 0) + 1;
-      const graph = toGraphPayload(resequencedNodes, resequencedEdges, description, driverVersion, name || currId, rules, nextVersion);
+      const graph = toGraphPayload(resequencedNodes, resequencedEdges, description, name || currId, nextVersion);
       const v = await thinkWorkflowValidateGraph(graph);
       if (!v.ok) { setValidation(v.errors.join('\n')); return; }
 
@@ -501,13 +465,13 @@ export default function ThinkWorkflowEditor() {
   // Keep YAML preview up-to-date with current editor state
   React.useEffect(() => {
     const currId = isNew ? slugifyName(name) || wfId || 'workflow' : wfId || 'workflow';
-    setYamlPreview(toYamlPreview(nodes, edges, currId, description, driverVersion, name || currId, rules, version));
-  }, [nodes, edges, name, description, driverVersion, rules, version, wfId, isNew]);
+    setYamlPreview(toYamlPreview(nodes, edges, currId, description, name || currId, version));
+  }, [nodes, edges, name, description, version, wfId, isNew]);
 
   const preview = async () => {
     const currId = isNew ? slugifyName(name) || wfId : wfId;
     if (!currId) { setValidation('Name is required'); return; }
-    const graph = toGraphPayload(nodes, edges, description, driverVersion, name || currId, rules, version);
+    const graph = toGraphPayload(nodes, edges, description, name || currId, version);
     const v = await thinkWorkflowValidateGraph(graph);
     if (!v.ok) { setValidation(v.errors.join('\n')); return; }
     setPreviewOpen(true);
@@ -515,7 +479,7 @@ export default function ThinkWorkflowEditor() {
 
   const previewDiagram = async () => {
     const currId = isNew ? slugifyName(name) || wfId || 'workflow' : wfId || 'workflow';
-    const yaml = toYamlPreview(nodes, edges, currId, description, driverVersion, name || currId, rules, version);
+    const yaml = toYamlPreview(nodes, edges, currId, description, name || currId, version);
     const code = workflowToMermaid(yaml);
     const renderDiagram = async (useCdn: boolean) => {
       const mm = await getMermaidInstance(useCdn);
@@ -592,7 +556,7 @@ export default function ThinkWorkflowEditor() {
           </Stack>
           <Tooltip title="Validate">
             <span>
-              <IconButton onClick={async ()=>{ const v = await thinkWorkflowValidateGraph(toGraphPayload(nodes, edges, description, driverVersion, name || wfId, rules, version)); setValidation(v.ok? 'OK' : v.errors.join('\n')); }}>
+              <IconButton onClick={async ()=>{ const v = await thinkWorkflowValidateGraph(toGraphPayload(nodes, edges, description, name || wfId, version)); setValidation(v.ok? 'OK' : v.errors.join('\n')); }}>
                 <TaskAltIcon />
               </IconButton>
             </span>
@@ -638,44 +602,6 @@ export default function ThinkWorkflowEditor() {
                 </Stack>
               </Stack>
               <TextField id="wf-name" name="workflowName" label="Name" value={name} onChange={(e)=>setName(e.target.value)} placeholder="Workflow name" fullWidth />
-              <TextField id="wf-driver" name="workflowDriver" label="Driver Version" select value={driverVersion} onChange={(e)=>setDriverVersion(e.target.value)} fullWidth>
-                {(prompts.data?.versions || [{ version: 'stable', path: '' }]).map(v => (
-                  <MenuItem key={v.version} value={v.version}>{v.version}</MenuItem>
-                ))}
-              </TextField>
-              <Stack spacing={1.5}>
-                <Typography variant="caption" sx={{ fontWeight: 600 }}>Rules</Typography>
-                <Autocomplete
-                  multiple
-                  options={availableRules}
-                  getOptionLabel={(option) => option.name}
-                  value={selectedRuleObjects}
-                  onChange={(_, newValue) => setRules(newValue.map((r) => r.name))}
-                  disableCloseOnSelect
-                  loading={rulesList.isLoading}
-                  isOptionEqualToValue={(option, value) => option.name === value.name}
-                  renderInput={(params) => (
-                    <TextField
-                      {...params}
-                      label="Select rules"
-                      placeholder={availableRules.length ? 'Type to find rules' : 'No rules available'}
-                    />
-                  )}
-                  renderTags={(tagValue, getTagProps) =>
-                    tagValue.map((option, index) => {
-                      const { key, ...chipProps } = getTagProps({ index });
-                      return (
-                        <Chip
-                          key={key}
-                          {...chipProps}
-                          label={option.name}
-                          size="small"
-                        />
-                      );
-                    })
-                  }
-                />
-              </Stack>
               <TextField
                 id="wf-desc"
                 name="workflowDescription"
