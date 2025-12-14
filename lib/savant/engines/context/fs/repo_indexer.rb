@@ -329,7 +329,7 @@ module Savant
           entries = registry.list_models
           states = Hash.new(0)
           models = entries.map do |model|
-            enabled = model[:enabled] != false
+            enabled = truthy?(model[:enabled])
             state = enabled ? 'enabled' : 'disabled'
             states[state] += 1
             {
@@ -358,7 +358,7 @@ module Savant
           registry = Savant::Llm::Registry.new(@db)
           slm = (ENV['SLM_MODEL'] || Savant::LLM::DEFAULT_SLM).to_s
           entries = registry.list_models
-          preferred = entries.find { |m| m[:enabled] != false } || entries.first
+          preferred = entries.find { |m| truthy?(m[:enabled]) } || entries.first
           llm_model = if preferred
                         preferred[:display_name].to_s.strip.empty? ? preferred[:provider_model_id] : preferred[:display_name]
                       else
@@ -383,6 +383,21 @@ module Savant
             name: 'text[]',
             elements_type: PG::TextDecoder::String.new(name: 'text')
           )
+        end
+
+        def truthy?(value)
+          case value
+          when true then true
+          when false, nil then false
+          when Integer then value != 0
+          when String
+            v = value.strip.downcase
+            return true if %w[true t 1 yes y].include?(v)
+            return false if %w[false f 0 no n].include?(v)
+            !v.empty?
+          else
+            !!value
+          end
         end
 
         def build_cache
