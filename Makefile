@@ -188,3 +188,13 @@ repo-reindex-all: repo-delete-all repo-index-all
 
 repo-status:
 	$(INDEXER_CMD) status
+
+# -----------------
+# Reasoning API (Python)
+# -----------------
+.PHONY: reasoning-setup reasoning-api
+reasoning-setup:
+	python3 -m venv .venv_reasoning && . .venv_reasoning/bin/activate && python3 -m pip install -r reasoning/requirements.txt
+
+reasoning-api:
+	./scripts/run_reasoning_api.sh

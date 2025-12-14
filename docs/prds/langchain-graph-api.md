@@ -202,3 +202,25 @@ sequenceDiagram
 - **Timeouts**: If the reasoning API times out, Ruby should log `reasoning_timeout` and retry automatically. Use the `REASONING_API_TIMEOUT_MS` env var to adjust.
 - **Invalid tool names**: The adapter should log `intent_validation_error` and instruct the API team to update the graph/chain definition.
 - **API unavailability**: Provide a fallback message that includes instructions to start the FastAPI server via `uvicorn reasoning.api:app`.
+
+## Agent Implementation Plan (by Codex)
+
+Scope: Implement Phase 1–3 (Schema, Ruby client, Python API skeleton) with optional Agent integration behind env flag, plus minimal docs and make targets.
+
+Steps
+- Shared schema: add `config/reasoning_api_schema.json` capturing `agent_intent` and `workflow_intent` request/response envelopes and common error shapes.
+- Ruby client: add `lib/savant/reasoning/client.rb` with:
+  - Env/config: `REASONING_API_URL`, `REASONING_API_TOKEN`, `REASONING_API_TIMEOUT_MS` (default 5000), `REASONING_API_RETRIES` (default 2), `REASONING_API_VERSION` (default `v1`).
+  - Methods: `agent_intent(payload)` and `workflow_intent(payload)` using `Net::HTTP`, retries on timeout/5xx with backoff, and structured logging via Savant logger.
+  - Validation: ensure returned `tool_name` exists in Multiplexer registry when present; map API envelopes to a typed struct for the runtime.
+- Optional Agent integration: in `Savant::Agent::Runtime`, when `REASONING_API_URL` is set use `Savant::Reasoning::Client` to obtain intents instead of local SLM for `decide_and_parse`, translating to the existing action envelope. Fallback to SLM on client errors.
+- Python API skeleton: add `reasoning/` module with FastAPI app exposing:
+  - `GET /healthz` (200 OK), `POST /agent_intent` and `POST /workflow_intent` returning stub intents matching schema (finish-first or echo forced tool).
+  - `requirements.txt` and `scripts/run_reasoning_api.sh` for local dev; Makefile targets `reasoning-setup` and `reasoning-api`.
+- Tests: RSpec for the Ruby client covering success, timeout/retry, and invalid-tool validation (using WebMock). Keep Python tests out-of-scope for the first MR.
+- Docs: `docs/reasoning_api.md` with setup, env vars, run instructions, and troubleshooting. Add `.env.example` vars.
+
+Delivery
+- Branch: `feature/langchain-graph-api` with one commit.
+- CI: run `bundle exec rubocop -A` and `bundle exec rspec` locally; do not fail build if Python not installed (service is optional).
+- PR includes verification notes and how to manually exercise the API + agent flow.
