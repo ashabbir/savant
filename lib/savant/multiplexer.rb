@@ -201,7 +201,8 @@ module Savant
     end
 
     def default_engines
-      %w[context git think personas rules jira workflow].map { |name| { name: name, autostart: true } }
+      # DB-first stack: YAML Workflow engine disabled by default.
+      %w[context git think personas rules jira].map { |name| { name: name, autostart: true } }
     end
 
     def load_settings
