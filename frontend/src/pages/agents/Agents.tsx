@@ -237,10 +237,10 @@ export default function Agents() {
                         {a.favorite && <FavoriteIcon fontSize="small" color="error" />}
                       </Stack>
                       <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                        (Persona) {personaLabel}  |  Rules: {Array.isArray(a.rules_names) && a.rules_names.length > 0 ? a.rules_names.length : '0'}
+                        (Persona) {personaLabel}  (Model) {model ? model.display_name || model.provider_model_id : 'Not assigned'}  Rules: {Array.isArray(a.rules_names) && a.rules_names.length > 0 ? a.rules_names.length : '0'}
                       </Typography>
                       <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                        (Model) {model ? model.display_name || model.provider_model_id : 'Not assigned'}
+                        Runs: {a.run_count || 0}
                       </Typography>
                     </Stack>
                   </ListItemButton>
