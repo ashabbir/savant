@@ -234,7 +234,6 @@ export default function Agents() {
                         <Typography variant="body2" sx={{ fontWeight: 700, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {a.name}
                         </Typography>
-                        {a.favorite && <FavoriteIcon fontSize="small" color="error" />}
                       </Stack>
                       <Stack direction="row" spacing={1} alignItems="center" sx={{ flexWrap: 'wrap', gap: 0.5 }}>
                         <Chip size="small" label={personaLabel} variant="outlined" sx={{ height: 20 }} />
