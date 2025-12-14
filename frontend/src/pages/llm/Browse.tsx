@@ -29,13 +29,11 @@ import AddCircleIcon from '@mui/icons-material/AddCircle';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import { getErrorMessage, callEngineTool } from '../../api';
 
-interface BrowseTabIdx {
-  providers: number;
-  models: number;
+interface LLMBrowseProps {
+  type: 'providers' | 'models';
 }
 
-export default function LLMBrowse() {
-  const [tabIdx, setTabIdx] = useState(0); // 0=Providers, 1=Models
+export default function LLMBrowse({ type = 'providers' }: LLMBrowseProps) {
 
   // Providers state
   const [providers, setProviders] = useState<any[]>([]);
@@ -60,14 +58,12 @@ export default function LLMBrowse() {
   const [deleting, setDeleting] = useState(false);
 
   React.useEffect(() => {
-    loadProviders();
-  }, []);
-
-  React.useEffect(() => {
-    if (tabIdx === 1) {
+    if (type === 'providers') {
+      loadProviders();
+    } else {
       loadModels();
     }
-  }, [tabIdx]);
+  }, [type]);
 
   async function loadProviders() {
     try {
@@ -156,16 +152,10 @@ export default function LLMBrowse() {
 
   return (
     <>
-      {/* Top-level tabs for Providers vs Models */}
-      <Tabs value={tabIdx} onChange={(_, v) => setTabIdx(v)} centered sx={{ mb: 2 }}>
-        <Tab label="Providers" />
-        <Tab label="Models" />
-      </Tabs>
-
       {error && <Alert severity={error.startsWith('✓') ? 'success' : 'error'} sx={{ mb: 2 }}>{error}</Alert>}
 
-      {tabIdx === 0 && (
-        /* PROVIDERS TAB */
+      {type === 'providers' && (
+        /* PROVIDERS VIEW */
         <Grid container spacing={2}>
           <Grid xs={12} md={4}>
             <Paper sx={{ p: 1, height: 'calc(100vh - 320px)', display: 'flex', flexDirection: 'column' }}>
@@ -273,8 +263,8 @@ export default function LLMBrowse() {
         </Grid>
       )}
 
-      {tabIdx === 1 && (
-        /* MODELS TAB */
+      {type === 'models' && (
+        /* MODELS VIEW */
         <Grid container spacing={2}>
           <Grid xs={12} md={4}>
             <Paper sx={{ p: 1, height: 'calc(100vh - 320px)', display: 'flex', flexDirection: 'column' }}>
