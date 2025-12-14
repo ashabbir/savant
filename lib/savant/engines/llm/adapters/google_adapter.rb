@@ -1,6 +1,6 @@
 require 'savant/engines/llm/adapters/base_adapter'
 
-module Savant::LLM::Adapters
+module Savant::Llm::Adapters
   class GoogleAdapter < BaseAdapter
     BASE_URL = 'https://generativelanguage.googleapis.com/v1beta'
 

@@ -1,6 +1,6 @@
 require 'savant/engines/llm/vault'
 
-module Savant::LLM
+module Savant::Llm
   class Registry
     def initialize(db = nil)
       @db = db || Savant::Framework::DB.new

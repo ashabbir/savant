@@ -1,4 +1,4 @@
-module Savant::LLM::Tools
+module Savant::Llm::Tools
   module_function
 
   # Return the MCP tool specs for the LLM service

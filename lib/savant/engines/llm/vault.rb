@@ -1,7 +1,7 @@
 require 'openssl'
 require 'base64'
 
-module Savant::LLM
+module Savant::Llm
   module Vault
     class << self
       def encrypt(plaintext)
