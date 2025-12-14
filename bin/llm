@@ -28,7 +28,7 @@ when 'provider'
     require 'savant/engines/llm/registry'
     require 'savant/engines/llm/vault'
 
-    registry = Savant::LLM::Registry.new
+    registry = Savant::Llm::Registry.new
     id = registry.create_provider(
       name: options[:name],
       provider_type: options[:type],
@@ -39,7 +39,7 @@ when 'provider'
 
   when 'list'
     require 'savant/engines/llm/registry'
-    registry = Savant::LLM::Registry.new
+    registry = Savant::Llm::Registry.new
     providers = registry.list_providers
     if providers.empty?
       puts 'No providers configured.'
@@ -58,11 +58,11 @@ when 'provider'
     require 'savant/engines/llm/registry'
     require 'savant/engines/llm/adapters'
 
-    registry = Savant::LLM::Registry.new
+    registry = Savant::Llm::Registry.new
     provider = registry.get_provider(options[:name])
     raise "Provider not found: #{options[:name]}" unless provider
 
-    adapter = Savant::LLM::Adapters.for_provider(provider)
+    adapter = Savant::Llm::Adapters.for_provider(provider)
     result = adapter.test_connection!
     registry.update_provider_status(options[:name], result[:status])
 
@@ -75,7 +75,7 @@ when 'provider'
     end.parse!(ARGV)
 
     require 'savant/engines/llm/registry'
-    registry = Savant::LLM::Registry.new
+    registry = Savant::Llm::Registry.new
     registry.delete_provider(options[:name])
     puts "✓ Provider deleted: #{options[:name]}"
   end
@@ -92,11 +92,11 @@ when 'models'
     require 'savant/engines/llm/registry'
     require 'savant/engines/llm/adapters'
 
-    registry = Savant::LLM::Registry.new
+    registry = Savant::Llm::Registry.new
     provider = registry.get_provider(options[:provider])
     raise "Provider not found: #{options[:provider]}" unless provider
 
-    adapter = Savant::LLM::Adapters.for_provider(provider)
+    adapter = Savant::Llm::Adapters.for_provider(provider)
     models = adapter.list_models
 
     puts "Available models from #{options[:provider]}:"
@@ -114,11 +114,11 @@ when 'models'
     require 'savant/engines/llm/registry'
     require 'savant/engines/llm/adapters'
 
-    registry = Savant::LLM::Registry.new
+    registry = Savant::Llm::Registry.new
     provider = registry.get_provider(options[:provider])
     raise "Provider not found: #{options[:provider]}" unless provider
 
-    adapter = Savant::LLM::Adapters.for_provider(provider)
+    adapter = Savant::Llm::Adapters.for_provider(provider)
     available = adapter.list_models
     model = available.find { |m| m[:provider_model_id] == options[:model_id] }
     raise "Model not found: #{options[:model_id]}" unless model
@@ -135,7 +135,7 @@ when 'models'
 
   when 'list'
     require 'savant/engines/llm/registry'
-    registry = Savant::LLM::Registry.new
+    registry = Savant::Llm::Registry.new
     models = registry.list_models
     if models.empty?
       puts 'No models registered.'
@@ -158,7 +158,7 @@ when 'agent'
     end.parse!(ARGV)
 
     require 'savant/engines/llm/registry'
-    registry = Savant::LLM::Registry.new
+    registry = Savant::Llm::Registry.new
     id = registry.create_agent(name: options[:name], description: options[:description])
     puts "✓ Agent created: #{options[:name]} (ID: #{id})"
 
@@ -170,13 +170,13 @@ when 'agent'
     end.parse!(ARGV)
 
     require 'savant/engines/llm/registry'
-    registry = Savant::LLM::Registry.new
+    registry = Savant::Llm::Registry.new
     registry.assign_model(agent_name: options[:name], model_id: options[:model_id])
     puts "✓ Model assigned to #{options[:name]}"
 
   when 'list'
     require 'savant/engines/llm/registry'
-    registry = Savant::LLM::Registry.new
+    registry = Savant::Llm::Registry.new
     agents = registry.list_agents
     if agents.empty?
       puts 'No agents configured.'
@@ -194,7 +194,7 @@ when 'agent'
     end.parse!(ARGV)
 
     require 'savant/engines/llm/registry'
-    registry = Savant::LLM::Registry.new
+    registry = Savant::Llm::Registry.new
     registry.delete_agent(options[:name])
     puts "✓ Agent deleted: #{options[:name]}"
   end

@@ -62,7 +62,7 @@ module Savant::Llm
           SET display_name = EXCLUDED.display_name, modality = EXCLUDED.modality, context_window = EXCLUDED.context_window, meta = EXCLUDED.meta
           RETURNING id
         SQL
-        [provider_id, provider_model_id, display_name, modality, context_window, meta.to_json]
+        [provider_id, provider_model_id, display_name, modality.to_a, context_window, meta.to_json]
       )[0]['id']
     end
 
