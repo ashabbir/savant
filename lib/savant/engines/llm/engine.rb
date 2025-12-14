@@ -1,6 +1,6 @@
 require 'savant/framework/engine/engine'
-require 'savant/llm/registry'
-require 'savant/llm/adapters'
+require 'savant/engines/llm/registry'
+require 'savant/engines/llm/adapters'
 
 module Savant::LLM
   class Engine < Savant::Framework::Engine::Base

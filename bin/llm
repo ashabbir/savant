@@ -25,8 +25,8 @@ when 'provider'
       o.on('--base-url URL', 'Base URL (for Ollama)') { |v| options[:base_url] = v }
     end.parse!(ARGV)
 
-    require 'savant/llm/registry'
-    require 'savant/llm/vault'
+    require 'savant/engines/llm/registry'
+    require 'savant/engines/llm/vault'
 
     registry = Savant::LLM::Registry.new
     id = registry.create_provider(
@@ -38,7 +38,7 @@ when 'provider'
     puts "✓ Provider created: #{options[:name]} (ID: #{id})"
 
   when 'list'
-    require 'savant/llm/registry'
+    require 'savant/engines/llm/registry'
     registry = Savant::LLM::Registry.new
     providers = registry.list_providers
     if providers.empty?
@@ -55,8 +55,8 @@ when 'provider'
       o.on('--name NAME', 'Provider name') { |v| options[:name] = v }
     end.parse!(ARGV)
 
-    require 'savant/llm/registry'
-    require 'savant/llm/adapters'
+    require 'savant/engines/llm/registry'
+    require 'savant/engines/llm/adapters'
 
     registry = Savant::LLM::Registry.new
     provider = registry.get_provider(options[:name])
@@ -74,7 +74,7 @@ when 'provider'
       o.on('--name NAME', 'Provider name') { |v| options[:name] = v }
     end.parse!(ARGV)
 
-    require 'savant/llm/registry'
+    require 'savant/engines/llm/registry'
     registry = Savant::LLM::Registry.new
     registry.delete_provider(options[:name])
     puts "✓ Provider deleted: #{options[:name]}"
@@ -89,8 +89,8 @@ when 'models'
       o.on('--provider NAME', 'Provider name') { |v| options[:provider] = v }
     end.parse!(ARGV)
 
-    require 'savant/llm/registry'
-    require 'savant/llm/adapters'
+    require 'savant/engines/llm/registry'
+    require 'savant/engines/llm/adapters'
 
     registry = Savant::LLM::Registry.new
     provider = registry.get_provider(options[:provider])
@@ -111,8 +111,8 @@ when 'models'
       o.on('--id MODEL_ID', 'Model ID') { |v| options[:model_id] = v }
     end.parse!(ARGV)
 
-    require 'savant/llm/registry'
-    require 'savant/llm/adapters'
+    require 'savant/engines/llm/registry'
+    require 'savant/engines/llm/adapters'
 
     registry = Savant::LLM::Registry.new
     provider = registry.get_provider(options[:provider])
@@ -134,7 +134,7 @@ when 'models'
     puts "✓ Model registered: #{model[:display_name]} (ID: #{id})"
 
   when 'list'
-    require 'savant/llm/registry'
+    require 'savant/engines/llm/registry'
     registry = Savant::LLM::Registry.new
     models = registry.list_models
     if models.empty?
@@ -157,7 +157,7 @@ when 'agent'
       o.on('--description DESC', 'Description') { |v| options[:description] = v }
     end.parse!(ARGV)
 
-    require 'savant/llm/registry'
+    require 'savant/engines/llm/registry'
     registry = Savant::LLM::Registry.new
     id = registry.create_agent(name: options[:name], description: options[:description])
     puts "✓ Agent created: #{options[:name]} (ID: #{id})"
@@ -169,13 +169,13 @@ when 'agent'
       o.on('--model-id ID', Integer, 'Model ID') { |v| options[:model_id] = v }
     end.parse!(ARGV)
 
-    require 'savant/llm/registry'
+    require 'savant/engines/llm/registry'
     registry = Savant::LLM::Registry.new
     registry.assign_model(agent_name: options[:name], model_id: options[:model_id])
     puts "✓ Model assigned to #{options[:name]}"
 
   when 'list'
-    require 'savant/llm/registry'
+    require 'savant/engines/llm/registry'
     registry = Savant::LLM::Registry.new
     agents = registry.list_agents
     if agents.empty?
@@ -193,7 +193,7 @@ when 'agent'
       o.on('--name NAME', 'Agent name') { |v| options[:name] = v }
     end.parse!(ARGV)
 
-    require 'savant/llm/registry'
+    require 'savant/engines/llm/registry'
     registry = Savant::LLM::Registry.new
     registry.delete_agent(options[:name])
     puts "✓ Agent deleted: #{options[:name]}"

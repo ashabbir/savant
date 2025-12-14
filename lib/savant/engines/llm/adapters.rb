@@ -1,0 +1,12 @@
+require 'savant/engines/llm/adapters/google_adapter'
+require 'savant/engines/llm/adapters/ollama_adapter'
+
+module Savant::LLM::Adapters
+  def self.for_provider(provider_row)
+    case provider_row[:provider_type]
+    when 'google' then GoogleAdapter.new(provider_row)
+    when 'ollama' then OllamaAdapter.new(provider_row)
+    else raise "Unsupported provider type: #{provider_row[:provider_type]}"
+    end
+  end
+end
