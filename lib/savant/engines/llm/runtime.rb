@@ -1,6 +1,6 @@
 require 'savant/llm/registry'
 
-module Savant::LLM
+module Savant::Llm
   class Runtime
     def self.for_agent(agent_name)
       registry = Registry.new

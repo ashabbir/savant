@@ -2,7 +2,7 @@ require 'net/http'
 require 'uri'
 require 'json'
 
-module Savant::LLM::Adapters
+module Savant::Llm::Adapters
   class BaseAdapter
     def initialize(provider_row)
       @provider = provider_row

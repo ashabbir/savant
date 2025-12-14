@@ -1,7 +1,7 @@
 require 'savant/engines/llm/adapters/google_adapter'
 require 'savant/engines/llm/adapters/ollama_adapter'
 
-module Savant::LLM::Adapters
+module Savant::Llm::Adapters
   def self.for_provider(provider_row)
     case provider_row[:provider_type]
     when 'google' then GoogleAdapter.new(provider_row)

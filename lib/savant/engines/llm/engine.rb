@@ -2,7 +2,7 @@ require 'savant/framework/engine/engine'
 require 'savant/engines/llm/registry'
 require 'savant/engines/llm/adapters'
 
-module Savant::LLM
+module Savant::Llm
   class Engine < Savant::Framework::Engine::Base
     def initialize
       super()
@@ -54,7 +54,7 @@ module Savant::LLM
       provider = @registry.get_provider(provider_name)
       raise "Provider not found: #{provider_name}" unless provider
 
-      adapter = Adapters.for_provider(provider)
+      adapter = Savant::Llm::Adapters.for_provider(provider)
       available = adapter.list_models
 
       registered = []
@@ -63,13 +63,13 @@ module Savant::LLM
         next unless model
 
         id = @registry.register_model(
-          provider_id: provider[:id],
-          provider_model_id: model[:provider_model_id],
-          display_name: model[:display_name],
-          modality: model[:modality],
-          context_window: model[:context_window],
-          meta: model[:meta]
-        )
+        provider_id: provider[:id],
+        provider_model_id: model[:provider_model_id],
+        display_name: model[:display_name],
+        modality: model[:modality],
+        context_window: model[:context_window],
+        meta: model[:meta]
+      )
         registered << id
       end
 

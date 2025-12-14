@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 202512060006) do
+ActiveRecord::Schema[7.2].define(version: 202512130001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -91,6 +91,60 @@ ActiveRecord::Schema[7.2].define(version: 202512060006) do
     t.index ["repo_name"], name: "index_files_on_repo_name"
   end
 
+  create_table "llm_agent_model_assignments", id: false, force: :cascade do |t|
+    t.bigint "agent_id", null: false
+    t.bigint "model_id", null: false
+    t.index ["agent_id"], name: "index_llm_agent_model_assignments_on_agent_id"
+    t.index ["model_id"], name: "index_llm_agent_model_assignments_on_model_id"
+  end
+
+  create_table "llm_agents", force: :cascade do |t|
+    t.text "name", null: false
+    t.text "description"
+    t.datetime "created_at", default: -> { "now()" }, null: false
+    t.datetime "updated_at", default: -> { "now()" }, null: false
+    t.index ["name"], name: "index_llm_agents_on_name", unique: true
+  end
+
+  create_table "llm_cache", force: :cascade do |t|
+    t.bigint "provider_id", null: false
+    t.text "key", null: false
+    t.jsonb "value"
+    t.timestamptz "expires_at", null: false
+    t.index ["provider_id", "key"], name: "index_llm_cache_on_provider_id_and_key", unique: true
+    t.index ["provider_id"], name: "index_llm_cache_on_provider_id"
+  end
+
+  create_table "llm_models", force: :cascade do |t|
+    t.bigint "provider_id", null: false
+    t.text "provider_model_id", null: false
+    t.text "display_name", null: false
+    t.text "modality", default: [], array: true
+    t.integer "context_window"
+    t.decimal "input_cost_per_1k"
+    t.decimal "output_cost_per_1k"
+    t.boolean "enabled", default: true
+    t.jsonb "meta", default: {}
+    t.datetime "created_at", default: -> { "now()" }, null: false
+    t.datetime "updated_at", default: -> { "now()" }, null: false
+    t.index ["provider_id", "provider_model_id"], name: "index_llm_models_on_provider_id_and_provider_model_id", unique: true
+    t.index ["provider_id"], name: "index_llm_models_on_provider_id"
+  end
+
+  create_table "llm_providers", force: :cascade do |t|
+    t.text "name", null: false
+    t.text "provider_type", null: false
+    t.text "base_url"
+    t.binary "encrypted_api_key"
+    t.binary "api_key_nonce"
+    t.binary "api_key_tag"
+    t.text "status", default: "unknown"
+    t.timestamptz "last_validated_at"
+    t.datetime "created_at", default: -> { "now()" }, null: false
+    t.datetime "updated_at", default: -> { "now()" }, null: false
+    t.index ["name"], name: "index_llm_providers_on_name", unique: true
+  end
+
   create_table "personas", force: :cascade do |t|
     t.text "name", null: false
     t.text "content"
@@ -142,4 +196,8 @@ ActiveRecord::Schema[7.2].define(version: 202512060006) do
   add_foreign_key "file_blob_map", "blobs", on_delete: :cascade
   add_foreign_key "file_blob_map", "files", on_delete: :cascade
   add_foreign_key "files", "repos", on_delete: :cascade
+  add_foreign_key "llm_agent_model_assignments", "llm_agents", column: "agent_id", on_delete: :cascade
+  add_foreign_key "llm_agent_model_assignments", "llm_models", column: "model_id", on_delete: :cascade
+  add_foreign_key "llm_cache", "llm_providers", column: "provider_id", on_delete: :cascade
+  add_foreign_key "llm_models", "llm_providers", column: "provider_id", on_delete: :cascade
 end

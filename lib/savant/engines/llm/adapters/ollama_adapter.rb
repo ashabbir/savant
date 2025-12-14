@@ -1,6 +1,6 @@
 require 'savant/engines/llm/adapters/base_adapter'
 
-module Savant::LLM::Adapters
+module Savant::Llm::Adapters
   class OllamaAdapter < BaseAdapter
     def test_connection!
       uri = URI.parse("#{@provider[:base_url]}/api/tags")
