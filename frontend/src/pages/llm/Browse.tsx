@@ -19,6 +19,8 @@ import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
 import Tooltip from '@mui/material/Tooltip';
 import IconButton from '@mui/material/IconButton';
+import Tabs from '@mui/material/Tabs';
+import Tab from '@mui/material/Tab';
 import CloseIcon from '@mui/icons-material/Close';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
@@ -27,13 +29,28 @@ import AddCircleIcon from '@mui/icons-material/AddCircle';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import { getErrorMessage, callEngineTool } from '../../api';
 
+interface BrowseTabIdx {
+  providers: number;
+  models: number;
+}
+
 export default function LLMBrowse() {
+  const [tabIdx, setTabIdx] = useState(0); // 0=Providers, 1=Models
+
+  // Providers state
   const [providers, setProviders] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
   const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
+  const [providersLoading, setProvidersLoading] = useState(true);
+
+  // Models state
+  const [models, setModels] = useState<any[]>([]);
+  const [modelsLoading, setModelsLoading] = useState(false);
+  const [selectedModel, setSelectedModel] = useState<number | null>(null);
+
+  // UI state
   const [error, setError] = useState<string | null>(null);
-  const [openAddDialog, setOpenAddDialog] = useState(false);
-  const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
+  const [openAddProviderDialog, setOpenAddProviderDialog] = useState(false);
+  const [openDeleteProviderDialog, setOpenDeleteProviderDialog] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     type: 'google',
@@ -46,9 +63,15 @@ export default function LLMBrowse() {
     loadProviders();
   }, []);
 
+  React.useEffect(() => {
+    if (tabIdx === 1) {
+      loadModels();
+    }
+  }, [tabIdx]);
+
   async function loadProviders() {
     try {
-      setLoading(true);
+      setProvidersLoading(true);
       setError(null);
       const res = await callEngineTool('llm', 'llm_providers_list', {});
       setProviders(res.providers || []);
@@ -58,7 +81,23 @@ export default function LLMBrowse() {
     } catch (e: any) {
       setError(getErrorMessage(e));
     } finally {
-      setLoading(false);
+      setProvidersLoading(false);
+    }
+  }
+
+  async function loadModels() {
+    try {
+      setModelsLoading(true);
+      setError(null);
+      const res = await callEngineTool('llm', 'llm_models_list', {});
+      setModels(res.models || []);
+      if (res.models?.length > 0 && selectedModel === null) {
+        setSelectedModel(res.models[0].id);
+      }
+    } catch (e: any) {
+      setError(getErrorMessage(e));
+    } finally {
+      setModelsLoading(false);
     }
   }
 
@@ -74,7 +113,7 @@ export default function LLMBrowse() {
         base_url: formData.baseUrl || undefined,
         api_key: formData.apiKey || undefined,
       });
-      setOpenAddDialog(false);
+      setOpenAddProviderDialog(false);
       setFormData({ name: '', type: 'google', apiKey: '', baseUrl: '' });
       await loadProviders();
     } catch (e: any) {
@@ -89,7 +128,7 @@ export default function LLMBrowse() {
       await callEngineTool('llm', 'llm_providers_delete', {
         name: selectedProvider,
       });
-      setOpenDeleteDialog(false);
+      setOpenDeleteProviderDialog(false);
       setSelectedProvider(null);
       await loadProviders();
     } catch (e: any) {
@@ -113,119 +152,223 @@ export default function LLMBrowse() {
   }
 
   const selected = providers.find(p => p.name === selectedProvider);
+  const selectedModelData = models.find(m => m.id === selectedModel);
 
   return (
-    <Grid container spacing={2}>
-      <Grid xs={12} md={4}>
-        <Paper sx={{ p: 1, height: 'calc(100vh - 260px)', display: 'flex', flexDirection: 'column' }}>
-          <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
-            <Typography variant="subtitle1" sx={{ fontSize: 12 }}>Providers</Typography>
-            <Stack direction="row" spacing={1} alignItems="center">
-              <Tooltip title="New Provider">
-                <IconButton size="small" color="primary" onClick={() => setOpenAddDialog(true)}>
-                  <AddCircleIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
-              <Tooltip title={!selectedProvider ? 'Select a provider' : 'Delete Provider'}>
-                <span>
-                  <IconButton size="small" color="error" disabled={!selectedProvider} onClick={() => setOpenDeleteDialog(true)}>
-                    <DeleteOutlineIcon fontSize="small" />
-                  </IconButton>
-                </span>
-              </Tooltip>
-              <Tooltip title="Refresh">
-                <IconButton size="small" onClick={loadProviders} disabled={loading}>
-                  <RefreshIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
-            </Stack>
-          </Stack>
-          {loading && <LinearProgress />}
-          {error && <Alert severity={error.startsWith('✓') ? 'success' : 'error'} sx={{ mb: 1 }}>{error}</Alert>}
-          <List dense sx={{ flex: 1, overflowY: 'auto' }}>
-            {providers.map((p) => (
-              <ListItem key={p.name} disablePadding>
-                <ListItemButton selected={selectedProvider === p.name} onClick={() => setSelectedProvider(p.name)}>
-                  <ListItemText
-                    primary={
-                      <Box display="flex" alignItems="center" gap={1}>
-                        <Typography component="span" sx={{ fontWeight: 600 }}>{p.name}</Typography>
+    <>
+      {/* Top-level tabs for Providers vs Models */}
+      <Tabs value={tabIdx} onChange={(_, v) => setTabIdx(v)} centered sx={{ mb: 2 }}>
+        <Tab label="Providers" />
+        <Tab label="Models" />
+      </Tabs>
+
+      {error && <Alert severity={error.startsWith('✓') ? 'success' : 'error'} sx={{ mb: 2 }}>{error}</Alert>}
+
+      {tabIdx === 0 && (
+        /* PROVIDERS TAB */
+        <Grid container spacing={2}>
+          <Grid xs={12} md={4}>
+            <Paper sx={{ p: 1, height: 'calc(100vh - 320px)', display: 'flex', flexDirection: 'column' }}>
+              <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+                <Typography variant="subtitle1" sx={{ fontSize: 12 }}>Providers</Typography>
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <Tooltip title="New Provider">
+                    <IconButton size="small" color="primary" onClick={() => setOpenAddProviderDialog(true)}>
+                      <AddCircleIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title={!selectedProvider ? 'Select a provider' : 'Delete Provider'}>
+                    <span>
+                      <IconButton size="small" color="error" disabled={!selectedProvider} onClick={() => setOpenDeleteProviderDialog(true)}>
+                        <DeleteOutlineIcon fontSize="small" />
+                      </IconButton>
+                    </span>
+                  </Tooltip>
+                  <Tooltip title="Refresh">
+                    <IconButton size="small" onClick={loadProviders} disabled={providersLoading}>
+                      <RefreshIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                </Stack>
+              </Stack>
+              {providersLoading && <LinearProgress />}
+              <List dense sx={{ flex: 1, overflowY: 'auto' }}>
+                {providers.map((p) => (
+                  <ListItem key={p.name} disablePadding>
+                    <ListItemButton selected={selectedProvider === p.name} onClick={() => setSelectedProvider(p.name)}>
+                      <ListItemText
+                        primary={
+                          <Box display="flex" alignItems="center" gap={1}>
+                            <Typography component="span" sx={{ fontWeight: 600 }}>{p.name}</Typography>
+                            <Chip
+                              size="small"
+                              label={p.provider_type}
+                              variant="outlined"
+                            />
+                          </Box>
+                        }
+                        secondary={
+                          <Box display="flex" alignItems="center" gap={1}>
+                            {p.status === 'valid' ? (
+                              <><CheckCircleIcon fontSize="small" sx={{ color: 'green' }} /><span>Valid</span></>
+                            ) : p.status === 'invalid' ? (
+                              <><ErrorIcon fontSize="small" sx={{ color: 'red' }} /><span>Invalid</span></>
+                            ) : (
+                              <span>Unknown</span>
+                            )}
+                          </Box>
+                        }
+                      />
+                    </ListItemButton>
+                  </ListItem>
+                ))}
+              </List>
+            </Paper>
+          </Grid>
+          <Grid xs={12} md={8}>
+            <Paper sx={{ p: 2, height: 'calc(100vh - 320px)', display: 'flex', flexDirection: 'column' }}>
+              {selected ? (
+                <>
+                  <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
+                    <Box>
+                      <Typography variant="subtitle1" sx={{ fontSize: 12 }}>Provider Details</Typography>
+                      <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
+                        <Chip size="small" label={`Name: ${selected.name}`} />
+                        <Chip size="small" label={`Type: ${selected.provider_type}`} variant="outlined" />
                         <Chip
                           size="small"
-                          label={p.provider_type}
-                          variant="outlined"
+                          label={selected.status}
+                          color={selected.status === 'valid' ? 'success' : 'error'}
                         />
-                      </Box>
-                    }
-                    secondary={
-                      <Box display="flex" alignItems="center" gap={1}>
-                        {p.status === 'valid' ? (
-                          <><CheckCircleIcon fontSize="small" sx={{ color: 'green' }} /><span>Valid</span></>
-                        ) : p.status === 'invalid' ? (
-                          <><ErrorIcon fontSize="small" sx={{ color: 'red' }} /><span>Invalid</span></>
-                        ) : (
-                          <span>Unknown</span>
-                        )}
-                      </Box>
-                    }
-                  />
-                </ListItemButton>
-              </ListItem>
-            ))}
-          </List>
-        </Paper>
-      </Grid>
-      <Grid xs={12} md={8}>
-        <Paper sx={{ p: 2, height: 'calc(100vh - 260px)', display: 'flex', flexDirection: 'column' }}>
-          {selected ? (
-            <>
-              <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
-                <Box>
-                  <Typography variant="subtitle1" sx={{ fontSize: 12 }}>Provider Details</Typography>
-                  <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
-                    <Chip size="small" label={`Name: ${selected.name}`} />
-                    <Chip size="small" label={`Type: ${selected.provider_type}`} variant="outlined" />
-                    <Chip
-                      size="small"
-                      label={selected.status}
-                      color={selected.status === 'valid' ? 'success' : 'error'}
-                    />
+                      </Stack>
+                    </Box>
+                    <Button variant="contained" size="small" onClick={testProvider}>
+                      Test Connection
+                    </Button>
                   </Stack>
-                </Box>
-                <Button variant="contained" size="small" onClick={testProvider}>
-                  Test Connection
-                </Button>
-              </Stack>
-              <Box sx={{ flex: 1, overflow: 'auto' }}>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                  {selected.provider_type === 'google' && 'Google Generative AI API provider'}
-                  {selected.provider_type === 'ollama' && 'Local Ollama instance provider'}
+                  <Box sx={{ flex: 1, overflow: 'auto' }}>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                      {selected.provider_type === 'google' && 'Google Generative AI API provider'}
+                      {selected.provider_type === 'ollama' && 'Local Ollama instance provider'}
+                    </Typography>
+                    {selected.base_url && (
+                      <Typography variant="caption" display="block" sx={{ mb: 1 }}>
+                        <strong>Base URL:</strong> {selected.base_url}
+                      </Typography>
+                    )}
+                    {selected.last_validated_at && (
+                      <Typography variant="caption" display="block">
+                        <strong>Last Validated:</strong> {new Date(selected.last_validated_at).toLocaleString()}
+                      </Typography>
+                    )}
+                  </Box>
+                </>
+              ) : (
+                <Typography color="text.secondary" sx={{ textAlign: 'center', pt: 4 }}>
+                  Select a provider to view details
                 </Typography>
-                {selected.base_url && (
-                  <Typography variant="caption" display="block" sx={{ mb: 1 }}>
-                    <strong>Base URL:</strong> {selected.base_url}
-                  </Typography>
-                )}
-                {selected.last_validated_at && (
-                  <Typography variant="caption" display="block">
-                    <strong>Last Validated:</strong> {new Date(selected.last_validated_at).toLocaleString()}
-                  </Typography>
-                )}
-              </Box>
-            </>
-          ) : (
-            <Typography color="text.secondary" sx={{ textAlign: 'center', pt: 4 }}>
-              Select a provider to view details
-            </Typography>
-          )}
-        </Paper>
-      </Grid>
+              )}
+            </Paper>
+          </Grid>
+        </Grid>
+      )}
+
+      {tabIdx === 1 && (
+        /* MODELS TAB */
+        <Grid container spacing={2}>
+          <Grid xs={12} md={4}>
+            <Paper sx={{ p: 1, height: 'calc(100vh - 320px)', display: 'flex', flexDirection: 'column' }}>
+              <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+                <Typography variant="subtitle1" sx={{ fontSize: 12 }}>Models</Typography>
+                <Tooltip title="Refresh">
+                  <IconButton size="small" onClick={loadModels} disabled={modelsLoading}>
+                    <RefreshIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              </Stack>
+              {modelsLoading && <LinearProgress />}
+              <List dense sx={{ flex: 1, overflowY: 'auto' }}>
+                {models.map((m) => (
+                  <ListItem key={m.id} disablePadding>
+                    <ListItemButton selected={selectedModel === m.id} onClick={() => setSelectedModel(m.id)}>
+                      <ListItemText
+                        primary={
+                          <Box display="flex" alignItems="center" gap={1}>
+                            <Typography component="span" sx={{ fontWeight: 600 }}>{m.display_name}</Typography>
+                            <Chip
+                              size="small"
+                              label={m.provider_name}
+                              variant="outlined"
+                            />
+                          </Box>
+                        }
+                        secondary={
+                          <Typography variant="caption" color="text.secondary">
+                            {m.modality?.join(', ') || 'text'}
+                          </Typography>
+                        }
+                      />
+                    </ListItemButton>
+                  </ListItem>
+                ))}
+              </List>
+            </Paper>
+          </Grid>
+          <Grid xs={12} md={8}>
+            <Paper sx={{ p: 2, height: 'calc(100vh - 320px)', display: 'flex', flexDirection: 'column' }}>
+              {selectedModelData ? (
+                <>
+                  <Typography variant="subtitle1" sx={{ fontSize: 12, mb: 2 }}>Model Details</Typography>
+                  <Stack direction="row" spacing={1} sx={{ mb: 2, flexWrap: 'wrap' }}>
+                    <Chip size="small" label={`Name: ${selectedModelData.display_name}`} />
+                    <Chip size="small" label={`Provider: ${selectedModelData.provider_name}`} variant="outlined" />
+                    <Chip size="small" label={`Model ID: ${selectedModelData.provider_model_id}`} variant="outlined" />
+                  </Stack>
+                  <Box sx={{ flex: 1, overflow: 'auto' }}>
+                    {selectedModelData.context_window && (
+                      <Typography variant="caption" display="block" sx={{ mb: 1 }}>
+                        <strong>Context Window:</strong> {selectedModelData.context_window.toLocaleString()} tokens
+                      </Typography>
+                    )}
+                    {selectedModelData.modality && selectedModelData.modality.length > 0 && (
+                      <Typography variant="caption" display="block" sx={{ mb: 1 }}>
+                        <strong>Capabilities:</strong> {selectedModelData.modality.join(', ')}
+                      </Typography>
+                    )}
+                    {selectedModelData.input_cost_per_1k && (
+                      <Typography variant="caption" display="block" sx={{ mb: 1 }}>
+                        <strong>Input Cost (per 1K tokens):</strong> ${selectedModelData.input_cost_per_1k}
+                      </Typography>
+                    )}
+                    {selectedModelData.output_cost_per_1k && (
+                      <Typography variant="caption" display="block" sx={{ mb: 1 }}>
+                        <strong>Output Cost (per 1K tokens):</strong> ${selectedModelData.output_cost_per_1k}
+                      </Typography>
+                    )}
+                    <Box sx={{ mt: 2 }}>
+                      <Chip
+                        size="small"
+                        label={selectedModelData.enabled ? 'Enabled' : 'Disabled'}
+                        color={selectedModelData.enabled ? 'success' : 'default'}
+                      />
+                    </Box>
+                  </Box>
+                </>
+              ) : (
+                <Typography color="text.secondary" sx={{ textAlign: 'center', pt: 4 }}>
+                  {models.length === 0 ? 'No models registered. Add providers and discover models first.' : 'Select a model to view details'}
+                </Typography>
+              )}
+            </Paper>
+          </Grid>
+        </Grid>
+      )}
 
       {/* Add Provider Dialog */}
-      <Dialog open={openAddDialog} onClose={() => setOpenAddDialog(false)} maxWidth="sm" fullWidth>
+      <Dialog open={openAddProviderDialog} onClose={() => setOpenAddProviderDialog(false)} maxWidth="sm" fullWidth>
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           Add LLM Provider
-          <IconButton size="small" onClick={() => setOpenAddDialog(false)}>
+          <IconButton size="small" onClick={() => setOpenAddProviderDialog(false)}>
             <CloseIcon fontSize="small" />
           </IconButton>
         </DialogTitle>
@@ -273,16 +416,16 @@ export default function LLMBrowse() {
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpenAddDialog(false)}>Cancel</Button>
+          <Button onClick={() => setOpenAddProviderDialog(false)}>Cancel</Button>
           <Button variant="contained" onClick={addProvider}>Add Provider</Button>
         </DialogActions>
       </Dialog>
 
       {/* Delete Dialog */}
-      <Dialog open={openDeleteDialog} onClose={() => setOpenDeleteDialog(false)}>
+      <Dialog open={openDeleteProviderDialog} onClose={() => setOpenDeleteProviderDialog(false)}>
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           Delete provider
-          <IconButton size="small" onClick={() => setOpenDeleteDialog(false)}>
+          <IconButton size="small" onClick={() => setOpenDeleteProviderDialog(false)}>
             <CloseIcon fontSize="small" />
           </IconButton>
         </DialogTitle>
@@ -290,10 +433,10 @@ export default function LLMBrowse() {
           Are you sure you want to delete "{selectedProvider}"?
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpenDeleteDialog(false)}>Cancel</Button>
+          <Button onClick={() => setOpenDeleteProviderDialog(false)}>Cancel</Button>
           <Button color="error" disabled={deleting} onClick={deleteProvider}>Delete</Button>
         </DialogActions>
       </Dialog>
-    </Grid>
+    </>
   );
 }
