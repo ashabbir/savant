@@ -38,6 +38,7 @@ import ContextTools from './pages/context/Tools';
 import ContextResources from './pages/context/Resources';
 import MemorySearch from './pages/context/MemorySearch';
 import WorkflowTools from './pages/workflow/Tools';
+import LLMRegistry from './pages/LLMRegistry';
 import { getErrorMessage, loadConfig, useHubHealth, useHubInfo, useEngineStatus, useRoutes } from './api';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import HubIcon from '@mui/icons-material/Hub';
@@ -55,7 +56,8 @@ function useMainTabIndex() {
   if (pathname.startsWith('/engines')) return 1;
   if (pathname.startsWith('/agents')) return 2;
   if (pathname.startsWith('/workflows')) return 3;
-  if (pathname.startsWith('/diagnostics')) return 4;
+  if (pathname.startsWith('/llm-registry')) return 4;
+  if (pathname.startsWith('/diagnostics')) return 5;
   return 0;
 }
 
@@ -246,9 +248,15 @@ export default function App() {
       navigate('/workflows', { replace: false });
     }
   }, [mainIdx, loc.pathname]);
+  // Normalize LLM Registry root
+  React.useEffect(() => {
+    if (mainIdx === 4 && loc.pathname === '/llm-registry') {
+      navigate('/llm-registry', { replace: false });
+    }
+  }, [mainIdx, loc.pathname]);
   // Normalize Diagnostics root to a concrete sub-route so tabs highlight consistently
   React.useEffect(() => {
-    if (mainIdx === 4 && (loc.pathname === '/diagnostics' || loc.pathname === '/diagnostics/')) {
+    if (mainIdx === 5 && (loc.pathname === '/diagnostics' || loc.pathname === '/diagnostics/')) {
       navigate('/diagnostics/overview', { replace: true });
     }
   }, [mainIdx, loc.pathname]);
@@ -328,12 +336,14 @@ export default function App() {
         else if (v === 1) navigate('/engines');
         else if (v === 2) navigate('/agents');
         else if (v === 3) navigate('/workflows');
-        else if (v === 4) navigate('/diagnostics');
+        else if (v === 4) navigate('/llm-registry');
+        else if (v === 5) navigate('/diagnostics');
       }} centered>
         <Tab icon={<DashboardIcon />} iconPosition="start" label="Dashboard" component={Link} to="/dashboard" />
         <Tab icon={<StorageIcon />} iconPosition="start" label="Tools" component={Link} to="/engines" />
         <Tab icon={<SmartToyIcon />} iconPosition="start" label="Agents" component={Link} to="/agents" />
         <Tab icon={<AccountTreeIcon />} iconPosition="start" label="Workflows" component={Link} to="/workflows" />
+        <Tab icon={<CodeIcon />} iconPosition="start" label="LLM Registry" component={Link} to="/llm-registry" />
         <Tab icon={<ManageSearchIcon />} iconPosition="start" label="Diagnostics" component={Link} to="/diagnostics" />
       </Tabs>
       {mainIdx === 1 && (
@@ -485,6 +495,9 @@ export default function App() {
           <Route path="/workflows/new" element={<ThinkWorkflowEditor />} />
           <Route path="/workflows/edit/:id" element={<ThinkWorkflowEditor />} />
           <Route path="/workflows/runs" element={<ThinkRuns />} />
+
+          {/* LLM Registry routes */}
+          <Route path="/llm-registry" element={<LLMRegistry />} />
 
           <Route path="/search" element={<Navigate to="/ctx/search" replace />} />
           <Route path="/repos" element={<Navigate to="/ctx/repos" replace />} />
