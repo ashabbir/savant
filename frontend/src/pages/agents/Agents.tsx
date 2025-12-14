@@ -236,11 +236,14 @@ export default function Agents() {
                         </Typography>
                         {a.favorite && <FavoriteIcon fontSize="small" color="error" />}
                       </Stack>
-                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                        (Persona) {personaLabel}  (Model) {model ? model.display_name || model.provider_model_id : 'Not assigned'}  Rules: {Array.isArray(a.rules_names) && a.rules_names.length > 0 ? a.rules_names.length : '0'}
-                      </Typography>
-                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                        Runs: {a.run_count || 0}
+                      <Stack direction="row" spacing={1} alignItems="center" sx={{ flexWrap: 'wrap', gap: 0.5 }}>
+                        <Chip size="small" label={personaLabel} variant="outlined" sx={{ height: 20 }} />
+                        <Chip size="small" label={`Rules: ${Array.isArray(a.rules_names) && a.rules_names.length > 0 ? a.rules_names.length : '0'}`} variant="outlined" sx={{ height: 20 }} />
+                        <Chip size="small" label={`Runs: ${a.run_count || 0}`} variant="outlined" sx={{ height: 20 }} />
+                      </Stack>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontSize: '0.75rem' }}>
+                        {model?.provider_name && <span style={{ fontStyle: 'italic', marginRight: '4px' }}>{model.provider_name}</span>}
+                        {model ? model.display_name || model.provider_model_id : 'Not assigned'}
                       </Typography>
                     </Stack>
                   </ListItemButton>
