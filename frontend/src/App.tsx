@@ -145,7 +145,9 @@ function useEngineSubIndex(engineName: string | undefined) {
     return 0;
   }
   if (engineName === 'llm') {
-    if (pathname.includes('/tools')) return 1;
+    if (pathname.includes('/providers')) return 0;
+    if (pathname.includes('/models')) return 1;
+    if (pathname.includes('/tools')) return 2;
     return 0;
   }
   if (engineName === 'workflow') {
@@ -164,7 +166,7 @@ function defaultEngineRoute(name: string): string {
   if (name === 'personas') return '/engines/personas';
   if (name === 'drivers') return '/engines/drivers';
   if (name === 'rules') return '/engines/rules';
-  if (name === 'llm') return '/engines/llm';
+  if (name === 'llm') return '/engines/llm/providers';
   if (name === 'git') return '/engines/git/tools';
   // agents is now top-level, redirect if somehow accessed
   if (name === 'agents') return '/agents';
@@ -440,14 +442,16 @@ export default function App() {
       )}
       {mainIdx === 1 && (uiSelEngine || selEngine) === 'llm' && (
         <Tabs value={engSubIdx} onChange={(_, v) => {
-          if (v === 0) navigate('/engines/llm');
-          else if (v === 1) navigate('/engines/llm/tools');
+          if (v === 0) navigate('/engines/llm/providers');
+          else if (v === 1) navigate('/engines/llm/models');
+          else if (v === 2) navigate('/engines/llm/tools');
         }} centered sx={{
           '& .MuiTab-root': { fontSize: 12, minHeight: 36, py: 0.5, textTransform: 'none', color: 'text.secondary' },
           '& .Mui-selected': { color: 'primary.main !important' },
           '& .MuiTabs-indicator': { height: 2, backgroundColor: 'primary.light' }
         }}>
-          <Tab label="Browse" component={Link} to="/engines/llm" />
+          <Tab label="Providers" component={Link} to="/engines/llm/providers" />
+          <Tab label="Models" component={Link} to="/engines/llm/models" />
           <Tab label="Tools" component={Link} to="/engines/llm/tools" />
         </Tabs>
       )}
@@ -568,7 +572,8 @@ export default function App() {
           <Route path="/engines/drivers/edit/:name" element={<DriverEditor />} />
 
           {/* LLM Engine routes */}
-          <Route path="/engines/llm" element={<LLMBrowse />} />
+          <Route path="/engines/llm/providers" element={<LLMBrowse type="providers" />} />
+          <Route path="/engines/llm/models" element={<LLMBrowse type="models" />} />
           <Route path="/engines/llm/tools" element={<LLMTools />} />
           {/* Keep old agents routes for backward compatibility */}
           <Route path="/engines/agents" element={<Agents />} />
