@@ -60,12 +60,15 @@ export default function AgentDetail() {
     }
   }, [personaOptions, ruleOptions]);
 
-  // Load existing model assignment
+  // Load existing model assignment - set when agent data or model options are ready
   useEffect(() => {
     const a = agent.data as any;
     if (!a || !a.model_id) return;
-    setSelectedModelId(a.model_id);
-  }, [agent.data, models.data]);
+    // Only set if models have loaded
+    if (modelOptions.length > 0) {
+      setSelectedModelId(a.model_id);
+    }
+  }, [agent.data, modelOptions]);
 
   async function save() {
     if (!name) return;
