@@ -424,7 +424,7 @@ export default function LLMRegistry() {
                       <TableCell>{model.provider_name}</TableCell>
                       <TableCell>
                         <Stack direction="row" spacing={0.5} flexWrap="wrap">
-                          {model.modality.map((m) => (
+                          {(Array.isArray(model.modality) ? model.modality : []).map((m) => (
                             <Chip key={m} label={m} size="small" variant="outlined" />
                           ))}
                         </Stack>
