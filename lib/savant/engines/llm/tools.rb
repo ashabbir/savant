@@ -1,6 +1,19 @@
 module Savant::LLM::Tools
   module_function
 
+  # Return the MCP tool specs for the LLM service
+  def specs
+    build_registrar.specs
+  end
+
+  # Dispatch a tool call by name to the LLM engine
+  def dispatch(engine, name, args)
+    reg = build_registrar(engine)
+    base_ctx = { engine: engine, service: 'llm' }
+    base_ctx[:logger] = engine&.logger
+    reg.call(name, args || {}, ctx: base_ctx)
+  end
+
   def build_registrar(engine = nil)
     Savant::Framework::MCP::Core::DSL.build do
       # Provider tools
