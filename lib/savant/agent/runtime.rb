@@ -10,6 +10,7 @@ require_relative '../llm/adapter'
 require_relative 'prompt_builder'
 require_relative 'output_parser'
 require_relative 'memory'
+require_relative '../reasoning/client'
 
 module Savant
   module Agent
@@ -219,6 +220,18 @@ module Savant
 
       def decide_and_parse(prompt:, model:, allowed_tools: [], step: nil)
         usage = { prompt_tokens: nil, output_tokens: nil }
+        # If reasoning API is configured, delegate single-step intent decision
+        if reasoning_client&.available?
+          begin
+            payload = build_agent_payload
+            intent = reasoning_client.agent_intent(payload)
+            parsed = intent_to_action(intent)
+            return [parsed, usage, 'reasoning_api/v1']
+          rescue StandardError => e
+            @logger.warn(event: 'reasoning_api_fallback', error: e.message)
+          end
+        end
+        # Fallback to local SLM
         text, usage = with_timing_llm(model: model, prompt: prompt, step: step)
         parsed = parse_action(text) || retry_fix_json(model: model, prompt: prompt, raw: text)
         # If model returned an invalid action, ask for a correction once with stricter instructions
@@ -234,6 +247,35 @@ module Savant
           usage,
           model
         ]
+      end
+
+      def build_agent_payload
+        ctx = @context
+        {
+          session_id: ctx&.session_id || "run-#{Time.now.to_i}",
+          persona: ctx&.persona || {},
+          driver: ctx&.driver_prompt || {},
+          repo_context: ctx&.repo || {},
+          memory_state: @memory&.data || {},
+          history: @memory&.data&.dig('steps') || [],
+          goal_text: @goal,
+          forced_tool: @forced_tool,
+          max_steps: 1
+        }
+      end
+
+      def intent_to_action(intent)
+        if intent.finish
+          { 'action' => 'finish', 'tool_name' => '', 'args' => {}, 'final' => intent.final_text.to_s, 'reasoning' => intent.reasoning.to_s }
+        elsif intent.tool_name && !intent.tool_name.to_s.empty?
+          { 'action' => 'tool', 'tool_name' => intent.tool_name.to_s, 'args' => intent.tool_args || {}, 'final' => '', 'reasoning' => intent.reasoning.to_s }
+        else
+          { 'action' => 'reason', 'tool_name' => '', 'args' => {}, 'final' => '', 'reasoning' => intent.reasoning.to_s }
+        end
+      end
+
+      def reasoning_client
+        @reasoning_client ||= Savant::Reasoning::Client.new
       end
 
       def repair_invalid_action(model:, allowed_tools: [])
