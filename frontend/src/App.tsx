@@ -463,7 +463,7 @@ export default function App() {
         </Tabs>
       )}
       {/* Diagnostics subtabs */}
-      {mainIdx === 4 && (
+      {mainIdx === 5 && (
         <Tabs value={diagSubIdx} centered sx={{
           '& .MuiTab-root': { fontSize: 12, minHeight: 32, py: 0.5, textTransform: 'none', color: 'text.secondary' },
           '& .Mui-selected': { color: 'primary.main !important' },
