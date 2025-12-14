@@ -77,20 +77,11 @@ interface Model {
   enabled: boolean;
 }
 
-interface Agent {
-  id: number;
-  name: string;
-  description?: string;
-  model_id?: number;
-  model_name?: string;
-}
-
 export default function LLMRegistry() {
   const theme = useTheme();
   const [tabValue, setTabValue] = useState(0);
   const [openProviderDialog, setOpenProviderDialog] = useState(false);
   const [openModelDialog, setOpenModelDialog] = useState(false);
-  const [openAgentDialog, setOpenAgentDialog] = useState(false);
   const [openDiscoverDialog, setOpenDiscoverDialog] = useState(false);
 
   const queryClient = useQueryClient();
@@ -99,8 +90,6 @@ export default function LLMRegistry() {
   const [providerForm, setProviderForm] = useState({ name: '', type: 'google', apiKey: '', baseUrl: '' });
   const [modelForm, setModelForm] = useState({ provider: '', modelIds: [] as string[] });
   const [discoverProvider, setDiscoverProvider] = useState('');
-  const [agentForm, setAgentForm] = useState({ name: '', description: '' });
-  const [assignForm, setAssignForm] = useState({ agent: '', modelId: '' });
 
   // Fetch providers
   const providersQuery = useQuery({
@@ -117,15 +106,6 @@ export default function LLMRegistry() {
     queryFn: async () => {
       const res = await callEngineTool('llm', 'llm_models_list', {});
       return res.models || [];
-    },
-  });
-
-  // Fetch agents
-  const agentsQuery = useQuery({
-    queryKey: ['llm', 'agents'],
-    queryFn: async () => {
-      const res = await callEngineTool('llm', 'llm_agents_list', {});
-      return res.agents || [];
     },
   });
 
@@ -204,45 +184,6 @@ export default function LLMRegistry() {
     },
   });
 
-  // Create agent
-  const createAgentMutation = useMutation({
-    mutationFn: async (data: typeof agentForm) => {
-      await callEngineTool('llm', 'llm_agents_create', {
-        name: data.name,
-        description: data.description || undefined,
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['llm', 'agents'] });
-      setOpenAgentDialog(false);
-      setAgentForm({ name: '', description: '' });
-    },
-  });
-
-  // Assign model to agent
-  const assignModelMutation = useMutation({
-    mutationFn: async (data: typeof assignForm) => {
-      await callEngineTool('llm', 'llm_agents_assign_model', {
-        agent_name: data.agent,
-        model_id: parseInt(data.modelId),
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['llm', 'agents'] });
-      setAssignForm({ agent: '', modelId: '' });
-    },
-  });
-
-  // Delete agent
-  const deleteAgentMutation = useMutation({
-    mutationFn: async (name: string) => {
-      await callEngineTool('llm', 'llm_agents_delete', { name });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['llm', 'agents'] });
-    },
-  });
-
   const getStatusColor = (status: string) => {
     if (status === 'valid') return 'success';
     if (status === 'invalid') return 'error';
@@ -269,7 +210,6 @@ export default function LLMRegistry() {
         >
           <Tab label="Providers" id="llm-tab-0" aria-controls="llm-tabpanel-0" />
           <Tab label="Models" id="llm-tab-1" aria-controls="llm-tabpanel-1" />
-          <Tab label="Agents" id="llm-tab-2" aria-controls="llm-tabpanel-2" />
         </Tabs>
       </Paper>
 
@@ -474,82 +414,6 @@ export default function LLMRegistry() {
         </Stack>
       </TabPanel>
 
-      {/* Agents Tab */}
-      <TabPanel value={tabValue} index={2}>
-        <Stack spacing={2}>
-          <Box display="flex" gap={1} justifyContent="space-between" alignItems="center">
-            <Typography variant="h6">Agents</Typography>
-            <Stack direction="row" spacing={1}>
-              <Button
-                variant="contained"
-                color="primary"
-                onClick={() => setOpenAgentDialog(true)}
-              >
-                Create Agent
-              </Button>
-              <IconButton
-                onClick={() => agentsQuery.refetch()}
-                disabled={agentsQuery.isLoading}
-              >
-                <RefreshIcon />
-              </IconButton>
-            </Stack>
-          </Box>
-
-          {agentsQuery.isLoading && <CircularProgress />}
-          {agentsQuery.isError && (
-            <Alert severity="error">Failed to load agents</Alert>
-          )}
-
-          {agentsQuery.data && agentsQuery.data.length === 0 && (
-            <Alert severity="info">No agents configured. Create one to assign models.</Alert>
-          )}
-
-          {agentsQuery.data && agentsQuery.data.length > 0 && (
-            <TableContainer>
-              <Table>
-                <TableHead>
-                  <TableRow sx={{ bgcolor: theme.palette.mode === 'dark' ? theme.palette.grey[900] : 'grey.100' }}>
-                    <TableCell>Name</TableCell>
-                    <TableCell>Description</TableCell>
-                    <TableCell>Assigned Model</TableCell>
-                    <TableCell align="right">Actions</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {(agentsQuery.data as Agent[]).map((agent) => (
-                    <TableRow key={agent.id}>
-                      <TableCell>{agent.name}</TableCell>
-                      <TableCell>{agent.description || '-'}</TableCell>
-                      <TableCell>{agent.model_name || 'Not assigned'}</TableCell>
-                      <TableCell align="right">
-                        {!agent.model_id && (
-                          <Button
-                            size="small"
-                            onClick={() => setAssignForm({ agent: agent.name, modelId: '' })}
-                          >
-                            Assign Model
-                          </Button>
-                        )}
-                        <Tooltip title="Delete">
-                          <IconButton
-                            size="small"
-                            onClick={() => deleteAgentMutation.mutate(agent.name)}
-                            disabled={deleteAgentMutation.isPending}
-                          >
-                            <DeleteIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          )}
-        </Stack>
-      </TabPanel>
-
       {/* Add Provider Dialog */}
       <Dialog open={openProviderDialog} onClose={() => setOpenProviderDialog(false)} maxWidth="sm" fullWidth>
         <DialogTitle>Add LLM Provider</DialogTitle>
@@ -672,79 +536,6 @@ export default function LLMRegistry() {
         </DialogActions>
       </Dialog>
 
-      {/* Create Agent Dialog */}
-      <Dialog open={openAgentDialog} onClose={() => setOpenAgentDialog(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Create Agent</DialogTitle>
-        <DialogContent sx={{ pt: 2 }}>
-          <Stack spacing={2}>
-            <TextField
-              label="Agent Name"
-              value={agentForm.name}
-              onChange={(e) => setAgentForm({ ...agentForm, name: e.target.value })}
-              fullWidth
-            />
-            <TextField
-              label="Description"
-              value={agentForm.description}
-              onChange={(e) => setAgentForm({ ...agentForm, description: e.target.value })}
-              fullWidth
-              multiline
-              rows={3}
-            />
-          </Stack>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpenAgentDialog(false)}>Cancel</Button>
-          <Button
-            onClick={() => createAgentMutation.mutate(agentForm)}
-            variant="contained"
-            disabled={createAgentMutation.isPending || !agentForm.name}
-          >
-            Create Agent
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Assign Model Dialog */}
-      {assignForm.agent && (
-        <Dialog
-          open={!!assignForm.agent}
-          onClose={() => setAssignForm({ agent: '', modelId: '' })}
-          maxWidth="sm"
-          fullWidth
-        >
-          <DialogTitle>Assign Model to {assignForm.agent}</DialogTitle>
-          <DialogContent sx={{ pt: 2 }}>
-            <FormControl fullWidth>
-              <InputLabel>Model</InputLabel>
-              <Select
-                value={assignForm.modelId}
-                onChange={(e) => setAssignForm({ ...assignForm, modelId: e.target.value })}
-                label="Model"
-              >
-                {(modelsQuery.data as Model[])?.map((m) => (
-                  <MenuItem key={m.id} value={m.id.toString()}>
-                    {m.display_name} ({m.provider_name})
-                  </MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setAssignForm({ agent: '', modelId: '' })}>Cancel</Button>
-            <Button
-              onClick={() => {
-                assignModelMutation.mutate(assignForm);
-                setAssignForm({ agent: '', modelId: '' });
-              }}
-              variant="contained"
-              disabled={assignModelMutation.isPending || !assignForm.modelId}
-            >
-              Assign
-            </Button>
-          </DialogActions>
-        </Dialog>
-      )}
     </Box>
   );
 }
