@@ -304,7 +304,7 @@ export default function LLMBrowse() {
                         }
                         secondary={
                           <Typography variant="caption" color="text.secondary">
-                            {m.modality?.join(', ') || 'text'}
+                            {Array.isArray(m.modality) ? m.modality.join(', ') : m.modality || 'text'}
                           </Typography>
                         }
                       />
@@ -330,9 +330,9 @@ export default function LLMBrowse() {
                         <strong>Context Window:</strong> {selectedModelData.context_window.toLocaleString()} tokens
                       </Typography>
                     )}
-                    {selectedModelData.modality && selectedModelData.modality.length > 0 && (
+                    {selectedModelData.modality && (Array.isArray(selectedModelData.modality) ? selectedModelData.modality.length > 0 : selectedModelData.modality) && (
                       <Typography variant="caption" display="block" sx={{ mb: 1 }}>
-                        <strong>Capabilities:</strong> {selectedModelData.modality.join(', ')}
+                        <strong>Capabilities:</strong> {Array.isArray(selectedModelData.modality) ? selectedModelData.modality.join(', ') : selectedModelData.modality}
                       </Typography>
                     )}
                     {selectedModelData.input_cost_per_1k && (
