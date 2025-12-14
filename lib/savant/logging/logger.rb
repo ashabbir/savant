@@ -4,6 +4,12 @@
 require 'json'
 require 'time'
 require 'fileutils'
+begin
+  # Load Mongo-backed logger so consumers requiring 'logging/logger' can access MongoLogger
+  require_relative 'mongo_logger'
+rescue LoadError, StandardError
+  # ignore if unavailable in very early boot; callers can require directly
+end
 
 #
 # Purpose: Minimal, fast logger with levels and timing.
