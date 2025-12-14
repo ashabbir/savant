@@ -1,0 +1,299 @@
+import React, { useState } from 'react';
+import Grid from '@mui/material/Unstable_Grid2';
+import Paper from '@mui/material/Paper';
+import Box from '@mui/material/Box';
+import Typography from '@mui/material/Typography';
+import LinearProgress from '@mui/material/LinearProgress';
+import Alert from '@mui/material/Alert';
+import TextField from '@mui/material/TextField';
+import List from '@mui/material/List';
+import ListItem from '@mui/material/ListItem';
+import ListItemButton from '@mui/material/ListItemButton';
+import ListItemText from '@mui/material/ListItemText';
+import Chip from '@mui/material/Chip';
+import Stack from '@mui/material/Stack';
+import Button from '@mui/material/Button';
+import Dialog from '@mui/material/Dialog';
+import DialogTitle from '@mui/material/DialogTitle';
+import DialogContent from '@mui/material/DialogContent';
+import DialogActions from '@mui/material/DialogActions';
+import Tooltip from '@mui/material/Tooltip';
+import IconButton from '@mui/material/IconButton';
+import CloseIcon from '@mui/icons-material/Close';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import ErrorIcon from '@mui/icons-material/Error';
+import RefreshIcon from '@mui/icons-material/Refresh';
+import AddCircleIcon from '@mui/icons-material/AddCircle';
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
+import { getErrorMessage, callEngineTool } from '../../api';
+
+export default function LLMBrowse() {
+  const [providers, setProviders] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [openAddDialog, setOpenAddDialog] = useState(false);
+  const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
+  const [formData, setFormData] = useState({
+    name: '',
+    type: 'google',
+    apiKey: '',
+    baseUrl: ''
+  });
+  const [deleting, setDeleting] = useState(false);
+
+  React.useEffect(() => {
+    loadProviders();
+  }, []);
+
+  async function loadProviders() {
+    try {
+      setLoading(true);
+      setError(null);
+      const res = await callEngineTool('llm', 'llm_providers_list', {});
+      setProviders(res.providers || []);
+      if (res.providers?.length > 0 && !selectedProvider) {
+        setSelectedProvider(res.providers[0].name);
+      }
+    } catch (e: any) {
+      setError(getErrorMessage(e));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function addProvider() {
+    try {
+      if (!formData.name.trim()) {
+        setError('Provider name is required');
+        return;
+      }
+      await callEngineTool('llm', 'llm_providers_create', {
+        name: formData.name,
+        provider_type: formData.type,
+        base_url: formData.baseUrl || undefined,
+        api_key: formData.apiKey || undefined,
+      });
+      setOpenAddDialog(false);
+      setFormData({ name: '', type: 'google', apiKey: '', baseUrl: '' });
+      await loadProviders();
+    } catch (e: any) {
+      setError(getErrorMessage(e));
+    }
+  }
+
+  async function deleteProvider() {
+    try {
+      if (!selectedProvider) return;
+      setDeleting(true);
+      await callEngineTool('llm', 'llm_providers_delete', {
+        name: selectedProvider,
+      });
+      setOpenDeleteDialog(false);
+      setSelectedProvider(null);
+      await loadProviders();
+    } catch (e: any) {
+      setError(getErrorMessage(e));
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  async function testProvider() {
+    try {
+      if (!selectedProvider) return;
+      const res = await callEngineTool('llm', 'llm_providers_test', {
+        name: selectedProvider,
+      });
+      setError(res.status === 'valid' ? `✓ ${res.message}` : `✗ ${res.message}`);
+      await loadProviders();
+    } catch (e: any) {
+      setError(getErrorMessage(e));
+    }
+  }
+
+  const selected = providers.find(p => p.name === selectedProvider);
+
+  return (
+    <Grid container spacing={2}>
+      <Grid xs={12} md={4}>
+        <Paper sx={{ p: 1, height: 'calc(100vh - 260px)', display: 'flex', flexDirection: 'column' }}>
+          <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+            <Typography variant="subtitle1" sx={{ fontSize: 12 }}>Providers</Typography>
+            <Stack direction="row" spacing={1} alignItems="center">
+              <Tooltip title="New Provider">
+                <IconButton size="small" color="primary" onClick={() => setOpenAddDialog(true)}>
+                  <AddCircleIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title={!selectedProvider ? 'Select a provider' : 'Delete Provider'}>
+                <span>
+                  <IconButton size="small" color="error" disabled={!selectedProvider} onClick={() => setOpenDeleteDialog(true)}>
+                    <DeleteOutlineIcon fontSize="small" />
+                  </IconButton>
+                </span>
+              </Tooltip>
+              <Tooltip title="Refresh">
+                <IconButton size="small" onClick={loadProviders} disabled={loading}>
+                  <RefreshIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            </Stack>
+          </Stack>
+          {loading && <LinearProgress />}
+          {error && <Alert severity={error.startsWith('✓') ? 'success' : 'error'} sx={{ mb: 1 }}>{error}</Alert>}
+          <List dense sx={{ flex: 1, overflowY: 'auto' }}>
+            {providers.map((p) => (
+              <ListItem key={p.name} disablePadding>
+                <ListItemButton selected={selectedProvider === p.name} onClick={() => setSelectedProvider(p.name)}>
+                  <ListItemText
+                    primary={
+                      <Box display="flex" alignItems="center" gap={1}>
+                        <Typography component="span" sx={{ fontWeight: 600 }}>{p.name}</Typography>
+                        <Chip
+                          size="small"
+                          label={p.provider_type}
+                          variant="outlined"
+                        />
+                      </Box>
+                    }
+                    secondary={
+                      <Box display="flex" alignItems="center" gap={1}>
+                        {p.status === 'valid' ? (
+                          <><CheckCircleIcon fontSize="small" sx={{ color: 'green' }} /><span>Valid</span></>
+                        ) : p.status === 'invalid' ? (
+                          <><ErrorIcon fontSize="small" sx={{ color: 'red' }} /><span>Invalid</span></>
+                        ) : (
+                          <span>Unknown</span>
+                        )}
+                      </Box>
+                    }
+                  />
+                </ListItemButton>
+              </ListItem>
+            ))}
+          </List>
+        </Paper>
+      </Grid>
+      <Grid xs={12} md={8}>
+        <Paper sx={{ p: 2, height: 'calc(100vh - 260px)', display: 'flex', flexDirection: 'column' }}>
+          {selected ? (
+            <>
+              <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 2 }}>
+                <Box>
+                  <Typography variant="subtitle1" sx={{ fontSize: 12 }}>Provider Details</Typography>
+                  <Stack direction="row" spacing={1} sx={{ mt: 1 }}>
+                    <Chip size="small" label={`Name: ${selected.name}`} />
+                    <Chip size="small" label={`Type: ${selected.provider_type}`} variant="outlined" />
+                    <Chip
+                      size="small"
+                      label={selected.status}
+                      color={selected.status === 'valid' ? 'success' : 'error'}
+                    />
+                  </Stack>
+                </Box>
+                <Button variant="contained" size="small" onClick={testProvider}>
+                  Test Connection
+                </Button>
+              </Stack>
+              <Box sx={{ flex: 1, overflow: 'auto' }}>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                  {selected.provider_type === 'google' && 'Google Generative AI API provider'}
+                  {selected.provider_type === 'ollama' && 'Local Ollama instance provider'}
+                </Typography>
+                {selected.base_url && (
+                  <Typography variant="caption" display="block" sx={{ mb: 1 }}>
+                    <strong>Base URL:</strong> {selected.base_url}
+                  </Typography>
+                )}
+                {selected.last_validated_at && (
+                  <Typography variant="caption" display="block">
+                    <strong>Last Validated:</strong> {new Date(selected.last_validated_at).toLocaleString()}
+                  </Typography>
+                )}
+              </Box>
+            </>
+          ) : (
+            <Typography color="text.secondary" sx={{ textAlign: 'center', pt: 4 }}>
+              Select a provider to view details
+            </Typography>
+          )}
+        </Paper>
+      </Grid>
+
+      {/* Add Provider Dialog */}
+      <Dialog open={openAddDialog} onClose={() => setOpenAddDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          Add LLM Provider
+          <IconButton size="small" onClick={() => setOpenAddDialog(false)}>
+            <CloseIcon fontSize="small" />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ pt: 2 }}>
+          <Stack spacing={2}>
+            <TextField
+              label="Provider Name"
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              fullWidth
+              size="small"
+            />
+            <TextField
+              label="Provider Type"
+              select
+              SelectProps={{ native: true }}
+              value={formData.type}
+              onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+              fullWidth
+              size="small"
+            >
+              <option value="google">Google</option>
+              <option value="ollama">Ollama</option>
+            </TextField>
+            {formData.type === 'google' && (
+              <TextField
+                label="API Key"
+                type="password"
+                value={formData.apiKey}
+                onChange={(e) => setFormData({ ...formData, apiKey: e.target.value })}
+                fullWidth
+                size="small"
+              />
+            )}
+            {formData.type === 'ollama' && (
+              <TextField
+                label="Base URL"
+                placeholder="http://localhost:11434"
+                value={formData.baseUrl}
+                onChange={(e) => setFormData({ ...formData, baseUrl: e.target.value })}
+                fullWidth
+                size="small"
+              />
+            )}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenAddDialog(false)}>Cancel</Button>
+          <Button variant="contained" onClick={addProvider}>Add Provider</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Delete Dialog */}
+      <Dialog open={openDeleteDialog} onClose={() => setOpenDeleteDialog(false)}>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          Delete provider
+          <IconButton size="small" onClick={() => setOpenDeleteDialog(false)}>
+            <CloseIcon fontSize="small" />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent>
+          Are you sure you want to delete "{selectedProvider}"?
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenDeleteDialog(false)}>Cancel</Button>
+          <Button color="error" disabled={deleting} onClick={deleteProvider}>Delete</Button>
+        </DialogActions>
+      </Dialog>
+    </Grid>
+  );
+}

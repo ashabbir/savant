@@ -38,6 +38,8 @@ import ContextTools from './pages/context/Tools';
 import ContextResources from './pages/context/Resources';
 import MemorySearch from './pages/context/MemorySearch';
 import WorkflowTools from './pages/workflow/Tools';
+import LLMBrowse from './pages/llm/Browse';
+import LLMTools from './pages/llm/Tools';
 import LLMRegistry from './pages/LLMRegistry';
 import { getErrorMessage, loadConfig, useHubHealth, useHubInfo, useEngineStatus, useRoutes } from './api';
 import DashboardIcon from '@mui/icons-material/Dashboard';
@@ -80,7 +82,7 @@ function sortEngines(engines: string[]): string[] {
   // Filter out agents since it's a top-level tab now
   // Keep 'think' for Prompts/Tools sub-pages
   const filtered = engines.filter(e => e !== 'agents');
-  const order = ['context', 'think', 'personas', 'drivers', 'rules', 'jira', 'git'];
+  const order = ['context', 'think', 'personas', 'drivers', 'rules', 'llm', 'jira', 'git'];
   return filtered.sort((a, b) => {
     const aIdx = order.indexOf(a);
     const bIdx = order.indexOf(b);
@@ -142,6 +144,10 @@ function useEngineSubIndex(engineName: string | undefined) {
     if (pathname.includes('/tools')) return 1;
     return 0;
   }
+  if (engineName === 'llm') {
+    if (pathname.includes('/tools')) return 1;
+    return 0;
+  }
   if (engineName === 'workflow') {
     if (pathname.includes('/tools')) return 1;
     if (pathname.includes('/runs')) return 0;
@@ -158,10 +164,10 @@ function defaultEngineRoute(name: string): string {
   if (name === 'personas') return '/engines/personas';
   if (name === 'drivers') return '/engines/drivers';
   if (name === 'rules') return '/engines/rules';
+  if (name === 'llm') return '/engines/llm';
   if (name === 'git') return '/engines/git/tools';
-  // agents and llm are now top-level, redirect if somehow accessed
+  // agents is now top-level, redirect if somehow accessed
   if (name === 'agents') return '/agents';
-  if (name === 'llm') return '/llm-registry';
   return `/engines/${name}`;
 }
 
@@ -432,6 +438,19 @@ export default function App() {
           <Tab label="Tools" component={Link} to="/engines/drivers/tools" />
         </Tabs>
       )}
+      {mainIdx === 1 && (uiSelEngine || selEngine) === 'llm' && (
+        <Tabs value={engSubIdx} onChange={(_, v) => {
+          if (v === 0) navigate('/engines/llm');
+          else if (v === 1) navigate('/engines/llm/tools');
+        }} centered sx={{
+          '& .MuiTab-root': { fontSize: 12, minHeight: 36, py: 0.5, textTransform: 'none', color: 'text.secondary' },
+          '& .Mui-selected': { color: 'primary.main !important' },
+          '& .MuiTabs-indicator': { height: 2, backgroundColor: 'primary.light' }
+        }}>
+          <Tab label="Browse" component={Link} to="/engines/llm" />
+          <Tab label="Tools" component={Link} to="/engines/llm/tools" />
+        </Tabs>
+      )}
       {mainIdx === 1 && selEngine === 'workflow' && (
         <Tabs value={engSubIdx} onChange={(_, v) => {
           if (v === 0) navigate('/engines/workflow/runs');
@@ -548,9 +567,9 @@ export default function App() {
           <Route path="/engines/drivers/new" element={<DriverEditor />} />
           <Route path="/engines/drivers/edit/:name" element={<DriverEditor />} />
 
-          {/* LLM Registry routes via engines path */}
-          <Route path="/engines/llm" element={<Navigate to="/llm-registry" replace />} />
-          <Route path="/engines/llm/tools" element={<Navigate to="/llm-registry" replace />} />
+          {/* LLM Engine routes */}
+          <Route path="/engines/llm" element={<LLMBrowse />} />
+          <Route path="/engines/llm/tools" element={<LLMTools />} />
           {/* Keep old agents routes for backward compatibility */}
           <Route path="/engines/agents" element={<Agents />} />
           <Route path="/engines/agents/new" element={<AgentWizard />} />
