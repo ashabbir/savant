@@ -159,8 +159,9 @@ function defaultEngineRoute(name: string): string {
   if (name === 'drivers') return '/engines/drivers';
   if (name === 'rules') return '/engines/rules';
   if (name === 'git') return '/engines/git/tools';
-  // agents is now top-level, redirect if somehow accessed
+  // agents and llm are now top-level, redirect if somehow accessed
   if (name === 'agents') return '/agents';
+  if (name === 'llm') return '/llm-registry';
   return `/engines/${name}`;
 }
 
