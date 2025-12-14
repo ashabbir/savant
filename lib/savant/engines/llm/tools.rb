@@ -89,6 +89,15 @@ module Savant::Llm::Tools
         engine.models_list
       end
 
+      tool 'llm_models_delete', description: 'Delete a registered model',
+           schema: {
+             type: 'object',
+             properties: { model_id: { type: 'integer' } },
+             required: ['model_id']
+           } do |_ctx, a|
+        engine.models_delete(model_id: a['model_id'])
+      end
+
       # Agent tools
       tool 'llm_agents_create', description: 'Create an agent',
            schema: {

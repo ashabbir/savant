@@ -27,6 +27,7 @@ import {
   Chip,
   IconButton,
   Tooltip,
+  useTheme,
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
@@ -85,6 +86,7 @@ interface Agent {
 }
 
 export default function LLMRegistry() {
+  const theme = useTheme();
   const [tabValue, setTabValue] = useState(0);
   const [openProviderDialog, setOpenProviderDialog] = useState(false);
   const [openModelDialog, setOpenModelDialog] = useState(false);
@@ -192,6 +194,16 @@ export default function LLMRegistry() {
     },
   });
 
+  // Delete model
+  const deleteModelMutation = useMutation({
+    mutationFn: async (modelId: number) => {
+      await callEngineTool('llm', 'llm_models_delete', { model_id: modelId });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['llm', 'models'] });
+    },
+  });
+
   // Create agent
   const createAgentMutation = useMutation({
     mutationFn: async (data: typeof agentForm) => {
@@ -296,7 +308,7 @@ export default function LLMRegistry() {
             <TableContainer>
               <Table>
                 <TableHead>
-                  <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
+                  <TableRow sx={{ bgcolor: theme.palette.mode === 'dark' ? theme.palette.grey[900] : 'grey.100' }}>
                     <TableCell>Name</TableCell>
                     <TableCell>Type</TableCell>
                     <TableCell>Status</TableCell>
@@ -409,12 +421,13 @@ export default function LLMRegistry() {
             <TableContainer>
               <Table>
                 <TableHead>
-                  <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
+                  <TableRow sx={{ bgcolor: theme.palette.mode === 'dark' ? theme.palette.grey[900] : 'grey.100' }}>
                     <TableCell>Model</TableCell>
                     <TableCell>Provider</TableCell>
                     <TableCell>Modality</TableCell>
                     <TableCell>Context Window</TableCell>
                     <TableCell>Enabled</TableCell>
+                    <TableCell align="right">Actions</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -440,6 +453,17 @@ export default function LLMRegistry() {
                           color={model.enabled ? 'success' : 'default'}
                           size="small"
                         />
+                      </TableCell>
+                      <TableCell align="right">
+                        <Tooltip title="Delete model">
+                          <IconButton
+                            size="small"
+                            onClick={() => deleteModelMutation.mutate(model.id)}
+                            disabled={deleteModelMutation.isPending}
+                          >
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -485,7 +509,7 @@ export default function LLMRegistry() {
             <TableContainer>
               <Table>
                 <TableHead>
-                  <TableRow sx={{ backgroundColor: '#f5f5f5' }}>
+                  <TableRow sx={{ bgcolor: theme.palette.mode === 'dark' ? theme.palette.grey[900] : 'grey.100' }}>
                     <TableCell>Name</TableCell>
                     <TableCell>Description</TableCell>
                     <TableCell>Assigned Model</TableCell>
