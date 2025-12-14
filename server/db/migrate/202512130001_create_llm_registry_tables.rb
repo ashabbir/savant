@@ -4,9 +4,9 @@ class CreateLlmRegistryTables < ActiveRecord::Migration[7.2]
       t.text :name, null: false
       t.text :provider_type, null: false
       t.text :base_url
-      t.bytea :encrypted_api_key
-      t.bytea :api_key_nonce
-      t.bytea :api_key_tag
+      t.binary :encrypted_api_key
+      t.binary :api_key_nonce
+      t.binary :api_key_tag
       t.text :status, default: 'unknown'
       t.timestamptz :last_validated_at
       t.timestamps default: -> { 'NOW()' }
