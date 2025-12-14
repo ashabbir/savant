@@ -97,18 +97,12 @@ module Savant
         File.expand_path('../../..', __dir__)
       end
 
-      def create_logger(base_path)
-        logs_dir = File.join(base_path, 'logs')
-        FileUtils.mkdir_p(logs_dir)
-        log_file = File.join(logs_dir, 'engine_boot.log')
-
-        Savant::Logging::Logger.new(
+      def create_logger(_base_path)
+        # Write boot logs to Mongo; optionally echo to STDOUT when enabled.
+        Savant::Logging::MongoLogger.new(
+          service: 'boot',
           io: boot_stdout_enabled? ? $stdout : nil,
-          file_path: log_file,
-          # Boot logs must be visible for tests and diagnostics; default to info
-          level: ENV['LOG_LEVEL'] || 'info',
-          json: true,
-          service: 'boot'
+          json_stdio: true
         )
       end
 

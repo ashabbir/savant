@@ -120,8 +120,8 @@ export default function Search() {
             </Stack>
             <Viewer
               content={r.chunk}
+              contentType={'text/markdown'}
               filename={r.rel_path}
-              language={r.lang}
               height={260}
             />
           </Paper>
