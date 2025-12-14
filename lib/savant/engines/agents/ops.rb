@@ -31,12 +31,21 @@ module Savant
 
       def mongo_client
         return nil unless mongo_available?
-        @mongo_client ||= begin
-          uri = ENV.fetch('MONGO_URI', "mongodb://#{mongo_host}/#{mongo_db_name}")
-          Mongo::Client.new(uri, server_selection_timeout: 2, connect_timeout: 2, socket_timeout: 5)
-        rescue StandardError
-          nil
+        now = Time.now
+        return nil if @mongo_disabled_until && now < @mongo_disabled_until
+        if defined?(@mongo_client) && @mongo_client
+          return @mongo_client
         end
+        begin
+          uri = ENV.fetch('MONGO_URI', "mongodb://#{mongo_host}/#{mongo_db_name}")
+          client = Mongo::Client.new(uri, server_selection_timeout: 1.5, connect_timeout: 1.5, socket_timeout: 2)
+          client.database.collections
+          @mongo_client = client
+        rescue StandardError
+          @mongo_disabled_until = now + 10
+          @mongo_client = nil
+        end
+        @mongo_client
       end
 
       def mongo_host

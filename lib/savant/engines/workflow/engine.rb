@@ -185,7 +185,9 @@ module Savant
         return nil unless defined?(Mongo)
         begin
           uri = ENV.fetch('MONGO_URI', "mongodb://#{mongo_host}/#{mongo_db_name}")
-          Mongo::Client.new(uri, server_selection_timeout: 2, connect_timeout: 2, socket_timeout: 5)
+          client = Mongo::Client.new(uri, server_selection_timeout: 1.5, connect_timeout: 1.5, socket_timeout: 2)
+          client.database.collections
+          client
         rescue StandardError
           nil
         end
