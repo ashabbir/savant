@@ -197,6 +197,77 @@ export default function Viewer({ content, contentType, filename, language, heigh
 
   const markdownHtml = useMemo(() => {
     if (kind !== 'markdown') return '';
+    // Preprocess: wrap loose Mermaid definitions (no code fences) into ```mermaid blocks
+    function wrapLooseMermaid(src: string): string {
+      const starters = [
+        /^\s*graph(\s+|$)/i,
+        /^\s*flowchart(\s+|$)/i,
+        /^\s*sequenceDiagram(\s+|$)/i,
+        /^\s*classDiagram(\s+|$)/i,
+        /^\s*stateDiagram(\-v2)?(\s+|$)/i,
+        /^\s*erDiagram(\s+|$)/i,
+        /^\s*journey(\s+|$)/i,
+        /^\s*gantt(\s+|$)/i,
+        /^\s*pie(\s+|$)/i,
+        /^\s*timeline(\s+|$)/i,
+        /^\s*gitGraph(\s+|$)/i,
+        /^\s*mindmap(\s+|$)/i,
+        /^\s*quadrantChart(\s+|$)/i,
+        /^\s*xychart\-beta(\s+|$)/i,
+      ];
+      const lines = src.split(/\r?\n/);
+      const out: string[] = [];
+      let i = 0;
+      while (i < lines.length) {
+        const line = lines[i];
+        // If this line starts a fenced code block, just copy until it closes
+        if (/^\s*```/.test(line)) {
+          out.push(line);
+          i++;
+          while (i < lines.length && !/^\s*```\s*$/.test(lines[i])) {
+            out.push(lines[i]);
+            i++;
+          }
+          if (i < lines.length) out.push(lines[i]);
+          i++;
+          continue;
+        }
+        // Detect loose Mermaid start
+        if (starters.some((re) => re.test(line))) {
+          out.push('```mermaid');
+          out.push(line);
+          i++;
+          // Collect lines until a clear section boundary:
+          // - Markdown heading
+          // - Fenced code start
+          // - List item start
+          // - A single-line section title ending with ':' (e.g., "Key ideas:")
+          // Allow single blank lines inside diagrams.
+          let blankStreak = 0;
+          while (i < lines.length) {
+            const l = lines[i];
+            const trimmed = l.trim();
+            const isFence = /^\s*```/.test(l);
+            const isHeading = /^\s*#{1,6}\s/.test(l);
+            const isList = /^\s*(?:[-*+]\s|\d+\.)/.test(l);
+            const isSectionLabel = /^\s*[A-Za-z].*:\s*$/.test(l);
+            if (isFence || isHeading || isList || isSectionLabel) break;
+            out.push(l);
+            if (trimmed === '') blankStreak++; else blankStreak = 0;
+            // If we see two consecutive blank lines, assume the diagram ended
+            if (blankStreak >= 2) { i++; break; }
+            i++;
+          }
+          out.push('```');
+          // Preserve a single blank line gap if present
+          if (i < lines.length && lines[i].trim() === '') { out.push(''); i++; }
+          continue;
+        }
+        out.push(line);
+        i++;
+      }
+      return out.join('\n');
+    }
     // Lightweight renderer with code hook for ruby/java/scala
     const renderer = new marked.Renderer();
     const origCode = renderer.code?.bind(renderer);
@@ -234,7 +305,8 @@ export default function Viewer({ content, contentType, filename, language, heigh
       const t = title ? ` title="${escapeHtml(title)}"` : '';
       return `<a href="${escapeHtml(h)}"${t} target="_blank" rel="noreferrer noopener">${text}</a>`;
     };
-    const raw = marked.parse(content, { renderer, breaks: true }) as string;
+    const preprocessed = wrapLooseMermaid(content);
+    const raw = marked.parse(preprocessed, { renderer, breaks: true }) as string;
     return DOMPurify.sanitize(raw);
   }, [content, kind]);
 
