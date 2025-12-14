@@ -34,7 +34,7 @@ module Savant
           end
 
           def project_root
-            ENV['SAVANT_PATH'] && !ENV['SAVANT_PATH'].empty? ? ENV['SAVANT_PATH'] : File.expand_path('../../../../', __dir__)
+            ENV['SAVANT_PATH'] && !ENV['SAVANT_PATH'].empty? ? ENV['SAVANT_PATH'] : File.expand_path('../../../../../', __dir__)
           end
 
           def safe_yaml(path)
