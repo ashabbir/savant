@@ -44,6 +44,7 @@ export default function LLMBrowse({ type = 'providers' }: LLMBrowseProps) {
   const [models, setModels] = useState<any[]>([]);
   const [modelsLoading, setModelsLoading] = useState(false);
   const [selectedModel, setSelectedModel] = useState<number | null>(null);
+  const [agents, setAgents] = useState<any[]>([]);
 
   // UI state
   const [error, setError] = useState<string | null>(null);
@@ -58,6 +59,7 @@ export default function LLMBrowse({ type = 'providers' }: LLMBrowseProps) {
   const [deleting, setDeleting] = useState(false);
 
   React.useEffect(() => {
+    loadAgents();
     if (type === 'providers') {
       loadProviders();
     } else {
@@ -65,12 +67,23 @@ export default function LLMBrowse({ type = 'providers' }: LLMBrowseProps) {
     }
   }, [type]);
 
+  async function loadAgents() {
+    try {
+      const res = await callEngineTool('agents', 'agents_list', {});
+      setAgents(res.agents || []);
+    } catch (e: any) {
+      // Silently fail, agents list is just for dependency checking
+    }
+  }
+
   async function loadProviders() {
     try {
       setProvidersLoading(true);
       setError(null);
       const res = await callEngineTool('llm', 'llm_providers_list', {});
       setProviders(res.providers || []);
+      // Also load models to show count and check dependencies
+      await loadModels();
       if (res.providers?.length > 0 && !selectedProvider) {
         setSelectedProvider(res.providers[0].name);
       }
@@ -121,9 +134,13 @@ export default function LLMBrowse({ type = 'providers' }: LLMBrowseProps) {
     try {
       if (!selectedProvider) return;
       setDeleting(true);
-      await callEngineTool('llm', 'llm_providers_delete', {
+      const res = await callEngineTool('llm', 'llm_providers_delete', {
         name: selectedProvider,
       });
+      if (!res.ok && res.error) {
+        setError(res.error);
+        return;
+      }
       setOpenDeleteProviderDialog(false);
       setSelectedProvider(null);
       await loadProviders();
@@ -150,6 +167,15 @@ export default function LLMBrowse({ type = 'providers' }: LLMBrowseProps) {
   const selected = providers.find(p => p.name === selectedProvider);
   const selectedModelData = models.find(m => m.id === selectedModel);
 
+  // Helper functions
+  const getProviderModelCount = (providerId: number) => {
+    return models.filter(m => m.provider_id === providerId).length;
+  };
+
+  const getModelAgentCount = (modelId: number) => {
+    return agents.filter((a: any) => a.model_id === modelId).length;
+  };
+
   return (
     <>
       {error && <Alert severity={error.startsWith('✓') ? 'success' : 'error'} sx={{ mb: 2 }}>{error}</Alert>}
@@ -167,9 +193,9 @@ export default function LLMBrowse({ type = 'providers' }: LLMBrowseProps) {
                       <AddCircleIcon fontSize="small" />
                     </IconButton>
                   </Tooltip>
-                  <Tooltip title={!selectedProvider ? 'Select a provider' : 'Delete Provider'}>
+                  <Tooltip title={!selectedProvider ? 'Select a provider' : getProviderModelCount(selected?.id) > 0 ? `Cannot delete: ${getProviderModelCount(selected?.id)} model(s) registered` : 'Delete Provider'}>
                     <span>
-                      <IconButton size="small" color="error" disabled={!selectedProvider} onClick={() => setOpenDeleteProviderDialog(true)}>
+                      <IconButton size="small" color="error" disabled={!selectedProvider || (selected && getProviderModelCount(selected.id) > 0)} onClick={() => setOpenDeleteProviderDialog(true)}>
                         <DeleteOutlineIcon fontSize="small" />
                       </IconButton>
                     </span>

@@ -36,8 +36,12 @@ module Savant::Llm
     end
 
     def provider_delete(name:)
-      @registry.delete_provider(name)
-      { ok: true, deleted: true }
+      begin
+        @registry.delete_provider(name)
+        { ok: true, deleted: true }
+      rescue StandardError => e
+        { ok: false, error: e.message }
+      end
     end
 
     def provider_update(name:, base_url: nil, api_key: nil)
@@ -85,8 +89,12 @@ module Savant::Llm
     end
 
     def models_delete(model_id:)
-      @registry.delete_model(model_id)
-      { ok: true, deleted: true }
+      begin
+        @registry.delete_model(model_id)
+        { ok: true, deleted: true }
+      rescue StandardError => e
+        { ok: false, error: e.message }
+      end
     end
 
     def models_set_enabled(model_id:, enabled:)

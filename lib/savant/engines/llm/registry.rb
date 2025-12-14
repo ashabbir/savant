@@ -41,7 +41,14 @@ module Savant::Llm
       decrypt_provider_row(row)
     end
 
+    def provider_has_models?(provider_id)
+      res = @db.exec_params('SELECT COUNT(*) as count FROM llm_models WHERE provider_id = $1', [provider_id])
+      res[0]['count'].to_i > 0
+    end
+
     def delete_provider(name)
+      provider = get_provider(name)
+      raise "Cannot delete provider with registered models" if provider && provider_has_models?(provider[:id])
       @db.exec_params('DELETE FROM llm_providers WHERE name = $1', [name])
     end
 
@@ -152,7 +159,13 @@ module Savant::Llm
       { ok: true }
     end
 
+    def model_assigned_to_agent?(model_id)
+      res = @db.exec_params('SELECT COUNT(*) as count FROM agents WHERE model_id = $1', [model_id])
+      res[0]['count'].to_i > 0
+    end
+
     def delete_model(model_id)
+      raise "Cannot delete model assigned to agents" if model_assigned_to_agent?(model_id)
       @db.exec_params('DELETE FROM llm_models WHERE id = $1', [model_id])
     end
 

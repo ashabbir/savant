@@ -82,9 +82,19 @@ interface Model {
 
 export default function LLMRegistry() {
   const theme = useTheme();
+  const formatModality = (modality: string[] | string | undefined) => {
+    const raw = Array.isArray(modality) ? modality : modality ? [modality] : [];
+    return raw
+      .flatMap((entry) =>
+        entry
+          .replace(/[{}]/g, '')
+          .split(',')
+          .map((token) => token.trim())
+      )
+      .filter(Boolean);
+  };
   const [tabValue, setTabValue] = useState(0);
   const [openProviderDialog, setOpenProviderDialog] = useState(false);
-  const [openModelDialog, setOpenModelDialog] = useState(false);
   const [openDiscoverDialog, setOpenDiscoverDialog] = useState(false);
   const [openEditProviderDialog, setOpenEditProviderDialog] = useState(false);
 
@@ -92,23 +102,32 @@ export default function LLMRegistry() {
 
   // Provider form state
   const [providerForm, setProviderForm] = useState({ name: '', type: 'google', apiKey: '', baseUrl: '' });
-  const [modelForm, setModelForm] = useState({ provider: '', modelIdsCsv: '' });
   const [discoverProvider, setDiscoverProvider] = useState('');
   const [providerEditForm, setProviderEditForm] = useState({ baseUrl: '', apiKey: '' });
   const [selectedProvider, setSelectedProvider] = useState<Provider | null>(null);
   const [discoveredModels, setDiscoveredModels] = useState<any[]>([]);
   const [selectedDiscoverIds, setSelectedDiscoverIds] = useState<string[]>([]);
   const [discoverError, setDiscoverError] = useState<string | null>(null);
+  const [discoveryAttempted, setDiscoveryAttempted] = useState(false);
   const closeEditProviderDialog = () => {
     setOpenEditProviderDialog(false);
     setSelectedProvider(null);
     setProviderEditForm({ baseUrl: '', apiKey: '' });
   };
 
+  const closeDiscoverDialog = () => {
+    setOpenDiscoverDialog(false);
+    setDiscoveryAttempted(false);
+    setDiscoveredModels([]);
+    setSelectedDiscoverIds([]);
+    setDiscoverError(null);
+  };
+
   const handleDiscover = () => {
     setDiscoverError(null);
     setDiscoveredModels([]);
     setSelectedDiscoverIds([]);
+    setDiscoveryAttempted(true);
     discoverMutation.mutate(discoverProvider);
   };
 
@@ -215,28 +234,6 @@ const openEditProviderDialogWith = (provider: Provider) => {
   setOpenEditProviderDialog(true);
 };
 
-  // Register models
-  const registerModelsMutation = useMutation({
-    mutationFn: async (data: typeof modelForm) => {
-      const modelIds = data.modelIdsCsv
-        .split(',')
-        .map((id) => id.trim())
-        .filter(Boolean);
-      if (!modelIds.length) {
-        throw new Error('Enter at least one model ID to register');
-      }
-      await callEngineTool('llm', 'llm_models_register', {
-        provider_name: data.provider,
-        model_ids: modelIds,
-      });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['llm', 'models'] });
-      setOpenModelDialog(false);
-      setModelForm({ provider: '', modelIdsCsv: '' });
-    },
-  });
-
   const registerDiscoveredMutation = useMutation({
     mutationFn: async ({ providerName, modelIds }: { providerName: string; modelIds: string[] }) => {
       if (!modelIds.length) {
@@ -252,6 +249,12 @@ const openEditProviderDialogWith = (provider: Provider) => {
       setSelectedDiscoverIds([]);
       setDiscoveredModels([]);
       setOpenDiscoverDialog(false);
+      setDiscoverError(null);
+      setDiscoveryAttempted(false);
+    },
+    onError: (error: any) => {
+      const message = error?.message || 'Failed to register selected models';
+      setDiscoverError(message);
     },
   });
 
@@ -431,13 +434,6 @@ const openEditProviderDialogWith = (provider: Provider) => {
               >
                 Discover Models
               </Button>
-              <Button
-                variant="outlined"
-                color="primary"
-                onClick={() => setOpenModelDialog(true)}
-              >
-                Register Models
-              </Button>
               <IconButton
                 onClick={() => modelsQuery.refetch()}
                 disabled={modelsQuery.isLoading}
@@ -476,9 +472,13 @@ const openEditProviderDialogWith = (provider: Provider) => {
                       <TableCell>{model.provider_name}</TableCell>
                       <TableCell>
                         <Stack direction="row" spacing={0.5} flexWrap="wrap">
-                          {(Array.isArray(model.modality) ? model.modality : []).map((m) => (
-                            <Chip key={m} label={m} size="small" variant="outlined" />
-                          ))}
+                          {formatModality(model.modality).length === 0 ? (
+                            <Chip label="Unknown" size="small" variant="outlined" />
+                          ) : (
+                            formatModality(model.modality).map((m) => (
+                              <Chip key={m} label={m} size="small" variant="outlined" />
+                            ))
+                          )}
                         </Stack>
                       </TableCell>
                       <TableCell>
@@ -615,7 +615,7 @@ const openEditProviderDialogWith = (provider: Provider) => {
       </Dialog>
 
       {/* Discover Models Dialog */}
-      <Dialog open={openDiscoverDialog} onClose={() => setOpenDiscoverDialog(false)} maxWidth="sm" fullWidth>
+      <Dialog open={openDiscoverDialog} onClose={closeDiscoverDialog} maxWidth="sm" fullWidth>
         <DialogTitle>Discover Available Models</DialogTitle>
         <DialogContent sx={{ pt: 2 }}>
           <FormControl fullWidth>
@@ -633,7 +633,7 @@ const openEditProviderDialogWith = (provider: Provider) => {
           <Box sx={{ mt: 2 }}>
             {discoverMutation.isLoading && <CircularProgress size={24} />}
             {discoverError && <Alert severity="error" sx={{ mt: 1 }}>{discoverError}</Alert>}
-            {!discoverMutation.isLoading && !discoverError && discoverProvider && discoveredModels.length === 0 && (
+            {!discoverMutation.isLoading && !discoverError && discoverProvider && discoveredModels.length === 0 && discoveryAttempted && (
               <Alert severity="info" sx={{ mt: 1 }}>
                 No models were found for {discoverProvider}. Try a different provider.
               </Alert>
@@ -662,11 +662,15 @@ const openEditProviderDialogWith = (provider: Provider) => {
                         <TableCell>{model.display_name || model.provider_model_id}</TableCell>
                         <TableCell>{model.provider_model_id}</TableCell>
                         <TableCell>
-                          <Stack direction="row" spacing={0.5} flexWrap="wrap">
-                            {(Array.isArray(model.modality) ? model.modality : []).map((m: string) => (
+                        <Stack direction="row" spacing={0.5} flexWrap="wrap">
+                          {formatModality(model.modality).length === 0 ? (
+                            <Chip label="Unknown" size="small" variant="outlined" />
+                          ) : (
+                            formatModality(model.modality).map((m: string) => (
                               <Chip key={m} label={m} size="small" variant="outlined" />
-                            ))}
-                          </Stack>
+                            ))
+                          )}
+                        </Stack>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -677,7 +681,7 @@ const openEditProviderDialogWith = (provider: Provider) => {
           </Box>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setOpenDiscoverDialog(false)}>Cancel</Button>
+          <Button onClick={closeDiscoverDialog}>Cancel</Button>
           <Button
             onClick={handleDiscover}
             variant="contained"
@@ -692,43 +696,13 @@ const openEditProviderDialogWith = (provider: Provider) => {
             }
             variant="contained"
             color="success"
-            disabled={selectedDiscoverIds.length === 0 || registerDiscoveredMutation.isPending}
+            disabled={
+              selectedDiscoverIds.length === 0 ||
+              registerDiscoveredMutation.isPending ||
+              !discoverProvider
+            }
           >
             Register Selected
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Register Models Dialog */}
-      <Dialog open={openModelDialog} onClose={() => setOpenModelDialog(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Register Models</DialogTitle>
-        <DialogContent sx={{ pt: 2 }}>
-          <Stack spacing={2}>
-            <FormControl fullWidth>
-              <InputLabel>Provider</InputLabel>
-              <Select
-                value={modelForm.provider}
-                onChange={(e) => setModelForm({ ...modelForm, provider: e.target.value })}
-                label="Provider"
-              >
-                {(providersQuery.data as Provider[])?.map((p) => (
-                  <MenuItem key={p.id} value={p.name}>{p.name}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
-            <Typography variant="body2" color="text.secondary">
-              Model IDs will be fetched from the provider. Register by entering model identifiers.
-            </Typography>
-          </Stack>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOpenModelDialog(false)}>Cancel</Button>
-          <Button
-            onClick={() => registerModelsMutation.mutate(modelForm)}
-            variant="contained"
-            disabled={registerModelsMutation.isPending || !modelForm.provider}
-          >
-            Register
           </Button>
         </DialogActions>
       </Dialog>

@@ -183,6 +183,7 @@ export type Diagnostics = {
   config_error?: string;
   repos: { name: string; path: string; exists: boolean; directory: boolean; readable: boolean; has_files?: boolean; sampled_count?: number; sample_files?: string[]; error?: string }[];
   db: { connected: boolean; counts?: { repos: number; files: number; chunks: number }; error?: string; counts_error?: string };
+  mongo?: { connected: boolean; db?: string; error?: string; counts?: { collections: number; documents: number }; collections?: { name: string; rows?: number; size_bytes?: number; last_at?: string; error?: string }[] };
   mounts: { [k: string]: boolean };
   secrets?: { path: string; exists: boolean; users?: number; services?: string[]; error?: string };
   llm_models?: LLMDiagnostics;
