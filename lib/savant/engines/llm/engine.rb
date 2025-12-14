@@ -85,6 +85,17 @@ module Savant::Llm
       { ok: true, deleted: true }
     end
 
+    def models_update(model_id:, display_name: nil, context_window: nil, modality: nil, enabled: nil)
+      update_attrs = {
+        display_name: display_name,
+        context_window: context_window,
+        modality: modality,
+        enabled: enabled
+      }.compact
+      @registry.update_model(model_id: model_id, **update_attrs)
+      { ok: true }
+    end
+
     # Agent operations
     def agent_create(name:, description: nil)
       @registry.create_agent(name: name, description: description)
@@ -101,7 +112,13 @@ module Savant::Llm
     end
 
     def agent_assign_model(agent_name:, model_id:)
-      @registry.assign_model(agent_name: agent_name, model_id: model_id)
+      # Update the Rails agents table instead of using the separate llm_agents table
+      require 'savant/framework/db'
+      db = Savant::Framework::DB.new
+      db.exec_params(
+        'UPDATE agents SET model_id = $1 WHERE name = $2',
+        [model_id, agent_name]
+      )
       { ok: true }
     end
   end

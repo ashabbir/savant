@@ -52,6 +52,33 @@ module Savant::Llm
       )
     end
 
+    def update_provider(name:, base_url: nil, api_key: nil)
+      assignments = []
+      params = []
+
+      unless base_url.nil?
+        assignments << "base_url = $#{params.length + 1}"
+        params << base_url
+      end
+
+      unless api_key.nil?
+        enc = Vault.encrypt(api_key)
+        assignments << "encrypted_api_key = $#{params.length + 1}"
+        params << enc[:ciphertext]&.unpack1('H*')
+        assignments << "api_key_nonce = $#{params.length + 2}"
+        params << enc[:nonce]&.unpack1('H*')
+        assignments << "api_key_tag = $#{params.length + 3}"
+        params << enc[:tag]&.unpack1('H*')
+      end
+
+      return { ok: true } if assignments.empty?
+
+      params << name
+      sql = "UPDATE llm_providers SET #{assignments.join(', ')} WHERE name = $#{params.length}"
+      @db.exec_params(sql, params)
+      { ok: true }
+    end
+
     # Model CRUD
     def register_model(provider_id:, provider_model_id:, display_name:, modality: [], context_window: nil, meta: {})
       modality_encoded = text_array_encoder.encode(Array(modality))
@@ -86,6 +113,43 @@ module Savant::Llm
 
     def enable_model(model_id, enabled)
       @db.exec_params('UPDATE llm_models SET enabled = $1 WHERE id = $2', [enabled, model_id])
+    end
+
+    def update_model(model_id:, display_name: nil, context_window: nil, modality: nil, enabled: nil, meta: nil)
+      assignments = []
+      params = []
+
+      unless display_name.nil?
+        assignments << "display_name = $#{params.length + 1}"
+        params << display_name
+      end
+
+      unless context_window.nil?
+        assignments << "context_window = $#{params.length + 1}"
+        params << context_window
+      end
+
+      unless modality.nil?
+        assignments << "modality = $#{params.length + 1}"
+        params << text_array_encoder.encode(Array(modality))
+      end
+
+      unless enabled.nil?
+        assignments << "enabled = $#{params.length + 1}"
+        params << enabled
+      end
+
+      unless meta.nil?
+        assignments << "meta = $#{params.length + 1}"
+        params << meta.to_json
+      end
+
+      return { ok: true } if assignments.empty?
+
+      params << model_id
+      sql = "UPDATE llm_models SET #{assignments.join(', ')} WHERE id = $#{params.length}"
+      @db.exec_params(sql, params)
+      { ok: true }
     end
 
     def delete_model(model_id)

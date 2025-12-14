@@ -82,7 +82,7 @@ module Savant
         to_agent_hash(row)
       end
 
-      def update(name:, persona: nil, driver: nil, rules: nil, favorite: nil, instructions: nil)
+      def update(name:, persona: nil, driver: nil, rules: nil, favorite: nil, instructions: nil, model_id: nil)
         row = @db.find_agent_by_name(name)
         raise 'not_found' unless row
 
@@ -110,7 +110,8 @@ module Savant
           driver_name: driver.nil? ? row['driver_name'] : driver,
           rule_set_ids: rule_ids || parse_int_array(row['rule_set_ids']),
           favorite: fav,
-          instructions: instructions.nil? ? row['instructions'] : instructions
+          instructions: instructions.nil? ? row['instructions'] : instructions,
+          model_id: model_id.nil? ? row['model_id'] : model_id
         )
         got = @db.get_agent(id)
         to_agent_hash(got)
@@ -460,6 +461,7 @@ module Savant
           instructions: row['instructions'],
           rule_set_ids: rule_ids,
           rules_names: rules_names,
+          model_id: row['model_id']&.to_i,
           favorite: ['t', true].include?(row['favorite']),
           run_count: row['run_count']&.to_i,
           last_run_at: row['last_run_at'],

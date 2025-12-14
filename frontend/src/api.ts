@@ -622,7 +622,7 @@ export async function rulesCatalogWrite(yaml: string) {
 // AGENTS engine API
 export type AgentSummary = { id: number; name: string; favorite: boolean; run_count?: number; last_run_at?: string | null };
 export type AgentsList = { agents: AgentSummary[] };
-export type Agent = { id: number; name: string; persona_id?: number | null; persona_name?: string | null; driver: string; instructions?: string | null; rule_set_ids: number[]; rules_names?: string[]; favorite: boolean; run_count?: number; last_run_at?: string | null };
+export type Agent = { id: number; name: string; persona_id?: number | null; persona_name?: string | null; driver: string; instructions?: string | null; rule_set_ids: number[]; rules_names?: string[]; model_id?: number | null; favorite: boolean; run_count?: number; last_run_at?: string | null };
 
 export function useAgents() {
   return useQuery<AgentsList>({
@@ -650,7 +650,7 @@ export async function agentsCreate(payload: { name: string; persona: string; dri
   return res.data as Agent;
 }
 
-export async function agentsUpdate(payload: { name: string; persona?: string; driver?: string; rules?: string[]; favorite?: boolean; instructions?: string }) {
+export async function agentsUpdate(payload: { name: string; persona?: string; driver?: string; rules?: string[]; favorite?: boolean; instructions?: string; model_id?: number }) {
   const res = await client().post('/agents/tools/agents_update/call', { params: payload });
   return res.data as Agent;
 }
