@@ -25,7 +25,7 @@ module Savant
         @base_path = base_path || default_base_path
         lvl = ENV['LOG_LEVEL'] || 'error'
         io = ENV['SAVANT_QUIET'] == '1' ? nil : $stdout
-        @logger = logger || Savant::Logging::Logger.new(io: io, file_path: File.join(@base_path, 'logs', 'agent_runtime.log'), json: true, service: 'agent', level: lvl)
+        @logger = logger || Savant::Logging::MongoLogger.new(service: 'agent')
         # Use global recorder so Diagnostics/Logs (events) can display agent telemetry.
         @trace = Savant::Logging::EventRecorder.global
         @trace_file_path = File.join(@base_path, 'logs', 'agent_trace.log')

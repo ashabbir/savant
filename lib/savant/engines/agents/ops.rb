@@ -99,7 +99,7 @@ module Savant
           [true, 'true', '1', 't', 'yes', 'y'].include?(favorite)
         end
         begin
-          log = Savant::Logging::Logger.new(io: $stdout, json: true, service: 'agents')
+          log = Savant::Logging::MongoLogger.new(service: 'agents')
           log.info(event: 'agents.update', name: name, favorite_in: favorite, favorite_old: row['favorite'], favorite_final: fav)
         rescue StandardError
         end
@@ -135,7 +135,7 @@ module Savant
               amr_rules: { version: 'dry', rules: [] },
               repo: nil,
               memory: {},
-              logger: Savant::Logging::Logger.new(io: nil, file_path: File.join(@base_path, 'logs', 'agent_runtime.log'), json: true, service: 'agent', level: ENV['LOG_LEVEL'] || 'error'),
+              logger: Savant::Logging::MongoLogger.new(service: 'agent', io: nil),
               multiplexer: nil
             )
           end

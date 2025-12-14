@@ -10,7 +10,7 @@ module Savant
     # Detects repository root and metadata.
     class RepoDetector
       def initialize
-        @log = Savant::Logging::Logger.new(io: $stdout, json: true, service: 'git.repo')
+        @log = Savant::Logging::MongoLogger.new(service: 'git.repo')
       end
 
       def root(path: nil)

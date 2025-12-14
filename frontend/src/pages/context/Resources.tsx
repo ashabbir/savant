@@ -91,7 +91,7 @@ export default function ContextResources() {
           {content.isError && <Alert severity="error">{getErrorMessage(content.error as any)}</Alert>}
           <Box sx={{ flex: 1, overflowY: 'auto', mt: 1 }}>
             {content.data && (
-              <Viewer content={content.data} contentType={sel?.mimeType} filename={sel?.metadata.path} height={'100%'} />
+              <Viewer content={content.data} contentType={'text/markdown'} filename={sel?.metadata.path} height={'100%'} />
             )}
           </Box>
         </Paper>

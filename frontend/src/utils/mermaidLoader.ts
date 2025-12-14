@@ -4,8 +4,11 @@ const MERMAID_CONFIG = {
   startOnLoad: false,
   theme: 'default',
   flowchart: { useMaxWidth: true, htmlLabels: true, curve: 'basis' },
-  securityLevel: 'loose'
-};
+  securityLevel: 'loose',
+  suppressErrorRendering: true,
+  // @ts-ignore
+  errorHandler: () => { /* swallow */ },
+} as const;
 
 declare global {
   interface Window {

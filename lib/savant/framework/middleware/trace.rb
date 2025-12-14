@@ -105,7 +105,7 @@ module Savant
 
         def default_logger_factory
           lambda do |ctx|
-            ctx[:logger] || Savant::Logging::Logger.new(io: $stdout, json: true, service: ctx[:service] || 'savant')
+            ctx[:logger] || Savant::Logging::MongoLogger.new(service: ctx[:service] || 'savant')
           end
         end
 

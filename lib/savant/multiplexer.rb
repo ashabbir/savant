@@ -32,7 +32,7 @@ module Savant
       level = ENV['LOG_LEVEL'] || 'error'
       stdout_enabled = ENV['SAVANT_QUIET'] != '1'
       io = stdout_enabled ? $stdout : nil
-      @logger = logger || Savant::Logging::Logger.new(io: io, file_path: File.join(@base_path, 'logs', 'multiplexer.log'), json: true, service: 'multiplexer', level: level)
+      @logger = logger || Savant::Logging::MongoLogger.new(service: 'multiplexer')
       @router = Savant::Multiplexer::Router.new
       @engines = {}
       @mutex = Mutex.new
