@@ -47,7 +47,8 @@ module Savant
                                   driver: { type: 'string' },
                                   rules: { type: 'array', items: { type: 'string' } },
                                   favorite: { type: 'boolean' },
-                                  instructions: { type: 'string' }
+                                  instructions: { type: 'string' },
+                                  model_id: { type: 'integer' }
                                 }, required: ['name'] } do |_ctx, a|
             logger = (_ctx && _ctx[:logger]) || begin
               require_relative '../../logging/logger'
@@ -67,7 +68,7 @@ module Savant
               nil
             end
             logger&.info(event: 'agents_update start', name: a['name'], persona: a['persona'], driver: a['driver'], rules: a['rules'], favorite_raw: a['favorite'], favorite: favorite_param)
-            res = eng.update(name: a['name'], persona: a['persona'], driver: a['driver'], rules: a['rules'], favorite: favorite_param, instructions: a['instructions'])
+            res = eng.update(name: a['name'], persona: a['persona'], driver: a['driver'], rules: a['rules'], favorite: favorite_param, instructions: a['instructions'], model_id: a['model_id'])
             logger&.info(event: 'agents_update finish', name: a['name'], favorite: res[:favorite]) rescue nil
             res
           end

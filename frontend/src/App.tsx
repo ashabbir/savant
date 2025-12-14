@@ -38,6 +38,9 @@ import ContextTools from './pages/context/Tools';
 import ContextResources from './pages/context/Resources';
 import MemorySearch from './pages/context/MemorySearch';
 import WorkflowTools from './pages/workflow/Tools';
+import LLMBrowse from './pages/llm/Browse';
+import LLMTools from './pages/llm/Tools';
+import LLMRegistry from './pages/LLMRegistry';
 import { getErrorMessage, loadConfig, useHubHealth, useHubInfo, useEngineStatus, useRoutes } from './api';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import HubIcon from '@mui/icons-material/Hub';
@@ -55,7 +58,8 @@ function useMainTabIndex() {
   if (pathname.startsWith('/engines')) return 1;
   if (pathname.startsWith('/agents')) return 2;
   if (pathname.startsWith('/workflows')) return 3;
-  if (pathname.startsWith('/diagnostics')) return 4;
+  if (pathname.startsWith('/llm-registry')) return 4;
+  if (pathname.startsWith('/diagnostics')) return 5;
   return 0;
 }
 
@@ -78,7 +82,7 @@ function sortEngines(engines: string[]): string[] {
   // Filter out agents since it's a top-level tab now
   // Keep 'think' for Prompts/Tools sub-pages
   const filtered = engines.filter(e => e !== 'agents');
-  const order = ['context', 'think', 'personas', 'drivers', 'rules', 'jira', 'git'];
+  const order = ['context', 'think', 'personas', 'drivers', 'rules', 'llm', 'jira', 'git'];
   return filtered.sort((a, b) => {
     const aIdx = order.indexOf(a);
     const bIdx = order.indexOf(b);
@@ -140,6 +144,12 @@ function useEngineSubIndex(engineName: string | undefined) {
     if (pathname.includes('/tools')) return 1;
     return 0;
   }
+  if (engineName === 'llm') {
+    if (pathname.includes('/providers')) return 0;
+    if (pathname.includes('/models')) return 1;
+    if (pathname.includes('/tools')) return 2;
+    return 0;
+  }
   if (engineName === 'workflow') {
     if (pathname.includes('/tools')) return 1;
     if (pathname.includes('/runs')) return 0;
@@ -156,6 +166,7 @@ function defaultEngineRoute(name: string): string {
   if (name === 'personas') return '/engines/personas';
   if (name === 'drivers') return '/engines/drivers';
   if (name === 'rules') return '/engines/rules';
+  if (name === 'llm') return '/engines/llm/providers';
   if (name === 'git') return '/engines/git/tools';
   // agents is now top-level, redirect if somehow accessed
   if (name === 'agents') return '/agents';
@@ -246,9 +257,15 @@ export default function App() {
       navigate('/workflows', { replace: false });
     }
   }, [mainIdx, loc.pathname]);
+  // Normalize LLM Registry root
+  React.useEffect(() => {
+    if (mainIdx === 4 && loc.pathname === '/llm-registry') {
+      navigate('/llm-registry', { replace: false });
+    }
+  }, [mainIdx, loc.pathname]);
   // Normalize Diagnostics root to a concrete sub-route so tabs highlight consistently
   React.useEffect(() => {
-    if (mainIdx === 4 && (loc.pathname === '/diagnostics' || loc.pathname === '/diagnostics/')) {
+    if (mainIdx === 5 && (loc.pathname === '/diagnostics' || loc.pathname === '/diagnostics/')) {
       navigate('/diagnostics/overview', { replace: true });
     }
   }, [mainIdx, loc.pathname]);
@@ -328,12 +345,14 @@ export default function App() {
         else if (v === 1) navigate('/engines');
         else if (v === 2) navigate('/agents');
         else if (v === 3) navigate('/workflows');
-        else if (v === 4) navigate('/diagnostics');
+        else if (v === 4) navigate('/llm-registry');
+        else if (v === 5) navigate('/diagnostics');
       }} centered>
         <Tab icon={<DashboardIcon />} iconPosition="start" label="Dashboard" component={Link} to="/dashboard" />
         <Tab icon={<StorageIcon />} iconPosition="start" label="Tools" component={Link} to="/engines" />
         <Tab icon={<SmartToyIcon />} iconPosition="start" label="Agents" component={Link} to="/agents" />
         <Tab icon={<AccountTreeIcon />} iconPosition="start" label="Workflows" component={Link} to="/workflows" />
+        <Tab icon={<CodeIcon />} iconPosition="start" label="LLM Registry" component={Link} to="/llm-registry" />
         <Tab icon={<ManageSearchIcon />} iconPosition="start" label="Diagnostics" component={Link} to="/diagnostics" />
       </Tabs>
       {mainIdx === 1 && (
@@ -421,6 +440,21 @@ export default function App() {
           <Tab label="Tools" component={Link} to="/engines/drivers/tools" />
         </Tabs>
       )}
+      {mainIdx === 1 && (uiSelEngine || selEngine) === 'llm' && (
+        <Tabs value={engSubIdx} onChange={(_, v) => {
+          if (v === 0) navigate('/engines/llm/providers');
+          else if (v === 1) navigate('/engines/llm/models');
+          else if (v === 2) navigate('/engines/llm/tools');
+        }} centered sx={{
+          '& .MuiTab-root': { fontSize: 12, minHeight: 36, py: 0.5, textTransform: 'none', color: 'text.secondary' },
+          '& .Mui-selected': { color: 'primary.main !important' },
+          '& .MuiTabs-indicator': { height: 2, backgroundColor: 'primary.light' }
+        }}>
+          <Tab label="Providers" component={Link} to="/engines/llm/providers" />
+          <Tab label="Models" component={Link} to="/engines/llm/models" />
+          <Tab label="Tools" component={Link} to="/engines/llm/tools" />
+        </Tabs>
+      )}
       {mainIdx === 1 && selEngine === 'workflow' && (
         <Tabs value={engSubIdx} onChange={(_, v) => {
           if (v === 0) navigate('/engines/workflow/runs');
@@ -453,7 +487,7 @@ export default function App() {
         </Tabs>
       )}
       {/* Diagnostics subtabs */}
-      {mainIdx === 4 && (
+      {mainIdx === 5 && (
         <Tabs value={diagSubIdx} centered sx={{
           '& .MuiTab-root': { fontSize: 12, minHeight: 32, py: 0.5, textTransform: 'none', color: 'text.secondary' },
           '& .Mui-selected': { color: 'primary.main !important' },
@@ -485,6 +519,9 @@ export default function App() {
           <Route path="/workflows/new" element={<ThinkWorkflowEditor />} />
           <Route path="/workflows/edit/:id" element={<ThinkWorkflowEditor />} />
           <Route path="/workflows/runs" element={<ThinkRuns />} />
+
+          {/* LLM Registry routes */}
+          <Route path="/llm-registry" element={<LLMRegistry />} />
 
           <Route path="/search" element={<Navigate to="/ctx/search" replace />} />
           <Route path="/repos" element={<Navigate to="/ctx/repos" replace />} />
@@ -533,6 +570,11 @@ export default function App() {
           <Route path="/engines/drivers/tools" element={<DriversTools />} />
           <Route path="/engines/drivers/new" element={<DriverEditor />} />
           <Route path="/engines/drivers/edit/:name" element={<DriverEditor />} />
+
+          {/* LLM Engine routes */}
+          <Route path="/engines/llm/providers" element={<LLMBrowse type="providers" />} />
+          <Route path="/engines/llm/models" element={<LLMBrowse type="models" />} />
+          <Route path="/engines/llm/tools" element={<LLMTools />} />
           {/* Keep old agents routes for backward compatibility */}
           <Route path="/engines/agents" element={<Agents />} />
           <Route path="/engines/agents/new" element={<AgentWizard />} />

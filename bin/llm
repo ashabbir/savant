@@ -1,0 +1,218 @@
+#!/usr/bin/env ruby
+
+require 'optparse'
+require 'json'
+
+# Ensure SAVANT_PATH is set
+base_path = ENV['SAVANT_PATH'] || Dir.pwd
+ENV['SAVANT_PATH'] = base_path
+
+$LOAD_PATH.unshift(File.join(base_path, 'lib'))
+require 'savant'
+
+command = ARGV.shift
+
+case command
+when 'provider'
+  subcommand = ARGV.shift
+  case subcommand
+  when 'add'
+    options = {}
+    OptionParser.new do |o|
+      o.on('--type TYPE', 'Provider type (google, ollama)') { |v| options[:type] = v }
+      o.on('--name NAME', 'Provider name') { |v| options[:name] = v }
+      o.on('--api-key KEY', 'API key') { |v| options[:api_key] = v }
+      o.on('--base-url URL', 'Base URL (for Ollama)') { |v| options[:base_url] = v }
+    end.parse!(ARGV)
+
+    require 'savant/engines/llm/registry'
+    require 'savant/engines/llm/vault'
+
+    registry = Savant::Llm::Registry.new
+    id = registry.create_provider(
+      name: options[:name],
+      provider_type: options[:type],
+      base_url: options[:base_url],
+      api_key: options[:api_key]
+    )
+    puts "✓ Provider created: #{options[:name]} (ID: #{id})"
+
+  when 'list'
+    require 'savant/engines/llm/registry'
+    registry = Savant::Llm::Registry.new
+    providers = registry.list_providers
+    if providers.empty?
+      puts 'No providers configured.'
+    else
+      providers.each do |p|
+        puts "#{p[:name]} (#{p[:provider_type]}) - #{p[:status]}"
+      end
+    end
+
+  when 'test'
+    options = {}
+    OptionParser.new do |o|
+      o.on('--name NAME', 'Provider name') { |v| options[:name] = v }
+    end.parse!(ARGV)
+
+    require 'savant/engines/llm/registry'
+    require 'savant/engines/llm/adapters'
+
+    registry = Savant::Llm::Registry.new
+    provider = registry.get_provider(options[:name])
+    raise "Provider not found: #{options[:name]}" unless provider
+
+    adapter = Savant::Llm::Adapters.for_provider(provider)
+    result = adapter.test_connection!
+    registry.update_provider_status(options[:name], result[:status])
+
+    puts result[:status] == 'valid' ? "✓ #{result[:message]}" : "✗ #{result[:message]}"
+
+  when 'delete'
+    options = {}
+    OptionParser.new do |o|
+      o.on('--name NAME', 'Provider name') { |v| options[:name] = v }
+    end.parse!(ARGV)
+
+    require 'savant/engines/llm/registry'
+    registry = Savant::Llm::Registry.new
+    registry.delete_provider(options[:name])
+    puts "✓ Provider deleted: #{options[:name]}"
+  end
+
+when 'models'
+  subcommand = ARGV.shift
+  case subcommand
+  when 'discover'
+    options = {}
+    OptionParser.new do |o|
+      o.on('--provider NAME', 'Provider name') { |v| options[:provider] = v }
+    end.parse!(ARGV)
+
+    require 'savant/engines/llm/registry'
+    require 'savant/engines/llm/adapters'
+
+    registry = Savant::Llm::Registry.new
+    provider = registry.get_provider(options[:provider])
+    raise "Provider not found: #{options[:provider]}" unless provider
+
+    adapter = Savant::Llm::Adapters.for_provider(provider)
+    models = adapter.list_models
+
+    puts "Available models from #{options[:provider]}:"
+    models.each do |m|
+      puts "  #{m[:provider_model_id]} - #{m[:display_name]} (#{m[:modality].join(', ')})"
+    end
+
+  when 'register'
+    options = {}
+    OptionParser.new do |o|
+      o.on('--provider NAME', 'Provider name') { |v| options[:provider] = v }
+      o.on('--id MODEL_ID', 'Model ID') { |v| options[:model_id] = v }
+    end.parse!(ARGV)
+
+    require 'savant/engines/llm/registry'
+    require 'savant/engines/llm/adapters'
+
+    registry = Savant::Llm::Registry.new
+    provider = registry.get_provider(options[:provider])
+    raise "Provider not found: #{options[:provider]}" unless provider
+
+    adapter = Savant::Llm::Adapters.for_provider(provider)
+    available = adapter.list_models
+    model = available.find { |m| m[:provider_model_id] == options[:model_id] }
+    raise "Model not found: #{options[:model_id]}" unless model
+
+    id = registry.register_model(
+      provider_id: provider[:id],
+      provider_model_id: model[:provider_model_id],
+      display_name: model[:display_name],
+      modality: model[:modality],
+      context_window: model[:context_window],
+      meta: model[:meta]
+    )
+    puts "✓ Model registered: #{model[:display_name]} (ID: #{id})"
+
+  when 'list'
+    require 'savant/engines/llm/registry'
+    registry = Savant::Llm::Registry.new
+    models = registry.list_models
+    if models.empty?
+      puts 'No models registered.'
+    else
+      models.each do |m|
+        status = m[:enabled] ? '✓' : '✗'
+        puts "#{status} #{m[:display_name]} (#{m[:provider_name]}/#{m[:provider_model_id]})"
+      end
+    end
+  end
+
+when 'agent'
+  subcommand = ARGV.shift
+  case subcommand
+  when 'add'
+    options = {}
+    OptionParser.new do |o|
+      o.on('--name NAME', 'Agent name') { |v| options[:name] = v }
+      o.on('--description DESC', 'Description') { |v| options[:description] = v }
+    end.parse!(ARGV)
+
+    require 'savant/engines/llm/registry'
+    registry = Savant::Llm::Registry.new
+    id = registry.create_agent(name: options[:name], description: options[:description])
+    puts "✓ Agent created: #{options[:name]} (ID: #{id})"
+
+  when 'assign'
+    options = {}
+    OptionParser.new do |o|
+      o.on('--name NAME', 'Agent name') { |v| options[:name] = v }
+      o.on('--model-id ID', Integer, 'Model ID') { |v| options[:model_id] = v }
+    end.parse!(ARGV)
+
+    require 'savant/engines/llm/registry'
+    registry = Savant::Llm::Registry.new
+    registry.assign_model(agent_name: options[:name], model_id: options[:model_id])
+    puts "✓ Model assigned to #{options[:name]}"
+
+  when 'list'
+    require 'savant/engines/llm/registry'
+    registry = Savant::Llm::Registry.new
+    agents = registry.list_agents
+    if agents.empty?
+      puts 'No agents configured.'
+    else
+      agents.each do |a|
+        model_info = a[:model_name] ? " → #{a[:model_name]}" : ''
+        puts "#{a[:name]}#{model_info}"
+      end
+    end
+
+  when 'delete'
+    options = {}
+    OptionParser.new do |o|
+      o.on('--name NAME', 'Agent name') { |v| options[:name] = v }
+    end.parse!(ARGV)
+
+    require 'savant/engines/llm/registry'
+    registry = Savant::Llm::Registry.new
+    registry.delete_agent(options[:name])
+    puts "✓ Agent deleted: #{options[:name]}"
+  end
+
+else
+  puts 'Usage: bin/llm <command> <subcommand> [options]'
+  puts ''
+  puts 'Commands:'
+  puts "  provider add --type google --name 'Google Primary' --api-key KEY"
+  puts "  provider add --type ollama --name 'Local Ollama' --base-url http://localhost:11434"
+  puts '  provider list'
+  puts "  provider test --name 'Google Primary'"
+  puts "  provider delete --name 'Google Primary'"
+  puts "  models discover --provider 'Local Ollama'"
+  puts "  models register --provider 'Google Primary' --id gemini-2.0-pro"
+  puts '  models list'
+  puts '  agent add --name context-agent'
+  puts '  agent assign --name context-agent --model-id 1'
+  puts '  agent list'
+  puts '  agent delete --name context-agent'
+end

@@ -7,6 +7,7 @@
 require_relative '../../indexer'
 require_relative '../../../framework/db'
 require_relative '../../../framework/config'
+require_relative '../../llm/registry'
 require_relative '../../../llm/ollama'
 require_relative '../../../logging/logger'
 
@@ -157,6 +158,14 @@ module Savant
           end
           info[:db] = db
 
+          # MongoDB checks (optional)
+          begin
+            mongo = mongo_diagnostics
+            info[:mongo] = mongo if mongo
+          rescue StandardError => e
+            info[:mongo] = { connected: false, error: e.message }
+          end
+
           # Common mount points
           info[:mounts] = {
             '/app' => File.directory?('/app'),
@@ -175,6 +184,100 @@ module Savant
         public :diagnostics
 
         private
+
+        # --- Mongo helpers for diagnostics ---
+        def mongo_available?
+          return @mongo_available if defined?(@mongo_available)
+          begin
+            require 'mongo'
+            @mongo_available = true
+          rescue LoadError
+            @mongo_available = false
+          end
+          @mongo_available
+        end
+
+        def mongo_host
+          ENV.fetch('MONGO_HOST', 'localhost:27017')
+        end
+
+        def mongo_db_name
+          env = ENV.fetch('SAVANT_ENV', ENV.fetch('RACK_ENV', ENV.fetch('RAILS_ENV', 'development')))
+          env == 'test' ? 'savant_test' : 'savant_development'
+        end
+
+        def mongo_client
+          return nil unless mongo_available?
+          return @mongo_client if defined?(@mongo_client) && @mongo_client
+
+          begin
+            uri = ENV.fetch('MONGO_URI', "mongodb://#{mongo_host}/#{mongo_db_name}")
+            client = Mongo::Client.new(uri, server_selection_timeout: 1.5, connect_timeout: 1.5, socket_timeout: 2)
+            # Ping to ensure connectivity
+            client.database.collections
+            @mongo_client = client
+          rescue StandardError
+            @mongo_client = nil
+          end
+          @mongo_client
+        end
+
+        def mongo_diagnostics
+          return nil unless mongo_available?
+
+          client = mongo_client
+          return { connected: false, db: mongo_db_name } unless client
+
+          out = { connected: true, db: client.database.name }
+          begin
+            cols = client.database.collections
+            out[:counts] = { collections: cols.length, documents: 0 }
+            details = []
+            cols.each do |col|
+              name = col.name.to_s
+              begin
+                # Fast approximate count
+                docs = col.estimated_document_count
+                out[:counts][:documents] += docs.to_i
+                size_bytes = nil
+                last_at = nil
+                # Try collStats for size (best effort)
+                begin
+                  stats = client.database.command(collStats: name, scale: 1).first
+                  size_bytes = (stats['size'] || stats['storageSize'] || stats['totalSize']).to_i rescue nil
+                rescue StandardError
+                  size_bytes = nil
+                end
+                # Try to get last activity based on common timestamp fields
+                begin
+                  doc = col.find({}, { sort: { updated_at: -1 }, projection: { updated_at: 1 } }).limit(1).first
+                  if doc && doc['updated_at']
+                    last_at = doc['updated_at'].respond_to?(:iso8601) ? doc['updated_at'].iso8601 : doc['updated_at'].to_s
+                  else
+                    doc = col.find({}, { sort: { created_at: -1 }, projection: { created_at: 1 } }).limit(1).first
+                    if doc && doc['created_at']
+                      last_at = doc['created_at'].respond_to?(:iso8601) ? doc['created_at'].iso8601 : doc['created_at'].to_s
+                    else
+                      doc = col.find({}, { sort: { timestamp: -1 }, projection: { timestamp: 1 } }).limit(1).first
+                      if doc && doc['timestamp']
+                        last_at = doc['timestamp'].respond_to?(:iso8601) ? doc['timestamp'].iso8601 : doc['timestamp'].to_s
+                      end
+                    end
+                  end
+                rescue StandardError
+                  last_at = nil
+                end
+                details << { name: name, rows: docs.to_i, size_bytes: size_bytes, last_at: last_at }
+              rescue StandardError => e
+                details << { name: name, error: e.message }
+              end
+            end
+            out[:collections] = details
+          rescue StandardError => e
+            out[:error] = e.message
+          end
+          out
+        end
 
         def secrets_info(base_path)
           secrets_path = if ENV['SAVANT_SECRETS_PATH'] && !ENV['SAVANT_SECRETS_PATH'].empty?
@@ -222,77 +325,79 @@ module Savant
         end
 
         def llm_models_info
-          models = Savant::LLM::Ollama.models
-          normalized = models.is_a?(Array) ? models : []
-
-          # Overlay running status from /api/ps
-          begin
-            running_list = Savant::LLM::Ollama.ps
-            running_names = running_list.map { |m| (m['name'] || m['model']).to_s }.to_set
-          rescue StandardError
-            running_names = Set.new
+          registry = Savant::Llm::Registry.new(@db)
+          entries = registry.list_models
+          states = Hash.new(0)
+          models = entries.map do |model|
+            enabled = truthy?(model[:enabled])
+            state = enabled ? 'enabled' : 'disabled'
+            states[state] += 1
+            {
+              name: model[:display_name].to_s.strip.empty? ? model[:provider_model_id] : model[:display_name],
+              provider_name: model[:provider_name],
+              provider_model_id: model[:provider_model_id],
+              context_window: model[:context_window],
+              enabled: enabled,
+              state: state,
+              modality: decode_modality(model[:modality])
+            }
           end
-
-          counts = Hash.new(0)
-          running = 0
-          normalized.each do |model|
-            name = (model['name'] || model['model']).to_s
-            if running_names.include?(name)
-              model['running'] = true
-              model['status'] ||= 'running'
-            end
-            state_label = llm_model_state(model)
-            key = state_label.downcase.empty? ? 'unknown' : state_label.downcase
-            counts[key] += 1
-            running += 1 if llm_model_running?(model, key)
+          providers = registry.list_providers.map do |provider|
+            {
+              name: provider[:name],
+              provider_type: provider[:provider_type],
+              status: provider[:status]
+            }
           end
-          { total: normalized.size, running: running, states: counts, models: normalized }
+          { total: entries.size, running: states['enabled'], states: states, models: models, providers: providers }
         rescue StandardError => e
           { error: e.message }
         end
 
         def llm_runtime_info
-          # Prefer hub runtime snapshot if available
-          begin
-            base = Dir.pwd
-            runtime_path = File.join(base, '.savant', 'runtime.json')
-            if File.file?(runtime_path)
-              raw = begin
-                JSON.parse(File.read(runtime_path))
-              rescue StandardError
-                {}
-              end
-              slm = (raw['slm_model'] || ENV['SLM_MODEL'] || Savant::LLM::DEFAULT_SLM).to_s
-              llm = (raw['llm_model'] || ENV['LLM_MODEL'] || Savant::LLM::DEFAULT_LLM).to_s
-              prov_val = raw['provider']
-              provider = if prov_val.nil? || prov_val.to_s.strip.empty?
-                           Savant::LLM.default_provider_for(llm)
-                         else
-                           prov_val.to_s.strip.to_sym
-                         end
-              return { slm_model: slm, llm_model: llm, provider: provider }
-            end
-          rescue StandardError
-            # Fall through to defaults below
-          end
-
+          registry = Savant::Llm::Registry.new(@db)
           slm = (ENV['SLM_MODEL'] || Savant::LLM::DEFAULT_SLM).to_s
-          llm = (ENV['LLM_MODEL'] || Savant::LLM::DEFAULT_LLM).to_s
-          { slm_model: slm, llm_model: llm, provider: Savant::LLM.default_provider_for(llm) }
+          entries = registry.list_models
+          preferred = entries.find { |m| truthy?(m[:enabled]) } || entries.first
+          llm_model = if preferred
+                        preferred[:display_name].to_s.strip.empty? ? preferred[:provider_model_id] : preferred[:display_name]
+                      else
+                        (ENV['LLM_MODEL'] || Savant::LLM::DEFAULT_LLM).to_s
+                      end
+          provider = preferred&.dig(:provider_name) || Savant::LLM.default_provider_for(llm_model)
+          { slm_model: slm, llm_model: llm_model, provider: provider }
         rescue StandardError => e
           { error: e.message }
         end
 
-        def llm_model_state(model)
-          s = (model['state'] || model['status']).to_s.strip
-          s.empty? ? 'installed' : s
+        def decode_modality(value)
+          return [] if value.nil?
+          return value if value.is_a?(Array)
+          decoded = text_array_decoder.decode(value) rescue nil
+          return decoded if decoded.is_a?(Array)
+          value.to_s.delete('{}').split(',').map(&:strip).reject(&:empty?)
         end
 
-        def llm_model_running?(model, state_key)
-          running_flag = model['running']
-          return true if running_flag == true || running_flag.to_s.downcase == 'true'
+        def text_array_decoder
+          @text_array_decoder ||= PG::TextDecoder::Array.new(
+            name: 'text[]',
+            elements_type: PG::TextDecoder::String.new(name: 'text')
+          )
+        end
 
-          state_key.to_s == 'running'
+        def truthy?(value)
+          case value
+          when true then true
+          when false, nil then false
+          when Integer then value != 0
+          when String
+            v = value.strip.downcase
+            return true if %w[true t 1 yes y].include?(v)
+            return false if %w[false f 0 no n].include?(v)
+            !v.empty?
+          else
+            !!value
+          end
         end
 
         def build_cache

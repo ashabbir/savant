@@ -29,8 +29,8 @@ module Savant
         @ops.create(name: name, persona: persona, driver: driver, rules: rules, favorite: favorite, instructions: instructions)
       end
 
-      def update(name:, persona: nil, driver: nil, rules: nil, favorite: nil, instructions: nil)
-        @ops.update(name: name, persona: persona, driver: driver, rules: rules, favorite: favorite, instructions: instructions)
+      def update(name:, persona: nil, driver: nil, rules: nil, favorite: nil, instructions: nil, model_id: nil)
+        @ops.update(name: name, persona: persona, driver: driver, rules: rules, favorite: favorite, instructions: instructions, model_id: model_id)
       end
 
       def delete(name:)
