@@ -228,21 +228,20 @@ export default function Agents() {
                   </Stack>
                 }>
                   <ListItemButton selected={sel === a.name} onClick={() => setSel(a.name)}>
-                    <Stack direction="row" spacing={1} alignItems="center" sx={{ width: '100%' }}>
-                      <Typography variant="caption" color="text.secondary" sx={{ width: 48, textAlign: 'right' }}>#{a.id}</Typography>
-                      <Stack sx={{ flex: 1, minWidth: 0 }} spacing={0.25}>
-                        <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
-                          <Typography variant="body2" sx={{ fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            {a.name}
-                          </Typography>
-                          {a.favorite && <FavoriteIcon fontSize="small" color="error" />}
-                        </Stack>
-                        <Stack direction="row" spacing={1} flexWrap="wrap">
-                          <Chip size="small" label={`Persona: ${personaLabel}`} variant="outlined" />
-                          <Chip size="small" label={`Rules: ${rulesLabel}`} variant="outlined" />
-                          <Chip size="small" label={`Model: ${modelLabel}`} variant="outlined" />
-                        </Stack>
+                    <Stack sx={{ flex: 1, minWidth: 0 }} spacing={0.5}>
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <Typography variant="caption" color="text.secondary" sx={{ minWidth: 32 }}>#{a.id}</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 700, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {a.name}
+                        </Typography>
+                        {a.favorite && <FavoriteIcon fontSize="small" color="error" />}
                       </Stack>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                        (Persona) {personaLabel}  |  Rules: {Array.isArray(a.rules_names) && a.rules_names.length > 0 ? a.rules_names.length : '0'}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                        (Model) {model ? model.display_name || model.provider_model_id : 'Not assigned'}
+                      </Typography>
                     </Stack>
                   </ListItemButton>
                 </ListItem>
