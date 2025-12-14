@@ -107,6 +107,23 @@ module Savant
         @conn = nil
       end
 
+      # Clean up idle connections in the Postgres server
+      # Call this periodically to prevent connection exhaustion
+      def cleanup_idle_connections
+        with_connection do |conn|
+          conn.exec(<<~SQL)
+            SELECT pg_terminate_backend(pid)
+            FROM pg_stat_activity
+            WHERE datname = current_database()
+              AND pid != pg_backend_pid()
+              AND state = 'idle'
+              AND state_change < now() - interval '10 minutes'
+          SQL
+        end
+      rescue StandardError => e
+        warn "Failed to cleanup idle connections: #{e.message}"
+      end
+
       # Drop and recreate all schema tables and indexes.
       # @return [true]
       def migrate_tables
