@@ -29,7 +29,7 @@ module Savant::LLM
     end
 
     def list_providers
-      res = @db.exec_params('SELECT id, name, provider_type, base_url, status, last_validated_at FROM llm_providers ORDER BY name')
+      res = @db.exec_params('SELECT id, name, provider_type, base_url, status, last_validated_at FROM llm_providers ORDER BY name', [])
       res.map { |row| row.transform_keys(&:to_sym) }
     end
 
@@ -97,13 +97,14 @@ module Savant::LLM
 
     def list_agents
       res = @db.exec_params(
-        <<~SQL
+        <<~SQL,
           SELECT a.*, m.display_name as model_name, m.id as model_id
           FROM llm_agents a
           LEFT JOIN llm_agent_model_assignments ama ON a.id = ama.agent_id
           LEFT JOIN llm_models m ON ama.model_id = m.id
           ORDER BY a.name
         SQL
+        []
       )
       res.map { |row| row.transform_keys(&:to_sym) }
     end
