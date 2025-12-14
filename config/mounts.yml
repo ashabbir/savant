@@ -15,3 +15,5 @@ mounts:
     path: "/jira"
   - engine: "agents"
     path: "/agents"
+  - engine: "llm"
+    path: "/llm"

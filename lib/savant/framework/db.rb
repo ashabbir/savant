@@ -107,6 +107,23 @@ module Savant
         @conn = nil
       end
 
+      # Clean up idle connections in the Postgres server
+      # Call this periodically to prevent connection exhaustion
+      def cleanup_idle_connections
+        with_connection do |conn|
+          conn.exec(<<~SQL)
+            SELECT pg_terminate_backend(pid)
+            FROM pg_stat_activity
+            WHERE datname = current_database()
+              AND pid != pg_backend_pid()
+              AND state = 'idle'
+              AND state_change < now() - interval '10 minutes'
+          SQL
+        end
+      rescue StandardError => e
+        warn "Failed to cleanup idle connections: #{e.message}"
+      end
+
       # Drop and recreate all schema tables and indexes.
       # @return [true]
       def migrate_tables
@@ -746,12 +763,12 @@ module Savant
       # =========================
       # App CRUD: Agents
       # =========================
-      def create_agent(name:, persona_id: nil, driver_prompt: nil, driver_name: nil, rule_set_ids: [], favorite: false, instructions: nil)
-        params = [name, persona_id, driver_prompt, driver_name, int_array_encoder.encode(rule_set_ids), favorite, instructions]
+      def create_agent(name:, persona_id: nil, driver_prompt: nil, driver_name: nil, rule_set_ids: [], favorite: false, instructions: nil, model_id: nil)
+        params = [name, persona_id, driver_prompt, driver_name, int_array_encoder.encode(rule_set_ids), favorite, instructions, model_id]
         res = exec_params(
           <<~SQL, params
-            INSERT INTO agents(name, persona_id, driver_prompt, driver_name, rule_set_ids, favorite, instructions, created_at, updated_at)
-            VALUES($1,$2,$3,$4,$5,$6,$7,NOW(),NOW())
+            INSERT INTO agents(name, persona_id, driver_prompt, driver_name, rule_set_ids, favorite, instructions, model_id, created_at, updated_at)
+            VALUES($1,$2,$3,$4,$5,$6,$7,$8,NOW(),NOW())
             ON CONFLICT (name) DO UPDATE
             SET persona_id=EXCLUDED.persona_id,
                 driver_prompt=COALESCE(EXCLUDED.driver_prompt, agents.driver_prompt),
@@ -759,6 +776,7 @@ module Savant
                 rule_set_ids=EXCLUDED.rule_set_ids,
                 favorite=EXCLUDED.favorite,
                 instructions=COALESCE(EXCLUDED.instructions, agents.instructions),
+                model_id=EXCLUDED.model_id,
                 updated_at=NOW()
             RETURNING id
           SQL

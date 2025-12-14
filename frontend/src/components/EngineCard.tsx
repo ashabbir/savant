@@ -30,6 +30,7 @@ import GavelIcon from '@mui/icons-material/Gavel';
 import PersonIcon from '@mui/icons-material/Person';
 import GitHubIcon from '@mui/icons-material/GitHub';
 import JiraIcon from './icons/JiraIcon';
+import LLMIcon from './icons/LLMIcon';
 import { useEngineStatus, useEngineTools, ContextToolSpec } from '../api';
 
 function formatUptime(seconds: number): string {
@@ -49,6 +50,7 @@ const ENGINE_ICONS: Record<string, React.ReactNode> = {
   drivers: <QuestionAnswerIcon sx={{ fontSize: 32 }} />,
   rules: <GavelIcon sx={{ fontSize: 32 }} />,
   agents: <SmartToyIcon sx={{ fontSize: 32 }} />,
+  llm: <LLMIcon sx={{ fontSize: 32 }} />,
 };
 
 function formatEngineName(rawName: string): string {
@@ -75,6 +77,7 @@ const ENGINE_COLORS: Record<string, string> = {
   personas: '#9c27b0',
   drivers: '#00acc1',
   rules: '#6d4c41',
+  llm: '#673ab7',
 };
 
 interface EngineCardProps {

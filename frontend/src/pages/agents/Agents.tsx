@@ -27,9 +27,9 @@ import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
 import CloseIcon from '@mui/icons-material/Close';
-import { agentRun, agentRunCancel, agentsDelete, agentRunDelete, agentRunsClearAll, agentsUpdate, getErrorMessage, useAgent, useAgents, useAgentRuns, getUserId, loadConfig } from '../../api';
+import { agentRun, agentRunCancel, agentsDelete, agentRunDelete, agentRunsClearAll, agentsUpdate, getErrorMessage, useAgent, useAgents, useAgentRuns, getUserId, loadConfig, callEngineTool } from '../../api';
 import { useNavigate } from 'react-router-dom';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, useQuery } from '@tanstack/react-query';
 
 const PANEL_HEIGHT = 'calc(100vh - 260px)';
 
@@ -49,7 +49,25 @@ export default function Agents() {
   const { data, isLoading, isError, error, refetch } = useAgents();
   const details = useAgent(sel);
   const runs = useAgentRuns(sel);
+  const llmModelsQuery = useQuery({
+    queryKey: ['llm', 'models'],
+    queryFn: async () => {
+      const res = await callEngineTool('llm', 'llm_models_list', {});
+      return (res.models || []) as any[];
+    },
+    staleTime: 1000 * 60,
+  });
   const [favoriteLoading, setFavoriteLoading] = useState<Record<string, boolean>>({});
+  const modelMap = useMemo(() => {
+    const map = new Map<string, any>();
+    (llmModelsQuery.data || []).forEach((model: any) => {
+      if (model.id || model.provider_model_id) {
+        map.set(String(model.id || model.provider_model_id), model);
+      }
+    });
+    return map;
+  }, [llmModelsQuery.data]);
+
   const agents = useMemo(() => {
     const list = data?.agents || [];
     const f = filter.toLowerCase();
@@ -118,19 +136,50 @@ export default function Agents() {
     <Grid container spacing={2}>
       <Grid xs={12} md={4}>
         <Paper sx={{ p: 1, height: PANEL_HEIGHT, display: 'flex', flexDirection: 'column' }}>
-          <Box display="flex" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+          <Stack direction="row" alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
             <Typography variant="subtitle1" sx={{ fontSize: 12 }}>Agents</Typography>
-            <Tooltip title="New Agent">
-              <IconButton size="small" color="primary" onClick={() => nav('/agents/new')}>
-                <AddCircleIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-          </Box>
+            <Stack direction="row" spacing={1} alignItems="center">
+              <Tooltip title="New Agent">
+                <IconButton size="small" color="primary" onClick={() => nav('/agents/new')}>
+                  <AddCircleIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title={sel ? 'Edit Agent' : 'Select an agent'}>
+                <span>
+                  <IconButton size="small" color="primary" disabled={!sel} onClick={() => sel && nav(`/agents/edit/${sel}`)}>
+                    <EditIcon fontSize="small" />
+                  </IconButton>
+                </span>
+              </Tooltip>
+              <Tooltip title={sel ? 'Delete Agent' : 'Select an agent'}>
+                <span>
+                  <IconButton size="small" color="error" disabled={!sel} onClick={() => {
+                    if (sel) {
+                      setConfirmName(sel);
+                      setConfirmOpen(true);
+                    }
+                  }}>
+                    <DeleteOutlineIcon fontSize="small" />
+                  </IconButton>
+                </span>
+              </Tooltip>
+            </Stack>
+          </Stack>
           {isLoading && <LinearProgress />}
           {isError && <Alert severity="error">{getErrorMessage(error as any)}</Alert>}
           <TextField size="small" fullWidth placeholder="Search agents..." value={filter} onChange={(e) => setFilter(e.target.value)} sx={{ mb: 1 }} />
-            <List dense sx={{ flex: 1, overflowY: 'auto' }}>
-              {agents.map((a) => (
+          <List dense sx={{ flex: 1, overflowY: 'auto' }}>
+            {agents.map((a) => {
+              const modelKey = a.model_id ? String(a.model_id) : null;
+              const model = modelKey ? modelMap.get(modelKey) : null;
+              const modelLabel = model
+                ? `${model.display_name || model.provider_model_id} @ ${model.provider_name || 'unknown'}`
+                : 'Not assigned';
+              const personaLabel = a.persona_name || a.driver || 'Default persona';
+              const rulesLabel = (Array.isArray(a.rules_names) && a.rules_names.length > 0)
+                ? a.rules_names.join(', ')
+                : 'No rules';
+              return (
                 <ListItem key={a.name} disablePadding secondaryAction={
                   <Stack direction="row" spacing={1} alignItems="center">
                     {runningMap[a.name] && (
@@ -139,69 +188,67 @@ export default function Agents() {
                     <Chip size="small" label={`runs ${a.run_count || 0}`} />
                     <IconButton
                       size="small"
-                      color="primary"
-                      onClick={(ev) => { ev.stopPropagation(); nav(`/agents/edit/${a.name}`); }}
+                      color={a.favorite ? 'error' : 'default'}
+                      disabled={!!favoriteLoading[a.name]}
+                      onClick={async (ev) => {
+                        ev.stopPropagation();
+                        const nextValue = !a.favorite;
+                        setFavoriteLoading((prev) => ({ ...prev, [a.name]: true }));
+                        const listKey = ['agents', 'list'] as const;
+                        const getKey = ['agents', 'get', a.name] as const;
+                        const prevList = queryClient.getQueryData(listKey);
+                        const prevGet = queryClient.getQueryData(getKey);
+                        try {
+                          queryClient.setQueryData(listKey, (old: any) => {
+                            if (!old || !old.agents) return old;
+                            return {
+                              ...old,
+                              agents: old.agents.map((it: any) => it.name === a.name ? { ...it, favorite: nextValue } : it)
+                            };
+                          });
+                          queryClient.setQueryData(getKey, (old: any) => old ? { ...old, favorite: nextValue } : old);
+                          await agentsUpdate({ name: a.name, favorite: nextValue });
+                          await refetch();
+                          queryClient.invalidateQueries(listKey);
+                          queryClient.invalidateQueries(getKey);
+                        } catch (e) {
+                          if (prevList) queryClient.setQueryData(listKey, prevList as any);
+                          if (prevGet) queryClient.setQueryData(getKey, prevGet as any);
+                        } finally {
+                          setFavoriteLoading((prev) => {
+                            const next = { ...prev };
+                            delete next[a.name];
+                            return next;
+                          });
+                        }
+                      }}
                     >
-                      <EditIcon fontSize="small" />
+                      {favoriteLoading[a.name] ? <CircularProgress size={16} /> : (a.favorite ? <FavoriteIcon fontSize="small" /> : <FavoriteBorderIcon fontSize="small" />)}
                     </IconButton>
-                    <IconButton
-                      size="small"
-                      color="error"
-                      onClick={(ev) => { ev.stopPropagation(); setConfirmName(a.name); setConfirmOpen(true); }}
-                    >
-                      <DeleteOutlineIcon fontSize="small" />
-                    </IconButton>
-                  <IconButton
-                    size="small"
-                    color={a.favorite ? 'error' : 'default'}
-                    disabled={!!favoriteLoading[a.name]}
-                    onClick={async (ev) => {
-                      ev.stopPropagation();
-                      const nextValue = !a.favorite;
-                      setFavoriteLoading((prev) => ({ ...prev, [a.name]: true }));
-                      // Optimistically update cached lists/details for snappy UX
-                      const listKey = ['agents', 'list'] as const;
-                      const getKey = ['agents', 'get', a.name] as const;
-                      const prevList = queryClient.getQueryData(listKey);
-                      const prevGet = queryClient.getQueryData(getKey);
-                      try {
-                        // Update list cache
-                        queryClient.setQueryData(listKey, (old: any) => {
-                          if (!old || !old.agents) return old;
-                          return {
-                            ...old,
-                            agents: old.agents.map((it: any) => it.name === a.name ? { ...it, favorite: nextValue } : it)
-                          };
-                        });
-                        // Update details cache
-                        queryClient.setQueryData(getKey, (old: any) => old ? { ...old, favorite: nextValue } : old);
-                        await agentsUpdate({ name: a.name, favorite: nextValue });
-                        // Revalidate to ensure server truth
-                        await refetch();
-                        queryClient.invalidateQueries(listKey);
-                        queryClient.invalidateQueries(getKey);
-                      } catch (e) {
-                        // Roll back on error
-                        if (prevList) queryClient.setQueryData(listKey, prevList as any);
-                        if (prevGet) queryClient.setQueryData(getKey, prevGet as any);
-                      } finally {
-                        setFavoriteLoading((prev) => {
-                          const next = { ...prev };
-                          delete next[a.name];
-                          return next;
-                        });
-                      }
-                    }}
-                  >
-                    {favoriteLoading[a.name] ? <CircularProgress size={16} /> : (a.favorite ? <FavoriteIcon fontSize="small" /> : <FavoriteBorderIcon fontSize="small" />)}
-                  </IconButton>
                   </Stack>
                 }>
-                <ListItemButton selected={sel === a.name} onClick={() => setSel(a.name)}>
-                  <ListItemText primary={a.name} secondary={a.last_run_at ? `last ${new Date(a.last_run_at).toLocaleString()}` : 'never run'} />
-                </ListItemButton>
-              </ListItem>
-            ))}
+                  <ListItemButton selected={sel === a.name} onClick={() => setSel(a.name)}>
+                    <Stack sx={{ flex: 1, minWidth: 0 }} spacing={0.5}>
+                      <Stack direction="row" spacing={1} alignItems="center">
+                        <Typography variant="caption" color="text.secondary" sx={{ minWidth: 32 }}>#{a.id}</Typography>
+                        <Typography variant="body2" sx={{ fontWeight: 700, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {a.name}
+                        </Typography>
+                      </Stack>
+                      <Stack direction="row" spacing={1} alignItems="center" sx={{ flexWrap: 'wrap', gap: 0.5 }}>
+                        <Chip size="small" label={personaLabel} variant="outlined" sx={{ height: 20 }} />
+                        <Chip size="small" label={`Rules: ${Array.isArray(a.rules_names) && a.rules_names.length > 0 ? a.rules_names.length : '0'}`} variant="outlined" sx={{ height: 20 }} />
+                        <Chip size="small" label={`Runs: ${a.run_count || 0}`} variant="outlined" sx={{ height: 20 }} />
+                      </Stack>
+                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontSize: '0.75rem' }}>
+                        {model?.provider_name && <span style={{ fontStyle: 'italic', marginRight: '4px' }}>{model.provider_name}</span>}
+                        {model ? model.display_name || model.provider_model_id : 'Not assigned'}
+                      </Typography>
+                    </Stack>
+                  </ListItemButton>
+                </ListItem>
+              );
+            })}
           </List>
         </Paper>
       </Grid>

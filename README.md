@@ -298,6 +298,109 @@ http://localhost:9999/diagnostics/agent
 
 See [Agent Runtime docs](memory_bank/agent_runtime.md) for detailed architecture, memory system, and telemetry.
 
+### LLM Registry
+
+The LLM Registry provides centralized management of LLM providers, models, and agent configurations. It supports multiple providers (Google Cloud, Ollama, etc.) with encrypted API key storage.
+
+**Access the Registry:**
+- **UI**: http://localhost:5173/llm-registry (Web interface with 3 tabs: Providers, Models, Agents)
+- **CLI**: `./bin/llm <command> <subcommand> [options]`
+
+**CLI Commands:**
+
+Provider Management:
+```bash
+# Add a provider (Google with API key)
+./bin/llm provider add --type google --name "Google Primary" --api-key YOUR_API_KEY
+
+# Add a provider (Ollama with base URL)
+./bin/llm provider add --type ollama --name "Local Ollama" --base-url http://localhost:11434
+
+# List all providers
+./bin/llm provider list
+
+# Test a provider's connection
+./bin/llm provider test --name "Google Primary"
+
+# Delete a provider
+./bin/llm provider delete --name "Google Primary"
+```
+
+Model Management:
+```bash
+# Discover available models from a provider
+./bin/llm models discover --provider "Google Primary"
+
+# Register a model for use
+./bin/llm models register --provider "Google Primary" --id gemini-2.0-pro
+
+# List all registered models
+./bin/llm models list
+```
+
+Agent Management:
+```bash
+# Create a new agent
+./bin/llm agent add --name context-agent --description "Context analysis agent"
+
+# Assign a model to an agent
+./bin/llm agent assign --name context-agent --model-id 1
+
+# List all agents with their assigned models
+./bin/llm agent list
+
+# Delete an agent
+./bin/llm agent delete --name context-agent
+```
+
+**Configuration:**
+```bash
+# Set the encryption key (required for API key storage)
+export SAVANT_ENC_KEY=$(ruby -e "require 'securerandom'; puts SecureRandom.hex(32)")
+
+# Optional environment variables
+export REASONING_API_URL="http://localhost:9000"  # For LangChain/LangGraph integration
+export REASONING_API_TIMEOUT_MS="5000"
+export REASONING_API_RETRIES="2"
+```
+
+**Database:**
+- LLM Registry uses 5 tables: `llm_providers`, `llm_models`, `llm_agents`, `llm_agent_model_assignments`, `llm_cache`
+- API keys are encrypted with AES-256-GCM before storage
+- Run migrations: `make db-migrate`
+
+**HTTP API (via Hub):**
+```bash
+# List providers
+curl -H 'x-savant-user-id: me' -X POST http://localhost:9999/llm/tools/llm_providers_list/call -d '{}'
+
+# Create provider
+curl -H 'x-savant-user-id: me' -X POST http://localhost:9999/llm/tools/llm_providers_create/call \
+  -d '{"params": {"name": "Google", "provider_type": "google", "api_key": "KEY"}}'
+
+# List models
+curl -H 'x-savant-user-id: me' -X POST http://localhost:9999/llm/tools/llm_models_list/call -d '{}'
+
+# Discover models
+curl -H 'x-savant-user-id: me' -X POST http://localhost:9999/llm/tools/llm_models_discover/call \
+  -d '{"params": {"provider_name": "Google Primary"}}'
+
+# Create agent
+curl -H 'x-savant-user-id: me' -X POST http://localhost:9999/llm/tools/llm_agents_create/call \
+  -d '{"params": {"name": "my-agent", "description": "Test agent"}}'
+
+# Assign model to agent
+curl -H 'x-savant-user-id: me' -X POST http://localhost:9999/llm/tools/llm_agents_assign_model/call \
+  -d '{"params": {"agent_name": "my-agent", "model_id": 1}}'
+
+# List agents
+curl -H 'x-savant-user-id: me' -X POST http://localhost:9999/llm/tools/llm_agents_list/call -d '{}'
+```
+
+**Future: LangChain/LangGraph Integration**
+- The LLM Registry pairs with a separate reasoning service for agent/workflow intelligence
+- See `docs/prds/langchain-graph-api.md` for the intent API specification and implementation roadmap
+
 ### Full Stack Setup
 
 1) Database setup (Postgres + FTS):

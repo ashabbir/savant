@@ -82,7 +82,7 @@ module Savant
         to_agent_hash(row)
       end
 
-      def update(name:, persona: nil, driver: nil, rules: nil, favorite: nil, instructions: nil)
+      def update(name:, persona: nil, driver: nil, rules: nil, favorite: nil, instructions: nil, model_id: nil)
         row = @db.find_agent_by_name(name)
         raise 'not_found' unless row
 
@@ -90,6 +90,13 @@ module Savant
         persona_id = ensure_persona(name: persona) if !persona.nil? && !persona.to_s.strip.empty?
         rule_ids = nil
         rule_ids = ensure_rules(rules) if rules.is_a?(Array)
+
+        # Validate model_id if provided (must exist in llm_models table)
+        final_model_id = if model_id.nil?
+          row['model_id']
+        else
+          model_id
+        end
 
         # Build update via create_agent upsert semantics
         fav = if favorite.nil?
@@ -110,7 +117,8 @@ module Savant
           driver_name: driver.nil? ? row['driver_name'] : driver,
           rule_set_ids: rule_ids || parse_int_array(row['rule_set_ids']),
           favorite: fav,
-          instructions: instructions.nil? ? row['instructions'] : instructions
+          instructions: instructions.nil? ? row['instructions'] : instructions,
+          model_id: final_model_id
         )
         got = @db.get_agent(id)
         to_agent_hash(got)
@@ -460,6 +468,7 @@ module Savant
           instructions: row['instructions'],
           rule_set_ids: rule_ids,
           rules_names: rules_names,
+          model_id: row['model_id']&.to_i,
           favorite: ['t', true].include?(row['favorite']),
           run_count: row['run_count']&.to_i,
           last_run_at: row['last_run_at'],
