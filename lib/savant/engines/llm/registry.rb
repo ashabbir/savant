@@ -1,4 +1,4 @@
-require 'savant/engines/llm/vault'
+require_relative 'vault'
 
 module Savant::Llm
   class Registry

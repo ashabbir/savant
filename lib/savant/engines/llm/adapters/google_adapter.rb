@@ -1,4 +1,4 @@
-require 'savant/engines/llm/adapters/base_adapter'
+require_relative 'base_adapter'
 
 module Savant::Llm::Adapters
   class GoogleAdapter < BaseAdapter

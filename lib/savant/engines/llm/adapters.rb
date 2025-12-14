@@ -1,5 +1,5 @@
-require 'savant/engines/llm/adapters/google_adapter'
-require 'savant/engines/llm/adapters/ollama_adapter'
+require_relative 'adapters/google_adapter'
+require_relative 'adapters/ollama_adapter'
 
 module Savant::Llm::Adapters
   def self.for_provider(provider_row)

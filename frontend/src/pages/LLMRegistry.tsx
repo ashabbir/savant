@@ -27,7 +27,6 @@ import {
   Chip,
   IconButton,
   Tooltip,
-  FormControlLabel,
   Switch,
   useTheme,
 } from '@mui/material';
@@ -86,7 +85,7 @@ export default function LLMRegistry() {
   const [openProviderDialog, setOpenProviderDialog] = useState(false);
   const [openModelDialog, setOpenModelDialog] = useState(false);
   const [openDiscoverDialog, setOpenDiscoverDialog] = useState(false);
-  const [openEditModelDialog, setOpenEditModelDialog] = useState(false);
+  const [openEditProviderDialog, setOpenEditProviderDialog] = useState(false);
 
   const queryClient = useQueryClient();
 
@@ -94,12 +93,12 @@ export default function LLMRegistry() {
   const [providerForm, setProviderForm] = useState({ name: '', type: 'google', apiKey: '', baseUrl: '' });
   const [modelForm, setModelForm] = useState({ provider: '', modelIds: [] as string[] });
   const [discoverProvider, setDiscoverProvider] = useState('');
-  const [editModelForm, setEditModelForm] = useState({ displayName: '', contextWindow: '', enabled: true });
-  const [selectedModel, setSelectedModel] = useState<Model | null>(null);
-  const closeEditModelDialog = () => {
-    setOpenEditModelDialog(false);
-    setSelectedModel(null);
-    setEditModelForm({ displayName: '', contextWindow: '', enabled: true });
+  const [providerEditForm, setProviderEditForm] = useState({ baseUrl: '', apiKey: '' });
+  const [selectedProvider, setSelectedProvider] = useState<Provider | null>(null);
+  const closeEditProviderDialog = () => {
+    setOpenEditProviderDialog(false);
+    setSelectedProvider(null);
+    setProviderEditForm({ baseUrl: '', apiKey: '' });
   };
 
   // Fetch providers
@@ -149,26 +148,48 @@ export default function LLMRegistry() {
   });
 
   // Test provider
-  const testProviderMutation = useMutation({
-    mutationFn: async (name: string) => {
-      const res = await callEngineTool('llm', 'llm_providers_test', { name });
-      return res;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['llm', 'providers'] });
-    },
-  });
+const testProviderMutation = useMutation({
+  mutationFn: async (name: string) => {
+    const res = await callEngineTool('llm', 'llm_providers_test', { name });
+    return res;
+  },
+  onSuccess: () => {
+    queryClient.invalidateQueries({ queryKey: ['llm', 'providers'] });
+  },
+});
 
-  // Delete provider
-  const deleteProviderMutation = useMutation({
-    mutationFn: async (name: string) => {
-      await callEngineTool('llm', 'llm_providers_delete', { name });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['llm', 'providers'] });
-      queryClient.invalidateQueries({ queryKey: ['llm', 'models'] });
-    },
-  });
+// Delete provider
+const deleteProviderMutation = useMutation({
+  mutationFn: async (name: string) => {
+    await callEngineTool('llm', 'llm_providers_delete', { name });
+  },
+  onSuccess: () => {
+    queryClient.invalidateQueries({ queryKey: ['llm', 'providers'] });
+    queryClient.invalidateQueries({ queryKey: ['llm', 'models'] });
+  },
+});
+
+const updateProviderMutation = useMutation({
+  mutationFn: async ({ name, data }: { name: string; data: typeof providerEditForm }) => {
+    await callEngineTool('llm', 'llm_providers_update', {
+      name,
+      base_url: data.baseUrl || undefined,
+      api_key: data.apiKey || undefined,
+    });
+  },
+  onSuccess: () => {
+    queryClient.invalidateQueries({ queryKey: ['llm', 'providers'] });
+    setOpenEditProviderDialog(false);
+    setSelectedProvider(null);
+    setProviderEditForm({ baseUrl: '', apiKey: '' });
+  },
+});
+
+const openEditProviderDialogWith = (provider: Provider) => {
+  setSelectedProvider(provider);
+  setProviderEditForm({ baseUrl: provider.base_url || '', apiKey: '' });
+  setOpenEditProviderDialog(true);
+};
 
   // Register models
   const registerModelsMutation = useMutation({
@@ -195,33 +216,16 @@ export default function LLMRegistry() {
     },
   });
 
-  const updateModelMutation = useMutation({
-    mutationFn: async ({ modelId, data }: { modelId: number; data: typeof editModelForm }) => {
-      await callEngineTool('llm', 'llm_models_update', {
-        model_id: modelId,
-        display_name: data.displayName,
-        context_window: data.contextWindow ? parseInt(data.contextWindow, 10) : undefined,
-        enabled: data.enabled,
-      });
+  const toggleModelMutation = useMutation({
+    mutationFn: async ({ modelId, enabled }: { modelId: number; enabled: boolean }) => {
+      await callEngineTool('llm', 'llm_models_set_enabled', { model_id: modelId, enabled });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['llm', 'models'] });
-      setOpenEditModelDialog(false);
-      setSelectedModel(null);
-      setEditModelForm({ displayName: '', contextWindow: '', enabled: true });
     },
   });
 
-  const openEditModelDialogWith = (model: Model) => {
-    setSelectedModel(model);
-    setEditModelForm({
-      displayName: model.display_name,
-      contextWindow: model.context_window ? String(model.context_window) : '',
-      enabled: model.enabled,
-    });
-    setOpenEditModelDialog(true);
-  };
-
+  
   const getStatusColor = (status: string) => {
     if (status === 'valid') return 'success';
     if (status === 'invalid') return 'error';
@@ -325,6 +329,14 @@ export default function LLMRegistry() {
                           : 'Never'}
                       </TableCell>
                       <TableCell align="right">
+                        <Tooltip title="Edit provider">
+                          <IconButton
+                            size="small"
+                            onClick={() => openEditProviderDialogWith(provider)}
+                          >
+                            <EditIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
                         <Tooltip title="Test Connection">
                           <IconButton
                             size="small"
@@ -426,21 +438,17 @@ export default function LLMRegistry() {
                           : '-'}
                       </TableCell>
                       <TableCell>
-                        <Chip
-                          label={model.enabled ? 'Enabled' : 'Disabled'}
-                          color={model.enabled ? 'success' : 'default'}
-                          size="small"
+                        <Switch
+                          checked={model.enabled}
+                          onChange={() =>
+                            toggleModelMutation.mutate({ modelId: model.id, enabled: !model.enabled })
+                          }
+                          disabled={toggleModelMutation.isPending}
+                          color="primary"
+                          inputProps={{ 'aria-label': 'toggle model enabled' }}
                         />
                       </TableCell>
                       <TableCell align="right">
-                        <Tooltip title="Edit model">
-                          <IconButton
-                            size="small"
-                            onClick={() => openEditModelDialogWith(model)}
-                          >
-                            <EditIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
                         <Tooltip title="Delete model">
                           <IconButton
                             size="small"
@@ -516,6 +524,47 @@ export default function LLMRegistry() {
         </DialogActions>
       </Dialog>
 
+      {/* Edit Provider Dialog */}
+      <Dialog
+        open={openEditProviderDialog}
+        onClose={closeEditProviderDialog}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Edit Provider</DialogTitle>
+        <DialogContent sx={{ pt: 2 }}>
+          <Stack spacing={2}>
+            <TextField
+              label="Base URL"
+              value={providerEditForm.baseUrl}
+              onChange={(e) => setProviderEditForm({ ...providerEditForm, baseUrl: e.target.value })}
+              fullWidth
+            />
+            <TextField
+              label="API Key"
+              type="password"
+              value={providerEditForm.apiKey}
+              onChange={(e) => setProviderEditForm({ ...providerEditForm, apiKey: e.target.value })}
+              helperText="Leave blank to keep existing key"
+              fullWidth
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={closeEditProviderDialog}>Cancel</Button>
+          <Button
+            onClick={() =>
+              selectedProvider &&
+              updateProviderMutation.mutate({ name: selectedProvider.name, data: providerEditForm })
+            }
+            variant="contained"
+            disabled={!selectedProvider || updateProviderMutation.isPending}
+          >
+            Save Changes
+          </Button>
+        </DialogActions>
+      </Dialog>
+
       {/* Discover Models Dialog */}
       <Dialog open={openDiscoverDialog} onClose={() => setOpenDiscoverDialog(false)} maxWidth="sm" fullWidth>
         <DialogTitle>Discover Available Models</DialogTitle>
@@ -578,53 +627,6 @@ export default function LLMRegistry() {
             disabled={registerModelsMutation.isPending || !modelForm.provider}
           >
             Register
-          </Button>
-        </DialogActions>
-      </Dialog>
-
-      {/* Edit Model Dialog */}
-      <Dialog
-        open={openEditModelDialog}
-        onClose={closeEditModelDialog}
-        maxWidth="sm"
-        fullWidth
-      >
-        <DialogTitle>Edit Model</DialogTitle>
-        <DialogContent sx={{ pt: 2 }}>
-          <Stack spacing={2}>
-            <TextField
-              label="Display Name"
-              value={editModelForm.displayName}
-              onChange={(e) => setEditModelForm({ ...editModelForm, displayName: e.target.value })}
-              fullWidth
-            />
-            <TextField
-              label="Context Window"
-              type="number"
-              value={editModelForm.contextWindow}
-              onChange={(e) => setEditModelForm({ ...editModelForm, contextWindow: e.target.value })}
-              fullWidth
-              helperText="Enter context window in tokens (optional)"
-            />
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={editModelForm.enabled}
-                  onChange={(_, checked) => setEditModelForm({ ...editModelForm, enabled: checked })}
-                />
-              }
-              label={editModelForm.enabled ? 'Enabled' : 'Disabled'}
-            />
-          </Stack>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={closeEditModelDialog}>Cancel</Button>
-          <Button
-            onClick={() => selectedModel && updateModelMutation.mutate({ modelId: selectedModel.id, data: editModelForm })}
-            variant="contained"
-            disabled={!selectedModel || updateModelMutation.isPending}
-          >
-            Save Changes
           </Button>
         </DialogActions>
       </Dialog>
