@@ -54,6 +54,7 @@ module Savant::Llm
 
     # Model CRUD
     def register_model(provider_id:, provider_model_id:, display_name:, modality: [], context_window: nil, meta: {})
+      modality_encoded = text_array_encoder.encode(Array(modality))
       @db.exec_params(
         <<~SQL,
           INSERT INTO llm_models (provider_id, provider_model_id, display_name, modality, context_window, meta)
@@ -62,7 +63,7 @@ module Savant::Llm
           SET display_name = EXCLUDED.display_name, modality = EXCLUDED.modality, context_window = EXCLUDED.context_window, meta = EXCLUDED.meta
           RETURNING id
         SQL
-        [provider_id, provider_model_id, display_name, modality.to_a, context_window, meta.to_json]
+        [provider_id, provider_model_id, display_name, modality_encoded, context_window, meta.to_json]
       )[0]['id']
     end
 
@@ -129,6 +130,13 @@ module Savant::Llm
     end
 
     private
+
+    def text_array_encoder
+      @text_array_encoder ||= PG::TextEncoder::Array.new(
+        name: 'text[]',
+        elements_type: PG::TextEncoder::String.new(name: 'text')
+      )
+    end
 
     def decrypt_provider_row(row)
       result = row.transform_keys(&:to_sym)
