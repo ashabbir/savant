@@ -39,7 +39,7 @@ module Savant
         end
 
         def build_logger(io)
-          Savant::Logging::Logger.new(io: io, json: true, service: 'http')
+          Savant::Logging::MongoLogger.new(service: 'http')
         end
 
         def build_manager(service, logger)

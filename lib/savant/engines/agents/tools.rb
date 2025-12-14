@@ -51,7 +51,7 @@ module Savant
                                 }, required: ['name'] } do |_ctx, a|
             logger = (_ctx && _ctx[:logger]) || begin
               require_relative '../../logging/logger'
-              Savant::Logging::Logger.new(io: $stdout, json: true, service: 'agents')
+              Savant::Logging::MongoLogger.new(service: 'agents')
             rescue StandardError
               nil
             end

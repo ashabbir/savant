@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { AppBar, Toolbar, Typography, Tabs, Tab, IconButton, Container, Alert, Snackbar, Chip, Box, Tooltip, Stack } from '@mui/material';
+import { AppBar, Toolbar, Typography, Tabs, Tab, IconButton, Container, Alert, Snackbar, Chip, Box, Tooltip, Stack, CssBaseline } from '@mui/material';
 import SettingsIcon from '@mui/icons-material/Settings';
 import { ThemeProvider } from '@mui/material/styles';
 import { createCompactTheme } from './theme/compact';
@@ -271,6 +271,7 @@ export default function App() {
 
   return (
     <ThemeProvider theme={theme}>
+      <CssBaseline />
       <Box sx={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: 'background.default', color: 'text.primary' }}>
       <AppBar position="static" sx={{ background: chromeGradient }}>
         <Toolbar variant="dense">

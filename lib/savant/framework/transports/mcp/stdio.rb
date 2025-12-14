@@ -64,8 +64,7 @@ module Savant
             puts response_json
           end
         rescue Interrupt
-          log = Savant::Logging::Logger.new(io: $stdout, file_path: File.join(@base_path, 'logs', "#{@service}.log"),
-                                            level: :error, json: true, service: @service)
+          log = Savant::Logging::MongoLogger.new(service: @service)
           log.info(event: 'shutdown', reason: 'Interrupt')
         ensure
           Savant::Hub::Connections.global.disconnect(conn_id) if defined?(conn_id) && conn_id
@@ -82,8 +81,8 @@ module Savant
         end
 
         def prepare_logger(service, _base_path, file_path: nil, level: 'error', format: 'json')
-          json = format.to_s.downcase != 'text'
-          Savant::Logging::Logger.new(io: $stdout, file_path: file_path, level: level, json: json, service: service)
+          # Use Mongo-backed logger for engines; no file writes.
+          Savant::Logging::MongoLogger.new(service: service)
         end
 
         def load_settings(base_path)

@@ -21,7 +21,7 @@ module Savant
     # Purpose: Stable entrypoint wiring config, cache and runner. Used by
     # CLI to index or reindex repos without exposing internals.
     class Facade
-      def initialize(settings_path, logger: Savant::Logging::Logger.new(io: $stdout, json: true, service: 'indexer'), db: Savant::Framework::DB.new)
+    def initialize(settings_path, logger: Savant::Logging::MongoLogger.new(service: 'indexer'), db: Savant::Framework::DB.new)
         @settings_path = settings_path
         @logger = logger
         @db = db

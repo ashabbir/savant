@@ -26,7 +26,7 @@ module Savant
         # Prefer explicit logs_dir, then env SAVANT_LOG_PATH, otherwise default to repo logs/
         env_logs = ENV['SAVANT_LOG_PATH']
         @logs_dir = logs_dir || (env_logs && !env_logs.empty? ? env_logs : File.join(base_path, 'logs'))
-        @hub_logger = init_hub_logger
+        @hub_logger = nil
         @hub_mongo_logger = init_hub_mongo_logger
         @recorder = Savant::Logging::EventRecorder.global
         @connections = Savant::Hub::Connections.global
@@ -293,18 +293,6 @@ module Savant
           # ignore
         end
 
-        if hub_logger
-          hub_logger.info(
-          event: 'http_request',
-          method: req.request_method,
-          path: req.path_info,
-          status: status,
-          duration_ms: duration_ms,
-          user: req.env['savant.user_id'],
-          query: req.query_string.to_s.empty? ? nil : req.query_string
-          )
-        end
-
         if @hub_mongo_logger
           @hub_mongo_logger.info(
             event: 'http_request',
@@ -521,15 +509,6 @@ module Savant
           since = (req.params['since'] || '').to_s
           logs = mongo_fetch_service(service_prefix: 'hub', n: n, since: (since.empty? ? nil : since))
           lines = logs.map { |doc| JSON.generate(doc) }
-          # Fallback to file if Mongo empty
-          if lines.empty?
-            path = log_path('hub')
-            if File.file?(path)
-              level = req.params['level']
-              lines = filter_log_lines(read_last_lines(path, n), level)
-              return respond(200, { engine: 'hub', count: lines.length, path: path, lines: lines, level: level })
-            end
-          end
           respond(200, { engine: 'hub', count: lines.length, lines: lines })
         else
           not_found
@@ -562,12 +541,8 @@ module Savant
       end
 
       def diagnostics_workflow_run(_req, workflow, run_id)
-        base = workflow_base_path
-        path = File.join(base, '.savant', 'workflow_runs', "#{workflow}__#{run_id}.json")
-        return respond(404, { error: 'workflow_run_not_found', workflow: workflow, run_id: run_id }) unless File.file?(path)
-
-        data = JSON.parse(File.read(path))
-        respond(200, data)
+        engine = workflow_engine
+        respond(200, engine.run_read(workflow: workflow, run_id: run_id))
       rescue StandardError => e
         respond(500, { error: 'workflow_run_error', message: e.message })
       end
@@ -650,15 +625,6 @@ module Savant
           since = (req.params['since'] || '').to_s
           logs = mongo_fetch_service(service_prefix: 'multiplexer', n: n, since: (since.empty? ? nil : since))
           lines = logs.map { |doc| JSON.generate(doc) }
-          # Fallback: if no Mongo logs, read from file as before
-          if lines.empty?
-            path = multiplexer_log_path
-            if File.file?(path)
-              level = req.params['level']
-              lines = filter_log_lines(read_last_lines(path, n), level)
-              return respond(200, { engine: 'multiplexer', count: lines.length, path: path, lines: lines, level: level })
-            end
-          end
           respond(200, { engine: 'multiplexer', count: lines.length, lines: lines })
         else
           not_found

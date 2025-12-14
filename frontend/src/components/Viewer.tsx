@@ -8,7 +8,13 @@ let mermaidConfigured = false;
 
 function ensureMermaidConfigured() {
   if (!mermaidConfigured) {
-    mermaid.initialize({ startOnLoad: false, securityLevel: 'loose' });
+    mermaid.initialize({
+      startOnLoad: false,
+      securityLevel: 'loose',
+      suppressErrorRendering: true,
+      // @ts-ignore - errorHandler exists in v11
+      errorHandler: () => { /* no-op: prevent overlay */ },
+    } as any);
     mermaidConfigured = true;
   }
 }
@@ -239,34 +245,44 @@ export default function Viewer({ content, contentType, filename, language, heigh
     const nodes = root.querySelectorAll<HTMLElement>('.mermaid');
     if (!nodes.length) return;
     ensureMermaidConfigured();
-    nodes.forEach((el) => {
+    // Render each diagram individually to prevent Mermaid's overlay injection
+    const promises: Promise<void>[] = [];
+    nodes.forEach((el, i) => {
       const src = el.textContent || '';
-      // Skip rendering if the content doesn't resemble a Mermaid diagram
-      if (!isLikelyMermaid(src)) {
+      const fallbackToCode = () => {
         const pre = document.createElement('pre');
         pre.className = 'code';
         const codeEl = document.createElement('code');
         codeEl.innerHTML = escapeHtml(src);
         pre.appendChild(codeEl);
         el.replaceWith(pre);
+      };
+      if (!isLikelyMermaid(src)) {
+        fallbackToCode();
         return;
       }
       try {
         // @ts-ignore
         if (typeof mermaid.parse === 'function') mermaid.parse(src);
       } catch {
-        const pre = document.createElement('pre');
-        pre.className = 'code';
-        const codeEl = document.createElement('code');
-        codeEl.innerHTML = escapeHtml(src);
-        pre.appendChild(codeEl);
-        el.replaceWith(pre);
+        fallbackToCode();
+        return;
       }
+      // Try render off-DOM; on success, replace innerHTML with SVG
+      const id = `mmd-${Date.now()}-${i}`;
+      const p = (async () => {
+        try {
+          // @ts-ignore - types for render may vary by version
+          const { svg } = await mermaid.render(id, src);
+          el.innerHTML = svg;
+        } catch {
+          fallbackToCode();
+        }
+      })();
+      promises.push(p);
     });
-    const remain = root.querySelectorAll<HTMLElement>('.mermaid');
-    if (!remain.length) return;
-    // eslint-disable-next-line @typescript-eslint/no-floating-promises
-    mermaid.run({ nodes: remain }).catch(() => {});
+    // Swallow any unhandled errors
+    void Promise.all(promises).catch(() => {});
   }, [kind, markdownHtml]);
 
   const codeHtml = useMemo(() => {
