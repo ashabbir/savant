@@ -3,6 +3,7 @@
 require 'fileutils'
 require_relative '../version'
 require_relative '../logging/logger'
+require_relative '../logging/mongo_logger'
 require_relative '../logging/event_recorder'
 
 module Savant
@@ -146,10 +147,10 @@ module Savant
         path = File.join(base, "#{service}.log")
         io = File.open(path, 'a')
         io.sync = true
-        Savant::Logging::Logger.new(io: io, json: true, service: service)
+        Savant::Logging::MongoLogger.new(service: service)
       rescue StandardError
         # Fallback to stdout logger if file path is not writable
-        Savant::Logging::Logger.new(io: $stdout, json: true, service: service)
+        Savant::Logging::MongoLogger.new(service: service)
       end
 
       def default_logs_dir

@@ -121,7 +121,6 @@ export default function Search() {
             <Viewer
               content={r.chunk}
               filename={r.rel_path}
-              language={r.lang}
               height={260}
             />
           </Paper>

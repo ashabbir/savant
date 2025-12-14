@@ -45,6 +45,7 @@ export default function Agents() {
   const esRef = useRef<EventSource | null>(null);
   const activityRef = useRef<Record<string, { start?: number; done?: number }>>({});
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmName, setConfirmName] = useState<string | null>(null);
   const { data, isLoading, isError, error, refetch } = useAgents();
   const details = useAgent(sel);
   const runs = useAgentRuns(sel);
@@ -54,6 +55,13 @@ export default function Agents() {
     const f = filter.toLowerCase();
     return f ? list.filter((a) => a.name.toLowerCase().includes(f)) : list;
   }, [data, filter]);
+
+  // Auto-select first agent on initial load or when list updates
+  useEffect(() => {
+    if (!sel && agents.length > 0) {
+      setSel(agents[0].name);
+    }
+  }, [agents, sel]);
 
   // Live running status via SSE events (agent_run_started / agent_run_completed)
   useEffect(() => {
@@ -129,6 +137,20 @@ export default function Agents() {
                       <Chip size="small" color="success" label={`running ${runningCounts[a.name] || 1}`} />
                     )}
                     <Chip size="small" label={`runs ${a.run_count || 0}`} />
+                    <IconButton
+                      size="small"
+                      color="primary"
+                      onClick={(ev) => { ev.stopPropagation(); nav(`/agents/edit/${a.name}`); }}
+                    >
+                      <EditIcon fontSize="small" />
+                    </IconButton>
+                    <IconButton
+                      size="small"
+                      color="error"
+                      onClick={(ev) => { ev.stopPropagation(); setConfirmName(a.name); setConfirmOpen(true); }}
+                    >
+                      <DeleteOutlineIcon fontSize="small" />
+                    </IconButton>
                   <IconButton
                     size="small"
                     color={a.favorite ? 'error' : 'default'}
@@ -188,22 +210,7 @@ export default function Agents() {
         <Paper sx={{ p: 2, height: PANEL_HEIGHT, display: 'flex', flexDirection: 'column', gap: 1 }}>
           <Stack direction="row" alignItems="center" justifyContent="space-between">
             <Typography variant="subtitle2">Agent Details</Typography>
-            <Stack direction="row" spacing={1}>
-              <Tooltip title={sel ? 'Edit Agent' : 'Select an agent'}>
-                <span>
-                  <IconButton size="small" color="primary" disabled={!sel} onClick={() => sel && nav(`/agents/edit/${sel}`)}>
-                    <EditIcon fontSize="small" />
-                  </IconButton>
-                </span>
-              </Tooltip>
-              <Tooltip title={sel ? 'Delete Agent' : 'Select an agent'}>
-                <span>
-                  <IconButton size="small" color="error" disabled={!sel} onClick={() => setConfirmOpen(true)}>
-                    <DeleteOutlineIcon fontSize="small" />
-                  </IconButton>
-                </span>
-              </Tooltip>
-            </Stack>
+            <span />
           </Stack>
           {details.isFetching && <LinearProgress />}
           {details.isError && <Alert severity="error">{getErrorMessage(details.error as any)}</Alert>}
@@ -277,15 +284,16 @@ export default function Agents() {
           </IconButton>
         </DialogTitle>
         <DialogContent dividers>
-          Are you sure you want to delete "{sel}"?
+          Are you sure you want to delete "{confirmName}"?
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setConfirmOpen(false)}>Cancel</Button>
-          <Button color="error" disabled={!sel} onClick={async () => {
-            if (!sel) return;
-            await agentsDelete(sel);
+          <Button color="error" disabled={!confirmName} onClick={async () => {
+            if (!confirmName) return;
+            await agentsDelete(confirmName);
             setConfirmOpen(false);
-            setSel(null);
+            if (sel === confirmName) setSel(null);
+            setConfirmName(null);
             await refetch();
           }}>Delete</Button>
         </DialogActions>

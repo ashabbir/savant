@@ -4,12 +4,13 @@
 require 'yaml'
 require 'json'
 require 'fileutils'
+require 'digest'
 require 'securerandom'
 require_relative 'engine/runtime_context'
 require_relative '../logging/logger'
 require_relative 'license'
 require_relative '../engines/personas/ops'
-require_relative '../engines/think/engine'
+require_relative '../engines/drivers/ops'
 require_relative '../multiplexer'
 require_relative '../llm/adapter'
 
@@ -25,7 +26,7 @@ module Savant
       # Main boot sequence
       # @param options [Hash] Boot options
       # @option options [String] :persona_name Default persona to load (default: 'savant-engineer')
-      # @option options [String] :driver_version Driver prompt version (default: latest)
+      # @option options [String] :driver_name Driver name to load (default: 'developer')
       # @option options [String] :base_path Base path for Savant (default: SAVANT_PATH or project root)
       # @option options [Boolean] :skip_git Skip git repo detection (default: false)
       # @return [RuntimeContext] Initialized runtime context
@@ -50,7 +51,7 @@ module Savant
 
           # Load core components
           persona = load_persona(options[:persona_name] || 'savant-engineer', base_path, logger)
-          driver_prompt = load_driver_prompt(options[:driver_version], base_path, logger)
+          driver_prompt = load_driver_prompt(options[:driver_name], base_path, logger)
           amr_rules = load_amr_rules(base_path, logger)
           repo = options[:skip_git] ? nil : detect_repo_context(logger)
           memory = initialize_memory(base_path, session_id, logger)
@@ -96,18 +97,12 @@ module Savant
         File.expand_path('../../..', __dir__)
       end
 
-      def create_logger(base_path)
-        logs_dir = File.join(base_path, 'logs')
-        FileUtils.mkdir_p(logs_dir)
-        log_file = File.join(logs_dir, 'engine_boot.log')
-
-        Savant::Logging::Logger.new(
+      def create_logger(_base_path)
+        # Write boot logs to Mongo; optionally echo to STDOUT when enabled.
+        Savant::Logging::MongoLogger.new(
+          service: 'boot',
           io: boot_stdout_enabled? ? $stdout : nil,
-          file_path: log_file,
-          # Boot logs must be visible for tests and diagnostics; default to info
-          level: ENV['LOG_LEVEL'] || 'info',
-          json: true,
-          service: 'boot'
+          json_stdio: true
         )
       end
 
@@ -142,20 +137,26 @@ module Savant
         raise BootError, "Failed to load persona '#{name}': #{e.message}"
       end
 
-      # Load driver prompt from Think engine
-      def load_driver_prompt(version, base_path, logger)
-        logger.info(event: 'loading_driver_prompt', version: version || 'latest')
+      # Load driver prompt from Drivers engine (DB-backed)
+      def load_driver_prompt(name, _base_path, logger)
+        driver_name = (name && !name.to_s.strip.empty?) ? name.to_s : 'developer'
+        logger.info(event: 'loading_driver_prompt', driver: driver_name)
 
-        engine = Savant::Think::Engine.new(env: { 'SAVANT_PATH' => base_path })
-        prompt_data = engine.driver_prompt(version: version)
+        ops = Savant::Drivers::Ops.new
+        data = ops.get(name: driver_name)
+
+        # Compute a stable hash of prompt content for diagnostics
+        prompt_md = (data[:prompt_md] || data['prompt_md']).to_s
+        hash = Digest::SHA256.hexdigest(prompt_md)[0, 12]
 
         result = {
-          version: prompt_data[:version],
-          hash: prompt_data[:hash],
-          prompt_md: prompt_data[:prompt_md]
+          name: data[:name] || data['name'],
+          version: (data[:version] || data['version']).to_i,
+          hash: hash,
+          prompt_md: prompt_md
         }
 
-        logger.info(event: 'driver_prompt_loaded', version: result[:version], hash: result[:hash])
+        logger.info(event: 'driver_prompt_loaded', driver: result[:name], version: result[:version], hash: result[:hash])
         result
       rescue StandardError => e
         logger.error(event: 'driver_prompt_load_failed', error: e.message)
@@ -272,6 +273,7 @@ module Savant
           session_id: context.session_id,
           persona_name: context.persona[:name],
           persona_version: context.persona[:version],
+          driver_name: context.driver_prompt[:name],
           driver_version: context.driver_prompt[:version],
           amr_rule_count: context.amr_rules[:rules].size,
           repo_path: context.repo&.dig(:path),
@@ -290,6 +292,7 @@ module Savant
             version: context.persona[:version]
           },
           driver_prompt: {
+            name: context.driver_prompt[:name],
             version: context.driver_prompt[:version],
             hash: context.driver_prompt[:hash]
           },

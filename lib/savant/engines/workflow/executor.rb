@@ -141,7 +141,7 @@ module Savant
 
       def default_logger
         require_relative '../../logging/logger'
-        Savant::Logging::Logger.new(io: $stdout, file_path: File.join(@base_path, 'logs', 'workflow_engine.log'), json: true, service: 'workflow')
+        Savant::Logging::MongoLogger.new(service: 'workflow')
       end
     end
   end

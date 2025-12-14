@@ -1,10 +1,18 @@
 require "active_support/core_ext/integer/time"
+require 'pathname'
+require 'fileutils'
 
 Rails.application.configure do
   # Settings specified here will take precedence over those in config/application.rb.
 
-  # Write Rails logs to server/logs instead of the default server/log
-  config.paths["log"] = Rails.root.join("logs", "development.log")
+  # Write Rails logs to project root logs/ (not server/logs)
+  root_logs = if ENV['SAVANT_LOG_PATH'] && !ENV['SAVANT_LOG_PATH'].empty?
+                Pathname.new(ENV['SAVANT_LOG_PATH']).expand_path
+              else
+                Rails.root.join('..', 'logs').expand_path
+              end
+  FileUtils.mkdir_p(root_logs)
+  config.paths["log"] = root_logs.join("rails-development.log")
 
   # In the development environment your application's code is reloaded any time
   # it changes. This slows down response time but is perfect for development

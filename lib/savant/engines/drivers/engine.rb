@@ -9,7 +9,7 @@ module Savant
     # Engine exposes drivers catalog (prompt templates) over MCP tools.
     class Engine
       def initialize
-        @log = Savant::Logging::Logger.new(io: $stdout, json: true, service: 'drivers')
+        @log = Savant::Logging::MongoLogger.new(service: 'drivers')
         @ops = Savant::Drivers::Ops.new
         # Best-effort migration from Think prompts -> Drivers catalog on first run
         begin

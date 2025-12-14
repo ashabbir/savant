@@ -41,7 +41,7 @@ module Savant
         end
 
         log_mw = lambda do |ctx, nm, a, nxt|
-          logger = ctx[:logger] || Savant::Logging::Logger.new(io: $stdout, json: true, service: 'jira')
+          logger = ctx[:logger] || Savant::Logging::MongoLogger.new(service: 'jira')
           start = Process.clock_gettime(Process::CLOCK_MONOTONIC)
           begin
             logger.trace(event: 'tool_start', tool: nm, request_id: ctx[:request_id])

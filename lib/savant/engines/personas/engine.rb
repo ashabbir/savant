@@ -9,7 +9,7 @@ module Savant
     # Engine exposes personas catalog over MCP tools.
     class Engine
       def initialize
-        @log = Savant::Logging::Logger.new(io: $stdout, json: true, service: 'personas')
+        @log = Savant::Logging::MongoLogger.new(service: 'personas')
         @ops = Savant::Personas::Ops.new
       end
 

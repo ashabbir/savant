@@ -16,6 +16,51 @@ module Savant
         @db = db || Savant::Framework::DB.new
         @base_path = base_path || default_base_path
       end
+      
+      # --- Mongo helpers ---
+      def mongo_available?
+        return @mongo_available if defined?(@mongo_available)
+        begin
+          require 'mongo'
+          @mongo_available = true
+        rescue LoadError
+          @mongo_available = false
+        end
+        @mongo_available
+      end
+
+      def mongo_client
+        return nil unless mongo_available?
+        now = Time.now
+        return nil if @mongo_disabled_until && now < @mongo_disabled_until
+        if defined?(@mongo_client) && @mongo_client
+          return @mongo_client
+        end
+        begin
+          uri = ENV.fetch('MONGO_URI', "mongodb://#{mongo_host}/#{mongo_db_name}")
+          client = Mongo::Client.new(uri, server_selection_timeout: 1.5, connect_timeout: 1.5, socket_timeout: 2)
+          client.database.collections
+          @mongo_client = client
+        rescue StandardError
+          @mongo_disabled_until = now + 10
+          @mongo_client = nil
+        end
+        @mongo_client
+      end
+
+      def mongo_host
+        ENV.fetch('MONGO_HOST', 'localhost:27017')
+      end
+
+      def mongo_db_name
+        env = ENV.fetch('SAVANT_ENV', ENV.fetch('RACK_ENV', ENV.fetch('RAILS_ENV', 'development')))
+        env == 'test' ? 'savant_test' : 'savant_development'
+      end
+
+      def agent_runs_col
+        c = mongo_client
+        c ? c[:agent_runs] : nil
+      end
 
       def list
         rows = @db.list_agents
@@ -54,7 +99,7 @@ module Savant
           [true, 'true', '1', 't', 'yes', 'y'].include?(favorite)
         end
         begin
-          log = Savant::Logging::Logger.new(io: $stdout, json: true, service: 'agents')
+          log = Savant::Logging::MongoLogger.new(service: 'agents')
           log.info(event: 'agents.update', name: name, favorite_in: favorite, favorite_old: row['favorite'], favorite_final: fav)
         rescue StandardError
         end
@@ -90,7 +135,7 @@ module Savant
               amr_rules: { version: 'dry', rules: [] },
               repo: nil,
               memory: {},
-              logger: Savant::Logging::Logger.new(io: nil, file_path: File.join(@base_path, 'logs', 'agent_runtime.log'), json: true, service: 'agent', level: ENV['LOG_LEVEL'] || 'error'),
+              logger: Savant::Logging::MongoLogger.new(service: 'agent', io: nil),
               multiplexer: nil
             )
           end
@@ -164,7 +209,26 @@ module Savant
           # Prefer final, else error text for visibility
           summary = res[:final] || res['final'] || res[:error] || res['error'] || nil
           status = res[:status] || res['status'] || 'ok'
-          @db.record_agent_run(agent_id: agent['id'], input: input.to_s, output_summary: summary, status: status, duration_ms: dur_ms, full_transcript: transcript)
+          run_id = @db.record_agent_run(agent_id: agent['id'], input: input.to_s, output_summary: summary, status: status, duration_ms: dur_ms, full_transcript: transcript)
+          # Mirror to Mongo (best-effort)
+          begin
+            if (col = agent_runs_col)
+              doc = {
+                run_id: run_id,
+                agent_id: agent['id'].to_i,
+                agent_name: agent['name'],
+                input: input.to_s,
+                output_summary: summary,
+                status: status.to_s,
+                duration_ms: dur_ms.to_i,
+                created_at: Time.now.utc,
+                transcript: transcript
+              }
+              col.insert_one(doc)
+            end
+          rescue StandardError
+            # ignore Mongo errors
+          end
         rescue StandardError
           # best-effort
         end
@@ -192,6 +256,16 @@ module Savant
       def runs_list(name:, limit: 50)
         agent = @db.find_agent_by_name(name)
         raise 'not_found' unless agent
+
+        # Prefer Mongo if available
+        if (col = agent_runs_col)
+          begin
+            docs = col.find({ agent_id: agent['id'].to_i }).sort({ created_at: -1 }).limit([limit.to_i, 200].min).to_a
+            return docs.map { |d| mongo_doc_to_run_row(d) }
+          rescue StandardError
+            # fallback to DB below
+          end
+        end
 
         rows = @db.list_agent_runs(agent['id'], limit: limit)
         rows.map do |r|
@@ -242,6 +316,24 @@ module Savant
         agent = @db.find_agent_by_name(name)
         raise 'not_found' unless agent
 
+        # Try Mongo first
+        if (col = agent_runs_col)
+          begin
+            d = col.find({ agent_id: agent['id'].to_i, run_id: run_id.to_i }).limit(1).first
+            if d
+              return {
+                id: (d['run_id'] || d[:run_id]).to_i,
+                status: d['status'] || d[:status],
+                output_summary: d['output_summary'] || d[:output_summary],
+                duration_ms: (d['duration_ms'] || d[:duration_ms]).to_i,
+                transcript: d['transcript'] || d[:transcript]
+              }
+            end
+          rescue StandardError
+            # fall through
+          end
+        end
+
         res = @db.exec_params('SELECT * FROM agent_runs WHERE id=$1 AND agent_id=$2', [run_id.to_i, agent['id']])
         raise 'not_found' if res.ntuples.zero?
 
@@ -264,17 +356,32 @@ module Savant
       def run_delete(name:, run_id:)
         agent = @db.find_agent_by_name(name)
         raise 'not_found' unless agent
-
+        # Delete from DB
         res = @db.exec_params('DELETE FROM agent_runs WHERE id=$1 AND agent_id=$2', [run_id.to_i, agent['id']])
-        res.cmd_tuples.positive?
+        ok = res.cmd_tuples.positive?
+        # Best-effort delete from Mongo
+        begin
+          if (col = agent_runs_col)
+            col.delete_many({ agent_id: agent['id'].to_i, run_id: run_id.to_i })
+          end
+        rescue StandardError
+        end
+        ok
       end
 
       def runs_clear_all(name:)
         agent = @db.find_agent_by_name(name)
         raise 'not_found' unless agent
-
+        count = 0
         res = @db.exec_params('DELETE FROM agent_runs WHERE agent_id=$1', [agent['id']])
-        { deleted_count: res.cmd_tuples }
+        count = res.cmd_tuples
+        begin
+          if (col = agent_runs_col)
+            col.delete_many({ agent_id: agent['id'].to_i })
+          end
+        rescue StandardError
+        end
+        { deleted_count: count }
       end
 
       private
@@ -370,6 +477,39 @@ module Savant
 
       def monotonic
         Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      end
+
+      def mongo_doc_to_run_row(d)
+        transcript = d['transcript'] || d[:transcript]
+        steps_count = nil
+        final_text = nil
+        begin
+          if transcript.is_a?(Hash)
+            steps = transcript['steps'] || transcript[:steps] || []
+            steps_count = steps.is_a?(Array) ? steps.size : nil
+            if steps.is_a?(Array)
+              steps.reverse_each do |s|
+                a = s['action'] || s[:action] || {}
+                f = a['final'] || a[:final]
+                if f && !f.to_s.empty?
+                  final_text = f.to_s
+                  break
+                end
+              end
+            end
+          end
+        rescue StandardError
+        end
+        {
+          id: (d['run_id'] || d[:run_id]).to_i,
+          input: d['input'] || d[:input],
+          output_summary: d['output_summary'] || d[:output_summary],
+          status: d['status'] || d[:status],
+          duration_ms: (d['duration_ms'] || d[:duration_ms]).to_i,
+          created_at: (d['created_at'] || d[:created_at]).is_a?(Time) ? (d['created_at'] || d[:created_at]).iso8601 : d['created_at'] || d[:created_at],
+          steps: steps_count,
+          final: (d['output_summary'] && !d['output_summary'].to_s.empty?) ? d['output_summary'] : final_text
+        }
       end
     end
   end

@@ -26,7 +26,8 @@ module Savant
         # Prefer explicit logs_dir, then env SAVANT_LOG_PATH, otherwise default to repo logs/
         env_logs = ENV['SAVANT_LOG_PATH']
         @logs_dir = logs_dir || (env_logs && !env_logs.empty? ? env_logs : File.join(base_path, 'logs'))
-        @hub_logger = init_hub_logger
+        @hub_logger = nil
+        @hub_mongo_logger = init_hub_mongo_logger
         @recorder = Savant::Logging::EventRecorder.global
         @connections = Savant::Hub::Connections.global
         @stats = { total: 0, by_engine: Hash.new(0), by_status: Hash.new(0), by_method: Hash.new(0), recent: [] }
@@ -70,15 +71,13 @@ module Savant
         list << { module: 'hub', method: 'GET', path: '/diagnostics/workflows/trace', description: 'Download workflow trace JSONL' }
         list << { module: 'hub', method: 'GET', path: '/diagnostics/mcp/:name', description: 'Per-engine diagnostics' }
         list << { module: 'hub', method: 'GET', path: '/routes', description: 'Routes list (add ?expand=1 to include tool calls)' }
-        list << { module: 'hub', method: 'GET', path: '/logs', description: 'Aggregated recent events (?n=100,&mcp=,&type=)' }
-        list << { module: 'hub', method: 'GET', path: '/logs/stream', description: 'Aggregated live event stream (SSE)' }
+        list << { module: 'hub', method: 'GET', path: '/logs', description: 'Aggregated recent events from Mongo (?n=100,&mcp=,&since=ISO8601)' }
 
         mounts.keys.sort.each do |engine_name|
           base = "/#{engine_name}"
           list << { module: engine_name, method: 'GET', path: "#{base}/status", description: 'Engine uptime and info' }
           list << { module: engine_name, method: 'GET', path: "#{base}/tools", description: 'List tool specs' }
-          list << { module: engine_name, method: 'GET', path: "#{base}/logs", description: 'Tail last N lines as JSON (?n=100)' }
-          list << { module: engine_name, method: 'GET', path: "#{base}/logs?stream=1", description: 'Stream logs via SSE (?n=100, &once=1)' }
+          list << { module: engine_name, method: 'GET', path: "#{base}/logs", description: 'Recent logs from Mongo (?n=100,&since=ISO8601)' }
           list << { module: engine_name, method: 'GET', path: "#{base}/stream", description: 'SSE heartbeat' }
 
           next unless expand_tools
@@ -107,6 +106,136 @@ module Savant
         Savant::Logging::Logger.new(io: io, json: true, service: 'hub')
       rescue StandardError
         nil
+      end
+
+      def init_hub_mongo_logger
+        begin
+          require_relative '../logging/mongo_logger'
+          Savant::Logging::MongoLogger.new(service: 'hub', collection: 'hub')
+        rescue StandardError
+          nil
+        end
+      end
+
+      # --- Mongo helpers for polling logs ---
+      def mongo_available?
+        return @mongo_available if defined?(@mongo_available)
+        begin
+          require 'mongo'
+          @mongo_available = true
+        rescue LoadError
+          @mongo_available = false
+        end
+        @mongo_available
+      end
+
+      def mongo_client
+        return nil unless mongo_available?
+        now = Time.now
+        return nil if @mongo_disabled_until && now < @mongo_disabled_until
+        if defined?(@mongo_client) && @mongo_client
+          return @mongo_client
+        end
+        begin
+          uri = ENV.fetch('MONGO_URI', "mongodb://#{mongo_host}/#{mongo_db_name}")
+          client = Mongo::Client.new(uri, server_selection_timeout: 1.5, connect_timeout: 1.5, socket_timeout: 2)
+          # Lightweight ping to ensure connectivity
+          client.database.collections # probes server
+          @mongo_client = client
+        rescue StandardError
+          # Back off further attempts for a short window to avoid blocking requests repeatedly
+          @mongo_disabled_until = now + 10
+          @mongo_client = nil
+        end
+        @mongo_client
+      end
+
+      def mongo_host
+        ENV.fetch('MONGO_HOST', 'localhost:27017')
+      end
+
+      def mongo_db_name
+        env = ENV.fetch('SAVANT_ENV', ENV.fetch('RACK_ENV', ENV.fetch('RAILS_ENV', 'development')))
+        env == 'test' ? 'savant_test' : 'savant_development'
+      end
+
+      def mongo_collections
+        return [] unless (cli = mongo_client)
+        # Cache collection names briefly to reduce load
+        now = Time.now
+        if @mongo_col_cache && @mongo_col_cache[:ts] && (now - @mongo_col_cache[:ts] < 5)
+          return @mongo_col_cache[:names]
+        end
+        begin
+          names = cli.database.collections.map(&:name)
+          @mongo_col_cache = { names: names, ts: now }
+          names
+        rescue StandardError
+          []
+        end
+      end
+
+      def mongo_fetch_aggregated(n:, mcp: nil, since: nil)
+        return [] unless mongo_client
+        t_since = parse_time_iso8601(since)
+        names = mongo_collections.select { |nm| nm == 'hub' || nm.end_with?('_logs') }
+        docs = []
+        names.each do |nm|
+          col = mongo_client[nm]
+          filter = {}
+          filter['service'] = { '$regex' => "^#{Regexp.escape(mcp)}" } if mcp
+          filter['timestamp'] = { '$gt' => t_since } if t_since
+          begin
+            col.find(filter).sort({ timestamp: -1 }).limit([n, 500].min).each do |d|
+              docs << normalize_mongo_doc(d)
+            end
+          rescue StandardError
+            # ignore collection-level errors
+          end
+        end
+        # Sort across collections and cap to n
+        docs.sort_by { |d| d['timestamp'].to_s }.reverse.first(n)
+      end
+
+      def mongo_fetch_service(service_prefix:, n:, since: nil)
+        return [] unless mongo_client
+        t_since = parse_time_iso8601(since)
+        names = mongo_collections.select { |nm| nm == 'hub' || nm.end_with?('_logs') }
+        docs = []
+        names.each do |nm|
+          col = mongo_client[nm]
+          filter = { 'service' => { '$regex' => "^#{Regexp.escape(service_prefix)}(\\.|$)" } }
+          filter['timestamp'] = { '$gt' => t_since } if t_since
+          begin
+            col.find(filter).sort({ timestamp: -1 }).limit([n, 500].min).each do |d|
+              docs << normalize_mongo_doc(d)
+            end
+          rescue StandardError
+            # ignore
+          end
+        end
+        docs.sort_by { |d| d['timestamp'].to_s }.reverse.first(n)
+      end
+
+      def parse_time_iso8601(str)
+        return nil if str.nil? || str.to_s.strip.empty?
+        Time.iso8601(str)
+      rescue ArgumentError
+        nil
+      end
+
+      def normalize_mongo_doc(doc)
+        h = doc.dup
+        # Normalize keys to strings and convert BSON::ObjectId
+        h = h.transform_keys(&:to_s)
+        h['_id'] = h['_id'].to_s if h['_id'] && h['_id'].respond_to?(:to_s)
+        # Ensure timestamp is ISO 8601
+        if h['timestamp'].respond_to?(:iso8601)
+          h['timestamp'] = h['timestamp'].iso8601(3)
+        else
+          h['timestamp'] = Time.parse(h['timestamp'].to_s).iso8601(3) rescue h['timestamp'].to_s
+        end
+        h
       end
 
       def log_request(req, status, duration_ms, response_body = nil)
@@ -164,17 +293,17 @@ module Savant
           # ignore
         end
 
-        return unless hub_logger
-
-        hub_logger.info(
-          event: 'http_request',
-          method: req.request_method,
-          path: req.path_info,
-          status: status,
-          duration_ms: duration_ms,
-          user: req.env['savant.user_id'],
-          query: req.query_string.to_s.empty? ? nil : req.query_string
-        )
+        if @hub_mongo_logger
+          @hub_mongo_logger.info(
+            event: 'http_request',
+            method: req.request_method,
+            path: req.path_info,
+            status: status,
+            duration_ms: duration_ms,
+            user: req.env['savant.user_id'],
+            query: req.query_string.to_s.empty? ? nil : req.query_string
+          )
+        end
       rescue StandardError
         # ignore logging errors
       end
@@ -229,7 +358,7 @@ module Savant
             return logs_index(req)
           end
         end
-        return logs_stream(req) if req.get? && req.path_info == '/logs/stream'
+        # Streaming disabled for logs; use polling via GET /logs
 
         # Engine scoped routes: /:engine/...
         segments = req.path_info.split('/').reject(&:empty?)
@@ -376,28 +505,22 @@ module Savant
                     recent: stats_snapshot[:recent]
                   })
         when ['logs']
-          if req.params['stream']
-            sse_logs(req, 'hub')
-          else
-            n = (req.params['n'] || '100').to_i
-            path = log_path('hub')
-            return respond(200, { engine: 'hub', count: 0, path: path, lines: [], note: 'log file not found' }) unless File.file?(path)
-
-            level = req.params['level']
-            lines = filter_log_lines(read_last_lines(path, n), level)
-            respond(200, { engine: 'hub', count: lines.length, path: path, lines: lines, level: level })
-          end
+          n = (req.params['n'] || '100').to_i
+          since = (req.params['since'] || '').to_s
+          logs = mongo_fetch_service(service_prefix: 'hub', n: n, since: (since.empty? ? nil : since))
+          lines = logs.map { |doc| JSON.generate(doc) }
+          respond(200, { engine: 'hub', count: lines.length, lines: lines })
         else
           not_found
         end
       end
 
-      # GET /logs -> aggregated last N events across engines (via EventRecorder)
+      # GET /logs -> aggregated last N events across engines from Mongo (polling)
       def logs_index(req)
         n = (req.params['n'] || '100').to_i
-        mcp = req.params['mcp']
-        type = req.params['type']
-        events = @recorder.last(n, mcp: (mcp unless mcp.to_s.empty?), type: (type unless type.to_s.empty?))
+        mcp = (req.params['mcp'] || '').to_s
+        since = (req.params['since'] || '').to_s
+        events = mongo_fetch_aggregated(n: n, mcp: (mcp.empty? ? nil : mcp), since: (since.empty? ? nil : since))
         respond(200, { count: events.length, events: events })
       end
 
@@ -418,12 +541,8 @@ module Savant
       end
 
       def diagnostics_workflow_run(_req, workflow, run_id)
-        base = workflow_base_path
-        path = File.join(base, '.savant', 'workflow_runs', "#{workflow}__#{run_id}.json")
-        return respond(404, { error: 'workflow_run_not_found', workflow: workflow, run_id: run_id }) unless File.file?(path)
-
-        data = JSON.parse(File.read(path))
-        respond(200, data)
+        engine = workflow_engine
+        respond(200, engine.run_read(workflow: workflow, run_id: run_id))
       rescue StandardError => e
         respond(500, { error: 'workflow_run_error', message: e.message })
       end
@@ -455,33 +574,7 @@ module Savant
         Savant::Workflow::Engine.new(base_path: workflow_base_path)
       end
 
-      # GET /logs/stream -> SSE unified stream of events
-      def logs_stream(req)
-        mcp = (req.params['mcp'] || '').to_s
-        type = (req.params['type'] || '').to_s
-        once = req.params.key?('once') && req.params['once'] != '0'
-        user_id = req.env['savant.user_id']
-        conn_id = @connections.connect(type: 'sse', mcp: (mcp.empty? ? nil : mcp), path: '/logs/stream', user_id: user_id)
-
-        headers = sse_headers
-        body = Enumerator.new do |y|
-          # Send recent snapshot first
-          @recorder.last(50, mcp: (mcp.empty? ? nil : mcp), type: (type.empty? ? nil : type)).each do |ev|
-            y << format_sse_event('event', ev)
-            @connections.touch(conn_id)
-          end
-          break if once
-
-          src = @recorder.stream(mcp: (mcp.empty? ? nil : mcp), type: (type.empty? ? nil : type))
-          src.each do |line|
-            y << "event: event\ndata: #{line}\n\n"
-            @connections.touch(conn_id)
-          end
-        ensure
-          @connections.disconnect(conn_id)
-        end
-        [200, headers, body]
-      end
+      # Streaming removed for logs. Use polling endpoints instead.
 
       def handle_get(req, engine_name, manager, rest)
         case rest
@@ -500,20 +593,12 @@ module Savant
           uptime = manager.respond_to?(:uptime) ? manager.uptime : 0
           respond(200, { engine: engine_name, status: 'running', uptime_seconds: uptime, info: info })
         when ['logs']
-          if req.params['stream']
-            sse_logs(req, engine_name)
-          else
-            n = (req.params['n'] || '100').to_i
-            path = log_path(engine_name)
-            unless File.file?(path)
-              # Return empty set with note rather than 404 for better UX
-              return respond(200, { engine: engine_name, count: 0, path: path, lines: [], note: 'log file not found' })
-            end
-
-            level = req.params['level']
-            lines = filter_log_lines(read_last_lines(path, n), level)
-            respond(200, { engine: engine_name, count: lines.length, path: path, lines: lines, level: level })
-          end
+          n = (req.params['n'] || '100').to_i
+          since = (req.params['since'] || '').to_s
+          logs = mongo_fetch_service(service_prefix: engine_name, n: n, since: (since.empty? ? nil : since))
+          # Return as JSON lines for backwards compatibility with UI
+          lines = logs.map { |doc| JSON.generate(doc) }
+          respond(200, { engine: engine_name, count: lines.length, lines: lines })
         when ['stream']
           # Track SSE connection
           user_id = req.env['savant.user_id']
@@ -536,15 +621,11 @@ module Savant
       def handle_multiplexer_get(req, rest)
         case rest
         when ['logs']
-          return sse_logs(req, 'multiplexer', log_file: multiplexer_log_path) if req.params['stream']
-
           n = (req.params['n'] || '100').to_i
-          path = multiplexer_log_path
-          return respond(200, { engine: 'multiplexer', count: 0, path: path, lines: [], note: 'log file not found' }) unless File.file?(path)
-
-          level = req.params['level']
-          lines = filter_log_lines(read_last_lines(path, n), level)
-          respond(200, { engine: 'multiplexer', count: lines.length, path: path, lines: lines, level: level })
+          since = (req.params['since'] || '').to_s
+          logs = mongo_fetch_service(service_prefix: 'multiplexer', n: n, since: (since.empty? ? nil : since))
+          lines = logs.map { |doc| JSON.generate(doc) }
+          respond(200, { engine: 'multiplexer', count: lines.length, lines: lines })
         else
           not_found
         end

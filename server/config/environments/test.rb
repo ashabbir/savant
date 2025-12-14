@@ -1,4 +1,6 @@
 require "active_support/core_ext/integer/time"
+require 'pathname'
+require 'fileutils'
 
 # The test environment is used exclusively to run your application's
 # test suite. You never need to work with it otherwise. Remember that
@@ -8,8 +10,14 @@ require "active_support/core_ext/integer/time"
 Rails.application.configure do
   # Settings specified here will take precedence over those in config/application.rb.
 
-  # Write Rails logs to server/logs instead of the default server/log
-  config.paths["log"] = Rails.root.join("logs", "test.log")
+  # Write Rails logs to project root logs/ (not server/logs)
+  root_logs = if ENV['SAVANT_LOG_PATH'] && !ENV['SAVANT_LOG_PATH'].empty?
+                Pathname.new(ENV['SAVANT_LOG_PATH']).expand_path
+              else
+                Rails.root.join('..', 'logs').expand_path
+              end
+  FileUtils.mkdir_p(root_logs)
+  config.paths["log"] = root_logs.join("rails-test.log")
 
   # While tests run files are not watched, reloading is not necessary.
   config.enable_reloading = false

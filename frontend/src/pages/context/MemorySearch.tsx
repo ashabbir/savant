@@ -92,7 +92,7 @@ export default function MemorySearch() {
               <Typography variant="subtitle1" sx={{ fontFamily: 'monospace' }}>{r.rel_path}</Typography>
               <Chip size="small" label={r.score.toFixed(2)} />
             </Stack>
-            <Viewer content={r.chunk} filename={r.rel_path} language={(r as any).lang} height={260} />
+            <Viewer content={r.chunk} filename={r.rel_path} height={260} />
           </Paper>
         ))}
       </Stack>
