@@ -35,9 +35,35 @@ dev-server:
 
 # Kill the Rails dev server
 kill-dev-server:
-	@echo "Stopping Rails dev server..."
-	@pkill -f "puma.*9999" 2>/dev/null || pkill -f "rails s" 2>/dev/null || true
-	@rm -f server/tmp/pids/server.pid
+	@echo "Stopping Rails dev server (port 9999)..."
+	@bash -lc '\
+	  set -e; \
+	  PID_FILE=server/tmp/pids/server.pid; \
+	  if [ -f "$$PID_FILE" ]; then \
+	    PID=$$(cat "$$PID_FILE"); \
+	    if [ -n "$$PID" ]; then \
+	      echo "Sending TERM to PID $$PID..."; \
+	      kill -TERM "$$PID" 2>/dev/null || true; \
+	      # wait up to 5s for graceful shutdown\n\
+	      for i in 1 2 3 4 5; do \
+	        if kill -0 "$$PID" 2>/dev/null; then sleep 1; else break; fi; \
+	      done; \
+	      if kill -0 "$$PID" 2>/dev/null; then \
+	        echo "Force killing PID $$PID..."; \
+	        kill -KILL "$$PID" 2>/dev/null || true; \
+	      fi; \
+	    fi; \
+	  fi; \
+	  # Fallback: kill anything listening on port 9999\n\
+	  PIDS=$$(lsof -ti tcp:9999 2>/dev/null | tr "\n" " "); \
+	  if [ -n "$$PIDS" ]; then \
+	    echo "Killing processes on :9999 => $$PIDS"; \
+	    kill -TERM $$PIDS 2>/dev/null || true; \
+	    sleep 1; \
+	    for P in $$PIDS; do kill -0 $$P 2>/dev/null && kill -KILL $$P 2>/dev/null || true; done; \
+	  fi; \
+	  rm -f "$$PID_FILE"; \
+	'
 	@sleep 1
 	@if lsof -i :9999 -sTCP:LISTEN >/dev/null 2>&1; then \
 	  echo "Warning: Port 9999 still in use"; \

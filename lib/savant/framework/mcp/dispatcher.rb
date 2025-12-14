@@ -14,7 +14,7 @@ module Savant
       # - Validates and handles core MCP methods.
       # - Returns JSON strings (no direct IO) so transports can decide how to send.
       class Dispatcher
-        def initialize(service:, log: Savant::Logging::Logger.new(io: $stdout, json: true, service: 'savant'), multiplexer: nil)
+      def initialize(service:, log: Savant::Logging::MongoLogger.new(service: 'savant'), multiplexer: nil)
           @service = service.to_s
           @log = log
           @services = {}
@@ -79,7 +79,7 @@ module Savant
             args = params['arguments'] || {}
             begin
               svc = load_service(@service)
-              ctx = { engine: svc[:engine], request_id: id, service: @service, logger: Savant::Logging::Logger.new(io: $stdout, json: true, service: @service) }
+            ctx = { engine: svc[:engine], request_id: id, service: @service, logger: Savant::Logging::MongoLogger.new(service: @service) }
               # Provide composition API: ctx.invoke(name, args) and ctx[:invoke]
               invoker = proc { |nm, a| svc[:registrar].call(nm, a, ctx: ctx) }
               ctx[:invoke] = invoker

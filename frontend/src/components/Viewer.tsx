@@ -8,7 +8,13 @@ let mermaidConfigured = false;
 
 function ensureMermaidConfigured() {
   if (!mermaidConfigured) {
-    mermaid.initialize({ startOnLoad: false, securityLevel: 'loose' });
+    mermaid.initialize({
+      startOnLoad: false,
+      securityLevel: 'loose',
+      suppressErrorRendering: true,
+      // @ts-ignore - errorHandler exists in v11
+      errorHandler: () => { /* no-op: prevent overlay */ },
+    } as any);
     mermaidConfigured = true;
   }
 }
@@ -29,6 +35,29 @@ function escapeHtml(str: string): string {
     .replace(/>/g, '&gt;');
 }
 
+// Heuristic to detect likely-valid Mermaid diagrams to avoid noisy error overlays
+function isLikelyMermaid(src: string): boolean {
+  const s = (src || '').trim();
+  if (!s) return false;
+  const starters = [
+    /^graph(\s+|$)/i,
+    /^flowchart(\s+|$)/i,
+    /^sequenceDiagram(\s+|$)/i,
+    /^classDiagram(\s+|$)/i,
+    /^stateDiagram(\-v2)?(\s+|$)/i,
+    /^erDiagram(\s+|$)/i,
+    /^journey(\s+|$)/i,
+    /^gantt(\s+|$)/i,
+    /^pie(\s+|$)/i,
+    /^timeline(\s+|$)/i,
+    /^gitGraph(\s+|$)/i,
+    /^mindmap(\s+|$)/i,
+    /^quadrantChart(\s+|$)/i,
+    /^xychart\-beta(\s+|$)/i,
+  ];
+  return starters.some((re) => re.test(s));
+}
+
 function wrapToken(text: string, cls: string): string {
   return `<span class="${cls}">${escapeHtml(text)}</span>`;
 }
@@ -38,9 +67,11 @@ function buildKeywordRegex(words: string[]): RegExp {
   return new RegExp(`\\b(?:${body})\\b`, 'g');
 }
 
-// Very small, focused syntax highlighter for Ruby/Java/Scala.
+type HighlightLang = 'ruby' | 'java' | 'scala' | 'typescript' | 'python' | 'go';
+
+// Very small, focused syntax highlighter for common languages.
 // It is not exhaustive; tuned for readability of code snippets.
-function simpleHighlight(code: string, lang: 'ruby' | 'java' | 'scala'): string {
+function simpleHighlight(code: string, lang: HighlightLang): string {
   // Extract strings and comments first into placeholders.
   type Slot = { key: string; html: string };
   const slots: Slot[] = [];
@@ -54,19 +85,29 @@ function simpleHighlight(code: string, lang: 'ruby' | 'java' | 'scala'): string 
 
   let s = code;
 
-  // Block comments (Java/Scala)
-  if (lang !== 'ruby') {
+  // Block comments
+  if (lang !== 'ruby' && lang !== 'python') {
     s = s.replace(/\/\*[\s\S]*?\*\//g, (m) => put(`<span class="tok-com">${escapeHtml(m)}</span>`));
   }
   // Line comments
-  if (lang === 'ruby') {
+  if (lang === 'ruby' || lang === 'python') {
     s = s.replace(/#.*/g, (m) => put(`<span class="tok-com">${escapeHtml(m)}</span>`));
   } else {
     s = s.replace(/\/\/.*$/gm, (m) => put(`<span class="tok-com">${escapeHtml(m)}</span>`));
   }
 
-  // Strings (single, double, and Scala triple)
-  s = s.replace(/'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"|"""[\s\S]*?"""/g, (m) => put(`<span class="tok-str">${escapeHtml(m)}</span>`));
+  // Template literals (JS/TS)
+  if (lang === 'typescript') {
+    s = s.replace(/`(?:\\.|[^`\\])*`/g, (m) => put(`<span class="tok-str">${escapeHtml(m)}</span>`));
+  }
+
+  // Triple-quoted strings (Python, Scala)
+  if (lang === 'python' || lang === 'scala') {
+    s = s.replace(/'''[\s\S]*?'''|"""[\s\S]*?"""/g, (m) => put(`<span class="tok-str">${escapeHtml(m)}</span>`));
+  }
+
+  // Strings (single, double)
+  s = s.replace(/'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"/g, (m) => put(`<span class="tok-str">${escapeHtml(m)}</span>`));
 
   // Numbers
   s = s.replace(/\b\d+(?:_\d+)*(?:\.\d+)?\b/g, (m) => wrapToken(m, 'tok-num'));
@@ -74,18 +115,21 @@ function simpleHighlight(code: string, lang: 'ruby' | 'java' | 'scala'): string 
   // Symbols (Ruby)
   if (lang === 'ruby') {
     s = s.replace(/(?::)[a-zA-Z_]\w*/g, (m) => wrapToken(m, 'tok-sym'));
-    // Instance / class / global vars
     s = s.replace(/[@$]{1,2}[a-zA-Z_]\w*/g, (m) => wrapToken(m, 'tok-var'));
   }
 
-  // Types (Java/Scala): highlight Capitalized identifiers and common types
-  if (lang !== 'ruby') {
-    s = s.replace(/\b(?:String|Integer|Long|Short|Double|Float|Boolean|Character|Byte|List|Map|Set|Optional|Future|Either|Option|Unit|Any|Nothing|BigInt|BigDecimal)\b/g, (m) => wrapToken(m, 'tok-type'));
+  // Decorators (Python)
+  if (lang === 'python') {
+    s = s.replace(/@[a-zA-Z_]\w*/g, (m) => wrapToken(m, 'tok-var'));
+  }
+
+  // Types: highlight Capitalized identifiers
+  if (lang !== 'ruby' && lang !== 'python') {
     s = s.replace(/\b[A-Z][A-Za-z0-9_]*\b/g, (m) => wrapToken(m, 'tok-type'));
   }
 
   // Keywords
-  const KEYWORDS: Record<typeof lang, string[]> = {
+  const KEYWORDS: Record<HighlightLang, string[]> = {
     ruby: [
       'def','end','class','module','if','else','elsif','case','when','then','do','while','until','for','in','break','next','redo','retry','rescue','ensure','yield','return','self','nil','true','false','and','or','not','alias','undef','super','unless','BEGIN','END','require','include','extend'
     ],
@@ -94,6 +138,15 @@ function simpleHighlight(code: string, lang: 'ruby' | 'java' | 'scala'): string 
     ],
     scala: [
       'def','val','var','lazy','type','class','object','trait','extends','with','new','if','else','match','case','for','while','do','yield','return','try','catch','finally','throw','import','package','implicit','given','using','end','enum','then','override','private','protected','final','abstract','sealed'
+    ],
+    typescript: [
+      'const','let','var','function','class','interface','type','enum','if','else','switch','case','default','for','while','do','return','try','catch','finally','throw','new','this','super','extends','implements','import','export','from','as','async','await','yield','break','continue','typeof','instanceof','in','of','true','false','null','undefined','void','never','any','unknown','public','private','protected','static','readonly','abstract','declare','module','namespace','require'
+    ],
+    python: [
+      'def','class','if','elif','else','for','while','try','except','finally','with','as','import','from','return','yield','raise','pass','break','continue','lambda','and','or','not','in','is','True','False','None','global','nonlocal','assert','async','await','self','cls'
+    ],
+    go: [
+      'func','type','struct','interface','map','chan','if','else','switch','case','default','for','range','return','defer','go','select','break','continue','fallthrough','goto','package','import','const','var','true','false','nil','iota','make','new','len','cap','append','copy','delete','close','panic','recover'
     ]
   } as const;
 
@@ -149,7 +202,9 @@ function renderYamlHtml(text: string): string {
   return s.split('\n').map(ln => `<div>${ln}</div>`).join('');
 }
 
-function detectType({ contentType, filename, language }: { contentType?: string; filename?: string; language?: string }): 'markdown' | 'ruby' | 'java' | 'scala' | 'json' | 'yaml' | 'text' {
+type ViewerKind = 'markdown' | 'ruby' | 'java' | 'scala' | 'typescript' | 'python' | 'go' | 'json' | 'yaml' | 'text';
+
+function detectType({ contentType, filename, language }: { contentType?: string; filename?: string; language?: string }): ViewerKind {
   const ct = (contentType || '').toLowerCase();
   const lang = (language || '').toLowerCase();
   const ext = (filename || '').split('.').pop()?.toLowerCase();
@@ -157,6 +212,9 @@ function detectType({ contentType, filename, language }: { contentType?: string;
   if (ct.includes('ruby') || lang === 'rb' || lang === 'ruby' || ext === 'rb') return 'ruby';
   if (ct.includes('java') || lang === 'java' || ext === 'java') return 'java';
   if (ct.includes('scala') || lang === 'scala' || ext === 'scala') return 'scala';
+  if (ct.includes('typescript') || ct.includes('javascript') || lang === 'ts' || lang === 'tsx' || lang === 'js' || lang === 'jsx' || lang === 'typescript' || lang === 'javascript' || ext === 'ts' || ext === 'tsx' || ext === 'js' || ext === 'jsx' || ext === 'mjs' || ext === 'cjs') return 'typescript';
+  if (ct.includes('python') || lang === 'py' || lang === 'python' || ext === 'py' || ext === 'pyw') return 'python';
+  if (ct.includes('go') || lang === 'go' || lang === 'golang' || ext === 'go') return 'go';
   if (ct.includes('json') || lang === 'json' || ext === 'json') return 'json';
   if (ct.includes('yaml') || ct.includes('yml') || lang === 'yaml' || lang === 'yml' || ext === 'yaml' || ext === 'yml') return 'yaml';
   return 'text';
@@ -168,13 +226,98 @@ export default function Viewer({ content, contentType, filename, language, heigh
 
   const markdownHtml = useMemo(() => {
     if (kind !== 'markdown') return '';
-    // Lightweight renderer with code hook for ruby/java/scala
+    // Preprocess: wrap loose Mermaid definitions (no code fences) into ```mermaid blocks
+    function wrapLooseMermaid(src: string): string {
+      const starters = [
+        /^\s*graph(\s+|$)/i,
+        /^\s*flowchart(\s+|$)/i,
+        /^\s*sequenceDiagram(\s+|$)/i,
+        /^\s*classDiagram(\s+|$)/i,
+        /^\s*stateDiagram(\-v2)?(\s+|$)/i,
+        /^\s*erDiagram(\s+|$)/i,
+        /^\s*journey(\s+|$)/i,
+        /^\s*gantt(\s+|$)/i,
+        /^\s*pie(\s+|$)/i,
+        /^\s*timeline(\s+|$)/i,
+        /^\s*gitGraph(\s+|$)/i,
+        /^\s*mindmap(\s+|$)/i,
+        /^\s*quadrantChart(\s+|$)/i,
+        /^\s*xychart\-beta(\s+|$)/i,
+      ];
+      const lines = src.split(/\r?\n/);
+      const out: string[] = [];
+      let i = 0;
+      while (i < lines.length) {
+        const line = lines[i];
+        // If this line starts a fenced code block, just copy until it closes
+        if (/^\s*```/.test(line)) {
+          out.push(line);
+          i++;
+          while (i < lines.length && !/^\s*```\s*$/.test(lines[i])) {
+            out.push(lines[i]);
+            i++;
+          }
+          if (i < lines.length) out.push(lines[i]);
+          i++;
+          continue;
+        }
+        // Detect loose Mermaid start
+        if (starters.some((re) => re.test(line))) {
+          out.push('```mermaid');
+          out.push(line);
+          i++;
+          // Collect lines until a clear section boundary:
+          // - Markdown heading
+          // - Fenced code start
+          // - List item start
+          // - A single-line section title ending with ':' (e.g., "Key ideas:")
+          // Allow single blank lines inside diagrams.
+          let blankStreak = 0;
+          while (i < lines.length) {
+            const l = lines[i];
+            const trimmed = l.trim();
+            const isFence = /^\s*```/.test(l);
+            const isHeading = /^\s*#{1,6}\s/.test(l);
+            const isList = /^\s*(?:[-*+]\s|\d+\.)/.test(l);
+            const isSectionLabel = /^\s*[A-Za-z].*:\s*$/.test(l);
+            if (isFence || isHeading || isList || isSectionLabel) break;
+            out.push(l);
+            if (trimmed === '') blankStreak++; else blankStreak = 0;
+            // If we see two consecutive blank lines, assume the diagram ended
+            if (blankStreak >= 2) { i++; break; }
+            i++;
+          }
+          out.push('```');
+          // Preserve a single blank line gap if present
+          if (i < lines.length && lines[i].trim() === '') { out.push(''); i++; }
+          continue;
+        }
+        out.push(line);
+        i++;
+      }
+      return out.join('\n');
+    }
+    // Lightweight renderer with code hook for syntax highlighting
     const renderer = new marked.Renderer();
-    const origCode = renderer.code?.bind(renderer);
-    renderer.code = (code: string, info: string | undefined) => {
-      const lang = (info || '').split(/\s+/)[0]?.toLowerCase();
+    // marked v12+ passes token object; v11 and below pass (code, info, escaped)
+    renderer.code = function(this: marked.Renderer, codeOrToken: string | { text: string; lang?: string }, info?: string) {
+      let code: string;
+      let lang: string;
+      if (typeof codeOrToken === 'object' && codeOrToken !== null) {
+        // marked v12+ token object
+        code = codeOrToken.text || '';
+        lang = (codeOrToken.lang || '').split(/\s+/)[0]?.toLowerCase() || '';
+      } else {
+        // marked v11 and below
+        code = codeOrToken as string;
+        lang = (info || '').split(/\s+/)[0]?.toLowerCase() || '';
+      }
       if (lang === 'mermaid') {
-        return `<div class="mermaid">${escapeHtml(code)}</div>`;
+        if (isLikelyMermaid(code)) {
+          // Use a data attribute to preserve the raw code for mermaid rendering
+          return `<div class="mermaid" data-mermaid-src="${encodeURIComponent(code)}">${escapeHtml(code)}</div>`;
+        }
+        return `<pre class="code"><code>${escapeHtml(code)}</code></pre>`;
       }
       if (lang === 'ruby' || lang === 'rb') {
         return `<pre class="code"><code>${simpleHighlight(code, 'ruby')}</code></pre>`;
@@ -185,24 +328,44 @@ export default function Viewer({ content, contentType, filename, language, heigh
       if (lang === 'scala') {
         return `<pre class="code"><code>${simpleHighlight(code, 'scala')}</code></pre>`;
       }
+      if (lang === 'typescript' || lang === 'ts' || lang === 'javascript' || lang === 'js' || lang === 'tsx' || lang === 'jsx') {
+        return `<pre class="code"><code>${simpleHighlight(code, 'typescript')}</code></pre>`;
+      }
+      if (lang === 'python' || lang === 'py') {
+        return `<pre class="code"><code>${simpleHighlight(code, 'python')}</code></pre>`;
+      }
+      if (lang === 'go' || lang === 'golang') {
+        return `<pre class="code"><code>${simpleHighlight(code, 'go')}</code></pre>`;
+      }
       if (lang === 'json') {
         return `<pre class="code"><code>${renderJsonHtml(code)}</code></pre>`;
       }
       if (lang === 'yaml' || lang === 'yml') {
         return `<pre class="code"><code>${renderYamlHtml(code)}</code></pre>`;
       }
-      // default (no highlighting)
-      const html = `<pre class="code"><code>${escapeHtml(code)}</code></pre>`;
-      return html;
+      return `<pre class="code"><code>${escapeHtml(code)}</code></pre>`;
     };
-    const origLink = renderer.link?.bind(renderer);
-    renderer.link = (href: string | null, title: string | null, text: string) => {
-      const h = href || '#';
-      const t = title ? ` title="${escapeHtml(title)}"` : '';
-      return `<a href="${escapeHtml(h)}"${t} target="_blank" rel="noreferrer noopener">${text}</a>`;
+    // marked v12+ passes token object for link as well
+    renderer.link = function(this: marked.Renderer, hrefOrToken: string | { href: string; title?: string | null; text: string } | null, title?: string | null, text?: string) {
+      let h: string;
+      let t: string | null;
+      let linkText: string;
+      if (typeof hrefOrToken === 'object' && hrefOrToken !== null) {
+        h = hrefOrToken.href || '#';
+        t = hrefOrToken.title || null;
+        linkText = hrefOrToken.text || '';
+      } else {
+        h = hrefOrToken || '#';
+        t = title || null;
+        linkText = text || '';
+      }
+      const titleAttr = t ? ` title="${escapeHtml(t)}"` : '';
+      return `<a href="${escapeHtml(h)}"${titleAttr} target="_blank" rel="noreferrer noopener">${linkText}</a>`;
     };
-    const raw = marked.parse(content, { renderer, breaks: true }) as string;
-    return DOMPurify.sanitize(raw);
+    const preprocessed = wrapLooseMermaid(content);
+    const raw = marked.parse(preprocessed, { renderer, breaks: true }) as string;
+    // Configure DOMPurify to allow data attributes needed for mermaid
+    return DOMPurify.sanitize(raw, { ADD_ATTR: ['data-mermaid-src'] });
   }, [content, kind]);
 
   useEffect(() => {
@@ -212,30 +375,49 @@ export default function Viewer({ content, contentType, filename, language, heigh
     const nodes = root.querySelectorAll<HTMLElement>('.mermaid');
     if (!nodes.length) return;
     ensureMermaidConfigured();
-    nodes.forEach((el) => {
-      const src = el.textContent || '';
-      try {
-        // @ts-ignore
-        if (typeof mermaid.parse === 'function') mermaid.parse(src);
-      } catch {
+    // Render each diagram individually to prevent Mermaid's overlay injection
+    const promises: Promise<void>[] = [];
+    nodes.forEach((el, i) => {
+      // Get source from data attribute (URL-encoded) or fall back to textContent
+      const encodedSrc = el.getAttribute('data-mermaid-src');
+      const src = encodedSrc ? decodeURIComponent(encodedSrc) : (el.textContent || '');
+      const fallbackToCode = () => {
         const pre = document.createElement('pre');
         pre.className = 'code';
         const codeEl = document.createElement('code');
-        codeEl.innerHTML = escapeHtml(src);
+        codeEl.textContent = src;
         pre.appendChild(codeEl);
         el.replaceWith(pre);
+      };
+      if (!isLikelyMermaid(src)) {
+        fallbackToCode();
+        return;
       }
+      // Try render off-DOM; on success, replace innerHTML with SVG
+      const id = `mmd-${Date.now()}-${i}`;
+      const p = (async () => {
+        try {
+          // @ts-ignore - types for render may vary by version
+          const { svg } = await mermaid.render(id, src);
+          el.innerHTML = svg;
+        } catch (err) {
+          console.warn('Mermaid render failed:', err);
+          fallbackToCode();
+        }
+      })();
+      promises.push(p);
     });
-    const remain = root.querySelectorAll<HTMLElement>('.mermaid');
-    if (!remain.length) return;
-    // eslint-disable-next-line @typescript-eslint/no-floating-promises
-    mermaid.run({ nodes: remain }).catch(() => {});
+    // Swallow any unhandled errors
+    void Promise.all(promises).catch(() => {});
   }, [kind, markdownHtml]);
 
   const codeHtml = useMemo(() => {
     if (kind === 'ruby') return simpleHighlight(content, 'ruby');
     if (kind === 'java') return simpleHighlight(content, 'java');
     if (kind === 'scala') return simpleHighlight(content, 'scala');
+    if (kind === 'typescript') return simpleHighlight(content, 'typescript');
+    if (kind === 'python') return simpleHighlight(content, 'python');
+    if (kind === 'go') return simpleHighlight(content, 'go');
     return '';
   }, [content, kind]);
 
@@ -283,7 +465,7 @@ export default function Viewer({ content, contentType, filename, language, heigh
     );
   }
 
-  if (kind === 'ruby' || kind === 'java' || kind === 'scala') {
+  if (kind === 'ruby' || kind === 'java' || kind === 'scala' || kind === 'typescript' || kind === 'python' || kind === 'go') {
     return (
       <Box className={className} sx={{ ...baseSx, backgroundColor: '#0f1320', color: '#e6e6e6', height }}>
         <pre><code dangerouslySetInnerHTML={{ __html: codeHtml }} /></pre>

@@ -26,7 +26,7 @@ module Savant
         @api_token = api_token
         @username = username
         @password = password
-        @log = Savant::Logging::Logger.new(io: $stdout, json: true, service: 'jira.http')
+        @log = Savant::Logging::MongoLogger.new(service: 'jira.http')
       end
 
       attr_reader :base_url

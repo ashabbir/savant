@@ -33,7 +33,13 @@ export function createCompactTheme(mode: 'light' | 'dark') {
     components: {
       MuiCssBaseline: {
         styleOverrides: {
-          body: { letterSpacing: 0.1 }
+          body: { letterSpacing: 0.1 },
+          // Hide Mermaid runtime error overlays globally to avoid noisy UI
+          '.mermaid .error-icon': { display: 'none !important' as any },
+          '.mermaid .error-text': { display: 'none !important' as any },
+          '.mermaid .error': { display: 'none !important' as any },
+          '.mermaid [class*="error"]': { display: 'none !important' as any },
+          'text.error-text': { display: 'none !important' as any },
         }
       },
       MuiButton: {

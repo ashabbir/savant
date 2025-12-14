@@ -43,7 +43,7 @@ module Savant
             end
 
             def logger_for_ctx(ctx)
-              ctx[:logger] || Savant::Logging::Logger.new(io: $stdout, json: true, service: ctx[:service] || 'savant')
+              ctx[:logger] || Savant::Logging::MongoLogger.new(service: ctx[:service] || 'savant')
             end
 
             def tool(name, description: '', schema: nil, output_schema: nil, &handler)

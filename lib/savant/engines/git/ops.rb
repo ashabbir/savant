@@ -13,7 +13,7 @@ module Savant
     # Implements Git business logic behind the MCP tools.
     class Ops
       def initialize
-        @log = Savant::Logging::Logger.new(io: $stdout, json: true, service: 'git.ops')
+        @log = Savant::Logging::MongoLogger.new(service: 'git.ops')
         @detector = Savant::Git::RepoDetector.new
       end
 

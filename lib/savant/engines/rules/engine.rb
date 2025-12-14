@@ -9,7 +9,7 @@ module Savant
     # Engine exposes rule catalog operations for MCP tools.
     class Engine
       def initialize
-        @log = Savant::Logging::Logger.new(io: $stdout, json: true, service: 'rules')
+        @log = Savant::Logging::MongoLogger.new(service: 'rules')
         @ops = Savant::Rules::Ops.new
       end
 

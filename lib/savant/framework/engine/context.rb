@@ -14,7 +14,7 @@ module Savant
         attr_accessor :db
 
         def initialize(logger: nil, config: nil, db: nil)
-          @logger = logger || Savant::Logging::Logger.new(io: $stdout, json: true, service: 'savant.core')
+          @logger = logger || Savant::Logging::MongoLogger.new(service: 'savant.core')
           @config = config || Savant::Framework::Engine::Config::Loader.load
           @db = db
         end

@@ -153,7 +153,7 @@ module Savant
             end
           end
         rescue Interrupt
-          log = Savant::Logging::Logger.new(io: $stdout, json: true, service: @service)
+          log = Savant::Logging::MongoLogger.new(service: @service)
           log.info(event: 'shutdown', message: 'Interrupt')
         end
 
@@ -192,7 +192,7 @@ module Savant
           log_path = File.join(log_dir, "#{service}.log")
           log_io = File.open(log_path, 'a')
           log_io.sync = true
-          Savant::Logging::Logger.new(io: log_io, json: true, service: service)
+          Savant::Logging::MongoLogger.new(service: service)
         end
 
         def handle_client(socket, dispatcher, log)

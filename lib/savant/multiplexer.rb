@@ -7,6 +7,7 @@ require_relative 'multiplexer/router'
 require_relative 'multiplexer/engine_process'
 require_relative 'framework/config'
 require_relative 'logging/logger'
+require_relative 'logging/mongo_logger'
 
 module Savant
   class Multiplexer
@@ -32,7 +33,7 @@ module Savant
       level = ENV['LOG_LEVEL'] || 'error'
       stdout_enabled = ENV['SAVANT_QUIET'] != '1'
       io = stdout_enabled ? $stdout : nil
-      @logger = logger || Savant::Logging::Logger.new(io: io, file_path: File.join(@base_path, 'logs', 'multiplexer.log'), json: true, service: 'multiplexer', level: level)
+      @logger = logger || Savant::Logging::MongoLogger.new(service: 'multiplexer')
       @router = Savant::Multiplexer::Router.new
       @engines = {}
       @mutex = Mutex.new
@@ -201,7 +202,8 @@ module Savant
     end
 
     def default_engines
-      %w[context git think personas rules jira workflow].map { |name| { name: name, autostart: true } }
+      # DB-first stack: YAML Workflow engine disabled by default.
+      %w[context git think personas rules jira].map { |name| { name: name, autostart: true } }
     end
 
     def load_settings
