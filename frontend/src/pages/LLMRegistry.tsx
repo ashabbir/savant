@@ -274,6 +274,7 @@ const openEditProviderDialogWith = (provider: Provider) => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['llm', 'models'] });
+      queryClient.invalidateQueries({ queryKey: ['hub', 'diagnostics'] });
     },
   });
 
@@ -466,7 +467,10 @@ const openEditProviderDialogWith = (provider: Provider) => {
                   </TableRow>
                 </TableHead>
                 <TableBody>
-                  {(modelsQuery.data as Model[]).map((model) => (
+                  {((modelsQuery.data as any[]).map((m) => ({
+                    ...m,
+                    enabled: m?.enabled === true || m?.enabled === 't' || m?.enabled === 'true' || m?.enabled === 1 || m?.enabled === '1'
+                  })) as Model[]).map((model) => (
                     <TableRow key={model.id}>
                       <TableCell>{model.display_name}</TableCell>
                       <TableCell>{model.provider_name}</TableCell>
@@ -488,7 +492,7 @@ const openEditProviderDialogWith = (provider: Provider) => {
                       </TableCell>
                       <TableCell>
                         <Switch
-                          checked={model.enabled}
+                          checked={!!model.enabled}
                           onChange={() =>
                             toggleModelMutation.mutate({ modelId: model.id, enabled: !model.enabled })
                           }

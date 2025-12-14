@@ -31,7 +31,14 @@ export default function AgentDetail() {
       return res.models || [];
     },
   });
-  const modelOptions = useMemo(() => (models.data || []).map(m => ({ id: m.id, label: `${m.display_name} (${m.provider_name})` })), [models.data]);
+  const modelOptions = useMemo(
+    () =>
+      (models.data || []).map((m) => ({
+        id: Number(m.id),
+        label: `${m.display_name || m.provider_model_id} (${m.provider_name || 'unknown'})`,
+      })),
+    [models.data]
+  );
   const [persona, setPersona] = useState<string | null>(null);
   const [driver, setDriver] = useState('');
   const [instructions, setInstructions] = useState('');
@@ -64,9 +71,10 @@ export default function AgentDetail() {
   useEffect(() => {
     const a = agent.data as any;
     if (!a || !a.model_id) return;
-    // Only set if models have loaded
+    const numericId = Number(a.model_id);
+    if (!Number.isFinite(numericId)) return;
     if (modelOptions.length > 0) {
-      setSelectedModelId(a.model_id);
+      setSelectedModelId(numericId);
     }
   }, [agent.data, modelOptions]);
 
@@ -122,7 +130,8 @@ export default function AgentDetail() {
             <Autocomplete
               options={modelOptions}
               getOptionLabel={(option) => option.label}
-              value={modelOptions.find(m => m.id === selectedModelId) || null}
+              value={modelOptions.find((m) => m.id === selectedModelId) || null}
+              isOptionEqualToValue={(option, value) => option.id === value?.id}
               onChange={(_, v) => setSelectedModelId(v?.id || null)}
               renderInput={(params) => (<TextField {...params} label="LLM Model" />)}
             />
