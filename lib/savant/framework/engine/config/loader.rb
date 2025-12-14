@@ -23,7 +23,7 @@ module Savant
 
             # Fall back to the existing JSON config to preserve current behavior
             Savant::Framework::Config.load(json_path)
-          rescue Errno::ENOENT
+          rescue Errno::ENOENT, Savant::ConfigError
             {}
           end
 
