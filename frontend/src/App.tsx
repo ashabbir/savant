@@ -547,6 +547,10 @@ export default function App() {
           <Route path="/engines/drivers/tools" element={<DriversTools />} />
           <Route path="/engines/drivers/new" element={<DriverEditor />} />
           <Route path="/engines/drivers/edit/:name" element={<DriverEditor />} />
+
+          {/* LLM Registry routes via engines path */}
+          <Route path="/engines/llm" element={<Navigate to="/llm-registry" replace />} />
+          <Route path="/engines/llm/tools" element={<Navigate to="/llm-registry" replace />} />
           {/* Keep old agents routes for backward compatibility */}
           <Route path="/engines/agents" element={<Agents />} />
           <Route path="/engines/agents/new" element={<AgentWizard />} />
