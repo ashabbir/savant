@@ -28,7 +28,7 @@ module Savant::Llm
       provider = @registry.get_provider(name)
       raise "Provider not found: #{name}" unless provider
 
-      adapter = Adapters.for_provider(provider)
+      adapter = Savant::Llm::Adapters.for_provider(provider)
       result = adapter.test_connection!
 
       @registry.update_provider_status(name, result[:status])
@@ -45,7 +45,7 @@ module Savant::Llm
       provider = @registry.get_provider(provider_name)
       raise "Provider not found: #{provider_name}" unless provider
 
-      adapter = Adapters.for_provider(provider)
+      adapter = Savant::Llm::Adapters.for_provider(provider)
       models = adapter.list_models
       { models: models }
     end
