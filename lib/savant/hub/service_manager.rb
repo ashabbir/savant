@@ -3,6 +3,7 @@
 require 'fileutils'
 require_relative '../version'
 require_relative '../logging/logger'
+require_relative '../logging/mongo_logger'
 require_relative '../logging/event_recorder'
 
 module Savant

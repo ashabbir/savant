@@ -7,6 +7,7 @@ require_relative 'multiplexer/router'
 require_relative 'multiplexer/engine_process'
 require_relative 'framework/config'
 require_relative 'logging/logger'
+require_relative 'logging/mongo_logger'
 
 module Savant
   class Multiplexer
