@@ -43,9 +43,18 @@ function formatEngineName(rawName: string): string {
 function statusColor(status?: string): 'default' | 'success' | 'warning' | 'error' {
   const val = (status || '').toLowerCase();
   if (!val) return 'default';
-  if (val.includes('ok') || val.includes('online') || val.includes('running')) return 'success';
+  if (
+    val.includes('ok') ||
+    val.includes('online') ||
+    val.includes('running') ||
+    val.includes('enabled') ||
+    val.includes('active') ||
+    val.includes('valid')
+  ) {
+    return 'success';
+  }
   if (val.includes('warn') || val.includes('partial') || val.includes('degraded')) return 'warning';
-  if (val.includes('error') || val.includes('offline') || val.includes('fail')) return 'error';
+  if (val.includes('error') || val.includes('offline') || val.includes('fail') || val.includes('invalid') || val.includes('bad')) return 'error';
   return 'default';
 }
 
@@ -77,9 +86,12 @@ export default function DiagnosticsOverview() {
   const llmModels = diag.data?.llm_models;
   const runningModels = llmModels?.running ?? 0;
   const totalModels = llmModels?.total ?? (llmModels?.models?.length ?? 0);
-  const llmStates = Object.entries(llmModels?.states || {}).filter(([state]) => state && state.toLowerCase() !== 'unknown');
+  const llmStates = Object.entries(llmModels?.states || {}).filter(([state]) => {
+    const normalized = state.toLowerCase();
+    return state && normalized !== 'unknown' && normalized !== 'enabled';
+  });
   const llmModelList = llmModels?.models || [];
-  const llmRuntime = diag.data?.llm_runtime;
+  const llmProviders = llmModels?.providers || [];
   // Removed FTS Query Test state
 
 
@@ -559,19 +571,20 @@ export default function DiagnosticsOverview() {
               {diag.isLoading && <LinearProgress sx={{ mb: 1 }} />}
               {llmModels ? (
                 <Stack spacing={1}>
-                  <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
-                    <Chip
-                      size="small"
-                      label={`Running: ${runningModels}`}
-                      color={runningModels > 0 ? 'success' : 'default'}
-                      variant="outlined"
-                    />
-                    <Chip
-                      size="small"
-                      label={`Total: ${totalModels}`}
-                      variant="outlined"
-                    />
-                  </Stack>
+                  {llmProviders.length > 0 && llmModelList.length > 0 && (
+                    <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
+                      <Chip
+                        size="small"
+                        label={`Providers: ${llmProviders.filter((p) => p.status === 'valid').length}/${llmProviders.length}`}
+                        variant="outlined"
+                      />
+                      <Chip
+                        size="small"
+                        label={`Models: ${llmModelList.filter((m) => m.enabled).length}/${llmModelList.length}`}
+                        variant="outlined"
+                      />
+                    </Stack>
+                  )}
                   {llmStates.length > 0 && (
                     <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
                       {llmStates.slice(0, 5).map(([state, count], idx) => (
@@ -587,14 +600,24 @@ export default function DiagnosticsOverview() {
                   )}
                   {llmModelList.length > 0 ? (
                     <Stack spacing={1}>
-                      {llmModelList.slice(0, 4).map((model, index) => {
+                      {llmModelList.slice(0, 6).map((model, index) => {
                         const name = model.name || model.model || 'Unknown';
                         const stateLabel = (model.state || model.status || 'unknown').toString();
-                        const progress = normalizeModelProgress(model);
                         return (
                           <Box key={`${name}-${index}`} sx={{ p: 1, borderRadius: 1, bgcolor: 'action.hover' }}>
                             <Stack direction="row" alignItems="center" justifyContent="space-between" spacing={1}>
-                              <Typography variant="body2" sx={{ fontWeight: 600 }}>{name}</Typography>
+                              <Stack direction="row" alignItems="center" spacing={1} sx={{ flex: 1, minWidth: 0 }}>
+                                <Typography variant="body2" sx={{ fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                  {name}
+                                </Typography>
+                                <Typography
+                                  variant="caption"
+                                  color="text.secondary"
+                                  sx={{ fontFamily: 'monospace', whiteSpace: 'nowrap' }}
+                                >
+                                  Provider: {model.provider_name || 'unknown'}
+                                </Typography>
+                              </Stack>
                               <Chip
                                 label={stateLabel}
                                 size="small"
@@ -603,36 +626,17 @@ export default function DiagnosticsOverview() {
                                 sx={{ height: 20, '& .MuiChip-label': { px: 0.5, fontSize: 10 } }}
                               />
                             </Stack>
-                            {progress !== null && (
-                              <Stack direction="row" spacing={1} alignItems="center" sx={{ mt: 0.5 }}>
-                                <Typography variant="caption" color="text.secondary">{`${Math.round(progress)}%`}</Typography>
-                                <LinearProgress variant="determinate" value={progress} sx={{ flex: 1, height: 6, borderRadius: 1 }} />
-                              </Stack>
-                            )}
                           </Box>
                         );
                       })}
-                      {llmModelList.length > 4 && (
+                      {llmModelList.length > 6 && (
                         <Typography variant="caption" color="text.secondary">
-                          +{llmModelList.length - 4} more models
+                          +{llmModelList.length - 6} more models
                         </Typography>
                       )}
                     </Stack>
                   ) : (
                     <Typography variant="caption" color="text.secondary">No models available</Typography>
-                  )}
-                  {llmRuntime && (
-                    <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap sx={{ mt: 0.5 }}>
-                      <Typography variant="caption" sx={{ fontFamily: 'monospace' }}>
-                        SLM: {llmRuntime.slm_model || 'n/a'}
-                      </Typography>
-                      <Typography variant="caption" sx={{ fontFamily: 'monospace' }}>
-                        LLM: {llmRuntime.llm_model || 'n/a'}
-                      </Typography>
-                      <Typography variant="caption" sx={{ fontFamily: 'monospace' }}>
-                        Provider: {llmRuntime.provider || 'ollama'}
-                      </Typography>
-                    </Stack>
                   )}
                   {llmModels.error && (
                     <Alert severity="warning" sx={{ mt: 1 }}>{llmModels.error}</Alert>
@@ -683,6 +687,56 @@ export default function DiagnosticsOverview() {
                         ))}
                       </TableBody>
                     </Table>
+                  )}
+                </Stack>
+              )}
+            </Paper>
+
+            {/* MongoDB */}
+            <Paper sx={{ p: 1.5 }}>
+              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>MongoDB</Typography>
+              {diag.isLoading && <LinearProgress />}
+              {diag.data && (diag.data as any).mongo && (
+                <Stack spacing={1.5}>
+                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                    <Chip
+                      size="small"
+                      icon={(diag.data as any).mongo.connected ? <CheckCircleIcon /> : <ErrorIcon />}
+                      label={(diag.data as any).mongo.connected ? 'Connected' : 'Disconnected'}
+                      color={(diag.data as any).mongo.connected ? 'success' : 'error'}
+                    />
+                    {(diag.data as any).mongo.db && (
+                      <Chip size="small" label={`DB: ${(diag.data as any).mongo.db}`} variant="outlined" />
+                    )}
+                    {(diag.data as any).mongo.counts && (
+                      <>
+                        <Chip size="small" label={`${(diag.data as any).mongo.counts.collections} collections`} variant="outlined" />
+                        <Chip size="small" label={`${((diag.data as any).mongo.counts.documents || 0).toLocaleString()} docs`} variant="outlined" />
+                      </>
+                    )}
+                  </Stack>
+                  {Array.isArray((diag.data as any).mongo?.collections) && (diag.data as any).mongo.collections.length > 0 && (
+                    <Table size="small" sx={{ tableLayout: 'fixed' }}>
+                      <TableHead>
+                        <TableRow>
+                          <TableCell sx={{ fontWeight: 600, width: '55%' }}>Collection</TableCell>
+                          <TableCell sx={{ fontWeight: 600 }} align="right">Docs</TableCell>
+                          <TableCell sx={{ fontWeight: 600 }} align="left">Status</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {(((diag.data as any).mongo.collections) as any[]).map((t: any) => (
+                          <TableRow key={t.name} hover>
+                            <TableCell sx={{ fontFamily: 'monospace', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{t.name}</TableCell>
+                            <TableCell align="right">{t.rows?.toLocaleString?.() || '-'}</TableCell>
+                            <TableCell align="left">{t.error ? <Chip size="small" label="error" color="warning" /> : <Chip size="small" label="ok" color="success" variant="outlined" />}</TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  )}
+                  {(diag.data as any).mongo?.error && (
+                    <Alert severity="warning">{(diag.data as any).mongo.error}</Alert>
                   )}
                 </Stack>
               )}
