@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 202512130001) do
+ActiveRecord::Schema[7.2].define(version: 202512140001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -38,6 +38,7 @@ ActiveRecord::Schema[7.2].define(version: 202512130001) do
     t.datetime "last_run_at"
     t.datetime "created_at", default: -> { "now()" }, null: false
     t.datetime "updated_at", default: -> { "now()" }, null: false
+    t.integer "model_id"
     t.index ["name"], name: "index_agents_on_name", unique: true
     t.index ["persona_id"], name: "index_agents_on_persona_id"
   end
@@ -191,6 +192,7 @@ ActiveRecord::Schema[7.2].define(version: 202512130001) do
   end
 
   add_foreign_key "agent_runs", "agents", on_delete: :cascade
+  add_foreign_key "agents", "llm_models", column: "model_id", on_delete: :nullify
   add_foreign_key "agents", "personas", on_delete: :nullify
   add_foreign_key "chunks", "blobs", on_delete: :cascade
   add_foreign_key "file_blob_map", "blobs", on_delete: :cascade

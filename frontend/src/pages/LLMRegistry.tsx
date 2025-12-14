@@ -27,12 +27,15 @@ import {
   Chip,
   IconButton,
   Tooltip,
+  FormControlLabel,
+  Switch,
   useTheme,
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorIcon from '@mui/icons-material/Error';
 import RefreshIcon from '@mui/icons-material/Refresh';
+import EditIcon from '@mui/icons-material/Edit';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { callEngineTool } from '../api';
 
@@ -83,6 +86,7 @@ export default function LLMRegistry() {
   const [openProviderDialog, setOpenProviderDialog] = useState(false);
   const [openModelDialog, setOpenModelDialog] = useState(false);
   const [openDiscoverDialog, setOpenDiscoverDialog] = useState(false);
+  const [openEditModelDialog, setOpenEditModelDialog] = useState(false);
 
   const queryClient = useQueryClient();
 
@@ -90,6 +94,13 @@ export default function LLMRegistry() {
   const [providerForm, setProviderForm] = useState({ name: '', type: 'google', apiKey: '', baseUrl: '' });
   const [modelForm, setModelForm] = useState({ provider: '', modelIds: [] as string[] });
   const [discoverProvider, setDiscoverProvider] = useState('');
+  const [editModelForm, setEditModelForm] = useState({ displayName: '', contextWindow: '', enabled: true });
+  const [selectedModel, setSelectedModel] = useState<Model | null>(null);
+  const closeEditModelDialog = () => {
+    setOpenEditModelDialog(false);
+    setSelectedModel(null);
+    setEditModelForm({ displayName: '', contextWindow: '', enabled: true });
+  };
 
   // Fetch providers
   const providersQuery = useQuery({
@@ -183,6 +194,33 @@ export default function LLMRegistry() {
       queryClient.invalidateQueries({ queryKey: ['llm', 'models'] });
     },
   });
+
+  const updateModelMutation = useMutation({
+    mutationFn: async ({ modelId, data }: { modelId: number; data: typeof editModelForm }) => {
+      await callEngineTool('llm', 'llm_models_update', {
+        model_id: modelId,
+        display_name: data.displayName,
+        context_window: data.contextWindow ? parseInt(data.contextWindow, 10) : undefined,
+        enabled: data.enabled,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['llm', 'models'] });
+      setOpenEditModelDialog(false);
+      setSelectedModel(null);
+      setEditModelForm({ displayName: '', contextWindow: '', enabled: true });
+    },
+  });
+
+  const openEditModelDialogWith = (model: Model) => {
+    setSelectedModel(model);
+    setEditModelForm({
+      displayName: model.display_name,
+      contextWindow: model.context_window ? String(model.context_window) : '',
+      enabled: model.enabled,
+    });
+    setOpenEditModelDialog(true);
+  };
 
   const getStatusColor = (status: string) => {
     if (status === 'valid') return 'success';
@@ -395,6 +433,14 @@ export default function LLMRegistry() {
                         />
                       </TableCell>
                       <TableCell align="right">
+                        <Tooltip title="Edit model">
+                          <IconButton
+                            size="small"
+                            onClick={() => openEditModelDialogWith(model)}
+                          >
+                            <EditIcon fontSize="small" />
+                          </IconButton>
+                        </Tooltip>
                         <Tooltip title="Delete model">
                           <IconButton
                             size="small"
@@ -532,6 +578,53 @@ export default function LLMRegistry() {
             disabled={registerModelsMutation.isPending || !modelForm.provider}
           >
             Register
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Edit Model Dialog */}
+      <Dialog
+        open={openEditModelDialog}
+        onClose={closeEditModelDialog}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Edit Model</DialogTitle>
+        <DialogContent sx={{ pt: 2 }}>
+          <Stack spacing={2}>
+            <TextField
+              label="Display Name"
+              value={editModelForm.displayName}
+              onChange={(e) => setEditModelForm({ ...editModelForm, displayName: e.target.value })}
+              fullWidth
+            />
+            <TextField
+              label="Context Window"
+              type="number"
+              value={editModelForm.contextWindow}
+              onChange={(e) => setEditModelForm({ ...editModelForm, contextWindow: e.target.value })}
+              fullWidth
+              helperText="Enter context window in tokens (optional)"
+            />
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={editModelForm.enabled}
+                  onChange={(_, checked) => setEditModelForm({ ...editModelForm, enabled: checked })}
+                />
+              }
+              label={editModelForm.enabled ? 'Enabled' : 'Disabled'}
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={closeEditModelDialog}>Cancel</Button>
+          <Button
+            onClick={() => selectedModel && updateModelMutation.mutate({ modelId: selectedModel.id, data: editModelForm })}
+            variant="contained"
+            disabled={!selectedModel || updateModelMutation.isPending}
+          >
+            Save Changes
           </Button>
         </DialogActions>
       </Dialog>

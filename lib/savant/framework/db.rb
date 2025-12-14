@@ -746,12 +746,12 @@ module Savant
       # =========================
       # App CRUD: Agents
       # =========================
-      def create_agent(name:, persona_id: nil, driver_prompt: nil, driver_name: nil, rule_set_ids: [], favorite: false, instructions: nil)
-        params = [name, persona_id, driver_prompt, driver_name, int_array_encoder.encode(rule_set_ids), favorite, instructions]
+      def create_agent(name:, persona_id: nil, driver_prompt: nil, driver_name: nil, rule_set_ids: [], favorite: false, instructions: nil, model_id: nil)
+        params = [name, persona_id, driver_prompt, driver_name, int_array_encoder.encode(rule_set_ids), favorite, instructions, model_id]
         res = exec_params(
           <<~SQL, params
-            INSERT INTO agents(name, persona_id, driver_prompt, driver_name, rule_set_ids, favorite, instructions, created_at, updated_at)
-            VALUES($1,$2,$3,$4,$5,$6,$7,NOW(),NOW())
+            INSERT INTO agents(name, persona_id, driver_prompt, driver_name, rule_set_ids, favorite, instructions, model_id, created_at, updated_at)
+            VALUES($1,$2,$3,$4,$5,$6,$7,$8,NOW(),NOW())
             ON CONFLICT (name) DO UPDATE
             SET persona_id=EXCLUDED.persona_id,
                 driver_prompt=COALESCE(EXCLUDED.driver_prompt, agents.driver_prompt),
@@ -759,6 +759,7 @@ module Savant
                 rule_set_ids=EXCLUDED.rule_set_ids,
                 favorite=EXCLUDED.favorite,
                 instructions=COALESCE(EXCLUDED.instructions, agents.instructions),
+                model_id=EXCLUDED.model_id,
                 updated_at=NOW()
             RETURNING id
           SQL

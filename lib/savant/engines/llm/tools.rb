@@ -84,6 +84,27 @@ module Savant::Llm::Tools
         )
       end
 
+      tool 'llm_models_update', description: 'Update registered model metadata',
+           schema: {
+             type: 'object',
+             properties: {
+               model_id: { type: 'integer' },
+               display_name: { type: 'string' },
+               context_window: { type: 'integer' },
+               modality: { type: 'array', items: { type: 'string' } },
+               enabled: { type: 'boolean' }
+             },
+             required: ['model_id']
+           } do |_ctx, a|
+        engine.models_update(
+          model_id: a['model_id'],
+          display_name: a['display_name'],
+          context_window: a['context_window'],
+          modality: a['modality'],
+          enabled: a['enabled']
+        )
+      end
+
       tool 'llm_models_list', description: 'List registered models',
            schema: { type: 'object', properties: {} } do |_ctx, _a|
         engine.models_list

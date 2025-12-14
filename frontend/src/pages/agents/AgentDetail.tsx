@@ -9,8 +9,9 @@ import Alert from '@mui/material/Alert';
 import LinearProgress from '@mui/material/LinearProgress';
 import Autocomplete from '@mui/material/Autocomplete';
 import Stack from '@mui/material/Stack';
-import { agentsUpdate, getErrorMessage, useAgent, useDrivers, usePersonas, useRules } from '../../api';
+import { agentsUpdate, getErrorMessage, useAgent, useDrivers, usePersonas, useRules, callEngineTool } from '../../api';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 
 export default function AgentDetail() {
   const params = useParams();
@@ -23,10 +24,19 @@ export default function AgentDetail() {
   const ruleOptions = useMemo(() => (rules.data?.rules || []).map(r=>r.name), [rules.data]);
   const drivers = useDrivers('');
   const driverOptions = useMemo(() => (drivers.data?.drivers || []).map(d => d.name), [drivers.data]);
+  const models = useQuery({
+    queryKey: ['llm', 'models'],
+    queryFn: async () => {
+      const res = await callEngineTool('llm', 'llm_models_list', {});
+      return res.models || [];
+    },
+  });
+  const modelOptions = useMemo(() => (models.data || []).map(m => ({ id: m.id, label: `${m.display_name} (${m.provider_name})` })), [models.data]);
   const [persona, setPersona] = useState<string | null>(null);
   const [driver, setDriver] = useState('');
   const [instructions, setInstructions] = useState('');
   const [selRules, setSelRules] = useState<string[]>([]);
+  const [selectedModelId, setSelectedModelId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
@@ -50,11 +60,18 @@ export default function AgentDetail() {
     }
   }, [personaOptions, ruleOptions]);
 
+  // Load existing model assignment
+  useEffect(() => {
+    const a = agent.data as any;
+    if (!a || !a.model_id) return;
+    setSelectedModelId(a.model_id);
+  }, [agent.data, models.data]);
+
   async function save() {
     if (!name) return;
     setSaving(true); setErr(null);
     try {
-      await agentsUpdate({ name, persona: persona || undefined, driver, rules: selRules.length ? selRules : undefined, instructions: instructions || undefined });
+      await agentsUpdate({ name, persona: persona || undefined, driver, rules: selRules.length ? selRules : undefined, instructions: instructions || undefined, model_id: selectedModelId || undefined });
       await agent.refetch();
       nav('/agents');
     } catch (e:any) { setErr(getErrorMessage(e)); } finally { setSaving(false); }
@@ -66,7 +83,7 @@ export default function AgentDetail() {
       <Grid xs={12}>
         <Paper sx={{ p:2 }}>
           <Typography variant="subtitle1" sx={{ mb: 2 }}>Edit Agent: {name}</Typography>
-          {(agent.isFetching || personas.isFetching || rules.isFetching) && <LinearProgress />}
+          {(agent.isFetching || personas.isFetching || rules.isFetching || models.isFetching) && <LinearProgress />}
           {err && <Alert severity="error" sx={{ mb: 2 }}>{err}</Alert>}
           <Stack spacing={2}>
             <Autocomplete
@@ -99,7 +116,14 @@ export default function AgentDetail() {
               onChange={(_, v)=>setSelRules(v)}
               renderInput={(params)=>(<TextField {...params} label="Rules" />)}
             />
-            
+            <Autocomplete
+              options={modelOptions}
+              getOptionLabel={(option) => option.label}
+              value={modelOptions.find(m => m.id === selectedModelId) || null}
+              onChange={(_, v) => setSelectedModelId(v?.id || null)}
+              renderInput={(params) => (<TextField {...params} label="LLM Model" />)}
+            />
+
             <Box>
               <Button variant="contained" disabled={saving} onClick={save}>Save</Button>
               <Button sx={{ ml: 1 }} onClick={() => nav('/agents')}>Cancel</Button>
