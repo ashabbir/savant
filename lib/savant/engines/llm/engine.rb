@@ -1,6 +1,6 @@
-require 'savant/framework/engine/engine'
-require 'savant/engines/llm/registry'
-require 'savant/engines/llm/adapters'
+require_relative '../../framework/engine/engine'
+require_relative 'registry'
+require_relative 'adapters'
 
 module Savant::Llm
   class Engine < Savant::Framework::Engine::Base
@@ -38,6 +38,10 @@ module Savant::Llm
     def provider_delete(name:)
       @registry.delete_provider(name)
       { ok: true, deleted: true }
+    end
+
+    def provider_update(name:, base_url: nil, api_key: nil)
+      @registry.update_provider(name: name, base_url: base_url, api_key: api_key)
     end
 
     # Model operations
@@ -85,14 +89,8 @@ module Savant::Llm
       { ok: true, deleted: true }
     end
 
-    def models_update(model_id:, display_name: nil, context_window: nil, modality: nil, enabled: nil)
-      update_attrs = {
-        display_name: display_name,
-        context_window: context_window,
-        modality: modality,
-        enabled: enabled
-      }.compact
-      @registry.update_model(model_id: model_id, **update_attrs)
+    def models_set_enabled(model_id:, enabled:)
+      @registry.enable_model(model_id, enabled)
       { ok: true }
     end
 

@@ -1,3 +1,6 @@
+require_relative '../../framework/mcp/core/dsl'
+require_relative 'engine'
+
 module Savant::Llm::Tools
   module_function
 
@@ -50,6 +53,23 @@ module Savant::Llm::Tools
         engine.provider_test(name: a['name'])
       end
 
+      tool 'llm_providers_update', description: 'Update provider settings',
+           schema: {
+             type: 'object',
+             properties: {
+               name: { type: 'string' },
+               base_url: { type: 'string' },
+               api_key: { type: 'string' }
+             },
+             required: ['name']
+           } do |_ctx, a|
+        engine.provider_update(
+          name: a['name'],
+          base_url: a['base_url'],
+          api_key: a['api_key']
+        )
+      end
+
       tool 'llm_providers_delete', description: 'Delete a provider',
            schema: {
              type: 'object',
@@ -78,10 +98,10 @@ module Savant::Llm::Tools
              },
              required: ['provider_name', 'model_ids']
            } do |_ctx, a|
-        engine.models_register(
-          provider_name: a['provider_name'],
-          model_ids: a['model_ids']
-        )
+       engine.models_register(
+         provider_name: a['provider_name'],
+         model_ids: a['model_ids']
+       )
       end
 
       tool 'llm_models_update', description: 'Update registered model metadata',
@@ -117,6 +137,18 @@ module Savant::Llm::Tools
              required: ['model_id']
            } do |_ctx, a|
         engine.models_delete(model_id: a['model_id'])
+      end
+
+      tool 'llm_models_set_enabled', description: 'Enable or disable a model',
+           schema: {
+             type: 'object',
+             properties: {
+               model_id: { type: 'integer' },
+               enabled: { type: 'boolean' }
+             },
+             required: ['model_id', 'enabled']
+           } do |_ctx, a|
+        engine.models_set_enabled(model_id: a['model_id'], enabled: a['enabled'])
       end
 
       # Agent tools

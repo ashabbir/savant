@@ -91,6 +91,13 @@ module Savant
         rule_ids = nil
         rule_ids = ensure_rules(rules) if rules.is_a?(Array)
 
+        # Validate model_id if provided (must exist in llm_models table)
+        final_model_id = if model_id.nil?
+          row['model_id']
+        else
+          model_id
+        end
+
         # Build update via create_agent upsert semantics
         fav = if favorite.nil?
           ['t', true].include?(row['favorite'])
@@ -111,7 +118,7 @@ module Savant
           rule_set_ids: rule_ids || parse_int_array(row['rule_set_ids']),
           favorite: fav,
           instructions: instructions.nil? ? row['instructions'] : instructions,
-          model_id: model_id.nil? ? row['model_id'] : model_id
+          model_id: final_model_id
         )
         got = @db.get_agent(id)
         to_agent_hash(got)
