@@ -29,6 +29,29 @@ function escapeHtml(str: string): string {
     .replace(/>/g, '&gt;');
 }
 
+// Heuristic to detect likely-valid Mermaid diagrams to avoid noisy error overlays
+function isLikelyMermaid(src: string): boolean {
+  const s = (src || '').trim();
+  if (!s) return false;
+  const starters = [
+    /^graph(\s+|$)/i,
+    /^flowchart(\s+|$)/i,
+    /^sequenceDiagram(\s+|$)/i,
+    /^classDiagram(\s+|$)/i,
+    /^stateDiagram(\-v2)?(\s+|$)/i,
+    /^erDiagram(\s+|$)/i,
+    /^journey(\s+|$)/i,
+    /^gantt(\s+|$)/i,
+    /^pie(\s+|$)/i,
+    /^timeline(\s+|$)/i,
+    /^gitGraph(\s+|$)/i,
+    /^mindmap(\s+|$)/i,
+    /^quadrantChart(\s+|$)/i,
+    /^xychart\-beta(\s+|$)/i,
+  ];
+  return starters.some((re) => re.test(s));
+}
+
 function wrapToken(text: string, cls: string): string {
   return `<span class="${cls}">${escapeHtml(text)}</span>`;
 }
@@ -174,7 +197,11 @@ export default function Viewer({ content, contentType, filename, language, heigh
     renderer.code = (code: string, info: string | undefined) => {
       const lang = (info || '').split(/\s+/)[0]?.toLowerCase();
       if (lang === 'mermaid') {
-        return `<div class="mermaid">${escapeHtml(code)}</div>`;
+        if (isLikelyMermaid(code)) {
+          return `<div class="mermaid">${escapeHtml(code)}</div>`;
+        }
+        // Fallback to plain code block when content doesn't look like a Mermaid diagram
+        return `<pre class="code"><code>${escapeHtml(code)}</code></pre>`;
       }
       if (lang === 'ruby' || lang === 'rb') {
         return `<pre class="code"><code>${simpleHighlight(code, 'ruby')}</code></pre>`;
@@ -214,6 +241,16 @@ export default function Viewer({ content, contentType, filename, language, heigh
     ensureMermaidConfigured();
     nodes.forEach((el) => {
       const src = el.textContent || '';
+      // Skip rendering if the content doesn't resemble a Mermaid diagram
+      if (!isLikelyMermaid(src)) {
+        const pre = document.createElement('pre');
+        pre.className = 'code';
+        const codeEl = document.createElement('code');
+        codeEl.innerHTML = escapeHtml(src);
+        pre.appendChild(codeEl);
+        el.replaceWith(pre);
+        return;
+      }
       try {
         // @ts-ignore
         if (typeof mermaid.parse === 'function') mermaid.parse(src);
