@@ -47,8 +47,9 @@ export default function DiagnosticsLogs() {
   const [eventType, setEventType] = useState<string>(() => localStorage.getItem('diag.events.type') || 'all');
   const [following, setFollowing] = useState<boolean>(false);
   const [toast, setToast] = useState<string | null>(null);
-  const esRef = useRef<EventSource | null>(null);
+  const pollIntervalRef = useRef<number | null>(null);
   const logBoxRef = useRef<HTMLPreElement>(null);
+  const POLL_INTERVAL_MS = 2000;
 
   function copyLogs() {
     navigator.clipboard.writeText(lines.join('\n')).then(() => {
@@ -72,52 +73,28 @@ export default function DiagnosticsLogs() {
 
   function start(level = levelFilter) {
     stop();
-    setLines([]);
-    let url = '';
-    if (engine === 'events') {
-      const typePart = eventTypeQuery(eventType);
-      url = `${baseUrl()}/logs/stream?${typePart}${typePart ? '&' : ''}user=${encodeURIComponent(getUserId())}`;
-    } else {
-      const levelPart = levelQuery(level);
-      url = `${baseUrl()}/${engine}/logs?stream=1&n=${n}${levelPart}&user=${encodeURIComponent(getUserId())}`;
-    }
-    const es = new EventSource(url);
-    // Default message handler
-    es.onmessage = (ev) => {
-      try {
-        const data = JSON.parse(ev.data || '{}');
-        if (data && data.line) setLines((prev) => [...prev, data.line]);
-        else if (engine === 'events' && data && data.ts) setLines((prev) => [...prev, formatEventLine(data)]);
-      } catch { /* ignore */ }
-    };
-    // Named events for hub logs and aggregated events
-    es.addEventListener('log', (ev: MessageEvent) => {
-      try {
-        const data = JSON.parse((ev as any).data || '{}');
-        if (data && data.line) setLines((prev) => [...prev, data.line]);
-      } catch { /* ignore */ }
-    });
-    es.addEventListener('event', (ev: MessageEvent) => {
-      try {
-        const data = JSON.parse((ev as any).data || '{}');
-        if (data && data.ts) setLines((prev) => [...prev, formatEventLine(data)]);
-      } catch { /* ignore */ }
-    });
-    es.onerror = () => {
-      stop();
-    };
-    esRef.current = es;
+    // Initial fetch then poll periodically
+    fetchLogs(level);
+    pollIntervalRef.current = window.setInterval(() => {
+      fetchLogs(level);
+    }, POLL_INTERVAL_MS);
     setFollowing(true);
   }
 
+  function tailOnce(level = levelFilter) {
+    stop();
+    fetchLogs(level);
+  }
+
   function stop() {
-    esRef.current?.close();
-    esRef.current = null;
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
     setFollowing(false);
   }
 
-  async function tailOnce(level = levelFilter) {
-    stop();
+  async function fetchLogs(level = levelFilter) {
     try {
       if (engine === 'events') {
         const typePart = eventTypeQuery(eventType);
@@ -164,6 +141,15 @@ export default function DiagnosticsLogs() {
   useEffect(() => {
     tailOnce();
   }, [engine]);
+
+  // Cleanup polling on unmount
+  useEffect(() => {
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
+    };
+  }, []);
 
   function formatEventLine(e: any): string {
     try {
