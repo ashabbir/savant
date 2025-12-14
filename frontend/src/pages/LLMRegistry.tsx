@@ -28,6 +28,7 @@ import {
   IconButton,
   Tooltip,
   Switch,
+  Checkbox,
   useTheme,
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -91,14 +92,30 @@ export default function LLMRegistry() {
 
   // Provider form state
   const [providerForm, setProviderForm] = useState({ name: '', type: 'google', apiKey: '', baseUrl: '' });
-  const [modelForm, setModelForm] = useState({ provider: '', modelIds: [] as string[] });
+  const [modelForm, setModelForm] = useState({ provider: '', modelIdsCsv: '' });
   const [discoverProvider, setDiscoverProvider] = useState('');
   const [providerEditForm, setProviderEditForm] = useState({ baseUrl: '', apiKey: '' });
   const [selectedProvider, setSelectedProvider] = useState<Provider | null>(null);
+  const [discoveredModels, setDiscoveredModels] = useState<any[]>([]);
+  const [selectedDiscoverIds, setSelectedDiscoverIds] = useState<string[]>([]);
+  const [discoverError, setDiscoverError] = useState<string | null>(null);
   const closeEditProviderDialog = () => {
     setOpenEditProviderDialog(false);
     setSelectedProvider(null);
     setProviderEditForm({ baseUrl: '', apiKey: '' });
+  };
+
+  const handleDiscover = () => {
+    setDiscoverError(null);
+    setDiscoveredModels([]);
+    setSelectedDiscoverIds([]);
+    discoverMutation.mutate(discoverProvider);
+  };
+
+  const toggleDiscoveredSelection = (modelId: string) => {
+    setSelectedDiscoverIds((prev) =>
+      prev.includes(modelId) ? prev.filter((id) => id !== modelId) : [...prev, modelId]
+    );
   };
 
   // Fetch providers
@@ -125,8 +142,15 @@ export default function LLMRegistry() {
       const res = await callEngineTool('llm', 'llm_models_discover', { provider_name: providerName });
       return res.models || [];
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['llm', 'models'] });
+    onSuccess: (models) => {
+      setDiscoveredModels(models);
+      setSelectedDiscoverIds([]);
+      setDiscoverError(null);
+    },
+    onError: (error: any) => {
+      const message = error?.message || 'Failed to discover models';
+      setDiscoverError(message);
+      setDiscoveredModels([]);
     },
   });
 
@@ -194,15 +218,40 @@ const openEditProviderDialogWith = (provider: Provider) => {
   // Register models
   const registerModelsMutation = useMutation({
     mutationFn: async (data: typeof modelForm) => {
+      const modelIds = data.modelIdsCsv
+        .split(',')
+        .map((id) => id.trim())
+        .filter(Boolean);
+      if (!modelIds.length) {
+        throw new Error('Enter at least one model ID to register');
+      }
       await callEngineTool('llm', 'llm_models_register', {
         provider_name: data.provider,
-        model_ids: data.modelIds,
+        model_ids: modelIds,
       });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['llm', 'models'] });
       setOpenModelDialog(false);
-      setModelForm({ provider: '', modelIds: [] });
+      setModelForm({ provider: '', modelIdsCsv: '' });
+    },
+  });
+
+  const registerDiscoveredMutation = useMutation({
+    mutationFn: async ({ providerName, modelIds }: { providerName: string; modelIds: string[] }) => {
+      if (!modelIds.length) {
+        throw new Error('Select at least one model to register');
+      }
+      await callEngineTool('llm', 'llm_models_register', {
+        provider_name: providerName,
+        model_ids: modelIds,
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['llm', 'models'] });
+      setSelectedDiscoverIds([]);
+      setDiscoveredModels([]);
+      setOpenDiscoverDialog(false);
     },
   });
 
@@ -581,18 +630,71 @@ const openEditProviderDialogWith = (provider: Provider) => {
               ))}
             </Select>
           </FormControl>
+          <Box sx={{ mt: 2 }}>
+            {discoverMutation.isLoading && <CircularProgress size={24} />}
+            {discoverError && <Alert severity="error" sx={{ mt: 1 }}>{discoverError}</Alert>}
+            {!discoverMutation.isLoading && !discoverError && discoverProvider && discoveredModels.length === 0 && (
+              <Alert severity="info" sx={{ mt: 1 }}>
+                No models were found for {discoverProvider}. Try a different provider.
+              </Alert>
+            )}
+            {discoveredModels.length > 0 && (
+              <TableContainer sx={{ maxHeight: 240, mt: 1 }}>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell padding="checkbox"></TableCell>
+                      <TableCell>Model Name</TableCell>
+                      <TableCell>Model ID</TableCell>
+                      <TableCell>Modality</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {discoveredModels.map((model: any) => (
+                      <TableRow key={model.provider_model_id} hover>
+                        <TableCell padding="checkbox">
+                          <Checkbox
+                            size="small"
+                            checked={selectedDiscoverIds.includes(model.provider_model_id)}
+                            onChange={() => toggleDiscoveredSelection(model.provider_model_id)}
+                          />
+                        </TableCell>
+                        <TableCell>{model.display_name || model.provider_model_id}</TableCell>
+                        <TableCell>{model.provider_model_id}</TableCell>
+                        <TableCell>
+                          <Stack direction="row" spacing={0.5} flexWrap="wrap">
+                            {(Array.isArray(model.modality) ? model.modality : []).map((m: string) => (
+                              <Chip key={m} label={m} size="small" variant="outlined" />
+                            ))}
+                          </Stack>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
+          </Box>
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setOpenDiscoverDialog(false)}>Cancel</Button>
           <Button
-            onClick={() => {
-              discoverMutation.mutate(discoverProvider);
-              setOpenDiscoverDialog(false);
-            }}
+            onClick={handleDiscover}
             variant="contained"
             disabled={discoverMutation.isPending || !discoverProvider}
           >
             Discover
+          </Button>
+          <Button
+            onClick={() =>
+              discoverProvider &&
+              registerDiscoveredMutation.mutate({ providerName: discoverProvider, modelIds: selectedDiscoverIds })
+            }
+            variant="contained"
+            color="success"
+            disabled={selectedDiscoverIds.length === 0 || registerDiscoveredMutation.isPending}
+          >
+            Register Selected
           </Button>
         </DialogActions>
       </Dialog>
