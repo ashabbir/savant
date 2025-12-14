@@ -80,6 +80,11 @@ module Savant::Llm
       { models: @registry.list_models }
     end
 
+    def models_delete(model_id:)
+      @registry.delete_model(model_id)
+      { ok: true, deleted: true }
+    end
+
     # Agent operations
     def agent_create(name:, description: nil)
       @registry.create_agent(name: name, description: description)

@@ -88,6 +88,10 @@ module Savant::Llm
       @db.exec_params('UPDATE llm_models SET enabled = $1 WHERE id = $2', [enabled, model_id])
     end
 
+    def delete_model(model_id)
+      @db.exec_params('DELETE FROM llm_models WHERE id = $1', [model_id])
+    end
+
     # Agent CRUD
     def create_agent(name:, description: nil)
       @db.exec_params(
