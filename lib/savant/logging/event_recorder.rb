@@ -63,6 +63,29 @@ module Savant
         arr.last(limit)
       end
 
+      # Public: Clear events with optional filters.
+      # Examples:
+      #   clear                       # clear all
+      #   clear(type: 'reasoning_step')
+      #   clear(mcp: 'reasoning')
+      def clear(type: nil, mcp: nil)
+        @mutex.synchronize do
+          if type.nil? && mcp.nil?
+            @events.clear
+          else
+            @events.select! do |e|
+              keep = true
+              keep &&= (e[:type].to_s != type.to_s) if type
+              keep &&= (e[:mcp].to_s != mcp.to_s) if mcp
+              keep
+            end
+          end
+        end
+        true
+      rescue StandardError
+        false
+      end
+
       # Public: Subscribe to events. Yields an Enumerator that yields lines suitable for SSE data payloads.
       # Consumer should close the enumerator when done (on disconnect).
       def stream(mcp: nil, type: nil)

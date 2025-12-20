@@ -182,8 +182,36 @@ sequenceDiagram
 2. **Set up PostgreSQL** (already required): run `make rails-migrate` then `make rails-fts` as usual.
 3. **Install Python environment**
    - Install `python3` and `pip`. Create a venv with `python3 -m venv .venv_reasoning`.
-   - Activate it (`source .venv_reasoning/bin/activate`) and install with `pip install fastapi[all] langchain==0.1.* langgraph==0.x.* uvicorn pydantic requests` (pin versions to avoid drift).
-   - Add instructions to document how to activate/deactivate the venv and keep dependencies in `pyproject.toml` or `requirements.txt`.
+   - Activate it (`source .venv_reasoning/bin/activate`) and install dependencies via the pinned requirements file: `pip install -r reasoning/requirements.txt`.
+   - If installing manually, use LangChain 0.2.x and LCEL-compatible packages: `pip install fastapi[all] langchain>=0.2,<0.3 langchain-community>=0.2,<0.3 langgraph==0.* uvicorn pydantic requests`.
+   - Add instructions to document how to activate/deactivate the venv and keep dependencies in `requirements.txt` (already present under `reasoning/`).
+
+   LCEL example (LangChain 0.2.x):
+
+   ```python
+   import os
+   from langchain.prompts import PromptTemplate
+   from langchain_community.llms import Ollama
+
+   prompt = PromptTemplate(
+       input_variables=["goal"],
+       template=(
+           "You are a helpful agent.\n"
+           "Decide to search or finish.\n\n"
+           "Goal: {goal}\n"
+       ),
+   )
+
+   llm = Ollama(
+       base_url=os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434"),
+       model="phi3.5:latest",
+       temperature=0.3,
+   )
+
+   chain = prompt | llm
+   response = chain.invoke({"goal": "Find contributing guidelines in the repo"})
+   print(response)
+   ```
 4. **Run reasoning service locally**
    - Start FastAPI app with `uvicorn reasoning.api:app --reload --host 127.0.0.1 --port 9000`.
    - Verify `/healthz` returns 200 and `/agent_intent` accepts sample JSON.

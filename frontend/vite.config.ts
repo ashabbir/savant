@@ -21,10 +21,21 @@ export default defineConfig({
   ],
   // Let Vite auto-optimize MUI/Emotion implicitly to avoid ESM/CJS interop issues
   optimizeDeps: {
-    include: ['react-router-dom', 'react-router'],
+    include: [
+      'react-router-dom',
+      'react-router',
+      // Pre-bundle MUI and Emotion to avoid ESM/CJS interop issues that can break styled()
+      '@mui/material',
+      '@mui/material/styles',
+      '@mui/system',
+      '@mui/icons-material',
+      '@emotion/react',
+      '@emotion/styled'
+    ],
     exclude: ['internmap'],
   },
   resolve: {
+    dedupe: ['react', 'react-dom', '@emotion/react', '@emotion/styled'],
     alias: {
       'react-router-dom': r('react-router-dom/dist/index.js')
       ,

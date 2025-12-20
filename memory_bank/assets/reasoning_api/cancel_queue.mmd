@@ -1,0 +1,12 @@
+sequenceDiagram
+  participant Agent as Agent Runtime (Ruby)
+  participant RC as Reasoning::Client (mongo)
+  participant API as FastAPI
+  participant MQ as Mongo
+
+  Agent->>RC: cancel(correlation_id)
+  RC->>MQ: updateMany status queued|processing → canceled
+  RC-->>Agent: { ok: true }
+  Agent->>API: POST /agent_intent_cancel { correlation_id }
+  API->>MQ: updateMany queued|processing → canceled
+  API-->>Agent: { ok: true }

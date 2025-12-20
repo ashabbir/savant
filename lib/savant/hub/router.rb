@@ -32,6 +32,7 @@ module Savant
         @connections = Savant::Hub::Connections.global
         @stats = { total: 0, by_engine: Hash.new(0), by_status: Hash.new(0), by_method: Hash.new(0), recent: [] }
         @stats_mutex = Mutex.new
+        @engine_loggers = {}
       end
 
       def call(env)
@@ -59,6 +60,8 @@ module Savant
         list = []
         list << { module: 'hub', method: 'GET', path: '/', description: 'Hub dashboard' }
         list << { module: 'hub', method: 'GET', path: '/diagnostics', description: 'Env, mounts, repos visibility, DB checks' }
+        list << { module: 'hub', method: 'GET', path: '/diagnostics/reasoning', description: 'Reasoning API diagnostics (reachability, usage)' }
+        list << { module: 'hub', method: 'DELETE', path: '/diagnostics/reasoning', description: 'Clear Reasoning activity (Mongo + in-memory)' }
         list << { module: 'hub', method: 'GET', path: '/diagnostics/jira', description: 'Jira credentials presence (no secrets leaked)' }
         list << { module: 'hub', method: 'GET', path: '/diagnostics/connections', description: 'Active SSE/stdio connections' }
         list << { module: 'hub', method: 'GET', path: '/diagnostics/agent', description: 'Agent runtime: memory + telemetry' }
@@ -294,7 +297,7 @@ module Savant
         end
 
         if @hub_mongo_logger
-          @hub_mongo_logger.info(
+          payload = {
             event: 'http_request',
             method: req.request_method,
             path: req.path_info,
@@ -302,7 +305,11 @@ module Savant
             duration_ms: duration_ms,
             user: req.env['savant.user_id'],
             query: req.query_string.to_s.empty? ? nil : req.query_string
-          )
+          }
+          # Include small request/response bodies for API introspection (already truncated above)
+          payload[:request_body] = request_body if request_body && !request_body.empty?
+          payload[:response_body] = truncated_body if truncated_body && !truncated_body.empty?
+          @hub_mongo_logger.info(payload)
         end
       rescue StandardError
         # ignore logging errors
@@ -332,7 +339,11 @@ module Savant
         return hub_root(req) if req.get? && req.path_info == '/'
         return hub_routes(req) if req.get? && req.path_info == '/routes'
         return diagnostics(req) if req.get? && req.path_info == '/diagnostics'
+        return diagnostics_reasoning(req) if req.get? && req.path_info == '/diagnostics/reasoning'
+        return diagnostics_reasoning_clear(req) if req.delete? && req.path_info == '/diagnostics/reasoning'
         return diagnostics_jira(req) if req.get? && req.path_info == '/diagnostics/jira'
+        # Reasoning callbacks (webhook)
+        return callbacks_reasoning_agent_intent(req) if req.post? && req.path_info == '/callbacks/reasoning/agent_intent'
         return diagnostics_agent(req) if req.get? && %w[/diagnostics/agent /diagnostics/agents].include?(req.path_info)
         return diagnostics_agent_clear(req) if req.delete? && %w[/diagnostics/agent /diagnostics/agents].include?(req.path_info)
         return diagnostics_agent_trace(req) if req.get? && req.path_info == '/diagnostics/agent/trace'
@@ -390,6 +401,24 @@ module Savant
         else
           not_found
         end
+      end
+
+      # POST /callbacks/reasoning/agent_intent -> receive async intent from Reasoning API
+      def callbacks_reasoning_agent_intent(req)
+        js = parse_json_body(req)
+        # Record to in-memory events for UI visibility
+        begin
+          @recorder.record(type: 'agent_intent', mcp: 'reasoning', correlation_id: js['correlation_id'], job_id: js['job_id'], tool: js['tool_name'], finish: js['finish'], status: js['status'], ts: Time.now.utc.iso8601, timestamp: Time.now.to_i)
+        rescue StandardError
+          # ignore recorder problems
+        end
+        # Write to Mongo logs for aggregation
+        begin
+          Savant::Logging::MongoLogger.new(service: 'reasoning_hooks').info(event: 'agent_intent_delivered', correlation_id: js['correlation_id'], job_id: js['job_id'], tool: js['tool_name'], finish: js['finish'], status: js['status'])
+        rescue StandardError
+          # ignore logging problems
+        end
+        respond(200, { ok: true })
       end
 
       # GET /diagnostics/jira -> presence/shape of Jira credentials for current user
@@ -510,6 +539,28 @@ module Savant
           logs = mongo_fetch_service(service_prefix: 'hub', n: n, since: (since.empty? ? nil : since))
           lines = logs.map { |doc| JSON.generate(doc) }
           respond(200, { engine: 'hub', count: lines.length, lines: lines })
+        when ['requests']
+          # Recent HTTP requests pulled from Mongo logs (preferred source)
+          n = (req.params['n'] || '100').to_i
+          since = (req.params['since'] || '').to_s
+          docs = mongo_fetch_service(service_prefix: 'hub', n: n, since: (since.empty? ? nil : since))
+          records = docs.select { |d| (d['event'] || d[:event]) == 'http_request' }.map do |d|
+            h = d.is_a?(Hash) ? d : {}
+            {
+              id: h['_id'] || h['id'] || 0,
+              time: h['timestamp'] || Time.now.utc.iso8601,
+              method: h['method'] || 'GET',
+              path: h['path'] || '/',
+              query: h['query'] || nil,
+              status: (h['status'] || 0).to_i,
+              duration_ms: (h['duration_ms'] || 0).to_i,
+              engine: h['service'] || 'hub',
+              user: h['user'] || nil,
+              request_body: h['request_body'] ? h['request_body'].to_s : nil,
+              response_body: h['response_body'] ? h['response_body'].to_s : nil
+            }
+          end
+          respond(200, { recent: records })
         else
           not_found
         end
@@ -520,7 +571,18 @@ module Savant
         n = (req.params['n'] || '100').to_i
         mcp = (req.params['mcp'] || '').to_s
         since = (req.params['since'] || '').to_s
+        type = (req.params['type'] || '').to_s
         events = mongo_fetch_aggregated(n: n, mcp: (mcp.empty? ? nil : mcp), since: (since.empty? ? nil : since))
+        # Fallback to in-memory recorder if Mongo is unavailable or returned nothing
+        if events.nil? || events.empty?
+          events = recorder_fetch_aggregated(n: n, mcp: (mcp.empty? ? nil : mcp), since: (since.empty? ? nil : since))
+        end
+        if !type.empty? && type != 'all'
+          events = events.select do |e|
+            ev = e.is_a?(Hash) ? (e['event'] || e[:event]) : nil
+            ev && ev.to_s == type
+          end
+        end
         respond(200, { count: events.length, events: events })
       end
 
@@ -596,6 +658,7 @@ module Savant
           n = (req.params['n'] || '100').to_i
           since = (req.params['since'] || '').to_s
           logs = mongo_fetch_service(service_prefix: engine_name, n: n, since: (since.empty? ? nil : since))
+          logs = recorder_fetch_service(service_prefix: engine_name, n: n, since: (since.empty? ? nil : since)) if logs.nil? || logs.empty?
           # Return as JSON lines for backwards compatibility with UI
           lines = logs.map { |doc| JSON.generate(doc) }
           respond(200, { engine: engine_name, count: lines.length, lines: lines })
@@ -624,11 +687,83 @@ module Savant
           n = (req.params['n'] || '100').to_i
           since = (req.params['since'] || '').to_s
           logs = mongo_fetch_service(service_prefix: 'multiplexer', n: n, since: (since.empty? ? nil : since))
+          logs = recorder_fetch_service(service_prefix: 'multiplexer', n: n, since: (since.empty? ? nil : since)) if logs.nil? || logs.empty?
           lines = logs.map { |doc| JSON.generate(doc) }
           respond(200, { engine: 'multiplexer', count: lines.length, lines: lines })
         else
           not_found
         end
+      end
+
+      # Fallback: aggregate recent events from in-memory recorder
+      def recorder_fetch_aggregated(n:, mcp: nil, since: nil)
+        rec = Savant::Logging::EventRecorder.global
+        # Pull a reasonably large sample and filter
+        arr = rec.last([n, 1000].max)
+        arr = arr.select { |e| e[:mcp].to_s == mcp.to_s } if mcp
+        t_since = parse_time_iso8601(since)
+        if t_since
+          arr = arr.select do |e|
+            raw = e[:ts] || e[:timestamp]
+            t = begin
+              raw.is_a?(String) ? Time.parse(raw) : Time.at(raw.to_i)
+            rescue StandardError
+              nil
+            end
+            t && t > t_since
+          end
+        end
+        # Normalize to Mongo-like docs
+        docs = arr.map do |e|
+          {
+            'timestamp' => begin
+              if e[:ts]
+                e[:ts]
+              elsif e[:timestamp]
+                # seconds -> iso8601
+                Time.at(e[:timestamp].to_i).utc.iso8601
+              else
+                Time.now.utc.iso8601
+              end
+            rescue StandardError
+              Time.now.utc.iso8601
+            end,
+            'level' => (e[:level] || 'info'),
+            'service' => (e[:mcp] || e[:service] || 'hub'),
+            'event' => (e[:event] || e[:type] || 'event')
+          }.merge(e)
+        end
+        docs.sort_by { |d| d['timestamp'].to_s }.reverse.first(n)
+      end
+
+      # Fallback: per-service logs from recorder
+      def recorder_fetch_service(service_prefix:, n:, since: nil)
+        rec = Savant::Logging::EventRecorder.global
+        arr = rec.last([n, 1000].max)
+        arr = arr.select do |e|
+          svc = (e[:mcp] || e[:service] || '').to_s
+          !!(svc =~ /^#{Regexp.escape(service_prefix)}(\.|$)/)
+        end
+        t_since = parse_time_iso8601(since)
+        if t_since
+          arr = arr.select do |e|
+            raw = e[:ts] || e[:timestamp]
+            t = begin
+              raw.is_a?(String) ? Time.parse(raw) : Time.at(raw.to_i)
+            rescue StandardError
+              nil
+            end
+            t && t > t_since
+          end
+        end
+        arr.map do |e|
+          {
+            'timestamp' => (e[:ts] || (Time.at(e[:timestamp].to_i).utc.iso8601 rescue Time.now.utc.iso8601)),
+            'level' => (e[:level] || 'info'),
+            'service' => (e[:mcp] || e[:service] || service_prefix),
+            'event' => (e[:event] || e[:type] || 'event')
+          }.merge(e)
+        end.sort_by { |d| d['timestamp'].to_s }.reverse.first(n)
       end
 
       def handle_post(req, engine_name, manager, rest)
@@ -796,7 +931,202 @@ module Savant
           # ignore
         end
 
+        # Reasoning API diagnostics (uptime/usage/agents)
+        begin
+          info[:reasoning] = build_reasoning_diagnostics
+        rescue StandardError => e
+          info[:reasoning] = { configured: false, error: e.message }
+        end
+
         respond(200, info)
+      end
+
+      # GET /diagnostics/reasoning -> Reasoning API diagnostics only
+      def diagnostics_reasoning(_req)
+        begin
+          data = build_reasoning_diagnostics
+          return respond(200, data)
+        rescue StandardError => e
+          return respond(500, { configured: false, error: e.message })
+        end
+      end
+
+      # DELETE /diagnostics/reasoning -> clear Reasoning activity (Mongo + in-memory)
+      def diagnostics_reasoning_clear(_req)
+        cleared = []
+        errors = []
+
+        # Best-effort: clear Mongo collections used by Reasoning
+        begin
+          if mongo_client
+            %w[reasoning_logs reasoning_hooks_logs].each do |col_name|
+              begin
+                col = mongo_client[col_name]
+                # Delete all docs without dropping collection (preserves indexes)
+                res = col.delete_many({})
+                cleared << { collection: col_name, deleted_count: (res.respond_to?(:deleted_count) ? res.deleted_count : nil) }
+              rescue StandardError => e
+                errors << { collection: col_name, error: e.message }
+              end
+            end
+          end
+        rescue StandardError => e
+          errors << { step: 'mongo_clear', error: e.message }
+        end
+
+        # Best-effort: clear in-memory recorder events for reasoning
+        begin
+          @recorder.clear(mcp: 'reasoning') if @recorder.respond_to?(:clear)
+        rescue StandardError
+          # ignore
+        end
+
+        respond(200, { cleared: cleared, errors: errors, message: "Cleared Reasoning activity from #{cleared.length} collection(s)" })
+      end
+
+      # Helper: Build Reasoning diagnostics payload
+      def build_reasoning_diagnostics
+        reasoning = { configured: false }
+        base_url = ENV['REASONING_API_URL'].to_s
+        if !base_url.empty?
+          reasoning[:configured] = true
+          begin
+            require 'uri'
+            uri = URI.parse(base_url)
+            if uri.host
+              reasoning[:base_url] = "#{uri.scheme}://#{uri.host}#{(uri.port && ![80, 443].include?(uri.port)) ? ":#{uri.port}" : ''}"
+            else
+              reasoning[:base_url] = base_url
+            end
+          rescue StandardError
+            reasoning[:base_url] = base_url
+          end
+
+          # Reachability probe with short timeouts
+          begin
+            require 'net/http'
+            uri = URI.parse(base_url)
+            http = Net::HTTP.new(uri.host, uri.port)
+            http.use_ssl = (uri.scheme == 'https')
+            http.read_timeout = 1.5
+            http.open_timeout = 1.5
+            code = nil
+            ['/healthz', '/health', '/version', uri.path.to_s, '/'].uniq.each do |p|
+              next if p.nil? || p.to_s.empty?
+              begin
+                req = Net::HTTP::Get.new(p)
+                resp = http.request(req)
+                code = resp.code.to_i
+                break if code && code > 0
+              rescue StandardError
+                # try next
+              end
+            end
+            reasoning[:reachable] = !code.nil? && code < 500
+            reasoning[:status_code] = code if code
+          rescue StandardError => e
+            reasoning[:reachable] = false
+            reasoning[:error] = e.message
+          end
+        end
+
+        # Usage stats via Mongo logs (service 'reasoning'); fallback to recorder if Mongo unavailable
+        if mongo_client
+          begin
+            col = mongo_client['reasoning_logs']
+            now = Time.now
+            last_1h = now - 3600
+            last_24h = now - 86_400
+            calls_total = begin
+              col.estimated_document_count
+            rescue StandardError
+              nil
+            end
+            calls_1h = begin
+              col.count_documents({ 'timestamp' => { '$gt' => last_1h } })
+            rescue StandardError
+              nil
+            end
+            calls_24h = begin
+              col.count_documents({ 'timestamp' => { '$gt' => last_24h } })
+            rescue StandardError
+              nil
+            end
+            last_at = begin
+              doc = col.find({}, { sort: { timestamp: -1 }, projection: { timestamp: 1 } }).limit(1).first
+              if doc && doc['timestamp']
+                doc['timestamp'].respond_to?(:iso8601) ? doc['timestamp'].iso8601 : doc['timestamp'].to_s
+              end
+            rescue StandardError
+              nil
+            end
+            events = %w[agent_intent workflow_intent reasoning_timeout reasoning_post_error]
+            by_event = {}
+            events.each do |ev|
+              by_event[ev] = begin
+                col.count_documents({ 'event' => ev })
+              rescue StandardError
+                nil
+              end
+            end
+            reasoning[:calls] = { total: calls_total, last_1h: calls_1h, last_24h: calls_24h, last_at: last_at, by_event: by_event }
+          rescue StandardError => e
+            reasoning[:calls] = { error: e.message }
+          end
+        else
+          # Recorder fallback: sample last 1000 events
+          begin
+            rec = Savant::Logging::EventRecorder.global
+            arr = rec.last(1000, mcp: 'reasoning')
+            now = Time.now
+            last_1h = now - 3600
+            last_24h = now - 86_400
+            t_of = lambda do |e|
+              raw = e[:ts] || e[:timestamp]
+              begin
+                raw.is_a?(String) ? Time.parse(raw) : Time.at(raw.to_i)
+              rescue StandardError
+                nil
+              end
+            end
+            calls_total = arr.length
+            calls_1h = arr.count { |e| (t = t_of.call(e)) && t > last_1h }
+            calls_24h = arr.count { |e| (t = t_of.call(e)) && t > last_24h }
+            last_at = begin
+              t = arr.map { |e| t_of.call(e) }.compact.max
+              t&.iso8601
+            rescue StandardError
+              nil
+            end
+            events = %w[agent_intent workflow_intent reasoning_timeout reasoning_post_error]
+            by_event = {}
+            events.each do |ev|
+              by_event[ev] = arr.count { |e| (e[:event] || e['event']).to_s == ev }
+            end
+            reasoning[:calls] = { total: calls_total, last_1h: calls_1h, last_24h: calls_24h, last_at: last_at, by_event: by_event }
+          rescue StandardError => e
+            reasoning[:calls] = { error: e.message }
+          end
+        end
+
+        # Agents and runs from Postgres (best-effort)
+        begin
+          agents_total = runs_total = runs_24h = nil
+          last_run_at = nil
+          if defined?(db_client) && db_client && db_client.table_exists?('agents')
+            agents_total = db_client.exec('SELECT COUNT(*) AS c FROM agents')[0]['c'].to_i rescue nil
+          end
+          if defined?(db_client) && db_client && db_client.table_exists?('agent_runs')
+            runs_total = db_client.exec('SELECT COUNT(*) AS c FROM agent_runs')[0]['c'].to_i rescue nil
+            runs_24h = db_client.exec("SELECT COUNT(*) AS c FROM agent_runs WHERE created_at > NOW() - interval '24 hours'")[0]['c'].to_i rescue nil
+            last_run_at = db_client.exec('SELECT MAX(created_at) AS m FROM agent_runs')[0]['m'] rescue nil
+          end
+          reasoning[:agents] = { total: agents_total, runs_total: runs_total, runs_24h: runs_24h, last_run_at: last_run_at }
+        rescue StandardError => e
+          reasoning[:agents] = { error: e.message }
+        end
+
+        reasoning
       end
 
       def uptime_seconds
@@ -900,14 +1230,7 @@ module Savant
 
         # Prefer registrar to pass user_id in ctx (enables per-user creds middleware)
         # Also log per-engine tool calls so /:engine/logs has content.
-        logger = nil
-        begin
-          path = log_path(engine_name)
-          require_relative '../logging/logger'
-          logger = Savant::Logging::Logger.new(io: $stdout, file_path: path, json: true, service: engine_name)
-        rescue StandardError
-          logger = nil
-        end
+        logger = engine_logger_for(engine_name)
 
         last_error = nil
         tool_candidates.each do |name_variant|
@@ -952,11 +1275,7 @@ module Savant
           # Last resort: use manager.call_tool
           begin
             result = manager.call_tool(name_variant, params)
-            dur = begin
-              (Process.clock_gettime(Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round
-            rescue StandardError
-              0
-            end
+            dur = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round
             logger&.info(event: 'tool.call finish', name: name_variant, duration_ms: dur)
             return result
           rescue StandardError => e
@@ -974,6 +1293,18 @@ module Savant
         end
         # All variants failed; surface the most recent error if available for better diagnostics
         raise(last_error || StandardError.new('Unknown tool'))
+      end
+
+      # Reuse a single file-backed logger per engine to avoid leaking file descriptors.
+      def engine_logger_for(engine_name)
+        return nil if engine_name.to_s.empty?
+        @engine_loggers[engine_name] ||= begin
+          path = log_path(engine_name)
+          require_relative '../logging/logger'
+          Savant::Logging::Logger.new(io: $stdout, file_path: path, json: true, service: engine_name)
+        rescue StandardError
+          nil
+        end
       end
 
       # Load fresh engine + tools for the given engine and dispatch the tool call.

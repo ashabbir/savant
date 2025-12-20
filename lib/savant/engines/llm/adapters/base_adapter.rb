@@ -1,6 +1,7 @@
 require 'net/http'
 require 'uri'
 require 'json'
+require 'openssl'
 
 module Savant::Llm::Adapters
   class BaseAdapter
@@ -21,7 +22,10 @@ module Savant::Llm::Adapters
 
     def http_get(uri, headers: {})
       http = Net::HTTP.new(uri.host, uri.port)
-      http.use_ssl = uri.scheme == 'https'
+      if uri.scheme == 'https'
+        http.use_ssl = true
+        http.verify_mode = OpenSSL::SSL::VERIFY_NONE
+      end
       http.open_timeout = 5
       http.read_timeout = 10
 

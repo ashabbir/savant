@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Box, Paper, Stack, Typography, Divider, List, ListItemButton, ListItemText, Chip, IconButton, FormGroup, FormControlLabel, Checkbox, Tooltip, ListSubheader } from '@mui/material';
+import { Box, Paper, Stack, Typography, Divider, List, ListItemButton, ListItemText, Chip, IconButton, FormGroup, FormControlLabel, Checkbox, Tooltip, ListSubheader, TextField } from '@mui/material';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import GetAppIcon from '@mui/icons-material/GetApp';
 import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile';
@@ -40,7 +40,13 @@ export default function DiagnosticsAgent() {
     tool_call_completed: true,
     tool_call_error: true,
   });
-  const esRef = React.useRef<EventSource | null>(null);
+  // (legacy SSE removed; using polling instead)
+
+  // --- Aggregated Agent Logs (polled) ---
+  const [logLines, setLogLines] = useState<string[]>([]);
+  const [logN, setLogN] = useState<number>(() => Number(localStorage.getItem('agent.logs.n') || '200') || 200);
+  const [followingLogs, setFollowingLogs] = useState<boolean>(false);
+  const logTimerRef = React.useRef<number | null>(null);
 
   async function load() {
     setLoading(true);
@@ -81,24 +87,64 @@ export default function DiagnosticsAgent() {
 
   useEffect(() => {
     if (!follow) return;
-    const base = loadConfig().baseUrl || 'http://localhost:9999';
-    const es = new EventSource(`${base}/logs/stream?mcp=agent&user=${encodeURIComponent(getUserId())}`);
-    es.onmessage = (ev) => {
-      try {
-        const data = JSON.parse(ev.data || '{}');
-        if (!data || !data.type) return;
-        setEvents((prev) => {
-          const next = [...prev, data];
-          return next.slice(-1000);
-        });
-      } catch { /* ignore */ }
-    };
-    esRef.current = es;
-    return () => {
-      esRef.current?.close();
-      esRef.current = null;
-    };
+    let timer: number | null = null;
+    const poll = async () => { try { await load(); } catch { /* ignore */ } };
+    poll();
+    timer = window.setInterval(poll, 2000);
+    return () => { if (timer) clearInterval(timer); };
   }, [follow]);
+
+  // Helper: format aggregated event as a single line
+  function formatEventLine(e: any): string {
+    try {
+      const ts = e.timestamp || e.ts || e.time || e.date;
+      const iso = typeof ts === 'string' ? ts : (typeof ts === 'number' ? new Date(ts * 1000).toISOString() : '');
+      const level = e.level || e.status || '';
+      const svc = e.service || e.mcp || 'agent';
+      const event = e.event || e.type || '';
+      const name = e.name || e.tool || '';
+      const msg = e.message || '';
+      const extras: string[] = [];
+      if (e.agent) extras.push(`agent=${e.agent}`);
+      if (e.duration_ms != null) extras.push(`ms=${e.duration_ms}`);
+      return `${iso} [${String(level).toUpperCase()}] ${svc}: ${event}${name ? ' ' + name : ''}${msg ? ' — ' + msg : ''}${extras.length ? ' ' + extras.join(' ') : ''}`.trim();
+    } catch {
+      return JSON.stringify(e);
+    }
+  }
+
+  async function fetchAgentLogs() {
+    try {
+      const base = loadConfig().baseUrl || 'http://localhost:9999';
+      const url = `${base}/logs?n=${logN}&mcp=agent`;
+      const res = await fetch(url, { headers: { 'x-savant-user-id': getUserId() } });
+      const js = await res.json();
+      const arr: any[] = (js && js.events) || [];
+      setLogLines(arr.map((e) => formatEventLine(e)));
+    } catch (e: any) {
+      setLogLines([`Error fetching logs: ${e?.message || e}`]);
+    }
+  }
+
+  function startLogs() {
+    stopLogs();
+    fetchAgentLogs();
+    logTimerRef.current = window.setInterval(fetchAgentLogs, 2000);
+    setFollowingLogs(true);
+  }
+
+  function tailLogsOnce() {
+    stopLogs();
+    fetchAgentLogs();
+  }
+
+  function stopLogs() {
+    if (logTimerRef.current) {
+      clearInterval(logTimerRef.current);
+      logTimerRef.current = null;
+    }
+    setFollowingLogs(false);
+  }
 
   const hasSteps = events && events.length > 0;
   const groupList = React.useMemo(() => {
@@ -337,6 +383,51 @@ export default function DiagnosticsAgent() {
           </Box>
         </Paper>
       </Stack>
+      {/* Agent Logs (aggregated, polled) */}
+      <Paper sx={{ p: 0, mt: 2, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        <Box sx={{ p: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
+          <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between">
+            <Typography variant="subtitle2">Agent Logs</Typography>
+            <Stack direction="row" spacing={1} alignItems="center">
+              <TextField label="Lines" size="small" type="number" value={logN} onChange={(e) => setLogN(parseInt(e.target.value || '200', 10))} sx={{ width: 100 }} />
+              <Tooltip title="Tail once">
+                <span>
+                  <IconButton size="small" onClick={tailLogsOnce}>
+                    <RefreshIcon fontSize="small" />
+                  </IconButton>
+                </span>
+              </Tooltip>
+              {!followingLogs ? (
+                <Tooltip title="Follow">
+                  <span>
+                    <IconButton size="small" color="success" onClick={startLogs}>
+                      <PlayArrowIcon fontSize="small" />
+                    </IconButton>
+                  </span>
+                </Tooltip>
+              ) : (
+                <Tooltip title="Stop">
+                  <span>
+                    <IconButton size="small" color="warning" onClick={stopLogs}>
+                      <StopIcon fontSize="small" />
+                    </IconButton>
+                  </span>
+                </Tooltip>
+              )}
+              {followingLogs && <Chip size="small" color="success" label="LIVE" />}
+            </Stack>
+          </Stack>
+        </Box>
+        <Box component="pre" sx={{ m: 0, p: 2, bgcolor: '#0d1117', color: '#c9d1d9', minHeight: 200, maxHeight: 400, overflow: 'auto', fontSize: 12 }}>
+          {logLines.length === 0 ? (
+            <Typography variant="body2" sx={{ opacity: 0.7 }}>No logs yet. Start a run or click Tail.</Typography>
+          ) : (
+            logLines.map((ln, i) => (
+              <Box key={i} component="span" sx={{ display: 'block', py: 0.25 }}>{ln}</Box>
+            ))
+          )}
+        </Box>
+      </Paper>
     </Box>
   );
 }

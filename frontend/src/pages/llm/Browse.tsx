@@ -19,6 +19,7 @@ import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
 import Tooltip from '@mui/material/Tooltip';
 import IconButton from '@mui/material/IconButton';
+import FormControlLabel from '@mui/material/FormControlLabel';
 import Tabs from '@mui/material/Tabs';
 import Tab from '@mui/material/Tab';
 import CloseIcon from '@mui/icons-material/Close';
@@ -57,6 +58,9 @@ export default function LLMBrowse({ type = 'providers' }: LLMBrowseProps) {
     baseUrl: ''
   });
   const [deleting, setDeleting] = useState(false);
+  const [openEditKeyDialog, setOpenEditKeyDialog] = useState(false);
+  const [editingKey, setEditingKey] = useState<string>('');
+  const [showKey, setShowKey] = useState(false);
 
   React.useEffect(() => {
     loadAgents();
@@ -164,6 +168,32 @@ export default function LLMBrowse({ type = 'providers' }: LLMBrowseProps) {
     }
   }
 
+  async function handleEditKeyClick() {
+    if (!selectedProvider) return;
+    setEditingKey('');
+    setShowKey(false);
+    setOpenEditKeyDialog(true);
+  }
+
+  async function updateProviderKey() {
+    try {
+      if (!selectedProvider || !editingKey.trim()) {
+        setError('API Key is required');
+        return;
+      }
+      await callEngineTool('llm', 'llm_providers_update', {
+        name: selectedProvider,
+        api_key: editingKey,
+      });
+      setError('✓ API Key updated successfully');
+      setOpenEditKeyDialog(false);
+      setEditingKey('');
+      await loadProviders();
+    } catch (e: any) {
+      setError(getErrorMessage(e));
+    }
+  }
+
   const selected = providers.find(p => p.name === selectedProvider);
   const selectedModelData = models.find(m => m.id === selectedModel);
 
@@ -258,9 +288,14 @@ export default function LLMBrowse({ type = 'providers' }: LLMBrowseProps) {
                         />
                       </Stack>
                     </Box>
-                    <Button variant="contained" size="small" onClick={testProvider}>
-                      Test Connection
-                    </Button>
+                    <Stack direction="row" spacing={1}>
+                      <Button variant="outlined" size="small" onClick={handleEditKeyClick}>
+                        Edit API Key
+                      </Button>
+                      <Button variant="contained" size="small" onClick={testProvider}>
+                        Test Connection
+                      </Button>
+                    </Stack>
                   </Stack>
                   <Box sx={{ flex: 1, overflow: 'auto' }}>
                     <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
@@ -451,6 +486,38 @@ export default function LLMBrowse({ type = 'providers' }: LLMBrowseProps) {
         <DialogActions>
           <Button onClick={() => setOpenDeleteProviderDialog(false)}>Cancel</Button>
           <Button color="error" disabled={deleting} onClick={deleteProvider}>Delete</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Edit API Key Dialog */}
+      <Dialog open={openEditKeyDialog} onClose={() => setOpenEditKeyDialog(false)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          Edit API Key: {selectedProvider}
+          <IconButton size="small" onClick={() => setOpenEditKeyDialog(false)}>
+            <CloseIcon fontSize="small" />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ pt: 2 }}>
+          <Stack spacing={2}>
+            <TextField
+              label="API Key"
+              type={showKey ? 'text' : 'password'}
+              value={editingKey}
+              onChange={(e) => setEditingKey(e.target.value)}
+              fullWidth
+              multiline
+              rows={3}
+              placeholder="Enter your API key"
+            />
+            <FormControlLabel
+              control={<input type="checkbox" checked={showKey} onChange={(e) => setShowKey(e.target.checked)} />}
+              label="Show key"
+            />
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenEditKeyDialog(false)}>Cancel</Button>
+          <Button variant="contained" onClick={updateProviderKey}>Update Key</Button>
         </DialogActions>
       </Dialog>
     </>

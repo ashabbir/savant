@@ -1,0 +1,27 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require_relative '../lib/savant/framework/db'
+
+def env_flag(name, default = nil)
+  v = ENV[name]
+  (v && !v.to_s.empty?) ? v : default
+end
+
+db_env = (env_flag('DB_ENV', env_flag('RAILS_ENV', env_flag('RACK_ENV', 'development')))).to_s
+db_name = env_flag('DB_NAME', db_env == 'test' ? 'savant_test' : 'savant_development')
+
+begin
+  ENV['PGDATABASE'] ||= db_name
+  db = Savant::Framework::DB.new
+  unless db.table_exists?('agent_runs')
+    puts 'agent_runs table does not exist'
+    exit 0
+  end
+  res = db.exec('DELETE FROM agent_runs')
+  puts "Deleted #{res.cmd_tuples} rows from agent_runs (DB=#{db_name})"
+rescue => e
+  warn "Error clearing agent_runs: #{e.message}"
+  exit 1
+end
+

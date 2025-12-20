@@ -42,6 +42,14 @@ module Savant
         @ops.run(name: name, input: input, max_steps: max_steps, dry_run: dry_run, user_id: user_id)
       end
 
+      def run_submit(name:, input:, max_steps: nil, dry_run: false, user_id: nil)
+        @ops.run_submit(name: name, input: input, max_steps: max_steps, dry_run: dry_run, user_id: user_id)
+      end
+
+      def run_continue_submit(name:, run_id:, message:, max_steps: nil, user_id: nil)
+        @ops.run_continue_submit(name: name, from_run_id: run_id, message: message, max_steps: max_steps, user_id: user_id)
+      end
+
       def runs_list(name:, limit: 50)
         @ops.runs_list(name: name, limit: limit)
       end
@@ -60,6 +68,10 @@ module Savant
 
       def run_cancel(name:, user_id: nil)
         @ops.run_cancel(name: name, user_id: user_id)
+      end
+
+      def run_cancel_id(name:, run_id:, user_id: nil)
+        @ops.run_cancel_id(name: name, run_id: run_id, user_id: user_id)
       end
     end
   end
