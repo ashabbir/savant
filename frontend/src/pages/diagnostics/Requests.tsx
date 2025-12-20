@@ -22,7 +22,7 @@ import InputLabel from '@mui/material/InputLabel';
 import CloseIcon from '@mui/icons-material/Close';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import LinearProgress from '@mui/material/LinearProgress';
-import { useHubStats, RequestRecord, callEngineTool, loadConfig, getUserId } from '../../api';
+import { useHubRequests, RequestRecord, callEngineTool, loadConfig, getUserId } from '../../api';
 import Button from '@mui/material/Button';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import ReplayIcon from '@mui/icons-material/Replay';
@@ -63,7 +63,7 @@ function formatJson(str: string | null): string {
 
 export default function DiagnosticsRequests() {
   const navigate = useNavigate();
-  const { data, isLoading, refetch } = useHubStats();
+  const { data, isLoading, refetch } = useHubRequests(200);
   const [selected, setSelected] = useState<RequestRecord | null>(null);
   const [methodFilter, setMethodFilter] = useState<string>('');
   const [engineFilter, setEngineFilter] = useState<string>('');

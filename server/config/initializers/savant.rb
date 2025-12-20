@@ -1,5 +1,24 @@
 # frozen_string_literal: true
 
+# Load .env file manually since Rails 7.2 doesn't do it automatically
+env_file = File.expand_path('../../.env', __dir__)
+if File.exist?(env_file)
+  File.readlines(env_file).each do |line|
+    line.strip!
+    next if line.empty? || line.start_with?('#')
+
+    key, value = line.split('=', 2)
+    next unless key && value
+
+    ENV[key.strip] = value.strip
+  end
+end
+
+# Ensure SAVANT_PATH is set to the parent repo root
+unless ENV['SAVANT_PATH'] && !ENV['SAVANT_PATH'].empty?
+  ENV['SAVANT_PATH'] = File.expand_path('../../..', __dir__)
+end
+
 # Ensure the parent repo's lib directory is on the load path
 parent_lib = File.expand_path('../../../lib', __dir__)
 $LOAD_PATH.unshift(parent_lib) unless $LOAD_PATH.include?(parent_lib)

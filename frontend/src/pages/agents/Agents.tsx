@@ -27,7 +27,11 @@ import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
 import DialogActions from '@mui/material/DialogActions';
 import CloseIcon from '@mui/icons-material/Close';
-import { agentRun, agentRunCancel, agentsDelete, agentRunDelete, agentRunsClearAll, agentsUpdate, getErrorMessage, useAgent, useAgents, useAgentRuns, getUserId, loadConfig, callEngineTool } from '../../api';
+import FormControl from '@mui/material/FormControl';
+import Select from '@mui/material/Select';
+import MenuItem from '@mui/material/MenuItem';
+import { agentRun, agentRunCancel, agentRunCancelId, agentsDelete, agentRunDelete, agentRunsClearAll, agentsUpdate, getErrorMessage, useAgent, useAgents, useAgentRuns, getUserId, loadConfig, callEngineTool } from '../../api';
+import Snackbar from '@mui/material/Snackbar';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 
@@ -46,9 +50,54 @@ export default function Agents() {
   const activityRef = useRef<Record<string, { start?: number; done?: number }>>({});
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmName, setConfirmName] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
   const { data, isLoading, isError, error, refetch } = useAgents();
   const details = useAgent(sel);
   const runs = useAgentRuns(sel);
+  const hasRunning = useMemo(() => {
+    const list = runs.data?.runs || [];
+    return list.some((r: any) => String(r.status || '').toLowerCase() === 'running');
+  }, [runs.data]);
+
+  // Live diagnostics polling for compact per-run previews (only while there is a running row)
+  const [liveEvents, setLiveEvents] = useState<any[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    let timer: number | null = null;
+    async function poll() {
+      try {
+        if (!hasRunning) { setLiveEvents([]); return; }
+        const base = loadConfig().baseUrl || 'http://localhost:9999';
+        const res = await fetch(`${base}/diagnostics/agent`, { headers: { 'x-savant-user-id': getUserId() } });
+        const js = await res.json();
+        const evts: any[] = (js && js.events) || [];
+        if (!cancelled) setLiveEvents(evts);
+      } catch { /* ignore */ }
+      finally {
+        if (!cancelled) timer = window.setTimeout(poll, 1500);
+      }
+    }
+    poll();
+    return () => { cancelled = true; if (timer) window.clearTimeout(timer); };
+  }, [hasRunning, sel]);
+
+  const liveByRun = useMemo(() => {
+    const map: Record<number, { step: number; tool?: string; summary?: string }> = {};
+    (liveEvents || []).forEach((e: any) => {
+      const run = Number(e && (e.run ?? e['run']));
+      if (!Number.isFinite(run)) return;
+      const t = String(e.type || e['type'] || '').toLowerCase();
+      if (t !== 'reasoning_step') return;
+      const step = Number(e.step ?? e['step']) || 0;
+      const tool = (e.tool_name || e['tool_name']) || undefined;
+      const summary = (e.metadata && (e.metadata.decision_summary || e.metadata['decision_summary'])) || undefined;
+      const prev = map[run];
+      if (!prev || step >= prev.step) {
+        map[run] = { step, tool, summary };
+      }
+    });
+    return map;
+  }, [liveEvents]);
   const llmModelsQuery = useQuery({
     queryKey: ['llm', 'models'],
     queryFn: async () => {
@@ -58,6 +107,7 @@ export default function Agents() {
     staleTime: 1000 * 60,
   });
   const [favoriteLoading, setFavoriteLoading] = useState<Record<string, boolean>>({});
+  const [modelFilter, setModelFilter] = useState<string>('all');
   const modelMap = useMemo(() => {
     const map = new Map<string, any>();
     (llmModelsQuery.data || []).forEach((model: any) => {
@@ -68,11 +118,29 @@ export default function Agents() {
     return map;
   }, [llmModelsQuery.data]);
 
-  const agents = useMemo(() => {
+  // Get unique models used by agents for the filter dropdown
+  const usedModels = useMemo(() => {
     const list = data?.agents || [];
+    const modelIds = new Set<string>();
+    list.forEach((a: any) => {
+      if (a.model_id) modelIds.add(String(a.model_id));
+    });
+    return Array.from(modelIds).map((id) => {
+      const model = modelMap.get(id);
+      return { id, label: model ? (model.display_name || model.provider_model_id) : `Model ${id}` };
+    }).sort((a, b) => a.label.localeCompare(b.label));
+  }, [data, modelMap]);
+
+  const agents = useMemo(() => {
+    let list = data?.agents || [];
+    // Filter by model
+    if (modelFilter !== 'all') {
+      list = list.filter((a: any) => String(a.model_id) === modelFilter);
+    }
+    // Filter by name search
     const f = filter.toLowerCase();
     return f ? list.filter((a) => a.name.toLowerCase().includes(f)) : list;
-  }, [data, filter]);
+  }, [data, filter, modelFilter]);
 
   // Auto-select first agent on initial load or when list updates
   useEffect(() => {
@@ -81,58 +149,18 @@ export default function Agents() {
     }
   }, [agents, sel]);
 
-  // Live running status via SSE events (agent_run_started / agent_run_completed)
-  useEffect(() => {
-    // Open a single SSE to aggregated events for agent
-    if (esRef.current) return;
-    const base = loadConfig().baseUrl || 'http://localhost:9999';
-    const es = new EventSource(`${base}/logs/stream?mcp=agent&user=${encodeURIComponent(getUserId())}`);
-    const onEvent = (payload: any) => {
-      try {
-        const e = typeof payload === 'string' ? JSON.parse(payload) : payload;
-        if (!e || e.mcp !== 'agent' || !e.type) return;
-        const a = (e.agent || '').toString();
-        if (!a) return;
-        const t = Number(e.timestamp || Date.now()/1000);
-        const acc = activityRef.current[a] || {};
-        if (e.type === 'agent_run_started') acc.start = t;
-        if (e.type === 'agent_run_completed') acc.done = t;
-        activityRef.current[a] = acc;
-        // If current selected matches, recompute liveRunning
-        if (a === sel) {
-          const runningNow = acc.start !== undefined && (acc.done === undefined || (acc.done || 0) < (acc.start || 0));
-          setLiveRunning(runningNow);
-        }
-        // Update counters and maps for list badges
-        setRunningCounts((prev) => {
-          const cur = prev[a] || 0;
-          let next = cur;
-          if (e.type === 'agent_run_started') next = cur + 1;
-          if (e.type === 'agent_run_completed') next = Math.max(0, cur - 1);
-          const out = { ...prev, [a]: next };
-          setRunningMap((pm) => ({ ...pm, [a]: next > 0 }));
-          if (a === sel) setLiveRunning(next > 0);
-          return out;
-        });
-      } catch { /* ignore */ }
-    };
-    es.onmessage = (ev) => onEvent(ev.data);
-    es.addEventListener('event', (ev: any) => onEvent(ev?.data));
-    es.onerror = () => { /* keep connection; server may drop */ };
-    esRef.current = es;
-    return () => { esRef.current?.close(); esRef.current = null; };
-  }, [sel]);
 
-  // When selected agent changes, recompute status from buffered activity
+  // Track running flag for the selected agent
   useEffect(() => {
     if (!sel) { setLiveRunning(false); return; }
-    const cnt = runningCounts[sel] || 0;
-    setLiveRunning(cnt > 0);
-  }, [sel, runningCounts]);
+    setLiveRunning(running || hasRunning);
+  }, [sel, running, hasRunning]);
+
 
   const queryClient = useQueryClient();
 
   return (
+    <>
     <Grid container spacing={2}>
       <Grid xs={12} md={4}>
         <Paper sx={{ p: 1, height: PANEL_HEIGHT, display: 'flex', flexDirection: 'column' }}>
@@ -167,7 +195,22 @@ export default function Agents() {
           </Stack>
           {isLoading && <LinearProgress />}
           {isError && <Alert severity="error">{getErrorMessage(error as any)}</Alert>}
-          <TextField size="small" fullWidth placeholder="Search agents..." value={filter} onChange={(e) => setFilter(e.target.value)} sx={{ mb: 1 }} />
+          <Stack direction="row" spacing={1} sx={{ mb: 1 }}>
+            <FormControl size="small" sx={{ minWidth: 120 }}>
+              <Select
+                value={modelFilter}
+                onChange={(e) => setModelFilter(e.target.value)}
+                displayEmpty
+                sx={{ fontSize: 12 }}
+              >
+                <MenuItem value="all">All Models</MenuItem>
+                {usedModels.map((m) => (
+                  <MenuItem key={m.id} value={m.id}>{m.label}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+            <TextField size="small" fullWidth placeholder="Search..." value={filter} onChange={(e) => setFilter(e.target.value)} />
+          </Stack>
           <List dense sx={{ flex: 1, overflowY: 'auto' }}>
             {agents.map((a) => {
               const modelKey = a.model_id ? String(a.model_id) : null;
@@ -266,23 +309,61 @@ export default function Agents() {
             <Button size="small" startIcon={running || liveRunning ? undefined : <PlayArrowIcon />} disabled={!sel || !input || running || liveRunning} onClick={async () => {
               if (!sel || !input) return;
               setRunning(true);
-              try { await agentRun(sel, input); setInput(''); await runs.refetch(); await refetch(); } finally { setRunning(false); }
+              try {
+                const res = await agentRun(sel, input);
+                const newRunId = (res && (res as any).run_id) ? Number((res as any).run_id) : Date.now();
+                // Optimistically add to recent runs cache so it shows immediately
+                const runsKey = ['agents', 'runs', sel] as const;
+                queryClient.setQueryData(runsKey, (old: any) => {
+                  const prev = old && Array.isArray(old.runs) ? old.runs : [];
+                  const optimistic = {
+                    id: newRunId,
+                    input,
+                    status: 'running',
+                    duration_ms: 0,
+                    created_at: new Date().toISOString(),
+                  };
+                  // Avoid duplicating if it already exists
+                  const exists = prev.some((r: any) => Number(r.id) === Number(newRunId));
+                  return { runs: exists ? prev : [optimistic, ...prev] };
+                });
+                setInput('');
+                setToast('Job submitted');
+                // Trigger a background refetch to replace optimistic row with server data
+                setTimeout(() => { runs.refetch(); refetch(); }, 150);
+                // Keep focus on Agents; no auto-open of Logs to avoid confusion
+              } finally {
+                setRunning(false);
+              }
             }}>{(running || liveRunning) ? (
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <CircularProgress size={16} /> Running…
               </Box>
             ) : 'Run'}</Button>
-            <Button size="small" color="error" disabled={!sel || !(running || liveRunning)} onClick={async () => {
-              if (!sel) return;
-              try { await agentRunCancel(sel); } catch { /* ignore */ }
-            }}>Stop</Button>
-            <Button size="small" href="/diagnostics/agent" target="_blank">View Live</Button>
+            {/* Per-run Stop controls are shown on each run entry below */}
+            <Button size="small" href="/diagnostics/agent-runs" target="_blank">View Live</Button>
           </Box>
           {(running || liveRunning) && <LinearProgress sx={{ mt: 1 }} />}
+
+          {/* Live Steps moved to per-run page */}
           <Typography variant="subtitle2" sx={{ mt: 1 }}>Recent Runs</Typography>
           {runs.isFetching && <LinearProgress />}
           {runs.isError && <Alert severity="error">{getErrorMessage(runs.error as any)}</Alert>}
           <Box sx={{ flex: 1, overflowY: 'auto' }}>
+            {(() => { const hasRunningRow = ((runs.data?.runs || []).some((r:any) => (r.status || '').toLowerCase() === 'running')); return (running || liveRunning) && !hasRunningRow; })() && (
+              <Paper variant="outlined" sx={{ p: 1, mb: 1, borderColor: 'success.main' }}>
+                <Stack direction="row" justifyContent="space-between" alignItems="center">
+                  <Stack direction="row" spacing={1} alignItems="center">
+                    <Chip size="small" color="success" label="running" />
+                    {/* Live chips removed; see per-run view */}
+                  </Stack>
+                  <Stack direction="row" spacing={1}>
+                    <Button size="small" disabled>Live</Button>
+                  </Stack>
+                </Stack>
+                {/* Live summary removed; see per-run view */}
+              </Paper>
+            )}
             {(runs.data?.runs || []).length > 0 && (
               <Button size="small" variant="outlined" color="error" fullWidth sx={{ mb: 1 }} onClick={async () => {
                 if (!sel || !confirm(`Delete all ${runs.data?.runs.length} runs for ${sel}?`)) return;
@@ -294,29 +375,70 @@ export default function Agents() {
               </Button>
             )}
             {(runs.data?.runs || []).map((r) => (
-              <Paper key={r.id} variant="outlined" sx={{ p: 1, mb: 1 }}>
-                <Stack direction="row" justifyContent="space-between" alignItems="center">
-                  <Stack direction="row" spacing={1} alignItems="center">
-                    <Chip size="small" label={`#${r.id}`} />
-                    <Chip size="small" color={r.status === 'ok' ? 'success' : 'warning'} label={r.status || 'ok'} />
-                    <Chip size="small" label={`${r.duration_ms || 0} ms`} />
-                    {typeof r.steps === 'number' && (
-                      <Chip size="small" label={`steps ${r.steps}`} />
-                    )}
-                  </Stack>
-                  <Stack direction="row" spacing={1}>
-                    <Button size="small" onClick={() => nav(`/agents/run/${sel}/${r.id}`)}>View</Button>
-                    <IconButton size="small" color="error" onClick={async () => {
-                      if (!sel) return;
-                      await agentRunDelete(sel, r.id);
-                      await runs.refetch();
-                      await refetch();
-                    }}>
-                      <DeleteOutlineIcon fontSize="small" />
-                    </IconButton>
-                  </Stack>
+              <Paper key={r.id} variant="outlined" sx={{ px: 1, py: 0.5, mb: 1 }}>
+                <Stack direction="row" spacing={1} alignItems="center" sx={{ minHeight: 32 }}>
+                  <Chip size="small" label={`#${r.id}`} />
+                  <Chip
+                    size="small"
+                    color={(() => {
+                      const s = String(r.status || '').toLowerCase();
+                      if (s === 'ok') return 'success';
+                      if (s === 'running') return 'info';
+                      if (s === 'error') return 'warning';
+                      return 'default';
+                    })() as any}
+                    label={String(r.status ?? 'ok')}
+                  />
+                  <Chip size="small" label={`${r.duration_ms || 0} ms`} />
+                  {typeof r.steps === 'number' && (
+                    <Chip size="small" label={`steps ${r.steps}`} />
+                  )}
+                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                    <Typography
+                      variant="caption"
+                      sx={{ fontFamily: 'monospace', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}
+                      title={r.input || ''}
+                    >
+                      {`params: ${r.input || ''}`}
+                    </Typography>
+                  </Box>
+                  {String(r.status || '').toLowerCase() === 'running' && (
+                    <>
+                      <Button size="small" color="success" variant="contained" onClick={() => nav(`/agents/run/${sel}/${r.id}`)}>Live</Button>
+                      <Button size="small" color="error" onClick={async () => {
+                        if (!sel) return;
+                        // Optimistically mark this row as stopping
+                        const runsKey = ['agents', 'runs', sel] as const;
+                        queryClient.setQueryData(runsKey, (old: any) => {
+                          if (!old || !Array.isArray(old.runs)) return old;
+                          return { runs: old.runs.map((it: any) => it.id === r.id ? { ...it, status: 'stopping' } : it) };
+                        });
+                        try {
+                          await agentRunCancelId(sel, r.id);
+                        } finally {
+                          await runs.refetch();
+                          await refetch();
+                        }
+                      }}>Stop</Button>
+                    </>
+                  )}
+                  <Button size="small" onClick={() => nav(`/agents/run/${sel}/${r.id}`)}>View</Button>
+                  <IconButton size="small" color="error" onClick={async () => {
+                    if (!sel) return;
+                    await agentRunDelete(sel, r.id);
+                    await runs.refetch();
+                    await refetch();
+                  }}>
+                    <DeleteOutlineIcon fontSize="small" />
+                  </IconButton>
                 </Stack>
-                <Typography variant="body2" sx={{ mt: 1 }}>{r.output_summary || r.final || '(no summary)'}</Typography>
+                {String(r.status || '').toLowerCase() === 'running' && liveByRun[r.id] && (
+                  <Typography variant="caption" sx={{ ml: 1, mt: 0.5, mb: 0.5, display: 'block', opacity: 0.8 }}>
+                    Live: step {liveByRun[r.id].step}
+                    {liveByRun[r.id].tool ? ` • ${liveByRun[r.id].tool}` : ''}
+                    {liveByRun[r.id].summary ? ` — ${liveByRun[r.id].summary}` : ''}
+                  </Typography>
+                )}
               </Paper>
             ))}
           </Box>
@@ -346,5 +468,7 @@ export default function Agents() {
         </DialogActions>
       </Dialog>
     </Grid>
+    <Snackbar open={!!toast} autoHideDuration={2000} onClose={() => setToast(null)} message={toast || ''} anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }} />
+    </>
   );
 }

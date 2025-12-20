@@ -30,6 +30,12 @@ module Savant
         @json_stdio = json_stdio
         @mongo_client = nil
         @collection = nil
+        @disable_mongo_logs = env_truthy(ENV['LOG_DISABLE_MONGO']) || env_truthy(ENV['DISABLE_MONGO_LOGGER']) || (
+          env_truthy(ENV['SAVANT_DEV']) && !env_truthy(ENV['LOG_ENABLE_MONGO'])
+        )
+        @mongo_disabled_until = nil
+        @consecutive_errors = 0
+        @last_warn_at = 0
       end
 
       def level_enabled?(lvl)
@@ -66,7 +72,7 @@ module Savant
         # Write to stdio
         write_to_stdio(data)
 
-        # Write to MongoDB (best effort, don't fail if MongoDB unavailable)
+        # Write to MongoDB (best effort with backoff; skip if disabled)
         write_to_mongo(data, timestamp)
       end
 
@@ -85,14 +91,28 @@ module Savant
       end
 
       def write_to_mongo(data, timestamp)
+        return if @disable_mongo_logs
         return unless mongo_available?
+        if @mongo_disabled_until && Time.now < @mongo_disabled_until
+          return
+        end
 
         doc = data.transform_keys(&:to_s)
         doc['timestamp'] = timestamp # Store as BSON Date for indexing
         collection.insert_one(doc)
+        @consecutive_errors = 0
       rescue StandardError => e
-        # Log MongoDB errors to stdio only (don't recurse)
-        warn "MongoLogger: Failed to write to MongoDB: #{e.message}" if @io
+        # Backoff after repeated errors to avoid flooding stdout and thread pool pressure
+        @consecutive_errors += 1
+        if @consecutive_errors >= 3
+          @mongo_disabled_until = Time.now + 30 # 30s circuit-breaker
+          @consecutive_errors = 0
+        end
+        now = Time.now.to_f
+        if @io && (now - @last_warn_at) >= 5.0
+          warn "MongoLogger: Failed to write to MongoDB: #{e.message}"
+          @last_warn_at = now
+        end
       end
 
       def mongo_available?
@@ -116,9 +136,11 @@ module Savant
           uri = ENV.fetch('MONGO_URI', "mongodb://#{mongo_host}/#{@db_name}")
           Mongo::Client.new(
             uri,
-            server_selection_timeout: 2,
-            connect_timeout: 2,
-            socket_timeout: 5
+            server_selection_timeout: 1.0,
+            connect_timeout: 1.0,
+            socket_timeout: 2.0,
+            max_pool_size: (ENV['MONGO_LOGGER_POOL'] || '5').to_i,
+            wait_queue_timeout: 0.5
           )
         rescue StandardError
           nil
@@ -138,6 +160,11 @@ module Savant
       def mongo_db_name
         env = ENV.fetch('SAVANT_ENV', ENV.fetch('RACK_ENV', ENV.fetch('RAILS_ENV', 'development')))
         env == 'test' ? 'savant_test' : 'savant_development'
+      end
+
+      def env_truthy(v)
+        return false if v.nil?
+        %w[1 true yes on].include?(v.to_s.strip.downcase)
       end
 
       def symbolize_keys(payload)

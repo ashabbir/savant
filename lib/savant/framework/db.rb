@@ -257,6 +257,102 @@ module Savant
         true
       end
 
+      # Ensure Council (multi-agent chat) tables exist
+      def ensure_council_schema!
+        return true if @council_schema_initialized
+        # Sessions table
+        exec(<<~SQL)
+          CREATE TABLE IF NOT EXISTS council_sessions (
+            id SERIAL PRIMARY KEY,
+            title TEXT,
+            user_id TEXT,
+            agents TEXT[],
+            description TEXT,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+            updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+          );
+        SQL
+        # In case the table exists but lacks description or mode column
+        exec('ALTER TABLE council_sessions ADD COLUMN IF NOT EXISTS description TEXT')
+        exec("ALTER TABLE council_sessions ADD COLUMN IF NOT EXISTS mode TEXT DEFAULT 'chat'")
+        exec('CREATE INDEX IF NOT EXISTS idx_council_sessions_user ON council_sessions(user_id)')
+
+        # Messages table
+        exec(<<~SQL)
+          CREATE TABLE IF NOT EXISTS council_messages (
+            id SERIAL PRIMARY KEY,
+            session_id INTEGER NOT NULL REFERENCES council_sessions(id) ON DELETE CASCADE,
+            role TEXT NOT NULL, -- 'user' or 'agent'
+            agent_name TEXT,
+            run_id INTEGER,
+            status TEXT,
+            text TEXT,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+          );
+        SQL
+        exec('CREATE INDEX IF NOT EXISTS idx_council_messages_session ON council_messages(session_id, created_at)')
+        @council_schema_initialized = true
+        true
+      rescue StandardError
+        false
+      end
+
+      # =========================
+      # Council CRUD
+      # =========================
+      def create_council_session(title: nil, user_id: nil, agents: [], description: nil)
+        ensure_council_schema!
+        res = exec_params(
+          'INSERT INTO council_sessions(title, user_id, agents, description, created_at, updated_at) VALUES($1,$2,$3,$4,NOW(),NOW()) RETURNING id',
+          [title, user_id, text_array_encoder.encode(agents), description]
+        )
+        res[0]['id'].to_i
+      end
+
+      def list_council_sessions(limit: 50)
+        ensure_council_schema!
+        res = exec_params('SELECT * FROM council_sessions ORDER BY id DESC LIMIT $1', [limit.to_i])
+        res.to_a
+      end
+
+      def get_council_session(id)
+        ensure_council_schema!
+        res = exec_params('SELECT * FROM council_sessions WHERE id=$1', [id.to_i])
+        return nil if res.ntuples.zero?
+        row = res[0]
+        msgs = exec_params('SELECT * FROM council_messages WHERE session_id=$1 ORDER BY id ASC', [id.to_i]).to_a
+        { session: row, messages: msgs }
+      end
+
+      def add_council_message(session_id:, role:, agent_name: nil, run_id: nil, text:, status: nil)
+        ensure_council_schema!
+        exec_params(
+          'INSERT INTO council_messages(session_id, role, agent_name, run_id, status, text, created_at) VALUES($1,$2,$3,$4,$5,$6,NOW())',
+          [session_id.to_i, role.to_s, agent_name, run_id, status, text]
+        )
+        true
+      end
+
+      # Update council session metadata (title and/or agents array)
+      def update_council_session(id:, title: nil, agents: nil)
+        ensure_council_schema!
+        if !title.nil?
+          exec_params('UPDATE council_sessions SET title=$1, updated_at=NOW() WHERE id=$2', [title, id.to_i])
+        end
+        unless agents.nil?
+          exec_params('UPDATE council_sessions SET agents=$1, updated_at=NOW() WHERE id=$2', [text_array_encoder.encode(Array(agents).map(&:to_s)), id.to_i])
+        end
+        # no-op if description not provided
+        true
+      end
+
+      def update_council_description(id:, description: nil)
+        ensure_council_schema!
+        return true if description.nil?
+        exec_params('UPDATE council_sessions SET description=$1, updated_at=NOW() WHERE id=$2', [description, id.to_i])
+        true
+      end
+
       def table_exists?(name)
         res = exec_params("SELECT to_regclass($1)", [name.to_s])
         res.ntuples.positive? && !res[0]['to_regclass'].nil?
@@ -823,6 +919,23 @@ module Savant
           SQL
         )
         res[0]['id'].to_i
+      end
+
+      # Update an existing agent run with final results
+      def update_agent_run_result(run_id:, agent_id:, output_summary:, status:, duration_ms:, full_transcript: nil)
+        payload = full_transcript.nil? ? nil : JSON.generate(full_transcript)
+        exec_params(
+          <<~SQL, [output_summary, status, duration_ms, payload, run_id, agent_id]
+            UPDATE agent_runs
+            SET output_summary = $1,
+                status = $2,
+                duration_ms = $3,
+                full_transcript = $4,
+                updated_at = NOW()
+            WHERE id = $5 AND agent_id = $6
+          SQL
+        )
+        true
       end
 
       def list_agent_runs(agent_id, limit: 50)

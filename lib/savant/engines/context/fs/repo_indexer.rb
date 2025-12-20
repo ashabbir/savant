@@ -124,20 +124,31 @@ module Savant
                 r2 = conn.exec('SELECT COUNT(*) AS c FROM files')
                 r3 = conn.exec('SELECT COUNT(*) AS c FROM chunks')
                 db[:counts] = { repos: r1[0]['c'].to_i, files: r2[0]['c'].to_i, chunks: r3[0]['c'].to_i }
-                # Detailed per-table stats for UI table
+                # Detailed per-table stats for UI table (dynamic list from information_schema)
                 begin
-                  tables = %w[repos files blobs file_blob_map chunks personas rulesets agents agent_runs]
                   details = []
-                  tables.each do |t|
-                    cols = conn.exec_params("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name=$1", [t]).map { |r| r['column_name'] }
-                    cnt = conn.exec("SELECT COUNT(*) AS c FROM #{t}")[0]['c'].to_i
-                    sz = conn.exec_params('SELECT pg_total_relation_size($1::regclass) AS bytes', [t])[0]['bytes'].to_i
-                    last_at = nil
-                    last_at = conn.exec("SELECT MAX(updated_at) AS m FROM #{t}")[0]['m'] if cols.include?('updated_at')
-                    last_at = conn.exec("SELECT MAX(created_at) AS m FROM #{t}")[0]['m'] if !last_at && cols.include?('created_at')
-                    details << { name: t, rows: cnt, size_bytes: sz, last_at: last_at }
-                  rescue StandardError => e
-                    details << { name: t, error: e.message }
+                  table_rows = conn.exec(<<~SQL)
+                    SELECT table_name
+                    FROM information_schema.tables
+                    WHERE table_schema = 'public'
+                      AND table_type = 'BASE TABLE'
+                    ORDER BY table_name
+                  SQL
+                  table_rows.each do |row|
+                    t = row['table_name']
+                    begin
+                      cols = conn.exec_params("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name=$1", [t]).map { |r| r['column_name'] }
+                      cnt = conn.exec("SELECT COUNT(*) AS c FROM \"#{t.gsub('"', '""')}\"")[0]['c'].to_i
+                      sz = conn.exec_params('SELECT pg_total_relation_size($1::regclass) AS bytes', [t])[0]['bytes'].to_i
+                      last_at = nil
+                      last_at = conn.exec("SELECT MAX(updated_at) AS m FROM \"#{t.gsub('"', '""')}\"")[0]['m'] if cols.include?('updated_at')
+                      if !last_at && cols.include?('created_at')
+                        last_at = conn.exec("SELECT MAX(created_at) AS m FROM \"#{t.gsub('"', '""')}\"")[0]['m']
+                      end
+                      details << { name: t, rows: cnt, size_bytes: sz, last_at: last_at }
+                    rescue StandardError => e
+                      details << { name: t, error: e.message }
+                    end
                   end
                   db[:tables] = details
                 rescue StandardError
@@ -177,6 +188,13 @@ module Savant
           info[:llm_runtime] = llm_runtime_info
 
           info[:secrets] = secrets_info(base)
+
+          # Reasoning API + usage/agents stats
+          begin
+            info[:reasoning] = reasoning_diagnostics
+          rescue StandardError => e
+            info[:reasoning] = { configured: false, error: e.message }
+          end
 
           info
         end
@@ -277,6 +295,129 @@ module Savant
             out[:error] = e.message
           end
           out
+        end
+
+        # --- Reasoning API diagnostics ---
+        def reasoning_diagnostics
+          require 'time'
+          require 'uri'
+          res = { configured: false }
+          # Default to local Reasoning API if not explicitly configured
+          begin
+            require_relative '../../../reasoning/client'
+            default_base = Savant::Reasoning::Client::DEFAULT_BASE_URL
+          rescue StandardError
+            default_base = 'http://127.0.0.1:9000'
+          end
+          env_url = ENV['REASONING_API_URL'].to_s
+          base_url = env_url.empty? ? default_base : env_url
+          res[:configured] = !base_url.to_s.empty?
+          res[:base_url] = begin
+            uri = URI.parse(base_url)
+            uri.host ? "#{uri.scheme}://#{uri.host}#{uri.port && ![80,443].include?(uri.port) ? ":#{uri.port}" : ''}" : base_url
+          rescue StandardError
+            base_url
+          end
+
+          # Reachability probe (best-effort, very short timeouts)
+          if res[:configured]
+            begin
+              require 'net/http'
+              require 'uri'
+              uri = URI.parse(base_url)
+              path_candidates = []
+              path_candidates << '/health' << '/version' << uri.path.to_s
+              http = Net::HTTP.new(uri.host, uri.port)
+              http.use_ssl = (uri.scheme == 'https')
+              http.read_timeout = 1.5
+              http.open_timeout = 1.5
+              code = nil
+              path_candidates.each do |p|
+                begin
+                  req = Net::HTTP::Get.new(p.nil? || p.empty? ? '/' : p)
+                  resp = http.request(req)
+                  code = resp.code.to_i
+                  break if code && code > 0
+                rescue StandardError
+                  # try next
+                end
+              end
+              res[:reachable] = !code.nil? && code < 500
+              res[:status_code] = code if code
+            rescue StandardError => e
+              res[:reachable] = false
+              res[:error] = e.message
+            end
+          end
+
+          # Usage stats via Mongo logs (service = 'reasoning')
+          if mongo_available? && (cli = mongo_client)
+            begin
+              col = cli['reasoning_logs']
+              now = Time.now
+              since_1h = now - 3600
+              since_24h = now - 86_400
+              calls_total = nil
+              calls_1h = nil
+              calls_24h = nil
+              last_at = nil
+              begin
+                calls_total = col.estimated_document_count
+              rescue StandardError
+                calls_total = nil
+              end
+              begin
+                calls_1h = col.count_documents({ 'timestamp' => { '$gt' => since_1h } })
+              rescue StandardError
+                calls_1h = nil
+              end
+              begin
+                calls_24h = col.count_documents({ 'timestamp' => { '$gt' => since_24h } })
+              rescue StandardError
+                calls_24h = nil
+              end
+              begin
+                doc = col.find({}, { sort: { timestamp: -1 }, projection: { timestamp: 1 } }).limit(1).first
+                last_at = doc && doc['timestamp'] ? (doc['timestamp'].respond_to?(:iso8601) ? doc['timestamp'].iso8601 : doc['timestamp'].to_s) : nil
+              rescue StandardError
+                last_at = nil
+              end
+
+              # Event breakdown
+              events = %w[agent_intent workflow_intent reasoning_timeout reasoning_post_error]
+              by_event = {}
+              events.each do |ev|
+                begin
+                  by_event[ev] = col.count_documents({ 'event' => ev })
+                rescue StandardError
+                  by_event[ev] = nil
+                end
+              end
+
+              res[:calls] = { total: calls_total, last_1h: calls_1h, last_24h: calls_24h, last_at: last_at, by_event: by_event }
+            rescue StandardError => e
+              res[:calls] = { error: e.message }
+            end
+          end
+
+          # Agents and runs from Postgres (best effort)
+          begin
+            agents_total = runs_total = runs_24h = nil
+            last_run_at = nil
+            if @db.table_exists?('agents')
+              agents_total = @db.exec('SELECT COUNT(*) AS c FROM agents')[0]['c'].to_i rescue nil
+            end
+            if @db.table_exists?('agent_runs')
+              runs_total = @db.exec('SELECT COUNT(*) AS c FROM agent_runs')[0]['c'].to_i rescue nil
+              runs_24h = @db.exec("SELECT COUNT(*) AS c FROM agent_runs WHERE created_at > NOW() - interval '24 hours'")[0]['c'].to_i rescue nil
+              last_run_at = @db.exec('SELECT MAX(created_at) AS m FROM agent_runs')[0]['m'] rescue nil
+            end
+            res[:agents] = { total: agents_total, runs_total: runs_total, runs_24h: runs_24h, last_run_at: last_run_at }
+          rescue StandardError => e
+            res[:agents] = { error: e.message }
+          end
+
+          res
         end
 
         def secrets_info(base_path)

@@ -6,9 +6,12 @@ DB_ENV ?= development
 DB_NAME ?= $(if $(filter $(DB_ENV),test),savant_test,savant_development)
 DB_ENVS := development test
 MONGO_DB ?= $(if $(filter $(DB_ENV),test),savant_test,savant_development)
+# Increase default open files for Rails dev server to avoid EMFILE (file watcher + sockets)
+OPEN_FILES ?= 8192
 
 # Minimal dev targets with sensible defaults
 export SAVANT_DEV ?= 1
+export LOG_DISABLE_MONGO ?= 1
 HUB_BASE ?= http://localhost:9999
 
 # Start the frontend dev server (Vite)
@@ -24,14 +27,14 @@ dev-ui:
 	  if ! command -v npm >/dev/null 2>&1; then \
 	    echo "npm not found. Install Node (e.g., brew install node) or load nvm"; exit 127; \
 	  fi; \
-	  cd frontend && (npm ci || npm install --include=dev) && VITE_HUB_BASE=$(HUB_BASE) npm run dev -- --host 0.0.0.0 \
+	  cd frontend && npm install --include=dev --legacy-peer-deps && VITE_HUB_BASE=$(HUB_BASE) npm run dev -- --host 0.0.0.0 \
 	'
 
 # Start the Rails API server only
 dev-server:
 	@echo "Starting Rails API on 0.0.0.0:9999..."
 	@bash -lc '[ -n "$$DATABASE_URL" ] && echo "Using DATABASE_URL=$$DATABASE_URL" || echo "Using config/database.yml (no DATABASE_URL set)"'
-	@cd server && $(HOME)/.rbenv/shims/bundle exec rails s -b 0.0.0.0 -p 9999
+	@bash -lc 'ulimit -n $(OPEN_FILES); echo "ulimit -n now=$$(ulimit -n)"; cd server && $(HOME)/.rbenv/shims/bundle exec rails s -b 0.0.0.0 -p 9999'
 
 # Kill the Rails dev server
 kill-dev-server:
@@ -82,7 +85,7 @@ ui-build-local:
 	  if ! command -v npm >/dev/null 2>&1; then \
 	    echo "npm not found. Install Node (e.g., brew install node) or load nvm"; exit 127; \
 	  fi; \
-	  cd frontend && (npm ci || npm install --include=dev) && npm run build; \
+	  cd frontend && npm install --include=dev --legacy-peer-deps && npm run build; \
 	  rm -rf ../public/ui && mkdir -p ../public/ui && cp -R dist/* ../public/ui/ \
 	'
 	@echo "UI built → public/ui"
@@ -190,11 +193,67 @@ repo-status:
 	$(INDEXER_CMD) status
 
 # -----------------
+# Diagnostics: FD usage for Rails dev server
+# -----------------
+.PHONY: fd-rails
+fd-rails:
+	@bash -lc '\
+	  PID_FILE=server/tmp/pids/server.pid; \
+	  if [ ! -f "$$PID_FILE" ]; then \
+	    echo "Rails server PID file not found at $$PID_FILE"; \
+	    echo "Start the server with: make dev-server"; exit 1; \
+	  fi; \
+	  PID=$$(cat "$$PID_FILE"); \
+	  if ! ps -p $$PID >/dev/null 2>&1; then \
+	    echo "Rails server not running (PID $$PID)"; exit 1; \
+	  fi; \
+	  echo "Analyzing FD usage for Rails PID $$PID"; \
+	  if ! command -v lsof >/dev/null 2>&1; then \
+	    echo "lsof is required (brew install lsof)"; exit 127; \
+	  fi; \
+	  TOTAL=$$(lsof -p $$PID 2>/dev/null | wc -l | awk "{print $$1}"); \
+	  echo "- total FDs: $$TOTAL"; \
+	  echo "- by TYPE:"; \
+	  lsof -p $$PID 2>/dev/null | awk 'NR>1{print $$5}' | sort | uniq -c | sort -nr | head -n 10; \
+	  echo "- top file paths (REG/DIR):"; \
+	  lsof -p $$PID 2>/dev/null | awk 'NR>1 && ($$5=="REG"||$$5=="DIR"){print $$9}' | sed "/^$$/d" | sort | uniq -c | sort -nr | head -n 20; \
+	'
+
+# -----------------
 # Reasoning API (Python)
 # -----------------
-.PHONY: reasoning-setup reasoning-api
+.PHONY: reasoning-setup reasoning-api reasoning-api-stdout reasoning-api-file
 reasoning-setup:
 	python3 -m venv .venv_reasoning && . .venv_reasoning/bin/activate && python3 -m pip install -r reasoning/requirements.txt
 
 reasoning-api:
 	./scripts/run_reasoning_api.sh
+
+# Run Reasoning API with stdout logging enabled
+reasoning-api-stdout:
+	REASONING_LOG_STDOUT=1 ./scripts/run_reasoning_api.sh
+
+# Run Reasoning API with file logging (override path: make reasoning-api-file log=logs/reasoning.log)
+reasoning-api-file:
+	@bash -lc '\
+	  LOG_PATH="$${log:-logs/reasoning.log}"; \
+	  echo "Writing reasoning logs to $$LOG_PATH"; \
+	  REASONING_LOG_FILE="$$LOG_PATH" ./scripts/run_reasoning_api.sh \
+	'
+
+# Run Reasoning queue worker only (no HTTP)
+.PHONY: reasoning-worker
+reasoning-worker:
+	./scripts/run_reasoning_worker.sh
+
+.PHONY: reasoning-queue-status
+reasoning-queue-status:
+	./scripts/reasoning_queue_status.sh
+
+.PHONY: mongo-logs-drop
+mongo-logs-drop:
+	./scripts/mongo_drop_logs.sh
+
+.PHONY: mongo-logs-drop-reasoning
+mongo-logs-drop-reasoning:
+	REASONING_ONLY=1 ./scripts/mongo_drop_logs.sh

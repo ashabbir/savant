@@ -38,17 +38,37 @@ module Savant
       end
 
       def self.normalize(data)
+        action_raw = data['action'] || data[:action]
+        tool_name_raw = data['tool_name'] || data[:tool_name] || data['tool'] || data[:tool]
+
         out = {
-          'action' => (data['action'] || data[:action]).to_s,
-          'tool_name' => (data['tool_name'] || data[:tool_name] || data['tool'] || data[:tool]).to_s,
+          'action' => action_raw.to_s,
+          'tool_name' => tool_name_raw.to_s,
           'args' => data['args'] || data[:args] || {},
           'final' => data['final'] || data[:final] || '',
           'reasoning' => data['reasoning'] || data[:reasoning] || ''
         }
+
+        # Recovery: If action is not valid but looks like a tool name (contains dot or underscore),
+        # and we don't have a tool_name yet, move action to tool_name
+        if !ACTIONS.include?(out['action']) && (out['action'].include?('.') || out['action'].include?('_'))
+          if out['tool_name'].empty?
+            out['tool_name'] = out['action']
+            out['action'] = 'tool'
+          end
+        end
+
+        # If action is invalid but tool_name is set, assume it's a tool call
+        if !ACTIONS.include?(out['action']) && !out['tool_name'].empty?
+          out['action'] = 'tool'
+        end
+
+        # If action is still invalid, mark as error
         unless ACTIONS.include?(out['action'])
           out['action'] = 'error'
           out['final'] = 'Invalid action; expected one of tool|reason|finish|error'
         end
+
         out['args'] = {} unless out['args'].is_a?(Hash)
         out
       end
