@@ -101,7 +101,14 @@ export default function DiagnosticsLogs() {
         const url = `${baseUrl()}/logs?n=${n}${typePart}`;
         const res = await fetch(url, { headers: { 'x-savant-user-id': getUserId() } });
         const js = await res.json();
-        const arr: any[] = (js && js.events) || [];
+        let arr: any[] = (js && js.events) || [];
+        // Client-side filter by type since backend may ignore ?type=
+        if (eventType && eventType !== 'all') {
+          arr = arr.filter((e) => {
+            const t = (e && (e.type || e.event)) || '';
+            return String(t).toLowerCase() === String(eventType).toLowerCase();
+          });
+        }
         setLines(arr.map((e) => formatEventLine(e)));
       } else {
         const levelPart = levelQuery(level);
@@ -153,16 +160,16 @@ export default function DiagnosticsLogs() {
 
   function formatEventLine(e: any): string {
     try {
-      const ts = e.ts || '';
-      const t = e.type || 'event';
-      const m = e.mcp || e.engine || '';
+      const ts = e.ts || e.timestamp || '';
+      const t = e.type || e.event || 'event';
+      const m = e.mcp || e.engine || e.service || '';
       const status = e.status !== undefined ? ` status=${e.status}` : '';
       const dur = e.duration_ms !== undefined ? ` ${e.duration_ms}ms` : '';
       if (t === 'http_request') {
         return `[${ts}] ${t} ${m} ${e.method || ''} ${e.path || ''}${status}${dur}`.trim();
       }
       if (t.startsWith('tool_call')) {
-        return `[${ts}] ${t} ${m} ${e.tool || ''}${status}${dur}`.trim();
+        return `[${ts}] ${t} ${m} ${e.tool || e.name || ''}${status}${dur}`.trim();
       }
       if (t.startsWith('client_')) {
         return `[${ts}] ${t} ${m} ${e.conn_type || ''} ${e.client_id || ''} ${e.path || ''}`.trim();

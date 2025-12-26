@@ -51,6 +51,45 @@ SAVANT_PATH=$(pwd) bundle exec ruby ./bin/savant tools
 
 This README is intentionally concise. For a step-by-step guide, see docs/getting-started.md. Full, detailed docs (with diagrams) live in the Memory Bank:
 
+## Council (Multi‑Agent) Engine
+
+AI Council enables explicit escalation from lightweight chat to a structured, multi‑agent deliberation with roles (Analyst, Skeptic, Pragmatist, Safety/Ethics, Moderator). Safety has hard veto; sessions always return to chat when a council run completes.
+
+- UI: open the Hub and click the Council tab (`/council`). Left panel lists sessions; right panel shows transcript and live council status.
+- API: Council is exposed as MCP tools under the `council` engine via Hub HTTP routes: `/{engine}/tools/{tool}/call`.
+- Minimum to escalate: at least two agents in the session.
+- Env: `COUNCIL_DEMO_MODE=1` to run without a Reasoning API; `COUNCIL_AUTO_AGENT_STEP=1` to append an auto agent step on user messages in chat.
+
+Quick examples (HTTP via Hub)
+```
+# Create a session
+curl -s -H 'content-type: application/json' -H 'x-savant-user-id: me' \
+  -X POST http://localhost:9999/council/tools/council_session_create/call \
+  -d '{"params": {"title": "Tech Decision", "agents": ["a1","a2"]}}'
+
+# Append user message
+curl -s -H 'content-type: application/json' -H 'x-savant-user-id: me' \
+  -X POST http://localhost:9999/council/tools/council_append_user/call \
+  -d '{"params": {"session_id": 1, "text": "Microservices or monolith?"}}'
+
+# Escalate to council (starts a run and flips mode to council)
+curl -s -H 'content-type: application/json' -H 'x-savant-user-id: me' \
+  -X POST http://localhost:9999/council/tools/council_escalate/call \
+  -d '{"params": {"session_id": 1}}'
+
+# Run protocol (positions → debate → synthesis), then auto return to chat
+curl -s -H 'content-type: application/json' -H 'x-savant-user-id: me' \
+  -X POST http://localhost:9999/council/tools/council_run/call \
+  -d '{"params": {"session_id": 1}}'
+```
+
+Data model (Postgres)
+- `council_sessions(id, title, user_id, agents TEXT[], description, mode, context JSONB, artifacts JSONB, created_at, updated_at)`
+- `council_messages(id, session_id, role, agent_name, run_id, status, text, created_at)`
+- `council_runs(id, session_id, run_id UNIQUE, status, phase, query, context JSONB, positions JSONB, debate_rounds JSONB, synthesis JSONB, votes JSONB, veto, veto_reason, started_at, completed_at, error)`
+
+Full PRD: docs/prds/done/PRD_AI_Council_Combined.md
+
 ## Homebrew Install (after releases are published)
 
 ```
@@ -115,6 +154,11 @@ make db-fts
 # Optional smoke/seed helpers
 make db-smoke
 make db-seed
+
+# Seeds include default LLM providers:
+# - ollama (base_url from $OLLAMA_HOST or http://127.0.0.1:11434)
+# - google (Generative Language API). If $GOOGLE_API_KEY is set and $SAVANT_ENC_KEY is configured,
+#   the key is stored encrypted; otherwise the provider is created without a key and you can update it later via the UI or tools.
 ```
 
 3) Build the UI bundle (optional; for Rails to serve static UI at /ui):
@@ -631,6 +675,22 @@ Key test files:
 - Connections list: `GET /diagnostics/connections`
 - Per-engine diagnostics: `GET /diagnostics/mcp/:name`
 
+### Reasoning API Quickstart
+
+- Start locally:
+  - `make reasoning-setup && make reasoning-api`
+- Health check:
+  - `curl -s http://127.0.0.1:9000/healthz`
+- Example (finish):
+  - `curl -sX POST http://127.0.0.1:9000/agent_intent -H 'Accept-Version: v1' -H 'Content-Type: application/json' -d '{"session_id":"s1","persona":{},"goal_text":"Say hello"}' | jq .`
+  - Sample response:
+    - `{ "status": "ok", "duration_ms": 12, "intent_id": "agent-173...", "finish": true, "final_text": "Completed: Say hello", "reasoning": "Task completed. No additional tool calls required.", "trace": [] }`
+- Example (search tool):
+  - `curl -sX POST http://127.0.0.1:9000/agent_intent -H 'Accept-Version: v1' -H 'Content-Type: application/json' -d '{"session_id":"s1","persona":{},"goal_text":"Find indexer pipeline docs"}' | jq .`
+  - Sample response:
+    - `{ "status": "ok", "intent_id": "agent-173...", "tool_name": "context.fts_search", "tool_args": {"query":"Find indexer pipeline docs"}, "finish": false, "reasoning": "Analyzing codebase requires searching documentation and code" }`
+
+
 ## Memory Bank (Detailed Docs)
 
 All detailed docs (with visual diagrams) live under `memory_bank/`. Use the table above (and the direct links below) to jump into the source of truth:
@@ -638,6 +698,7 @@ All detailed docs (with visual diagrams) live under `memory_bank/`. Use the tabl
 - Framework + architecture: [`framework.md`](memory_bank/framework.md), [`architecture.md`](memory_bank/architecture.md)
 - Boot Runtime: [`engine_boot.md`](memory_bank/engine_boot.md) - RuntimeContext, boot sequence, AMR system, CLI reference
 - **Agent Runtime: [`agent_runtime.md`](memory_bank/agent_runtime.md) - Reasoning loop, LLM adapters, memory system, token budgets, telemetry**
+- Reasoning API: [`reasoning_api.md`](memory_bank/reasoning_api.md) - Stack, transport modes, endpoints, queue/callback flows, and diagrams
 - Engines: [`engine_context.md`](memory_bank/engine_context.md), [`engine_think.md`](memory_bank/engine_think.md), [`engine_jira.md`](memory_bank/engine_jira.md), [`engine_personas.md`](memory_bank/engine_personas.md)
 - Guardrails + patterns: [`engine_rules.md`](memory_bank/engine_rules.md)
 

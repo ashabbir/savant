@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Box,
   Paper,
@@ -109,6 +109,8 @@ export default function LLMRegistry() {
   const [selectedDiscoverIds, setSelectedDiscoverIds] = useState<string[]>([]);
   const [discoverError, setDiscoverError] = useState<string | null>(null);
   const [discoveryAttempted, setDiscoveryAttempted] = useState(false);
+  const [discoverSearchFilter, setDiscoverSearchFilter] = useState('');
+  const [modelsSearchFilter, setModelsSearchFilter] = useState('');
   const closeEditProviderDialog = () => {
     setOpenEditProviderDialog(false);
     setSelectedProvider(null);
@@ -121,6 +123,7 @@ export default function LLMRegistry() {
     setDiscoveredModels([]);
     setSelectedDiscoverIds([]);
     setDiscoverError(null);
+    setDiscoverSearchFilter('');
   };
 
   const handleDiscover = () => {
@@ -284,6 +287,32 @@ const openEditProviderDialogWith = (provider: Provider) => {
     if (status === 'invalid') return 'error';
     return 'default';
   };
+
+  const filteredDiscoveredModels = useMemo(() => {
+    if (!discoverSearchFilter.trim()) {
+      return discoveredModels;
+    }
+    const filter = discoverSearchFilter.toLowerCase();
+    return discoveredModels.filter((model) => {
+      const displayName = (model.display_name || '').toLowerCase();
+      const modelId = (model.provider_model_id || '').toLowerCase();
+      const modality = formatModality(model.modality).join(' ').toLowerCase();
+      return displayName.includes(filter) || modelId.includes(filter) || modality.includes(filter);
+    });
+  }, [discoveredModels, discoverSearchFilter]);
+
+  const filteredRegisteredModels = useMemo(() => {
+    if (!modelsSearchFilter.trim() || !modelsQuery.data) {
+      return modelsQuery.data || [];
+    }
+    const filter = modelsSearchFilter.toLowerCase();
+    return (modelsQuery.data as any[]).filter((model) => {
+      const displayName = (model.display_name || '').toLowerCase();
+      const providerName = (model.provider_name || '').toLowerCase();
+      const modality = formatModality(model.modality).join(' ').toLowerCase();
+      return displayName.includes(filter) || providerName.includes(filter) || modality.includes(filter);
+    });
+  }, [modelsQuery.data, modelsSearchFilter]);
 
   return (
     <Box>
@@ -454,69 +483,93 @@ const openEditProviderDialogWith = (provider: Provider) => {
           )}
 
           {modelsQuery.data && modelsQuery.data.length > 0 && (
-            <TableContainer>
-              <Table>
-                <TableHead>
-                  <TableRow sx={{ bgcolor: theme.palette.mode === 'dark' ? theme.palette.grey[900] : 'grey.100' }}>
-                    <TableCell>Model</TableCell>
-                    <TableCell>Provider</TableCell>
-                    <TableCell>Modality</TableCell>
-                    <TableCell>Context Window</TableCell>
-                    <TableCell>Enabled</TableCell>
-                    <TableCell align="right">Actions</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {((modelsQuery.data as any[]).map((m) => ({
-                    ...m,
-                    enabled: m?.enabled === true || m?.enabled === 't' || m?.enabled === 'true' || m?.enabled === 1 || m?.enabled === '1'
-                  })) as Model[]).map((model) => (
-                    <TableRow key={model.id}>
-                      <TableCell>{model.display_name}</TableCell>
-                      <TableCell>{model.provider_name}</TableCell>
-                      <TableCell>
-                        <Stack direction="row" spacing={0.5} flexWrap="wrap">
-                          {formatModality(model.modality).length === 0 ? (
-                            <Chip label="Unknown" size="small" variant="outlined" />
-                          ) : (
-                            formatModality(model.modality).map((m) => (
-                              <Chip key={m} label={m} size="small" variant="outlined" />
-                            ))
-                          )}
-                        </Stack>
-                      </TableCell>
-                      <TableCell>
-                        {model.context_window
-                          ? `${(model.context_window / 1000).toFixed(1)}k`
-                          : '-'}
-                      </TableCell>
-                      <TableCell>
-                        <Switch
-                          checked={!!model.enabled}
-                          onChange={() =>
-                            toggleModelMutation.mutate({ modelId: model.id, enabled: !model.enabled })
-                          }
-                          disabled={toggleModelMutation.isPending}
-                          color="primary"
-                          inputProps={{ 'aria-label': 'toggle model enabled' }}
-                        />
-                      </TableCell>
-                      <TableCell align="right">
-                        <Tooltip title="Delete model">
-                          <IconButton
-                            size="small"
-                            onClick={() => deleteModelMutation.mutate(model.id)}
-                            disabled={deleteModelMutation.isPending}
-                          >
-                            <DeleteIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      </TableCell>
+            <Stack spacing={2}>
+              <TextField
+                placeholder="Search models by name, provider, or modality..."
+                value={modelsSearchFilter}
+                onChange={(e) => setModelsSearchFilter(e.target.value)}
+                size="small"
+                fullWidth
+                variant="outlined"
+              />
+              <Typography variant="body2" color="text.secondary">
+                Showing {filteredRegisteredModels.length} of {modelsQuery.data.length} models
+              </Typography>
+              <TableContainer>
+                <Table>
+                  <TableHead>
+                    <TableRow sx={{ bgcolor: theme.palette.mode === 'dark' ? theme.palette.grey[900] : 'grey.100' }}>
+                      <TableCell>Model</TableCell>
+                      <TableCell>Provider</TableCell>
+                      <TableCell>Modality</TableCell>
+                      <TableCell>Context Window</TableCell>
+                      <TableCell>Enabled</TableCell>
+                      <TableCell align="right">Actions</TableCell>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </TableContainer>
+                  </TableHead>
+                  <TableBody>
+                    {((filteredRegisteredModels as any[]).map((m) => ({
+                      ...m,
+                      enabled: m?.enabled === true || m?.enabled === 't' || m?.enabled === 'true' || m?.enabled === 1 || m?.enabled === '1'
+                    })) as Model[]).length > 0 ? (
+                      ((filteredRegisteredModels as any[]).map((m) => ({
+                        ...m,
+                        enabled: m?.enabled === true || m?.enabled === 't' || m?.enabled === 'true' || m?.enabled === 1 || m?.enabled === '1'
+                      })) as Model[]).map((model) => (
+                        <TableRow key={model.id}>
+                          <TableCell>{model.display_name}</TableCell>
+                          <TableCell>{model.provider_name}</TableCell>
+                          <TableCell>
+                            <Stack direction="row" spacing={0.5} flexWrap="wrap">
+                              {formatModality(model.modality).length === 0 ? (
+                                <Chip label="Unknown" size="small" variant="outlined" />
+                              ) : (
+                                formatModality(model.modality).map((m) => (
+                                  <Chip key={m} label={m} size="small" variant="outlined" />
+                                ))
+                              )}
+                            </Stack>
+                          </TableCell>
+                          <TableCell>
+                            {model.context_window
+                              ? `${(model.context_window / 1000).toFixed(1)}k`
+                              : '-'}
+                          </TableCell>
+                          <TableCell>
+                            <Switch
+                              checked={!!model.enabled}
+                              onChange={() =>
+                                toggleModelMutation.mutate({ modelId: model.id, enabled: !model.enabled })
+                              }
+                              disabled={toggleModelMutation.isPending}
+                              color="primary"
+                              inputProps={{ 'aria-label': 'toggle model enabled' }}
+                            />
+                          </TableCell>
+                          <TableCell align="right">
+                            <Tooltip title="Delete model">
+                              <IconButton
+                                size="small"
+                                onClick={() => deleteModelMutation.mutate(model.id)}
+                                disabled={deleteModelMutation.isPending}
+                              >
+                                <DeleteIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={6} align="center" sx={{ py: 2 }}>
+                          <Typography color="text.secondary">No models match your search</Typography>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            </Stack>
           )}
         </Stack>
       </TabPanel>
@@ -622,19 +675,31 @@ const openEditProviderDialogWith = (provider: Provider) => {
       <Dialog open={openDiscoverDialog} onClose={closeDiscoverDialog} maxWidth="sm" fullWidth>
         <DialogTitle>Discover Available Models</DialogTitle>
         <DialogContent sx={{ pt: 2 }}>
-          <FormControl fullWidth>
-            <InputLabel>Provider</InputLabel>
-            <Select
-              value={discoverProvider}
-              onChange={(e) => setDiscoverProvider(e.target.value)}
-              label="Provider"
-            >
-              {(providersQuery.data as Provider[])?.map((p) => (
-                <MenuItem key={p.id} value={p.name}>{p.name}</MenuItem>
-              ))}
-            </Select>
-          </FormControl>
-          <Box sx={{ mt: 2 }}>
+          <Stack spacing={2}>
+            <FormControl fullWidth>
+              <InputLabel>Provider</InputLabel>
+              <Select
+                value={discoverProvider}
+                onChange={(e) => setDiscoverProvider(e.target.value)}
+                label="Provider"
+              >
+                {(providersQuery.data as Provider[])?.map((p) => (
+                  <MenuItem key={p.id} value={p.name}>{p.name}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
+
+            {discoveredModels.length > 0 && (
+              <TextField
+                placeholder="Search models by name, ID, or modality..."
+                value={discoverSearchFilter}
+                onChange={(e) => setDiscoverSearchFilter(e.target.value)}
+                size="small"
+                fullWidth
+                variant="outlined"
+              />
+            )}
+
             {discoverMutation.isLoading && <CircularProgress size={24} />}
             {discoverError && <Alert severity="error" sx={{ mt: 1 }}>{discoverError}</Alert>}
             {!discoverMutation.isLoading && !discoverError && discoverProvider && discoveredModels.length === 0 && discoveryAttempted && (
@@ -643,46 +708,59 @@ const openEditProviderDialogWith = (provider: Provider) => {
               </Alert>
             )}
             {discoveredModels.length > 0 && (
-              <TableContainer sx={{ maxHeight: 240, mt: 1 }}>
-                <Table size="small">
-                  <TableHead>
-                    <TableRow>
-                      <TableCell padding="checkbox"></TableCell>
-                      <TableCell>Model Name</TableCell>
-                      <TableCell>Model ID</TableCell>
-                      <TableCell>Modality</TableCell>
-                    </TableRow>
-                  </TableHead>
-                  <TableBody>
-                    {discoveredModels.map((model: any) => (
-                      <TableRow key={model.provider_model_id} hover>
-                        <TableCell padding="checkbox">
-                          <Checkbox
-                            size="small"
-                            checked={selectedDiscoverIds.includes(model.provider_model_id)}
-                            onChange={() => toggleDiscoveredSelection(model.provider_model_id)}
-                          />
-                        </TableCell>
-                        <TableCell>{model.display_name || model.provider_model_id}</TableCell>
-                        <TableCell>{model.provider_model_id}</TableCell>
-                        <TableCell>
-                        <Stack direction="row" spacing={0.5} flexWrap="wrap">
-                          {formatModality(model.modality).length === 0 ? (
-                            <Chip label="Unknown" size="small" variant="outlined" />
-                          ) : (
-                            formatModality(model.modality).map((m: string) => (
-                              <Chip key={m} label={m} size="small" variant="outlined" />
-                            ))
-                          )}
-                        </Stack>
-                        </TableCell>
+              <Box>
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                  Showing {filteredDiscoveredModels.length} of {discoveredModels.length} models
+                </Typography>
+                <TableContainer sx={{ maxHeight: 300 }}>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell padding="checkbox"></TableCell>
+                        <TableCell>Model Name</TableCell>
+                        <TableCell>Model ID</TableCell>
+                        <TableCell>Modality</TableCell>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </TableContainer>
+                    </TableHead>
+                    <TableBody>
+                      {filteredDiscoveredModels.length > 0 ? (
+                        filteredDiscoveredModels.map((model: any) => (
+                          <TableRow key={model.provider_model_id} hover>
+                            <TableCell padding="checkbox">
+                              <Checkbox
+                                size="small"
+                                checked={selectedDiscoverIds.includes(model.provider_model_id)}
+                                onChange={() => toggleDiscoveredSelection(model.provider_model_id)}
+                              />
+                            </TableCell>
+                            <TableCell>{model.display_name || model.provider_model_id}</TableCell>
+                            <TableCell>{model.provider_model_id}</TableCell>
+                            <TableCell>
+                              <Stack direction="row" spacing={0.5} flexWrap="wrap">
+                                {formatModality(model.modality).length === 0 ? (
+                                  <Chip label="Unknown" size="small" variant="outlined" />
+                                ) : (
+                                  formatModality(model.modality).map((m: string) => (
+                                    <Chip key={m} label={m} size="small" variant="outlined" />
+                                  ))
+                                )}
+                              </Stack>
+                            </TableCell>
+                          </TableRow>
+                        ))
+                      ) : (
+                        <TableRow>
+                          <TableCell colSpan={4} align="center" sx={{ py: 2 }}>
+                            <Typography color="text.secondary">No models match your search</Typography>
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </Box>
             )}
-          </Box>
+          </Stack>
         </DialogContent>
         <DialogActions>
           <Button onClick={closeDiscoverDialog}>Cancel</Button>

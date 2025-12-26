@@ -182,8 +182,36 @@ sequenceDiagram
 2. **Set up PostgreSQL** (already required): run `make rails-migrate` then `make rails-fts` as usual.
 3. **Install Python environment**
    - Install `python3` and `pip`. Create a venv with `python3 -m venv .venv_reasoning`.
-   - Activate it (`source .venv_reasoning/bin/activate`) and install with `pip install fastapi[all] langchain==0.1.* langgraph==0.x.* uvicorn pydantic requests` (pin versions to avoid drift).
-   - Add instructions to document how to activate/deactivate the venv and keep dependencies in `pyproject.toml` or `requirements.txt`.
+   - Activate it (`source .venv_reasoning/bin/activate`) and install dependencies via the pinned requirements file: `pip install -r reasoning/requirements.txt`.
+   - If installing manually, use LangChain 0.2.x and LCEL-compatible packages: `pip install fastapi[all] langchain>=0.2,<0.3 langchain-community>=0.2,<0.3 langgraph==0.* uvicorn pydantic requests`.
+   - Add instructions to document how to activate/deactivate the venv and keep dependencies in `requirements.txt` (already present under `reasoning/`).
+
+   LCEL example (LangChain 0.2.x):
+
+   ```python
+   import os
+   from langchain.prompts import PromptTemplate
+   from langchain_community.llms import Ollama
+
+   prompt = PromptTemplate(
+       input_variables=["goal"],
+       template=(
+           "You are a helpful agent.\n"
+           "Decide to search or finish.\n\n"
+           "Goal: {goal}\n"
+       ),
+   )
+
+   llm = Ollama(
+       base_url=os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434"),
+       model="phi3.5:latest",
+       temperature=0.3,
+   )
+
+   chain = prompt | llm
+   response = chain.invoke({"goal": "Find contributing guidelines in the repo"})
+   print(response)
+   ```
 4. **Run reasoning service locally**
    - Start FastAPI app with `uvicorn reasoning.api:app --reload --host 127.0.0.1 --port 9000`.
    - Verify `/healthz` returns 200 and `/agent_intent` accepts sample JSON.
@@ -202,3 +230,25 @@ sequenceDiagram
 - **Timeouts**: If the reasoning API times out, Ruby should log `reasoning_timeout` and retry automatically. Use the `REASONING_API_TIMEOUT_MS` env var to adjust.
 - **Invalid tool names**: The adapter should log `intent_validation_error` and instruct the API team to update the graph/chain definition.
 - **API unavailability**: Provide a fallback message that includes instructions to start the FastAPI server via `uvicorn reasoning.api:app`.
+
+## Agent Implementation Plan (by Codex)
+
+Scope: Implement Phase 1–3 (Schema, Ruby client, Python API skeleton) with optional Agent integration behind env flag, plus minimal docs and make targets.
+
+Steps
+- Shared schema: add `config/reasoning_api_schema.json` capturing `agent_intent` and `workflow_intent` request/response envelopes and common error shapes.
+- Ruby client: add `lib/savant/reasoning/client.rb` with:
+  - Env/config: `REASONING_API_URL`, `REASONING_API_TOKEN`, `REASONING_API_TIMEOUT_MS` (default 5000), `REASONING_API_RETRIES` (default 2), `REASONING_API_VERSION` (default `v1`).
+  - Methods: `agent_intent(payload)` and `workflow_intent(payload)` using `Net::HTTP`, retries on timeout/5xx with backoff, and structured logging via Savant logger.
+  - Validation: ensure returned `tool_name` exists in Multiplexer registry when present; map API envelopes to a typed struct for the runtime.
+- Optional Agent integration: in `Savant::Agent::Runtime`, when `REASONING_API_URL` is set use `Savant::Reasoning::Client` to obtain intents instead of local SLM for `decide_and_parse`, translating to the existing action envelope. Fallback to SLM on client errors.
+- Python API skeleton: add `reasoning/` module with FastAPI app exposing:
+  - `GET /healthz` (200 OK), `POST /agent_intent` and `POST /workflow_intent` returning stub intents matching schema (finish-first or echo forced tool).
+  - `requirements.txt` and `scripts/run_reasoning_api.sh` for local dev; Makefile targets `reasoning-setup` and `reasoning-api`.
+- Tests: RSpec for the Ruby client covering success, timeout/retry, and invalid-tool validation (using WebMock). Keep Python tests out-of-scope for the first MR.
+- Docs: `docs/reasoning_api.md` with setup, env vars, run instructions, and troubleshooting. Add `.env.example` vars.
+
+Delivery
+- Branch: `feature/langchain-graph-api` with one commit.
+- CI: run `bundle exec rubocop -A` and `bundle exec rspec` locally; do not fail build if Python not installed (service is optional).
+- PR includes verification notes and how to manually exercise the API + agent flow.

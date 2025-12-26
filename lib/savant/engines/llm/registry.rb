@@ -1,4 +1,5 @@
 require_relative 'vault'
+require_relative '../../framework/db'
 
 module Savant::Llm
   class Registry
@@ -72,9 +73,9 @@ module Savant::Llm
         enc = Vault.encrypt(api_key)
         assignments << "encrypted_api_key = $#{params.length + 1}"
         params << enc[:ciphertext]&.unpack1('H*')
-        assignments << "api_key_nonce = $#{params.length + 2}"
+        assignments << "api_key_nonce = $#{params.length + 1}"
         params << enc[:nonce]&.unpack1('H*')
-        assignments << "api_key_tag = $#{params.length + 3}"
+        assignments << "api_key_tag = $#{params.length + 1}"
         params << enc[:tag]&.unpack1('H*')
       end
 
@@ -222,10 +223,34 @@ module Savant::Llm
     def decrypt_provider_row(row)
       result = row.transform_keys(&:to_sym)
       if row['encrypted_api_key'] && row['api_key_nonce'] && row['api_key_tag']
-        ciphertext = [row['encrypted_api_key']].pack('H*')
-        nonce = [row['api_key_nonce']].pack('H*')
-        tag = [row['api_key_tag']].pack('H*')
-        result[:api_key] = Vault.decrypt(ciphertext, nonce, tag)
+        begin
+          ciphertext = row['encrypted_api_key']
+          nonce = row['api_key_nonce']
+          tag = row['api_key_tag']
+
+          # Data is stored as double-hex-encoded strings with \x prefix:
+          # 1. Binary encrypted data is hex-encoded via unpack1('H*')
+          # 2. That hex string is stored in BYTEA column
+          # 3. PostgreSQL returns it with \x prefix showing the ASCII hex representation
+          # To reverse: remove \x, unpack to hex string, unpack again to binary
+          if ciphertext.is_a?(String) && ciphertext.start_with?('\\x')
+            hex_str = [ciphertext[2..-1]].pack('H*')
+            ciphertext = [hex_str].pack('H*')
+          end
+          if nonce.is_a?(String) && nonce.start_with?('\\x')
+            hex_str = [nonce[2..-1]].pack('H*')
+            nonce = [hex_str].pack('H*')
+          end
+          if tag.is_a?(String) && tag.start_with?('\\x')
+            hex_str = [tag[2..-1]].pack('H*')
+            tag = [hex_str].pack('H*')
+          end
+
+          result[:api_key] = Vault.decrypt(ciphertext, nonce, tag)
+        rescue => e
+          # If decryption fails, treat as no API key (corrupted or invalid encryption data)
+          # This allows deletion of providers with corrupted encryption data
+        end
       end
       result.delete(:encrypted_api_key)
       result.delete(:api_key_nonce)

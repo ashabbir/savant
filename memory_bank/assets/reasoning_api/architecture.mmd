@@ -1,0 +1,33 @@
+flowchart LR
+  subgraph Ruby["Agent Runtime (Ruby)"]
+    AR[Agent Loop]
+    RC[Reasoning::Client]
+    Mux[Multiplexer]
+    Ctx[Context Engine]
+  end
+
+  subgraph API["Reasoning API (FastAPI)"]
+    EP1[/POST /agent_intent/]
+    EP2[/POST /agent_intent_async/]
+    EP3[/POST /workflow_intent/]
+    QW[(Queue Worker)]
+  end
+
+  subgraph Stores
+    PG[(Postgres FTS: chunks)]
+    MQ[(Mongo: reasoning_queue, reasoning_logs)]
+  end
+
+  AR --> RC
+  RC -- HTTP --> EP1
+  RC -- Async --> EP2
+  RC -- "Queue mode (insert/poll)" --> MQ
+  QW -- process queued jobs --> MQ
+  EP1 -->|finish| AR
+  EP1 -->|tool_name/tool_args| Mux
+  Mux --> Ctx
+  Ctx --> PG
+  API --> MQ
+
+  classDef store fill:#eef2ff,stroke:#6366f1
+  class PG,MQ store

@@ -48,3 +48,10 @@ Semantic Versioning where practical. Dates are in YYYY-MM-DD.
 - Indexer scanning/chunking with Postgres FTS.
 
 [1.1.0]: https://github.com/ashabbir/savant/compare/1.0.0...1.1.0
+
+## [1.1.1] - 2025-12-26
+
+### Docs
+- PRD (Council): Marked Implemented (v1), added implementation snapshot, API/mounts, DB model, UI behavior, and env flags.
+- README: Added Council engine section with UI path, HTTP examples, data model, and link to the PRD.
+- Getting Started: Added “Council Quickstart” with UI flow and cURL snippets.

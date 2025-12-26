@@ -17,3 +17,5 @@ mounts:
     path: "/agents"
   - engine: "llm"
     path: "/llm"
+  - engine: "council"
+    path: "/council"

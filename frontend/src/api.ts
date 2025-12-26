@@ -188,6 +188,15 @@ export type Diagnostics = {
   secrets?: { path: string; exists: boolean; users?: number; services?: string[]; error?: string };
   llm_models?: LLMDiagnostics;
   llm_runtime?: LLMDiagnosticRuntime;
+  reasoning?: {
+    configured: boolean;
+    base_url?: string;
+    reachable?: boolean;
+    status_code?: number;
+    error?: string;
+    calls?: { total?: number; last_1h?: number; last_24h?: number; last_at?: string; by_event?: Record<string, number | null>; error?: string };
+    agents?: { total?: number; runs_total?: number; runs_24h?: number; last_run_at?: string; error?: string };
+  };
 };
 
 export function useDiagnostics() {
@@ -199,6 +208,34 @@ export function useDiagnostics() {
     },
     retry: 0
   });
+}
+
+// Reasoning-only diagnostics and clear
+export type ReasoningDiagnostics = {
+  configured: boolean;
+  base_url?: string;
+  reachable?: boolean;
+  status_code?: number;
+  error?: string;
+  calls?: { total?: number; last_1h?: number; last_24h?: number; last_at?: string; by_event?: Record<string, number | null>; error?: string };
+  agents?: { total?: number; runs_total?: number; runs_24h?: number; last_run_at?: string; error?: string };
+};
+
+export function useReasoningDiagnostics() {
+  return useQuery<ReasoningDiagnostics>({
+    queryKey: ['diagnostics', 'reasoning'],
+    queryFn: async () => {
+      const res = await client().get('/diagnostics/reasoning');
+      return res.data as ReasoningDiagnostics;
+    },
+    refetchInterval: 5000,
+    retry: 0
+  });
+}
+
+export async function clearReasoning() {
+  const res = await client().delete('/diagnostics/reasoning');
+  return res.data as { cleared: any[]; errors: any[]; message: string };
 }
 
 // THINK engine API
@@ -728,17 +765,29 @@ export function useAgentRuns(name: string | null) {
 }
 
 export async function agentRun(name: string, input: string, maxSteps?: number) {
+  // Submit asynchronously; server returns quickly with run_id so UI can refetch list
   const res = await client().post('/agents/tools/agents_run/call', { params: { name, input, max_steps: maxSteps } });
-  return res.data as { status: string; duration_ms?: number; result?: any };
+  return res.data as { status: string; run_id?: number; message?: string };
 }
 
 export async function agentRunRead(name: string, runId: number) {
   const res = await client().post('/agents/tools/agents_run_read/call', { params: { name, run_id: runId } });
-  return res.data as { id: number; transcript: any };
+  // Backend returns id, input, status, output_summary, duration_ms, transcript, agent
+  return res.data as { id: number; input?: string | null; status?: string; output_summary?: string | null; duration_ms?: number | null; transcript: any; agent?: any };
+}
+
+export async function agentRunContinue(name: string, runId: number, message: string, maxSteps?: number) {
+  const res = await client().post('/agents/tools/agents_run_continue/call', { params: { name, run_id: runId, message, max_steps: maxSteps } });
+  return res.data as { status: string; run_id?: number; message?: string };
 }
 
 export async function agentRunCancel(name: string) {
   const res = await client().post('/agents/tools/agents_run_cancel/call', { params: { name } });
+  return res.data as { ok: boolean };
+}
+
+export async function agentRunCancelId(name: string, runId: number) {
+  const res = await client().post('/agents/tools/agents_run_cancel_id/call', { params: { name, run_id: runId } });
   return res.data as { ok: boolean };
 }
 
@@ -750,6 +799,171 @@ export async function agentRunDelete(name: string, runId: number) {
 export async function agentRunsClearAll(name: string) {
   const res = await client().post('/agents/tools/agents_runs_clear_all/call', { params: { name } });
   return res.data as { deleted_count: number };
+}
+
+// Council API
+export type CouncilSession = {
+  id: number;
+  title?: string | null;
+  agents?: string[];
+  description?: string | null;
+  mode?: 'chat' | 'council';
+  created_at?: string;
+  updated_at?: string;
+  last_preview?: string | null;
+  last_at?: string | null;
+  last_role?: string | null;
+  last_agent_name?: string | null;
+  council_run?: CouncilRun | null;
+};
+
+export type CouncilRole = {
+  id: string;
+  name: string;
+  description: string;
+};
+
+export type CouncilRun = {
+  id: number;
+  session_id: number;
+  run_id: string;
+  status: 'pending' | 'running' | 'completed' | 'vetoed' | 'error';
+  phase: string;
+  query?: string | null;
+  context?: any;
+  positions?: Record<string, any>;
+  debate_rounds?: Array<{ round: number; refinements: Record<string, any>; consensus: boolean }>;
+  synthesis?: any;
+  votes?: any;
+  veto: boolean;
+  veto_reason?: string | null;
+  started_at?: string;
+  completed_at?: string | null;
+  error?: string | null;
+};
+
+export type CouncilStatus = {
+  session_id: number;
+  mode: 'chat' | 'council';
+  council_run: CouncilRun | null;
+  roles: CouncilRole[];
+};
+
+export function useCouncilSessions(limit: number = 50) {
+  return useQuery<{ sessions: CouncilSession[] }>({
+    queryKey: ['council', 'sessions', limit],
+    queryFn: async () => {
+      const res = await client().post('/council/tools/council_sessions_list/call', { params: { limit } });
+      return res.data as { sessions: CouncilSession[] };
+    }
+  });
+}
+
+export async function councilSessionCreate(title?: string, agents?: string[], description?: string) {
+  const res = await client().post('/council/tools/council_session_create/call', { params: { title, description, agents } });
+  return res.data as { id: number; title?: string; description?: string; agents?: string[] };
+}
+
+export async function councilSessionGet(id: number) {
+  const res = await client().post('/council/tools/council_session_get/call', { params: { id } });
+  return res.data as CouncilSession & {
+    messages: Array<{
+      id: number;
+      role: string;
+      agent_name?: string | null;
+      text?: string | null;
+      status?: string | null;
+      run_id?: number | null;
+      created_at?: string;
+    }>;
+  };
+}
+
+export async function councilAppendUser(session_id: number, text: string) {
+  const res = await client().post('/council/tools/council_append_user/call', { params: { session_id, text } });
+  return res.data as { ok: boolean };
+}
+
+export async function councilAppendAgent(session_id: number, agent_name: string, run_id?: number | null, text?: string | null, status: string = 'ok') {
+  const res = await client().post('/council/tools/council_append_agent/call', { params: { session_id, agent_name, run_id, text, status } });
+  return res.data as { ok: boolean };
+}
+
+export async function councilSessionDelete(id: number) {
+  const res = await client().post('/council/tools/council_session_delete/call', { params: { id } });
+  return res.data as { ok: boolean };
+}
+
+export async function councilSessionUpdate(id: number, title?: string, agents?: string[], description?: string) {
+  const res = await client().post('/council/tools/council_session_update/call', { params: { id, title, agents, description } });
+  return res.data as { id: number; title?: string; agents?: string[]; description?: string };
+}
+
+// Council Protocol API
+export async function councilRoles() {
+  const res = await client().post('/council/tools/council_roles/call', { params: {} });
+  return res.data as { roles: CouncilRole[] };
+}
+
+export async function councilStatus(session_id: number) {
+  const res = await client().post('/council/tools/council_status/call', { params: { session_id } });
+  return res.data as CouncilStatus;
+}
+
+export async function councilEscalate(session_id: number, query?: string) {
+  const res = await client().post('/council/tools/council_escalate/call', { params: { session_id, query } });
+  return res.data as { ok: boolean; run_id: string; session_id: number; mode: 'council'; context: any };
+}
+
+export async function councilRun(session_id: number, run_id?: string, max_debate_rounds?: number) {
+  const res = await client().post('/council/tools/council_run/call', { params: { session_id, run_id, max_debate_rounds } });
+  return res.data as {
+    ok: boolean;
+    run_id: string;
+    status: string;
+    synthesis?: any;
+    positions?: Record<string, any>;
+    debate_rounds?: any[];
+    veto_reason?: string;
+    error?: string;
+  };
+}
+
+export async function councilReturnToChat(session_id: number, message?: string) {
+  const res = await client().post('/council/tools/council_return_to_chat/call', { params: { session_id, message } });
+  return res.data as { ok: boolean; mode: 'chat' };
+}
+
+export async function councilRunGet(run_id: string) {
+  const res = await client().post('/council/tools/council_run_get/call', { params: { run_id } });
+  return res.data as CouncilRun | null;
+}
+
+export async function councilRunsList(session_id: number, limit?: number) {
+  const res = await client().post('/council/tools/council_runs_list/call', { params: { session_id, limit } });
+  return res.data as { runs: CouncilRun[] };
+}
+
+export function useCouncilStatus(session_id: number | null) {
+  return useQuery<CouncilStatus>({
+    queryKey: ['council', 'status', session_id],
+    queryFn: async () => {
+      const res = await client().post('/council/tools/council_status/call', { params: { session_id } });
+      return res.data as CouncilStatus;
+    },
+    enabled: !!session_id,
+    refetchInterval: 3000 // Poll for updates during council runs
+  });
+}
+
+export function useCouncilRoles() {
+  return useQuery<{ roles: CouncilRole[] }>({
+    queryKey: ['council', 'roles'],
+    queryFn: async () => {
+      const res = await client().post('/council/tools/council_roles/call', { params: {} });
+      return res.data as { roles: CouncilRole[] };
+    }
+  });
 }
 
 // Hub stats for diagnostics
@@ -786,6 +1000,33 @@ export function useHubStats() {
       return res.data as HubStats;
     },
     refetchInterval: 5000 // Auto-refresh every 5 seconds
+  });
+}
+
+// Hub Requests (Mongo-sourced)
+export type HubRequests = { recent: RequestRecord[] };
+export function useHubRequests(n: number = 100) {
+  return useQuery<HubRequests>({
+    queryKey: ['hub', 'requests', n],
+    queryFn: async () => {
+      const res = await client().get(`/hub/requests?n=${n}`);
+      return res.data as HubRequests;
+    },
+    refetchInterval: 5000
+  });
+}
+
+// Reasoning API events (from Mongo aggregated logs)
+export type ReasoningEventsResponse = { count: number; events: any[] };
+export function useReasoningEvents(n: number = 200, type: string = 'all') {
+  return useQuery<ReasoningEventsResponse>({
+    queryKey: ['logs', 'reasoning', n, type],
+    queryFn: async () => {
+      const typeParam = type && type !== 'all' ? `&type=${encodeURIComponent(type)}` : '';
+      const res = await client().get(`/logs?mcp=reasoning&n=${n}${typeParam}`);
+      return res.data as ReasoningEventsResponse;
+    },
+    refetchInterval: 3000
   });
 }
 

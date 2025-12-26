@@ -77,7 +77,7 @@ module Savant
             { ok: eng.delete(name: a['name']) }
           end
 
-          tool 'agents_run', description: 'Execute an agent by name',
+          tool 'agents_run', description: 'Submit an agent run asynchronously (returns immediately with run_id)',
                              schema: { type: 'object', properties: {
                                name: { type: 'string' },
                                input: { type: 'string' },
@@ -85,15 +85,42 @@ module Savant
                                dry_run: { type: 'boolean' }
                              }, required: %w[name input] } do |_ctx, a|
             user_id = _ctx && _ctx[:user_id]
-            if Savant::Agents::Tools.supports_kw?(eng, :run, :user_id)
-              eng.run(name: a['name'], input: a['input'], max_steps: a['max_steps'], dry_run: !a['dry_run'].nil?, user_id: user_id)
+            if Savant::Agents::Tools.supports_kw?(eng, :run_submit, :user_id)
+              eng.run_submit(name: a['name'], input: a['input'], max_steps: a['max_steps'], dry_run: !a['dry_run'].nil?, user_id: user_id)
             else
-              eng.run(name: a['name'], input: a['input'], max_steps: a['max_steps'], dry_run: !a['dry_run'].nil?)
+              eng.run_submit(name: a['name'], input: a['input'], max_steps: a['max_steps'], dry_run: !a['dry_run'].nil?)
             end
           end
 
-          tool 'agents_runs_list', description: 'List recent runs for an agent', schema: { type: 'object', properties: { name: { type: 'string' }, limit: { type: 'integer' } }, required: ['name'] } do |_ctx, a|
-            { runs: eng.runs_list(name: a['name'], limit: a['limit'] || 50) }
+          tool 'agents_run_continue', description: 'Continue from a previous agent run with a follow-up message',
+                                       schema: { type: 'object', properties: {
+                                         name: { type: 'string' },
+                                         run_id: { type: 'integer' },
+                                         message: { type: 'string' },
+                                         max_steps: { type: 'integer' }
+                                       }, required: %w[name run_id message] } do |_ctx, a|
+            user_id = _ctx && _ctx[:user_id]
+            if Savant::Agents::Tools.supports_kw?(eng, :run_continue_submit, :user_id)
+              eng.run_continue_submit(name: a['name'], run_id: a['run_id'], message: a['message'], max_steps: a['max_steps'], user_id: user_id)
+            else
+              eng.run_continue_submit(name: a['name'], run_id: a['run_id'], message: a['message'], max_steps: a['max_steps'])
+            end
+          end
+
+          tool 'agents_runs_list', description: 'List recent runs for an agent', schema: { type: 'object', properties: { name: { type: 'string' }, limit: { type: 'integer' } }, required: ['name'] } do |ctx, a|
+            logger = (ctx && ctx[:logger]) rescue nil
+            nm = (a['name'] || '').to_s
+            lim = (a['limit'] || 50).to_i
+            if nm.empty?
+              { runs: [] }
+            else
+              begin
+                { runs: eng.runs_list(name: nm, limit: lim) }
+              rescue StandardError => e
+                logger&.warn(event: 'agents_runs_list_error', name: nm, error: e.message)
+                { runs: [], error: e.message }
+              end
+            end
           end
 
           tool 'agents_run_read', description: 'Read a single run transcript', schema: { type: 'object', properties: { name: { type: 'string' }, run_id: { type: 'integer' } }, required: %w[name run_id] } do |_ctx, a|
@@ -115,6 +142,16 @@ module Savant
               eng.run_cancel(name: a['name'], user_id: user_id)
             else
               eng.run_cancel(name: a['name'])
+            end
+          end
+
+          tool 'agents_run_cancel_id', description: 'Cancel a specific agent run by run_id',
+                                       schema: { type: 'object', properties: { name: { type: 'string' }, run_id: { type: 'integer' } }, required: %w[name run_id] } do |_ctx, a|
+            user_id = _ctx && _ctx[:user_id]
+            if Savant::Agents::Tools.supports_kw?(eng, :run_cancel_id, :user_id)
+              eng.run_cancel_id(name: a['name'], run_id: a['run_id'], user_id: user_id)
+            else
+              eng.run_cancel_id(name: a['name'], run_id: a['run_id'])
             end
           end
         end
