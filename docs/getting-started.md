@@ -43,6 +43,37 @@ open http://localhost:9999/ui || true
 
 Tip: Most engines (Git, Think, Personas, Rules) work without a database. Context search requires a Postgres DB and indexing (see Advanced below).
 
+### 3.2) Council Quickstart
+
+- Open the Hub UI and click the Council tab (`/council`). Create a session by naming it and selecting at least two agents. Chat normally; when ready, click “Escalate to Council” to run the multi‑agent protocol. The UI live‑updates during deliberation and automatically returns to chat when done.
+
+Or use HTTP directly:
+
+```bash
+# Create a session
+curl -s -H 'content-type: application/json' -H 'x-savant-user-id: me' \
+  -X POST http://localhost:9999/council/tools/council_session_create/call \
+  -d '{"params": {"title": "Tech Decision", "agents": ["a1","a2"]}}'
+
+# Append a user message
+curl -s -H 'content-type: application/json' -H 'x-savant-user-id: me' \
+  -X POST http://localhost:9999/council/tools/council_append_user/call \
+  -d '{"params": {"session_id": 1, "text": "Microservices or monolith?"}}'
+
+# Escalate to council and run
+curl -s -H 'content-type: application/json' -H 'x-savant-user-id: me' \
+  -X POST http://localhost:9999/council/tools/council_escalate/call \
+  -d '{"params": {"session_id": 1}}'
+
+curl -s -H 'content-type: application/json' -H 'x-savant-user-id: me' \
+  -X POST http://localhost:9999/council/tools/council_run/call \
+  -d '{"params": {"session_id": 1}}'
+```
+
+Environment flags:
+- `COUNCIL_DEMO_MODE=1` → demo positions/synthesis without Reasoning API
+- `COUNCIL_AUTO_AGENT_STEP=1` → optional auto agent step on user messages (chat mode)
+
 ## 3.1) Dev Mode (Rails + Vite, hot reload)
 
 - One command: `make dev`

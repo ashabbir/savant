@@ -32,6 +32,16 @@ CLAUDE.md
 frontend/node_modules/
 frontend/dist/
 
+### Python artifacts and virtual environments
+.venv*/
+.venv_reasoning/
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+
 ### Generated static assets served by Rails
 public/
 

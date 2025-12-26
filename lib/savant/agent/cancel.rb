@@ -15,6 +15,11 @@ module Savant
         "agent:#{agent_name}:#{user}"
       end
 
+      def key_for_run(agent_name:, run_id:, user_id: nil)
+        user = user_id && !user_id.to_s.empty? ? user_id.to_s : 'default'
+        "agent:#{agent_name}:run:#{run_id}:#{user}"
+      end
+
       def request(key)
         @mutex.synchronize { @flags[key] = true }
         true

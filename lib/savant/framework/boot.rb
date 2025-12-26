@@ -119,7 +119,7 @@ module Savant
       def load_persona(name, base_path, logger)
         logger.info(event: 'loading_persona', name: name)
 
-        ops = Savant::Personas::Ops.new(root: base_path)
+        ops = Savant::Personas::Ops.new
         persona_data = ops.get(name: name)
 
         result = {

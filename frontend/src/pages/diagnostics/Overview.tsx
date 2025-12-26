@@ -793,6 +793,71 @@ export default function DiagnosticsOverview() {
               )}
             </Paper>
 
+            {/* Reasoning API */}
+            <Paper sx={{ p: 1.5 }}>
+              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>Reasoning API</Typography>
+              {diag.isLoading && <LinearProgress />}
+              {diag.data && (diag.data as any).reasoning && (
+                <Stack spacing={1.0}>
+                  <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                    <Chip
+                      size="small"
+                      icon={(diag.data as any).reasoning.configured ? <CheckCircleIcon /> : <ErrorIcon />}
+                      label={(diag.data as any).reasoning.configured ? 'Configured' : 'Not configured'}
+                      color={(diag.data as any).reasoning.configured ? 'success' : 'error'}
+                    />
+                    {((diag.data as any).reasoning.configured) && (
+                      <Chip
+                        size="small"
+                        icon={(diag.data as any).reasoning.reachable ? <CheckCircleIcon /> : <ErrorIcon />}
+                        label={(diag.data as any).reasoning.reachable ? 'Reachable' : 'Unreachable'}
+                        color={(diag.data as any).reasoning.reachable ? 'success' : 'error'}
+                      />
+                    )}
+                    {((diag.data as any).reasoning.base_url) && (
+                      <Chip size="small" label={(diag.data as any).reasoning.base_url} variant="outlined" />
+                    )}
+                    {((diag.data as any).reasoning.calls?.total != null) && (
+                      <Chip size="small" label={`Calls: ${(diag.data as any).reasoning.calls.total.toLocaleString?.() || (diag.data as any).reasoning.calls.total}`} variant="outlined" />
+                    )}
+                    {((diag.data as any).reasoning.calls?.last_24h != null) && (
+                      <Chip size="small" label={`24h: ${(diag.data as any).reasoning.calls.last_24h.toLocaleString?.() || (diag.data as any).reasoning.calls.last_24h}`} variant="outlined" />
+                    )}
+                    {((diag.data as any).reasoning.agents?.total != null) && (
+                      <Chip size="small" label={`Agents: ${(diag.data as any).reasoning.agents.total}`} variant="outlined" />
+                    )}
+                    {((diag.data as any).reasoning.agents?.runs_total != null) && (
+                      <Chip size="small" label={`Runs: ${(diag.data as any).reasoning.agents.runs_total.toLocaleString?.() || (diag.data as any).reasoning.agents.runs_total}`} variant="outlined" />
+                    )}
+                    {((diag.data as any).reasoning.agents?.runs_24h != null) && (
+                      <Chip size="small" label={`Runs 24h: ${(diag.data as any).reasoning.agents.runs_24h.toLocaleString?.() || (diag.data as any).reasoning.agents.runs_24h}`} variant="outlined" />
+                    )}
+                  </Stack>
+                  {((diag.data as any).reasoning.calls?.by_event) && (() => {
+                    const ev = (diag.data as any).reasoning.calls.by_event as Record<string, number|null>;
+                    const entries = Object.entries(ev).filter(([_, v]) => v != null && !Number.isNaN(Number(v)));
+                    if (entries.length === 0) return null;
+                    return (
+                      <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+                        {entries.map(([k, v]) => (
+                          <Chip key={k} size="small" label={`${k}: ${Number(v).toLocaleString?.() || v}`} variant="outlined" />
+                        ))}
+                      </Stack>
+                    );
+                  })()}
+                  {((diag.data as any).reasoning.calls?.last_at) && (
+                    <Typography variant="caption" color="text.secondary">Last call: {(diag.data as any).reasoning.calls.last_at}</Typography>
+                  )}
+                  {((diag.data as any).reasoning.agents?.last_run_at) && (
+                    <Typography variant="caption" color="text.secondary">Last run: {(diag.data as any).reasoning.agents.last_run_at}</Typography>
+                  )}
+                  {((diag.data as any).reasoning.error) && (
+                    <Alert severity="warning">{(diag.data as any).reasoning.error}</Alert>
+                  )}
+                </Stack>
+              )}
+            </Paper>
+
             {/* MongoDB */}
             <Paper sx={{ p: 1.5 }}>
               <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>MongoDB</Typography>

@@ -10,6 +10,8 @@ require_relative '../llm/adapter'
 require_relative 'prompt_builder'
 require_relative 'output_parser'
 require_relative 'memory'
+require_relative '../reasoning/client'
+require_relative 'state_machine'
 
 module Savant
   module Agent
@@ -17,9 +19,9 @@ module Savant
     class Runtime
       DEFAULT_MAX_STEPS = (ENV['AGENT_MAX_STEPS'] || '25').to_i
 
-      attr_accessor :agent_instructions
+      attr_accessor :agent_instructions, :agent_rulesets, :agent_llm, :state_machine, :system_message
 
-      def initialize(goal:, slm_model: nil, llm_model: nil, logger: nil, base_path: nil, forced_tool: nil, forced_args: nil, forced_finish: false, forced_final: nil, cancel_key: nil)
+      def initialize(goal:, slm_model: nil, llm_model: nil, logger: nil, base_path: nil, forced_tool: nil, forced_args: nil, forced_finish: false, forced_final: nil, cancel_key: nil, run_id: nil)
         @goal = goal.to_s
         @context = Savant::Framework::Runtime.current
         @base_path = base_path || default_base_path
@@ -41,14 +43,43 @@ module Savant
         @forced_finish = !!forced_finish
         @forced_final = forced_final&.to_s
         @cancel_key = cancel_key
+        @run_id = run_id
         @agent_instructions = nil
+        @agent_rulesets = nil
+        @agent_llm = nil
+        @state_machine = Savant::Agent::StateMachine.new
+        @system_message = nil
       end
 
       def run(max_steps: @max_steps, dry_run: false)
         steps = 0
         model = @slm_model
         # AMR shortcut: if goal clearly requests a workflow, auto-trigger workflow_run once.
-        unless @forced_tool
+        # Default: ENABLED (AGENT_ENABLE_WORKFLOW_AUTODETECT=1 implicit). You can disable with AGENT_DISABLE_WORKFLOW_AUTODETECT=1 or FORCE_REASONING_API=1.
+        autodetect = true
+        begin
+          env_true  = ->(v) { v && %w[1 true yes on].include?(v.to_s.strip.downcase) }
+          env_false = ->(v) { v && %w[0 false no off].include?(v.to_s.strip.downcase) }
+
+          en = ENV['AGENT_ENABLE_WORKFLOW_AUTODETECT']
+          dis = ENV['AGENT_DISABLE_WORKFLOW_AUTODETECT']
+          force = ENV['FORCE_REASONING_API']
+
+          # Explicit disables take precedence
+          if env_true.call(dis) || env_true.call(force)
+            autodetect = false
+          elsif env_false.call(en)
+            autodetect = false
+          elsif env_true.call(en)
+            autodetect = true
+          else
+            # No overrides -> keep default true
+            autodetect = true
+          end
+        rescue StandardError
+          autodetect = true
+        end
+        if !@forced_tool && autodetect
           begin
             auto = detect_workflow_intent(@goal)
             if auto
@@ -72,10 +103,43 @@ module Savant
             return { status: 'canceled', steps: steps + 1, final: final_text, memory_path: @memory.path, transcript: @memory.full_data }
           end
           steps += 1
-          break if steps > max_steps
+
+          # Tick state machine
+          @state_machine.tick
+
+          # Check if agent is stuck
+          if @state_machine.stuck?
+            stuck_msg = @state_machine.suggest_exit
+            final_text = "Agent stuck: #{stuck_msg}"
+            finish_action = { 'action' => 'finish', 'tool_name' => '', 'args' => {}, 'final' => final_text, 'reasoning' => 'stuck_detection' }
+            @memory.append_step(index: steps, action: finish_action, final: final_text)
+            @memory.snapshot!
+            emit_step_event(steps: steps, model: nil, usage: {}, action: finish_action)
+            return { status: 'ok', steps: steps, final: final_text, memory_path: @memory.path, transcript: @memory.full_data }
+          end
+
+          if steps > max_steps
+            # Gracefully finish if step cap reached
+            final_text = "Reached maximum steps (#{max_steps})."
+            finish_action = { 'action' => 'finish', 'tool_name' => '', 'args' => {}, 'final' => final_text, 'reasoning' => 'max_steps' }
+            @memory.append_step(index: steps, action: finish_action, final: final_text)
+            @memory.snapshot!
+            emit_step_event(steps: steps, model: nil, usage: {}, action: finish_action)
+            return { status: 'ok', steps: steps, final: final_text, memory_path: @memory.path, transcript: @memory.full_data }
+          end
 
           # Forced tool execution (one-shot): execute specified tool as the first step
           if @forced_tool && !@forced_tool_used
+            # Enforce default policy: block Think tools unless explicitly allowed
+            if @forced_tool.start_with?('think.') && !env_bool('AGENT_ALLOW_THINK_TOOLS')
+              final_text = 'Think tools are disabled by default for agents.'
+              finish_action = { 'action' => 'finish', 'tool_name' => '', 'args' => {}, 'final' => final_text, 'reasoning' => 'think_tools_disabled' }
+              @memory.append_step(index: steps, action: finish_action, final: final_text)
+              @memory.snapshot!
+              emit_step_event(steps: steps, model: nil, usage: {}, action: finish_action)
+              return { status: 'ok', steps: steps, final: final_text, memory_path: @memory.path, transcript: @memory.full_data }
+            end
+
             result = if dry_run
                        { dry: true, tool: @forced_tool, args: @forced_args }
                      else
@@ -113,16 +177,24 @@ module Savant
           rescue StandardError
             []
           end
-          base_tools = tool_specs.map { |s| (s[:name] || s['name']).to_s }.compact.reject(&:empty?)
+          # Filter tools by policy: restrict to state-allowed tools when present,
+          # and avoid Think tools that require a workflow unless explicitly in workflow mode.
+          filtered_specs = filter_tool_specs(tool_specs)
+          base_tools = filtered_specs.map { |s| (s[:name] || s['name']).to_s }.compact.reject(&:empty?)
           tools_hint = (base_tools + base_tools.map { |n| n.gsub('/', '.') }).uniq.sort
-          catalog = tool_specs.map do |s|
+          catalog = filtered_specs.map do |s|
             n = (s[:name] || s['name']).to_s
             d = (s[:description] || s['description'] || '').to_s
             next nil if n.empty?
 
-            "- #{n} — #{d}"
+            # Include required parameters info
+            schema = s[:schema] || s['schema']
+            required = schema&.dig(:required) || schema&.dig('required') || []
+            req_info = required.any? ? " (required: #{required.join(', ')})" : ''
+
+            "- #{n} — #{d}#{req_info}"
           end.compact
-          prompt = @prompt_builder.build(goal: @goal, memory: @memory.data, last_output: @last_output, tools_hint: tools_hint, tools_catalog: catalog, agent_instructions: @agent_instructions)
+          prompt = @prompt_builder.build(goal: @goal, memory: @memory.data, last_output: @last_output, tools_hint: tools_hint, tools_catalog: catalog, agent_instructions: @agent_instructions, system: @system_message)
           begin
             ps = { type: 'prompt_snapshot', mcp: 'agent', run: @run_id, step: steps, length: prompt.length, hash: Digest::SHA256.hexdigest(prompt)[0, 16], text: prompt[0, 1500], ts: Time.now.utc.iso8601, timestamp: Time.now.to_i }
             @trace.record(ps)
@@ -156,6 +228,25 @@ module Savant
 
           case action['action']
           when 'tool'
+            # Check cancellation just before calling a potentially long-running tool
+            if @cancel_key && Savant::Agent::Cancel.signal?(@cancel_key)
+              final_text = 'Canceled by user'
+              finish_action = { 'action' => 'finish', 'tool_name' => '', 'args' => {}, 'final' => final_text, 'reasoning' => 'canceled' }
+              @memory.append_step(index: steps, action: finish_action, final: final_text)
+              @memory.snapshot!
+              emit_step_event(steps: steps, model: nil, usage: {}, action: finish_action)
+              return { status: 'canceled', steps: steps, final: final_text, memory_path: @memory.path, transcript: @memory.full_data }
+            end
+
+            # Record tool call in state machine
+            tool_name = action['tool_name']
+            tool_args = action['args'] || {}
+            @state_machine.record_tool_call(tool_name, tool_args)
+
+            # Transition to appropriate state based on tool
+            next_state = @state_machine.infer_state_from_tool(tool_name)
+            @state_machine.transition_to(next_state, reason: tool_name) if next_state
+
             res = dry_run ? { dry: true, tool: action['tool_name'], args: action['args'] } : call_tool(action['tool_name'], action['args'], step: steps)
             @last_output = safe_json(res)
             @memory.append_step(index: steps, action: action, output: res)
@@ -163,14 +254,17 @@ module Savant
           when 'reason'
             # Escalate to LLM for deeper reasoning
             model = @llm_model
+            @state_machine.transition_to(:analyzing, reason: 'deep_reasoning')
             @last_output = action['reasoning']
             @memory.append_step(index: steps, action: action, note: 'deep_reasoning')
             @memory.snapshot!
           when 'finish'
+            @state_machine.transition_to(:finishing, reason: 'finish_action')
             @memory.append_step(index: steps, action: action, final: action['final'])
             @memory.snapshot!
             return { status: 'ok', steps: steps, final: action['final'], memory_path: @memory.path, transcript: @memory.full_data }
           when 'error'
+            @state_machine.transition_to(:finishing, reason: 'error')
             @memory.append_error(action)
             @memory.snapshot!
             return { status: 'error', steps: steps, error: action['final'] || 'agent_error', memory_path: @memory.path, transcript: @memory.full_data }
@@ -185,6 +279,58 @@ module Savant
       end
 
       private
+
+      def env_bool(name)
+        v = ENV[name]
+        return false if v.nil?
+        %w[1 true yes on].include?(v.to_s.strip.downcase)
+      end
+
+      # Determine whether the agent is explicitly in a workflow-driving mode.
+      def workflow_mode?
+        return true if @forced_tool && @forced_tool.start_with?('workflow.')
+        # Heuristic: if goal explicitly references a known workflow name
+        !!detect_workflow_intent(@goal)
+      rescue StandardError
+        false
+      end
+
+      # Return filtered tool specs based on state + workflow policy.
+      def filter_tool_specs(specs)
+        return [] unless specs.is_a?(Array)
+
+        names_allowed_by_state = Array(@state_machine&.allowed_actions)
+        # Policy: disable Think tools by default for agents.
+        # Set AGENT_ALLOW_THINK_TOOLS=1 to opt-in.
+        disable_think = !env_bool('AGENT_ALLOW_THINK_TOOLS')
+        in_workflow = workflow_mode?
+
+        specs.select do |s|
+          name = (s[:name] || s['name']).to_s
+          next false if name.empty?
+
+          # If state machine specifies a non-empty allowlist, enforce it strictly
+          if names_allowed_by_state.any?
+            next false unless names_allowed_by_state.include?(name)
+          end
+
+          # Optionally disable all Think tools
+          if disable_think && name.start_with?('think.')
+            next false
+          end
+
+          # Avoid Think tools that require a workflow when not in workflow mode
+          if name.start_with?('think.') && !in_workflow
+            schema = s[:schema] || s['schema']
+            req = (schema&.dig(:required) || schema&.dig('required') || []).map(&:to_s)
+            if req.include?('workflow')
+              next false
+            end
+          end
+
+          true
+        end
+      end
 
       def detect_workflow_intent(goal)
         g = (goal || '').to_s
@@ -219,6 +365,18 @@ module Savant
 
       def decide_and_parse(prompt:, model:, allowed_tools: [], step: nil)
         usage = { prompt_tokens: nil, output_tokens: nil }
+        # If reasoning API is configured, delegate single-step intent decision
+        if reasoning_client&.available?
+          begin
+            payload = build_agent_payload
+            intent = reasoning_client.agent_intent(payload)
+            parsed = intent_to_action(intent)
+            return [parsed, usage, 'reasoning_api/v1']
+          rescue StandardError => e
+            @logger.warn(event: 'reasoning_api_fallback', error: e.message)
+          end
+        end
+        # Fallback to local SLM
         text, usage = with_timing_llm(model: model, prompt: prompt, step: step)
         parsed = parse_action(text) || retry_fix_json(model: model, prompt: prompt, raw: text)
         # If model returned an invalid action, ask for a correction once with stricter instructions
@@ -234,6 +392,64 @@ module Savant
           usage,
           model
         ]
+      end
+
+      def build_agent_payload
+        ctx = @context
+        provider = nil
+        model = nil
+        api_key = nil
+
+        # Use agent_llm if available (from registered provider/model assignment)
+        if @agent_llm && @agent_llm.is_a?(Hash)
+          provider = @agent_llm[:provider]
+          model = @agent_llm[:llm_model]
+          api_key = @agent_llm[:api_key]
+        end
+
+        # Fallback to defaults
+        provider ||= Savant::LLM.default_provider_for(@llm_model)
+        model ||= @llm_model
+
+        llm_obj = {
+          provider: provider,
+          model: model
+        }
+        llm_obj[:api_key] = api_key if api_key
+
+        {
+          session_id: ctx&.session_id || "run-#{Time.now.to_i}",
+          persona: ctx&.persona || {},
+          driver: ctx&.driver_prompt || {},
+          rules: {
+            agent_rulesets: @agent_rulesets || [],
+            global_amr: (ctx&.amr_rules || {})
+          },
+          instructions: @agent_instructions,
+          repo_context: ctx&.repo || {},
+          memory_state: @memory&.data || {},
+          history: @memory&.full_data&.dig('steps') || [],
+          goal_text: @goal,
+          forced_tool: @forced_tool,
+          max_steps: 1,
+          llm: llm_obj,
+          agent_state: @state_machine&.to_h,
+          correlation_id: @run_id
+        }
+      end
+
+      def intent_to_action(intent)
+        if intent.finish
+          { 'action' => 'finish', 'tool_name' => '', 'args' => {}, 'final' => intent.final_text.to_s, 'reasoning' => intent.reasoning.to_s }
+        elsif intent.tool_name && !intent.tool_name.to_s.empty?
+          { 'action' => 'tool', 'tool_name' => intent.tool_name.to_s, 'args' => intent.tool_args || {}, 'final' => '', 'reasoning' => intent.reasoning.to_s }
+        else
+          { 'action' => 'reason', 'tool_name' => '', 'args' => {}, 'final' => '', 'reasoning' => intent.reasoning.to_s }
+        end
+      end
+
+      def reasoning_client
+        @reasoning_client ||= Savant::Reasoning::Client.new
       end
 
       def repair_invalid_action(model:, allowed_tools: [])

@@ -10,64 +10,67 @@ docs/savant-instructions.md
 docs/savant-vision.md
 
 Architecture
-- Indexer: scans configured repos, hashes/dedupes files, chunks content, and writes to Postgres tables (`repos`, `files`, `blobs`, `file_blob_map`, `chunks`). FTS index on `chunks.chunk_text` powers ranked search.
-- MCP servers: stdio JSON-RPC interface; a single service is active per process via `MCP_SERVICE` (e.g., `context` or `jira`). Tools are advertised by the active service’s registrar and calls are delegated to its Engine.
-- Config: `config/settings.json` drives indexer limits, repo list, MCP listen options, and DB connection defaults (see `config/schema.json`, `config/settings.example.json`).
-- Rails API: `server/` hosts a Rails API serving health and JSON-RPC endpoints; use local Postgres via `DATABASE_URL`.
+- Indexer: scans configured repos, hashes/dedupes files, chunks content, and writes to Postgres tables (`repos`, `files`, `blobs`, `file_blob_map`, `chunks`). FTS index on `chunks.chunk_text` powers ranked search. Implemented under `lib/savant/engines/indexer/*`.
+- MCP: `lib/savant/framework/mcp/server.rb` provides a transport-agnostic MCP server (stdio or websocket). Default mode is stdio.
+- Multiplexer: `lib/savant/multiplexer.rb` can spawn multiple engines (context, git, think, personas, rules, jira) and route `service.tool` calls to the correct engine.
+- Config: `config/settings.json` drives indexer limits, repo list, multiplexer engines, transport options, and DB defaults (see `config/schema.json`, `config/settings.example.json`).
+- HTTP Hub: HTTP transport under `lib/savant/framework/transports/http/rack_app.rb`, mounted via the Hub (`lib/savant/hub/*`) to serve `/healthz`, `/rpc`, and the static UI.
 
 Key Components (Ruby)
-- `lib/savant/config.rb`:
-  - `Savant::Config.load(path)`: loads/validates `settings.json`. Ensures presence of `indexer`, `database`, and `mcp` keys; validates repo entries and indexer fields.
-  - Raises `Savant::ConfigError` on missing/invalid config.
-- `lib/savant/db.rb`:
-  - Connection wrapper over `pg`. Schema helpers: `migrate_tables`, `ensure_fts`.
-  - CRUD helpers: `find_or_create_repo`, `find_or_create_blob`, `replace_chunks`, `upsert_file`, `map_file_to_blob`, `delete_missing_files`, `delete_repo_by_name`, `delete_all_data`.
-- `lib/savant/logger.rb`:
-  - Lightweight logger with levels, timing helper `with_timing(label:)`, and slow-op flag via `SLOW_THRESHOLD_MS`.
-- `lib/savant/indexer.rb` and `lib/savant/indexer/*`:
-  - Facade `Savant::Indexer` delegates to namespaced modules under `lib/savant/indexer/` (Runner, RepositoryScanner, BlobStore, Chunkers, Cache, Config, Instrumentation, Admin, CLI).
-  - Runner scans repos from config; merges `.gitignore` and `.git/info/exclude` patterns; skips hidden, binary, oversized, or unchanged files (tracked in `.cache/indexer.json`).
-  - Dedupes by SHA256 at blob level; chunks code by lines with overlap; markdown by chars; language derived from file extension with optional allowlist.
-  - Upserts file metadata, maps file→blob, replaces blob chunks, and cleans up missing files per repo. Use `bin/context_repo_indexer` or Make `repo-*` targets.
-- `lib/savant/context` Engine:
-  - `lib/savant/context/engine.rb`: orchestrates context tools
-  - `lib/savant/context/ops.rb`: implements search, memory_bank, resources
-  - `lib/savant/context/fts.rb`: Postgres FTS helper; returns `[rel_path, chunk, lang, score]`
-  - `lib/savant/context/tools.rb`: MCP registrar for context tools
-- `lib/savant/mcp_server.rb`:
-  - Stdio JSON-RPC 2.0 server. Selects service via `MCP_SERVICE` (`context` or `jira`).
-  - `tools/list` returns only the active service’s registrar specs; `tools/call` delegates to the service’s Engine via its registrar. Logs to `logs/<service>.log`.
-- `lib/savant/jira` Engine:
-  - `lib/savant/jira/engine.rb`, `lib/savant/jira/ops.rb`, `lib/savant/jira/client.rb`, and `lib/savant/jira/tools.rb` implement Jira REST v3 tools and registrar.
+- `lib/savant/framework/config.rb`:
+  - `Savant::Framework::Config.load(path)`: loads/validates `settings.json`. Ensures presence of top-level sections; validates indexer and repo entries; raises `Savant::ConfigError` on invalid/missing config.
+- `lib/savant/framework/db.rb`:
+  - Postgres connection wrapper (pg). Non-destructive, versioned migrations; `ensure_fts` and CRUD used by the indexer: `find_or_create_repo`, `find_or_create_blob`, `replace_chunks`, `upsert_file`, `map_file_to_blob`, `delete_missing_files`, `delete_repo_by_name`, `delete_all_data`.
+- `lib/savant/logging/logger.rb` and `lib/savant/logging/mongo_logger.rb`:
+  - Structured logging with levels, `with_timing(label:)`, and optional file outputs under `logs/`.
+- `lib/savant/engines/indexer.rb` and `lib/savant/engines/indexer/*`:
+  - Facade `Savant::Indexer::Facade` wires config/cache/db to `Runner`. Submodules: Runner, RepositoryScanner, BlobStore, Chunkers, Cache, Config, Instrumentation, Admin, CLI.
+  - Runner merges `.gitignore` and `.git/info/exclude`; skips hidden, binary, oversized, or unchanged files (tracked in `.cache/indexer.json`).
+  - Dedupes by SHA256; chunks code by lines with overlap; markdown/plaintext by chars; language from extension with allowlist.
+  - Upserts file metadata, maps file→blob, replaces blob chunks, and cleans missing files per repo.
+- `lib/savant/engines/context/*`:
+  - `engine.rb`: orchestrates context tools; `ops.rb`: search, memory_bank, resources; `fts.rb`: FTS helper (ranked `[repo, rel_path, chunk, lang, score]`); `tools.rb`: MCP registrar.
+- `lib/savant/framework/mcp/server.rb`:
+  - MCP server launcher (stdio or websocket). Selects service via `MCP_SERVICE` or uses the multiplexer.
+- `lib/savant/multiplexer.rb`:
+  - Spawns/supervises engines and routes tool calls across them. Aggregates `tools/list` across engines.
+- `lib/savant/hub/*` and `lib/savant/framework/transports/http/rack_app.rb`:
+  - HTTP transport and Hub router for `/healthz`, `/rpc`, and static UI (`public/ui`).
+- `lib/savant/engines/jira/*`:
+  - `engine.rb`, `ops.rb`, `client.rb`, `tools.rb` implement Jira REST v3 tools with write-guard (`JIRA_ALLOW_WRITES`).
+- Additional engines: `engines/git`, `engines/think`, `engines/personas`, `engines/rules`, `engines/drivers`, `engines/workflow`, `engines/llm`.
 
 - CLI Entrypoints (`bin/`)
-- `bin/context_repo_indexer`: index or delete data, or show status. Commands:
-  - `index all` | `index <repo>`
-  - `delete all` | `delete <repo>`
-  - `status`: prints per-repo counts and last mtime.
-- `bin/savant`: generator CLI to scaffold new MCP engines and tools.
+- `bin/context_repo_indexer`: index/delete/status for repos.
+  - `index all` | `index <repo>` | `delete all` | `delete <repo>` | `status`
+- `bin/savant`: primary CLI:
+  - `serve --transport=stdio|http [--service=NAME]`, `hub`, `engines`, `tools`, `list tools`, `call <tool> --input='{}'`
+  - agents: `agent create|list|show|run|delete`; workflows: `workflow <name> --params='{}'`
+  - generator: `generate engine <name> [--with-db]`
 - `bin/db_migrate`, `bin/db_fts`, `bin/db_smoke`: setup/verify DB and FTS.
-- `bin/mcp_server`: launches MCP server (stdio).
-- `bin/config_validate`: validates `settings.json` against required structure.
+- `bin/mcp_server`: direct MCP launcher (stdio/websocket).
+- `bin/config_validate`: validate `settings.json`.
 
 Configuration
-- Primary: `config/settings.json` (see `config/settings.example.json` and `config/schema.json`). Required top-level keys:
-  - `indexer`: `maxFileSizeKB`, `languages`, `chunk` ({`codeMaxLines`,`overlapLines`,`mdMaxChars`}), `repos` (name, path, optional ignore).
-  - `database`: `host`, `port`, `db`, `user`, `password` (or supply `DATABASE_URL`).
-  - `mcp`: per-service options like `listenHost`/`listenPort`.
-- Env vars: `DATABASE_URL`, `SAVANT_PATH`, `LOG_LEVEL`, Jira creds (`JIRA_*`).
+- Primary: `config/settings.json` (see `config/settings.example.json`, `config/schema.json`). Key sections:
+  - `indexer`: `maxFileSizeKB`, `languages`, `chunk` ({`codeMaxLines`,`overlapLines`,`mdMaxChars`}), `repos` (name, path, optional ignore), optional `scanMode` (`ls` or `git-ls`).
+  - `mcp.multiplexer.engines`: engine list and options; optional `transport` section for websocket overrides.
+  - `database`: `host`, `port`, `db`, `user`, `password` (or use `DATABASE_URL`).
+  - Optional: `logging`, `llm`, `jira`, `agent`.
+- Env vars: `DATABASE_URL`, `SAVANT_PATH`, `LOG_LEVEL`, `MCP_SERVICE`, `SAVANT_DEV`, multiplexer toggles, Jira creds (`JIRA_*`).
 
 Runtime Modes
-- Rails API: run `make rails-up` (serves `/healthz` and `/rpc`).
-- Direct (stdio): run Ruby scripts with `DATABASE_URL` set (Context) and Jira envs (Jira).
+- Multiplexer (stdio): `savant serve --transport=stdio`
+- Hub (HTTP + static UI): `savant hub --host=0.0.0.0 --port=9999` then open `/ui` if built
+- Dev mode (hot reload): see `docs/getting-started.md` → `make dev` (Vite + Rails + Hub)
 - MCP editors (Cline/Claude Code): run via stdio; configure commands and env per README examples.
 
 Makefile Highlights
-- Rails: `make rails-setup`, `make rails-up`.
-- DB: `make rails-migrate` (reset: `make migrate-reset`), `make rails-fts`, `make smoke`.
-- Indexing: `make repo-index-all`, `make repo-index-repo repo=<name>`, `make repo-delete-all`, `make repo-delete-repo repo=<name>`, `make repo-status`.
-- MCP: `make mcp`, `make mcp-context(-run)`, `make mcp-jira(-run)`, tests (`make mcp-test`, `make jira-test`, `make jira-self`).
-- Quality checks: `bundle exec rspec`, `bundle exec rubocop`, and `bundle exec guard` for watch mode.
+- Dev: `make dev` (Vite + Rails + Hub), or individually: `make dev-ui`, `make dev-server`, `make kill-dev-server`, `make ui-build-local`
+- DB: `make db-create`, `make db-migrate`, `make db-fts`, `make db-smoke`, `make db-reset` (see DB_ENV)
+- Indexing: `make repo-index-all`, `make repo-index repo=<name>`, `make repo-delete-all`, `make repo-delete repo=<name>`, `make repo-status`
+- Utilities: `make pg`, `make mongosh`, `make ls`, `make ps`
+- Reasoning API: `make reasoning-setup`, `make reasoning-api`
 
 Data Model (Postgres)
 - `repos(id,name,root_path)`
@@ -75,15 +78,17 @@ Data Model (Postgres)
 - `blobs(id,hash,byte_len)` unique `hash`
 - `file_blob_map(file_id,blob_id)` primary key `file_id`
 - `chunks(id,blob_id,idx,lang,chunk_text)` with GIN FTS index on `to_tsvector('english', chunk_text)`
+- App tables used by engines: `personas`, `rulesets`, `drivers`, `agents`, `agent_runs`, `think_workflows` (see `server/db/migrate` and helpers in `lib/savant/framework/db.rb`).
 
 Logs
-- Text logs written via `Savant::Logger` to stdout for CLIs and to `logs/<service>.log` for MCP. Timing info and slow-operation flags included.
+- Structured logs via `Savant::Logging::Logger`/`MongoLogger` to stdout and `logs/<service>.log`. Timing info and slow-op flags included. Multiplexer and HTTP transports log to `logs/multiplexer.log` and `logs/http.log`.
 
 Security & Secrets
-- No secrets stored in repo. Jira credentials via env or optional config file. Avoid committing `.env`; `.env.example` is provided.
+- Use env or `secrets.yml` (see `secrets.example.yml`). Avoid committing real credentials in `config/settings.json` or `.env`. Prefer `DATABASE_URL`, `JIRA_*`, and SecretStore (`lib/savant/framework/secret_store.rb`). License stored at `~/.savant/license.json` (dev bypass via `SAVANT_DEV=1`).
 
-- Configure `config/settings.json` (copy from example), run `make rails-migrate` then `make rails-fts`, then run `make repo-index-all`. Start API with `make rails-up` and query via `/rpc` or MCP stdio.
-- Scaffold a new MCP service via generator: `bundle exec ruby ./bin/savant generate engine <name> [--with-db]`, then run with `MCP_SERVICE=<name> ruby ./bin/mcp_server`.
+- Configure `config/settings.json` (copy from example), prepare DB (`make db-create && make db-migrate && make db-fts`), then index repos (`make repo-index-all`).
+- Run MCP stdio: `savant serve --transport=stdio` or run the Hub: `savant hub` (serve `/rpc` and optionally `/ui`).
+- Scaffold a new engine via: `bundle exec ruby ./bin/savant generate engine <name> [--with-db]`.
 
 Not In Scope
 - This overview excludes the Memory Bank Resource PRD; see docs for broader product context.

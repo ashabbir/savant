@@ -1,75 +1,109 @@
 {
-  "agent_intent": {
-    "request": {
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://savant.local/schemas/reasoning_api.v1.json",
+  "title": "Savant Reasoning API v1",
+  "type": "object",
+  "properties": {
+    "agent_intent": {
       "type": "object",
-      "required": ["session_id", "goal_text"],
       "properties": {
-        "session_id": {"type": "string"},
-        "persona": {"type": "string"},
-        "driver": {"type": "string"},
-        "repo_context": {"type": "object"},
-        "memory_state": {"type": "object"},
-        "history": {"type": "array", "items": {"type": "string"}},
-        "goal_text": {"type": "string"},
-        "forced_tool": {"type": ["string", "null"]},
-        "max_steps": {"type": "integer"}
+        "request": {
+          "type": "object",
+          "required": ["session_id", "persona", "goal_text"],
+          "properties": {
+            "session_id": { "type": "string" },
+            "persona": { "type": "object" },
+            "driver": { "type": "object" },
+            "repo_context": { "type": "object" },
+            "memory_state": { "type": "object" },
+            "history": { "type": "array" },
+            "goal_text": { "type": "string" },
+            "forced_tool": { "type": ["string", "null"] },
+            "max_steps": { "type": ["integer", "null"] }
+          }
+        },
+        "response": {
+          "type": "object",
+          "required": ["intent_id", "finish"],
+          "properties": {
+            "status": { "type": ["string", "null"] },
+            "duration_ms": { "type": ["number", "null"] },
+            "trace": { "type": ["array", "null"] },
+            "intent_id": { "type": "string" },
+            "tool_name": { "type": ["string", "null"] },
+            "tool_args": { "type": ["object", "null"] },
+            "reasoning": { "type": ["string", "null"] },
+            "finish": { "type": "boolean" },
+            "final_text": { "type": ["string", "null"] },
+            "next_prompt": { "type": ["string", "null"] }
+          }
+        }
       }
     },
-    "response": {
+    "workflow_intent": {
       "type": "object",
-      "required": ["intent_id", "tool_name"],
       "properties": {
-        "intent_id": {"type": "string"},
-        "tool_name": {"type": "string"},
-        "tool_args": {"type": "object"},
-        "finish": {"type": "boolean"},
-        "next_prompt": {"type": ["string", "null"]},
-        "reasoning": {"type": "string"},
-        "trace": {"type": "array", "items": {"type": "object"}},
-        "fallback_tool": {"type": ["string", "null"]}
-      }
-    }
-  },
-  "workflow_intent": {
-    "request": {
-      "type": "object",
-      "required": ["run_id", "workflow_name", "current_node"],
-      "properties": {
-        "run_id": {"type": "string"},
-        "workflow_name": {"type": "string"},
-        "current_node": {"type": "string"},
-        "outputs": {"type": "object"},
-        "params": {"type": "object"},
-        "memory_state": {"type": "object"}
+        "request": {
+          "type": "object",
+          "required": ["run_id", "workflow_name", "current_node"],
+          "properties": {
+            "run_id": { "type": "string" },
+            "workflow_name": { "type": "string" },
+            "current_node": { "type": "string" },
+            "outputs": { "type": ["object", "null"] },
+            "params": { "type": ["object", "null"] },
+            "memory_state": { "type": ["object", "null"] }
+          }
+        },
+        "response": {
+          "type": "object",
+          "required": ["intent_id", "finish"],
+          "properties": {
+            "status": { "type": ["string", "null"] },
+            "duration_ms": { "type": ["number", "null"] },
+            "trace": { "type": ["array", "null"] },
+            "intent_id": { "type": "string" },
+            "next_node": { "type": ["string", "null"] },
+            "action_type": { "type": ["string", "null"] },
+            "tool_call": { "type": ["string", "null"] },
+            "tool_args": { "type": ["object", "null"] },
+            "reasoning": { "type": ["string", "null"] },
+            "finish": { "type": "boolean" }
+          }
+        }
       }
     },
-    "response": {
+    "errors": {
       "type": "object",
-      "required": ["intent_id", "next_node"],
       "properties": {
-        "intent_id": {"type": "string"},
-        "next_node": {"type": "string"},
-        "action_type": {"type": "string"},
-        "tool_call": {"type": "boolean"},
-        "tool_args": {"type": "object"},
-        "finish": {"type": "boolean"},
-        "reasoning": {"type": "string"},
-        "trace": {"type": "array", "items": {"type": "object"}}
+        "invalid_tool": {
+          "type": "object",
+          "properties": {
+            "error_code": { "const": "invalid_tool" },
+            "message": { "type": "string" }
+          },
+          "required": ["error_code", "message"]
+        },
+        "timeout": {
+          "type": "object",
+          "properties": {
+            "error_code": { "const": "timeout" },
+            "message": { "type": "string" },
+            "retry_after_ms": { "type": ["integer", "null"] }
+          },
+          "required": ["error_code", "message"]
+        },
+        "unsupported_version": {
+          "type": "object",
+          "properties": {
+            "error_code": { "const": "unsupported_version" },
+            "message": { "type": "string" },
+            "supported": { "type": "array", "items": { "type": "string" } }
+          },
+          "required": ["error_code", "message"]
+        }
       }
-    }
-  },
-  "errors": {
-    "invalid_tool": {
-      "code": 422,
-      "message": "The requested tool is unknown or not registered in MCP."
-    },
-    "timeout": {
-      "code": 504,
-      "message": "The reasoning API timed out before producing an intent."
-    },
-    "unsupported_version": {
-      "code": 426,
-      "message": "The requested API version is not supported."
     }
   }
 }
+

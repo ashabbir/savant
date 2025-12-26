@@ -19,6 +19,33 @@ Rails.application.configure do
   # since you don't have to restart the web server when you make code changes.
   config.enable_reloading = true
 
+  # Exclude large directories from file watcher to prevent EMFILE errors
+  config.watch_manifest_manifests = false
+  config.file_watcher = ActiveSupport::FileUpdateChecker
+  # Directories to exclude from file watching
+  config.watchable_dirs.delete(Rails.root.join('public'))
+  config.watchable_dirs.delete(Rails.root.join('tmp'))
+  config.watchable_dirs.delete(Rails.root.join('.git'))
+  # Remove locales dir from watch to avoid scanning the directory each request
+  begin
+    config.watchable_dirs.delete(Rails.root.join('config', 'locales'))
+  rescue StandardError
+  end
+  # Tighten watch set to just app/ and lib/ Ruby sources
+  begin
+    config.watchable_dirs = {
+      Rails.root.join('app') => [:rb],
+      Rails.root.join('lib') => [:rb]
+    }
+  rescue StandardError
+  end
+  # Limit I18n load path to a single locale file to minimize directory handles
+  begin
+    I18n.load_path = [Rails.root.join('config', 'locales', 'en.yml').to_s]
+  rescue StandardError
+  end
+
+
   # Do not eager load code on boot.
   config.eager_load = false
 

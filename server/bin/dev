@@ -1,0 +1,12 @@
+#!/bin/bash
+# Development server startup script that loads .env variables
+
+# Load .env file if it exists
+if [ -f "$(dirname "$0")/../.env" ]; then
+  set -a
+  source "$(dirname "$0")/../.env"
+  set +a
+fi
+
+# Start Rails server
+bundle exec rails server "$@"

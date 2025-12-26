@@ -92,6 +92,50 @@ begin
   end
 
   # =========================
+  # LLM Providers (seed: ollama, google)
+  # =========================
+  begin
+    require_relative '../lib/savant/engines/llm/registry'
+    registry = Savant::Llm::Registry.new(db)
+
+    # Seed Ollama provider (local default)
+    begin
+      unless registry.get_provider('ollama')
+        base = ENV['OLLAMA_HOST'] || 'http://127.0.0.1:11434'
+        registry.create_provider(name: 'ollama', provider_type: 'ollama', base_url: base, api_key: nil)
+        puts "Seeded LLM provider: ollama (base_url=#{base})"
+      end
+    rescue => e
+      warn "LLM seed (ollama) failed: #{e.message}"
+    end
+
+    # Seed Google provider (Generative Language API)
+    begin
+      unless registry.get_provider('google')
+        google_key = ENV['GOOGLE_API_KEY']
+        if google_key && !google_key.to_s.empty?
+          # Requires SAVANT_ENC_KEY for encryption
+          begin
+            registry.create_provider(name: 'google', provider_type: 'google', base_url: nil, api_key: google_key)
+            puts 'Seeded LLM provider: google (api key set)'
+          rescue => enc_err
+            # Fallback: create without API key if encryption key not configured
+            registry.create_provider(name: 'google', provider_type: 'google', base_url: nil, api_key: nil)
+            warn "LLM seed (google) stored without API key (encryption unavailable): #{enc_err.message}"
+          end
+        else
+          registry.create_provider(name: 'google', provider_type: 'google', base_url: nil, api_key: nil)
+          puts 'Seeded LLM provider: google (no api key)'
+        end
+      end
+    rescue => e
+      warn "LLM seed (google) failed: #{e.message}"
+    end
+  rescue LoadError => e
+    warn "Skipping LLM provider seeds (registry not available): #{e.message}"
+  end
+
+  # =========================
   # Drivers (from drivers.yml)
   # =========================
   drivers_data = [

@@ -1,12 +1,15 @@
 import React, { useMemo, useState } from 'react';
 import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
 import { AppBar, Toolbar, Typography, Tabs, Tab, IconButton, Container, Alert, Snackbar, Chip, Box, Tooltip, Stack, CssBaseline } from '@mui/material';
+import Council from './pages/council/Council';
+import GroupsIcon from '@mui/icons-material/Groups';
 import SettingsIcon from '@mui/icons-material/Settings';
 import { ThemeProvider } from '@mui/material/styles';
 import { createCompactTheme } from './theme/compact';
 import Search from './pages/Search';
 import Repos from './pages/Repos';
-import DiagnosticsAgent from './pages/diagnostics/Agent';
+import DiagnosticsAgentRuns from './pages/diagnostics/AgentRuns';
+import DiagnosticsReasoning from './pages/diagnostics/Reasoning';
 import DiagnosticsOverview from './pages/diagnostics/Overview';
 import DiagnosticsRequests from './pages/diagnostics/Requests';
 import DiagnosticsLogs from './pages/diagnostics/Logs';
@@ -60,6 +63,7 @@ function useMainTabIndex() {
   if (pathname.startsWith('/workflows')) return 3;
   if (pathname.startsWith('/llm-registry')) return 4;
   if (pathname.startsWith('/diagnostics')) return 5;
+  if (pathname.startsWith('/council') || pathname.startsWith('/qorum')) return 6;
   return 0;
 }
 
@@ -187,10 +191,11 @@ function useDiagnosticsSubIndex() {
   if (pathname.includes('/diagnostics/overview') || pathname === '/diagnostics') return 0;
   if (pathname.includes('/diagnostics/requests')) return 1;
   if (pathname.includes('/diagnostics/logs')) return 2;
-  if (pathname.includes('/diagnostics/agent')) return 3;
-  if (pathname.includes('/diagnostics/workflows')) return 4;
-  if (pathname.includes('/diagnostics/routes')) return 5;
-  if (pathname.includes('/diagnostics/api')) return 6;
+  if (pathname.includes('/diagnostics/agent-runs')) return 3;
+  if (pathname.includes('/diagnostics/reasoning')) return 4;
+  if (pathname.includes('/diagnostics/workflows')) return 5;
+  if (pathname.includes('/diagnostics/routes')) return 6;
+  if (pathname.includes('/diagnostics/api')) return 7;
   return 0;
 }
 
@@ -347,6 +352,7 @@ export default function App() {
         else if (v === 3) navigate('/workflows');
         else if (v === 4) navigate('/llm-registry');
         else if (v === 5) navigate('/diagnostics');
+        else if (v === 6) navigate('/council');
       }} centered>
         <Tab icon={<DashboardIcon />} iconPosition="start" label="Dashboard" component={Link} to="/dashboard" />
         <Tab icon={<StorageIcon />} iconPosition="start" label="Tools" component={Link} to="/engines" />
@@ -354,6 +360,7 @@ export default function App() {
         <Tab icon={<AccountTreeIcon />} iconPosition="start" label="Workflows" component={Link} to="/workflows" />
         <Tab icon={<CodeIcon />} iconPosition="start" label="LLM Registry" component={Link} to="/llm-registry" />
         <Tab icon={<ManageSearchIcon />} iconPosition="start" label="Diagnostics" component={Link} to="/diagnostics" />
+        <Tab icon={<GroupsIcon />} iconPosition="start" label="Council" component={Link} to="/council" />
       </Tabs>
       {mainIdx === 1 && (
         <Tabs value={uiEngIdx} onChange={(_, v) => {
@@ -496,7 +503,8 @@ export default function App() {
           <Tab label="Overview" component={Link} to="/diagnostics/overview" />
           <Tab label="Requests" component={Link} to="/diagnostics/requests" />
           <Tab label="Logs" component={Link} to="/diagnostics/logs" />
-          <Tab label="Agent" component={Link} to="/diagnostics/agent" />
+          <Tab label="Agent Runs" component={Link} to="/diagnostics/agent-runs" />
+          <Tab label="Reasoning" component={Link} to="/diagnostics/reasoning" />
           <Tab label="Workflows" component={Link} to="/diagnostics/workflows" />
           <Tab label="Routes" component={Link} to="/diagnostics/routes" />
           <Tab label="API Health" component={Link} to="/diagnostics/api" />
@@ -504,7 +512,7 @@ export default function App() {
       )}
 
       <Container maxWidth="lg" sx={{ mt: 2, mb: 4, flex: 1, color: 'text.primary' }}>
-        <Routes>
+          <Routes>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<Dashboard />} />
 
@@ -594,11 +602,14 @@ export default function App() {
           <Route path="/diagnostics/overview" element={<DiagnosticsOverview />} />
           <Route path="/diagnostics/requests" element={<DiagnosticsRequests />} />
           <Route path="/diagnostics/logs" element={<DiagnosticsLogs />} />
-          <Route path="/diagnostics/agent" element={<DiagnosticsAgent />} />
+          <Route path="/diagnostics/agent-runs" element={<DiagnosticsAgentRuns />} />
+          <Route path="/diagnostics/reasoning" element={<DiagnosticsReasoning />} />
           <Route path="/diagnostics/workflows" element={<DiagnosticsWorkflows />} />
           <Route path="/diagnostics/api" element={<APIHealth />} />
           <Route path="/diagnostics/routes" element={<DiagnosticsRoutes />} />
-        </Routes>
+          <Route path="/qorum" element={<Council />} />
+          <Route path="/council" element={<Council />} />
+          </Routes>
       </Container>
       {/* Footer banner (always blue like header; DEV shows icon + text) */}
       <Box sx={{
