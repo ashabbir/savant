@@ -241,7 +241,7 @@ Steps
   - Env/config: `REASONING_API_URL`, `REASONING_API_TOKEN`, `REASONING_API_TIMEOUT_MS` (default 5000), `REASONING_API_RETRIES` (default 2), `REASONING_API_VERSION` (default `v1`).
   - Methods: `agent_intent(payload)` and `workflow_intent(payload)` using `Net::HTTP`, retries on timeout/5xx with backoff, and structured logging via Savant logger.
   - Validation: ensure returned `tool_name` exists in Multiplexer registry when present; map API envelopes to a typed struct for the runtime.
-- Optional Agent integration: in `Savant::Agent::Runtime`, when `REASONING_API_URL` is set use `Savant::Reasoning::Client` to obtain intents instead of local SLM for `decide_and_parse`, translating to the existing action envelope. Fallback to SLM on client errors.
+- Agent integration: `Savant::Agent::Runtime` uses `Savant::Reasoning::Client` to obtain intents for `decide_and_parse` with no local SLM fallback.
 - Python API skeleton: add `reasoning/` module with FastAPI app exposing:
   - `GET /healthz` (200 OK), `POST /agent_intent` and `POST /workflow_intent` returning stub intents matching schema (finish-first or echo forced tool).
   - `requirements.txt` and `scripts/run_reasoning_api.sh` for local dev; Makefile targets `reasoning-setup` and `reasoning-api`.

@@ -336,10 +336,10 @@ Icon Size:
 │ │                                                         │ │
 │ │ ── Configuration Summary ──                              │ │
 │ │ Persona:       Reviewer                                 │ │
-│ │ SLM Model:     phi3.5:latest                            │ │
+│ │ Reasoning API:  enabled                                  │ │
 │ │ LLM Model:     llama3:latest                            │ │
 │ │ Max Steps:     25                                       │ │
-│ │ Token Budget:  8k (SLM), 32k (LLM)                      │ │
+│ │ Token Budget:  32k (LLM)                                │ │
 │ │                                                         │ │
 │ │ ── Assigned Rulesets (3) ──                              │ │
 │ │ [Badge] Code Quality Rules                              │ │
@@ -383,10 +383,10 @@ Icon Size:
 │ │ [Code editor with syntax highlighting...          ]      │ │
 │ │                                                         │ │
 │ │ ── Model Configuration ──                                │ │
-│ │ SLM Model:     [phi3.5:latest ▾]                        │ │
+│ │ Reasoning API: [enabled]                                 │ │
 │ │ LLM Model:     [llama3:latest ▾]                        │ │
 │ │ Max Steps:     [25          ]                           │ │
-│ │ Token Budget:  SLM: [8000] LLM: [32000]                 │ │
+│ │ Token Budget:  LLM: [32000]                             │ │
 │ │                                                         │ │
 │ │ ── Rulesets ──                                           │ │
 │ │ [+ Add Ruleset]                                         │ │
@@ -498,15 +498,15 @@ Icon Size:
 │ │                                                         │ │
 │ │ ── Model Settings ──                                     │ │
 │ │ Use default models recommended for this persona         │ │
-│ │ ☑ Use defaults (phi3.5:latest for SLM, llama3 for LLM) │ │
+│ │ ☑ Use defaults (Reasoning API enabled, llama3 for LLM) │ │
 │ │                                                         │ │
 │ │ □ Customize:                                            │ │
-│ │   SLM Model: [phi3.5:latest ▾]                          │ │
+│ │   Reasoning API: [enabled]                               │ │
 │ │   LLM Model: [llama3:latest ▾]                          │ │
 │ │                                                         │ │
 │ │ ── Execution Limits ──                                   │ │
 │ │ Max Steps:     [25          ] (1-100)                   │ │
-│ │ Token Budget:  SLM: [8000] LLM: [32000]                 │ │
+│ │ Token Budget:  LLM: [32000]                             │ │
 │ │                                                         │ │
 │ │ ── Rulesets (optional) ──                                │ │
 │ │ Apply guardrails and best practices                     │ │

@@ -15,13 +15,13 @@ require_relative 'state_machine'
 
 module Savant
   module Agent
-    # Orchestrates the reasoning loop using SLM for planning and LLM for deep tasks.
+    # Orchestrates the reasoning loop using the external Reasoning API for decisions.
     class Runtime
       DEFAULT_MAX_STEPS = (ENV['AGENT_MAX_STEPS'] || '25').to_i
 
       attr_accessor :agent_instructions, :agent_rulesets, :agent_llm, :state_machine, :system_message
 
-      def initialize(goal:, slm_model: nil, llm_model: nil, logger: nil, base_path: nil, forced_tool: nil, forced_args: nil, forced_finish: false, forced_final: nil, cancel_key: nil, run_id: nil)
+      def initialize(goal:, llm_model: nil, logger: nil, base_path: nil, forced_tool: nil, forced_args: nil, forced_finish: false, forced_final: nil, cancel_key: nil, run_id: nil)
         @goal = goal.to_s
         @context = Savant::Framework::Runtime.current
         @base_path = base_path || default_base_path
@@ -33,7 +33,6 @@ module Savant
         @trace_file_path = File.join(@base_path, 'logs', 'agent_trace.log')
         @memory = Savant::Agent::Memory.new(base_path: @base_path, logger: @logger)
         @prompt_builder = Savant::Agent::PromptBuilder.new(runtime: @context, logger: @logger)
-        @slm_model = slm_model || Savant::LLM::DEFAULT_SLM
         @llm_model = llm_model || Savant::LLM::DEFAULT_LLM
         @max_steps = DEFAULT_MAX_STEPS
         @last_output = nil
@@ -53,7 +52,7 @@ module Savant
 
       def run(max_steps: @max_steps, dry_run: false)
         steps = 0
-        model = @slm_model
+        model = 'reasoning_api/v1'
         # AMR shortcut: if goal clearly requests a workflow, auto-trigger workflow_run once.
         # Default: ENABLED (AGENT_ENABLE_WORKFLOW_AUTODETECT=1 implicit). You can disable with AGENT_DISABLE_WORKFLOW_AUTODETECT=1 or FORCE_REASONING_API=1.
         autodetect = true
@@ -194,7 +193,20 @@ module Savant
 
             "- #{n} — #{d}#{req_info}"
           end.compact
-          prompt = @prompt_builder.build(goal: @goal, memory: @memory.data, last_output: @last_output, tools_hint: tools_hint, tools_catalog: catalog, agent_instructions: @agent_instructions, system: @system_message)
+          # Compose a system note communicating tool policy so the Reasoning API avoids disallowed tools.
+          pol = instruction_tool_policy
+          policy_note = if pol[:disable_all]
+            'Tool Policy: Tools are disabled by instruction. Always choose action="reason" or "finish"; do not select any tool.'
+          elsif pol[:disable_context] || pol[:disable_search]
+            dis = []
+            dis << 'context tools' if pol[:disable_context]
+            dis << 'search tools' if pol[:disable_search]
+            "Tool Policy: Avoid #{dis.join(' and ')} per instruction. Prefer reasoning and finishing without tools."
+          else
+            nil
+          end
+          system_msg = [@system_message, policy_note].compact.join("\n\n")
+          prompt = @prompt_builder.build(goal: @goal, memory: @memory.data, last_output: @last_output, tools_hint: tools_hint, tools_catalog: catalog, agent_instructions: @agent_instructions, system: system_msg)
           begin
             ps = { type: 'prompt_snapshot', mcp: 'agent', run: @run_id, step: steps, length: prompt.length, hash: Digest::SHA256.hexdigest(prompt)[0, 16], text: prompt[0, 1500], ts: Time.now.utc.iso8601, timestamp: Time.now.to_i }
             @trace.record(ps)
@@ -202,7 +214,7 @@ module Savant
           rescue StandardError
             # ignore
           end
-          action, usage, model = decide_and_parse(prompt: prompt, model: model, allowed_tools: base_tools, step: steps)
+          action, usage, model = decide_and_parse(prompt: prompt, model: model, allowed_tools: base_tools, step: steps, dry_run: dry_run)
           # Re-check cancellation after potentially long LLM call
           if @cancel_key && Savant::Agent::Cancel.signal?(@cancel_key)
             final_text = 'Canceled by user'
@@ -226,13 +238,20 @@ module Savant
           # If tool action requested, ensure tool exists or ask for correction once
           action = ensure_valid_action(action, base_tools)
 
-          case action['action']
-          when 'tool'
-            # Check cancellation just before calling a potentially long-running tool
-            if @cancel_key && Savant::Agent::Cancel.signal?(@cancel_key)
-              final_text = 'Canceled by user'
-              finish_action = { 'action' => 'finish', 'tool_name' => '', 'args' => {}, 'final' => final_text, 'reasoning' => 'canceled' }
-              @memory.append_step(index: steps, action: finish_action, final: final_text)
+        case action['action']
+        when 'tool'
+          # Before calling any tool, record a brief rationale so UIs can show "why"
+          begin
+            rationale = (action['reasoning'] || '').to_s
+            explain = rationale.empty? ? "Planning to call #{action['tool_name']}" : "Planning to call #{action['tool_name']} because: #{rationale}"
+            @memory.append_step(index: steps, action: { 'action' => 'reason', 'tool_name' => '', 'args' => {}, 'final' => '', 'reasoning' => explain })
+          rescue StandardError
+          end
+          # Check cancellation just before calling a potentially long-running tool
+          if @cancel_key && Savant::Agent::Cancel.signal?(@cancel_key)
+            final_text = 'Canceled by user'
+            finish_action = { 'action' => 'finish', 'tool_name' => '', 'args' => {}, 'final' => final_text, 'reasoning' => 'canceled' }
+            @memory.append_step(index: steps, action: finish_action, final: final_text)
               @memory.snapshot!
               emit_step_event(steps: steps, model: nil, usage: {}, action: finish_action)
               return { status: 'canceled', steps: steps, final: final_text, memory_path: @memory.path, transcript: @memory.full_data }
@@ -252,8 +271,8 @@ module Savant
             @memory.append_step(index: steps, action: action, output: res)
             @memory.snapshot!
           when 'reason'
-            # Escalate to LLM for deeper reasoning
-            model = @llm_model
+            # Log as Reasoning API; no local LLM calls here
+            model = 'reasoning_api/v1'
             @state_machine.transition_to(:analyzing, reason: 'deep_reasoning')
             @last_output = action['reasoning']
             @memory.append_step(index: steps, action: action, note: 'deep_reasoning')
@@ -299,6 +318,16 @@ module Savant
       def filter_tool_specs(specs)
         return [] unless specs.is_a?(Array)
 
+        # Instruction-derived policy
+        pol = instruction_tool_policy
+
+        # Global toggles to disable tools via env, merged with instruction policy
+        disable_all = env_bool('AGENT_DISABLE_TOOLS') || env_bool('DISABLE_MCP') || pol[:disable_all]
+        return [] if disable_all
+
+        disable_context = env_bool('AGENT_DISABLE_CONTEXT_TOOLS') || pol[:disable_context]
+        disable_search = env_bool('AGENT_DISABLE_SEARCH_TOOLS') || pol[:disable_search]
+
         names_allowed_by_state = Array(@state_machine&.allowed_actions)
         # Policy: disable Think tools by default for agents.
         # Set AGENT_ALLOW_THINK_TOOLS=1 to opt-in.
@@ -308,6 +337,14 @@ module Savant
         specs.select do |s|
           name = (s[:name] || s['name']).to_s
           next false if name.empty?
+
+          # Optionally disable Context tools entirely or only search tools
+          if disable_context && name.start_with?('context.')
+            next false
+          end
+          if disable_search && %w[context.fts_search context.memory_search].include?(name)
+            next false
+          end
 
           # If state machine specifies a non-empty allowlist, enforce it strictly
           if names_allowed_by_state.any?
@@ -363,34 +400,27 @@ module Savant
         File.file?(path)
       end
 
-      def decide_and_parse(prompt:, model:, allowed_tools: [], step: nil)
+      def decide_and_parse(prompt:, model:, allowed_tools: [], step: nil, dry_run: false)
         usage = { prompt_tokens: nil, output_tokens: nil }
-        # If reasoning API is configured, delegate single-step intent decision
-        if reasoning_client&.available?
-          begin
-            payload = build_agent_payload
-            intent = reasoning_client.agent_intent(payload)
-            parsed = intent_to_action(intent)
-            return [parsed, usage, 'reasoning_api/v1']
-          rescue StandardError => e
-            @logger.warn(event: 'reasoning_api_fallback', error: e.message)
-          end
+        # In dry-run, do not hit external services; finish immediately
+        if dry_run
+          return [
+            { 'action' => 'finish', 'tool_name' => '', 'args' => {}, 'final' => 'ok', 'reasoning' => 'dry_run' },
+            usage,
+            'reasoning_api/v1'
+          ]
         end
-        # Fallback to local SLM
-        text, usage = with_timing_llm(model: model, prompt: prompt, step: step)
-        parsed = parse_action(text) || retry_fix_json(model: model, prompt: prompt, raw: text)
-        # If model returned an invalid action, ask for a correction once with stricter instructions
-        if parsed.is_a?(Hash) && parsed['action'] == 'error' && (parsed['final'] || '').to_s.downcase.include?('invalid action')
-          corrected = repair_invalid_action(model: model, allowed_tools: allowed_tools)
-          parsed = corrected if corrected
-        end
-        [parsed, usage, model]
+        # Always route decisions through the Reasoning API; no local SLM fallback
+        payload = build_agent_payload
+        intent = reasoning_client.agent_intent(payload)
+        parsed = intent_to_action(intent)
+        [parsed, usage, 'reasoning_api/v1']
       rescue StandardError => e
         @logger.warn(event: 'agent_decide_failed', error: e.message)
         [
           { 'action' => 'error', 'final' => e.message, 'tool_name' => '', 'args' => {}, 'reasoning' => '' },
           usage,
-          model
+          'reasoning_api/v1'
         ]
       end
 
@@ -452,30 +482,29 @@ module Savant
         @reasoning_client ||= Savant::Reasoning::Client.new
       end
 
-      def repair_invalid_action(model:, allowed_tools: [])
-        actions = %w[tool reason finish error]
-        tool_list = allowed_tools.take(150).join("\n")
-        correction = <<~MD
-          Your previous JSON used an invalid "action". You must output exactly one valid JSON object where:
-          - action is one of: #{actions.join(', ')}
-          - If action = "tool":
-              - tool_name must be one of the following valid tools (use slashes '/'):\n#{tool_list}
-              - args is a JSON object with parameters
-          - If action = "finish": set final to a short summary and leave tool_name empty
-          Return ONLY the JSON object, no prose.
-        MD
-        fixed = Savant::LLM.call(prompt: correction, model: model, json: true, temperature: 0.0)
-        Savant::Agent::OutputParser.parse(fixed[:text])
-      rescue StandardError
-        nil
-      end
+      # Removed model-based repair path; Reasoning API must return a valid action.
 
-      # If action is 'tool' but tool_name is not allowed, ask SLM to correct once.
+      # If action is 'tool' but tool_name is not allowed, normalize or convert to error/reason.
       def ensure_valid_action(action, valid_tools)
         return action unless action.is_a?(Hash)
         return action unless action['action'] == 'tool'
 
         name = (action['tool_name'] || '').to_s
+
+        # Tools policy from instructions
+        pol = instruction_tool_policy
+        tools_disallowed = pol[:disable_all] || env_bool('AGENT_DISABLE_TOOLS')
+        context_disallowed = pol[:disable_context]
+        search_disallowed = pol[:disable_search]
+
+        # If tools are disabled for this run or by instruction, convert to reasoning explaining why
+        if valid_tools.nil? || valid_tools.empty? || tools_disallowed ||
+           (context_disallowed && name.start_with?('context.')) ||
+           (search_disallowed && %w[context.fts_search context.memory_search].include?(name))
+          why = (action['reasoning'] || '').to_s
+          msg = "Tool call '#{name}' skipped due to instructions. Rationale: #{why.empty? ? 'n/a' : why}. Proceeding without tools."
+          return { 'action' => 'reason', 'tool_name' => '', 'args' => {}, 'final' => '', 'reasoning' => msg }
+        end
         return action if valid_tools.include?(name)
 
         # Try normalizing separators
@@ -484,43 +513,35 @@ module Savant
         # Only accept corrected canonical name with '/'
         return action.merge('tool_name' => norm1) if valid_tools.include?(norm1)
 
-        # Ask model to correct tool_name given the allowed list
-        correction_prompt = <<~MD
-          The selected tool "#{name}" is not available. Choose the closest valid tool from this list and return a corrected JSON envelope only:
-          #{valid_tools.take(200).join("\n")}
-        MD
-        begin
-          fixed = Savant::LLM.call(prompt: correction_prompt, model: @slm_model, json: true, temperature: 0.0)
-          parsed = Savant::Agent::OutputParser.parse(fixed[:text])
-          return parsed if parsed['action'] == 'tool' && valid_tools.include?(parsed['tool_name'])
-        rescue StandardError
-          # fall through
+        # Skip model-based correction; rely on Reasoning API/tool policy and simple heuristics only
+        # Heuristic fallback: if goal clearly asks for search/fts, use context.fts_search when available and not prohibited
+        unless env_bool('AGENT_DISABLE_CONTEXT_TOOLS') || env_bool('AGENT_DISABLE_SEARCH_TOOLS') || pol[:disable_context] || pol[:disable_search]
+          return action.merge('tool_name' => 'context.fts_search') if @goal =~ /\b(search|fts|find|lookup|README)\b/i && valid_tools.include?('context.fts_search')
         end
-        # Heuristic fallback: if goal clearly asks for search/fts, use context.fts_search when available
-        return action.merge('tool_name' => 'context.fts_search') if @goal =~ /\b(search|fts|find|lookup|README)\b/i && valid_tools.include?('context.fts_search')
 
         # Could not correct; convert to error so loop can finish or try again
         { 'action' => 'error', 'final' => "invalid tool: #{name}", 'tool_name' => name, 'args' => {}, 'reasoning' => '' }
       end
 
-      def parse_action(text)
-        Savant::Agent::OutputParser.parse(text)
-      rescue StandardError
-        nil
-      end
 
-      def retry_fix_json(model:, prompt:, raw:)
-        fix_prompt = <<~MD
-          The previous output did not match the required JSON schema. Only return a single valid JSON object matching the schema. No prose.
-          Previous output:
-          ```
-          #{raw}
-          ```
-        MD
-        repaired = Savant::LLM.call(prompt: fix_prompt, model: model, json: true)
-        Savant::Agent::OutputParser.parse(repaired[:text])
-      rescue StandardError => e
-        raise StandardError, "unable_to_fix_json: #{e.message}"
+
+      # Derive tool-use policy heuristically from instructions/system/goal
+      def instruction_tool_policy
+        begin
+          text = [@agent_instructions, @system_message, @goal].compact.map(&:to_s).join("\n\n")
+          return { disable_all: false, disable_context: false, disable_search: false } if text.strip.empty?
+          lower = text.downcase
+          no_tools = !!(lower =~ /(no\s+tools|do not (use|call) (any )?tools|without\s+tools|do not use mcp|no\s+mcp|offline\s+only)/i)
+          no_search = !!(lower =~ /(do not (search|lookup)|no\s+(search|fts)|avoid\s+context\s+search)/i)
+          no_context = !!(lower =~ /(do not use\s+context\.?|no\s+context\s+tools|no\s+context\s+mcp)/i)
+          {
+            disable_all: no_tools,
+            disable_context: no_tools || no_context,
+            disable_search: no_tools || no_search
+          }
+        rescue StandardError
+          { disable_all: false, disable_context: false, disable_search: false }
+        end
       end
 
       def call_tool(name, args, step: nil)
@@ -556,17 +577,7 @@ module Savant
         { error: 'tool_call_error', message: e.message }
       end
 
-      def with_timing_llm(model:, prompt:, step: nil)
-        result, dur = @logger.with_timing(label: 'llm_call') do
-          Savant::LLM.call(prompt: prompt, model: model, temperature: 0.0)
-        end
-        @logger.info(event: 'llm_call', model: model, duration_ms: dur)
-        usage = result[:usage] || {}
-        llm_ev = { type: 'llm_call', mcp: 'agent', run: @run_id, step: step, model: model, duration_ms: dur, prompt_tokens: usage[:prompt_tokens], output_tokens: usage[:output_tokens], ts: Time.now.utc.iso8601, timestamp: Time.now.to_i }
-        @trace.record(llm_ev)
-        append_trace_file(llm_ev)
-        [result[:text], usage]
-      end
+      # Removed local LLM call wrapper; decisions are handled by the Reasoning API.
 
       def emit_step_event(steps:, model:, usage:, action:)
         summary = (action['reasoning'] || action[:reasoning] || '').to_s

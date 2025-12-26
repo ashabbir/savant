@@ -1,4 +1,6 @@
-# PRD --- Savant Agent Runtime (SLM + LLM, Local-First, Telemetry-Ready)
+# PRD --- Savant Agent Runtime (Legacy SLM + LLM)
+
+Note: This PRD describes an earlier design that used an SLM-first approach with LLM escalation. The current runtime uses the Reasoning API for decisions without local SLM fallback. See memory_bank/runtime.md for the current architecture.
 
 **Owner:** Amd\
 **Priority:** P0 (Critical Path for MVP)\

@@ -1,12 +1,14 @@
 # Agent Runtime
 
+Note: This document contains legacy details about an SLM-first strategy. As of v0.1.x, the Agent Runtime uses the Reasoning API for decisions (no local SLM fallback). See memory_bank/runtime.md for the current design. The examples below are historical and may reference deprecated flags like `--slm`.
+
 **Status**: MVP Complete
 **Version**: 1.0
 **Dependencies**: Boot Runtime, Multiplexer, LLM Provider (Ollama/Anthropic/OpenAI)
 
 ## Overview
 
-The Agent Runtime is Savant's autonomous reasoning loop system. It orchestrates LLM-driven tool execution with token budget management, memory persistence, and comprehensive telemetry. The system uses a **SLM-first strategy** for fast, cost-effective decisions with escalation to larger models for complex tasks.
+The Agent Runtime is Savant's autonomous reasoning loop system. It orchestrates tool execution with memory persistence and comprehensive telemetry. Decisions are made by an external Reasoning API.
 
 ## Architecture
 

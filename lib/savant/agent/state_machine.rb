@@ -57,13 +57,26 @@ module Savant
 
       # Get allowed actions for current state
       def allowed_actions
+        # Environment-based overrides to disable tool use
+        disable_all = %w[1 true yes on].include?((ENV['AGENT_DISABLE_TOOLS'] || ENV['DISABLE_MCP']).to_s.strip.downcase)
+        return [] if disable_all
+
+        disable_context = %w[1 true yes on].include?((ENV['AGENT_DISABLE_CONTEXT_TOOLS']).to_s.strip.downcase)
+        disable_search = %w[1 true yes on].include?((ENV['AGENT_DISABLE_SEARCH_TOOLS']).to_s.strip.downcase)
+
         case current_state
         when :searching
-          %w[context.fts_search context.memory_search]
+          actions = %w[context.fts_search context.memory_search]
+          actions = [] if disable_context
+          actions = [] if disable_search
+          actions
         when :analyzing
           [] # No tool calls, just reasoning
         when :deciding
-          %w[context.fts_search context.memory_search] # Can go back to search
+          actions = %w[context.fts_search context.memory_search] # Can go back to search
+          actions = [] if disable_context
+          actions = [] if disable_search
+          actions
         when :init, :finishing, :stuck_search, :stuck_analyze, :stuck_decide
           []
         else

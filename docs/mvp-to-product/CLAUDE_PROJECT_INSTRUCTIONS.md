@@ -49,7 +49,7 @@ Savant is an **Agent Infrastructure Platform (AIP)** - a developer-first, local-
 │  │   Agent    │◄────────────────────────►│   Engines     │  │
 │  │  Runtime   │  (routes via mux)        │ Context Think │  │
 │  │            │                          │ Jira Personas │  │
-│  │ SLM ◄─► LLM│                          │     Rules     │  │
+│  │ Reasoning API│                         │     Rules     │  │
 │  └────────────┘                          └───────────────┘  │
 │        │                                                     │
 │        ▼                                                     │
@@ -87,9 +87,9 @@ Savant is an **Agent Infrastructure Platform (AIP)** - a developer-first, local-
 - **Indexer:** Repository scanning and chunking
 
 **Module 4: Agent Runtime** (`lib/savant/agent/`)
-- Autonomous reasoning loop
-- Prompt builder with token management
-- Output parser with auto-correction
+- Autonomous reasoning loop (decisions via Reasoning API)
+- Prompt builder with telemetry snapshots
+- Action parsing and policy enforcement
 - Memory system (ephemeral + persistent)
 
 **Module 5: LLM Adapters** (`lib/savant/llm/`)
@@ -110,8 +110,8 @@ Savant is an **Agent Infrastructure Platform (AIP)** - a developer-first, local-
 ### Agent Runtime
 
 **Autonomous Reasoning Loop:**
-- **SLM-first strategy:** Fast decisions with `phi3.5:latest` (8k token budget)
-- **LLM escalation:** Complex tasks with `llama3:latest` (32k token budget)
+- **Reasoning API decisions:** Externalized intent selection (v1)
+- **LLM support:** Complex tool outputs may use LLMs as configured
 - **Step-based execution:** Configurable max steps (default 25)
 - **Tool routing:** Via MCP multiplexer to all engines
 - **Memory persistence:** Session snapshots in `.savant/session.json`
@@ -119,7 +119,7 @@ Savant is an **Agent Infrastructure Platform (AIP)** - a developer-first, local-
 **Execution Flow:**
 1. Load goal and runtime context (persona, driver, rules)
 2. Build prompt with token budget management
-3. Call LLM adapter (SLM or LLM)
+3. Call Reasoning API (decide action)
 4. Parse output (JSON extraction, schema validation)
 5. Route tool calls via multiplexer
 6. Update memory and telemetry
@@ -455,12 +455,7 @@ bundle exec guard
 # spec/lib/savant/agent/runtime_spec.rb
 RSpec.describe Savant::Agent::Runtime do
   describe '#run' do
-    let(:runtime) do
-      described_class.new(
-        goal: "Test goal",
-        slm_model: "phi3.5:latest"
-      )
-    end
+    let(:runtime) { described_class.new(goal: "Test goal") }
 
     it 'executes successfully' do
       result = runtime.run(max_steps: 5)
@@ -532,7 +527,7 @@ npm run type-check
 
 ### Current MVP Capabilities
 
-✅ Agent execution (local, SLM/LLM)
+✅ Agent execution (Reasoning API decisions)
 ✅ Workflow execution (YAML-based)
 ✅ Repository indexing (local)
 ✅ Code search (FTS)

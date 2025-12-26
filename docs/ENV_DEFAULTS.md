@@ -40,10 +40,11 @@ Agent Runtime
 - SAVANT_QUIET: default unset; when '1', reduces stdout logging
 
 LLM / Providers
-- SLM_MODEL: default 'phi3.5:latest'
 - LLM_MODEL: default 'llama3:latest'
 - OLLAMA_HOST: default 'http://127.0.0.1:11434'
 - ANTHROPIC_API_KEY, OPENAI_API_KEY: unset by default
+Notes:
+- SLM_MODEL is deprecated and ignored by the Agent Runtime (decisions use the Reasoning API).
 
 Jira (Engine)
 - JIRA_BASE_URL, JIRA_EMAIL, JIRA_API_TOKEN, JIRA_USERNAME, JIRA_PASSWORD: unset by default (read via SecretStore when present)
@@ -70,4 +71,3 @@ Secrets / Licensing (optional)
 Notes
 - Reasoning transport defaults to 'mongo' so cancel and queue processing work out of the box. Set REASONING_TRANSPORT=http to use direct HTTP for /agent_intent.
 - Agent cancellation uses per‑run keys and checks before tools/LLM, so Stop is responsive. Tool engines may need cooperative cancel for long‑running calls.
-

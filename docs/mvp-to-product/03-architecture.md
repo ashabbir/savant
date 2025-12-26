@@ -305,7 +305,7 @@ CREATE TABLE agents (
   description TEXT,
   persona_id BIGINT REFERENCES personas(id),
   driver_prompt TEXT,
-  config JSONB DEFAULT '{}', -- { slm_model, llm_model, max_steps, token_budget }
+  config JSONB DEFAULT '{}', -- { llm_model, max_steps, token_budget }
   status VARCHAR(50) DEFAULT 'active', -- active, paused, archived
   visibility VARCHAR(50) DEFAULT 'private', -- private, team, public
   tags VARCHAR(255)[] DEFAULT '{}',
