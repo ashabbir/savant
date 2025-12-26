@@ -4,7 +4,7 @@ Savant is a lightweight Ruby framework for building and running local MCP servic
 
 **Key Features:**
 - **Multiplexer**: Unified MCP surface merging tools from all engines (Context, Git, Think, Jira, Personas, Rules)
-- **Agent Runtime**: Autonomous reasoning loops with SLM-first execution and LLM escalation
+- **Agent Runtime**: Autonomous reasoning loops powered by the Reasoning API
 - **Boot System**: RuntimeContext with persona loading, AMR rules, and repo detection
 - **React UI**: Real-time diagnostics with agent monitoring, logs, and route exploration
 
@@ -22,7 +22,7 @@ Savant is a lightweight Ruby framework for building and running local MCP servic
 │  │   Agent    │◄────────────────────────►│   Engines     │  │
 │  │  Runtime   │  (routes via mux)        │ Context Think │  │
 │  │            │                          │ Jira Personas │  │
-│  │ SLM ◄─► LLM│                          │     Rules     │  │
+│  │ Reasoning API│                         │     Rules     │  │
 │  └────────────┘                          └───────────────┘  │
 │        │                                                     │
 │        ▼                                                     │
@@ -115,7 +115,7 @@ Notes
 | [Framework](memory_bank/framework.md) | Core concepts, lifecycle, and configuration surface. |
 | [Architecture](memory_bank/architecture.md) | System topology, data model, and component responsibilities. |
 | [Boot Runtime](memory_bank/engine_boot.md) | Boot initialization, RuntimeContext, AMR system, and CLI commands. |
-| **[Agent Runtime](memory_bank/agent_runtime.md)** | **Autonomous reasoning loop, LLM adapters, memory system, and telemetry.** |
+| **[Agent Runtime](memory_bank/runtime.md)** | **Autonomous reasoning loop via Reasoning API, memory system, and telemetry.** |
 | [Multiplexer](memory_bank/multiplexer.md) | Unified tool surface across engines; process model and routing. |
 | [Hub](memory_bank/hub.md) | HTTP endpoints, UI mounting, diagnostics, logs, and routes. |
 | [Database](memory_bank/database.md) | Schema, FTS index, migrations, and context engine queries. |
@@ -265,9 +265,9 @@ steps:
 
 - The Think engine ships a Workflow Editor (Engines → Think → Workflows) that allows graph editing, validation, YAML preview, and diagram rendering.
 
-### Agent Runtime (Local-first)
+### Agent Runtime (Reasoning API)
 
-The Agent Runtime orchestrates autonomous reasoning loops with SLM-first execution and LLM escalation for complex tasks.
+The Agent Runtime orchestrates autonomous reasoning loops by delegating decisions to the external Reasoning API.
 
 **Architecture Overview:**
 ```
@@ -275,8 +275,7 @@ The Agent Runtime orchestrates autonomous reasoning loops with SLM-first executi
 │                    AGENT RUNTIME LOOP                       │
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
-│  Prompt Builder  ──► LLM Adapter  ──► Output Parser        │
-│       │               (SLM/LLM)            │                │
+│  Prompt Builder  ──► Reasoning API  ──► Action Parser      │
 │       │                                    │                │
 │       ▼                                    ▼                │
 │  Memory System ◄────── Multiplexer ◄── Tool Router         │
@@ -288,8 +287,8 @@ The Agent Runtime orchestrates autonomous reasoning loops with SLM-first executi
 │  • logs/agent_trace.log    (telemetry per step)            │
 │  • .savant/session.json    (persistent memory)             │
 │                                                             │
-│  Models:  SLM=phi3.5:latest  LLM=llama3:latest             │
-│  Budget:  8k tokens (SLM)    32k tokens (LLM)              │
+│  Decisions: Reasoning API (v1)                             │
+│  Budget:   LLM context as configured (tools may use LLM)   │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -305,7 +304,7 @@ ollama pull llama3:latest
 
 **CLI Options:**
 - `--agent-input=TEXT` or `--agent-file=PATH` for goal input
-- `--slm=MODEL` and `--llm=MODEL` to override defaults
+- `--llm=MODEL` to suggest an LLM for heavy tasks
 - `--max-steps=N` to cap the loop (default 25)
 - `--dry-run` to simulate tool calls without executing them
 - `--quiet` to suppress JSON logs to console (logs still written to files)
@@ -340,7 +339,7 @@ http://localhost:9999/diagnostics/agent
   - Agent trace (plain text): `curl -H 'x-savant-user-id: me' http://localhost:9999/diagnostics/agent/trace`
   - SSE log stream: `curl -N -H 'x-savant-user-id: me' 'http://localhost:9999/logs/stream'`
 
-See [Agent Runtime docs](memory_bank/agent_runtime.md) for detailed architecture, memory system, and telemetry.
+See [Agent Runtime docs](memory_bank/runtime.md) for detailed architecture, memory system, and telemetry.
 
 ### LLM Registry
 
@@ -574,12 +573,12 @@ lib/savant/
 - `memory.rb` - Ephemeral state + `.savant/session.json` persistence
 
 **Key Concepts**:
-- **SLM-first strategy**: Fast decisions with `phi3.5:latest` (default)
-- **LLM escalation**: Heavy analysis with `llama3:latest` for complex tasks
-- **Token budgets**: 8k SLM, 32k LLM with LRU trimming
+- **Reasoning API decisions**: Externalized intent selection (v1)
+- **LLM support**: Heavy analysis for tool outputs where needed
+- **Token budgets**: LLM context budgets with LRU trimming as applicable
 - **Memory persistence**: Session snapshots with summarization
 
-**Key APIs**: `Runtime.new(goal:, slm_model:, llm_model:).run(max_steps:, dry_run:)`
+**Key APIs**: `Runtime.new(goal:, llm_model:).run(max_steps:, dry_run:)`
 
 **See [memory_bank/agent_runtime.md](memory_bank/agent_runtime.md) for full architecture with visual diagrams.**
 
@@ -596,7 +595,7 @@ lib/savant/
 **Configuration**:
 ```ruby
 ENV['LLM_PROVIDER']  # ollama|anthropic|openai
-ENV['SLM_MODEL']     # phi3.5:latest (default)
+# SLM_MODEL deprecated (decisions via Reasoning API)
 ENV['LLM_MODEL']     # llama3:latest (default)
 ENV['OLLAMA_HOST']   # http://127.0.0.1:11434 (default)
 ```

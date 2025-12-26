@@ -9,7 +9,7 @@ ENV['SAVANT_DEV'] ||= '1'
 def usage!
   warn <<~TXT
     usage:
-      savant run [--persona=NAME] [--skip-git] [--agent-input=TEXT|--agent-file=PATH] [--slm=MODEL] [--llm=MODEL] [--max-steps=N] [--dry-run]
+      savant run [--persona=NAME] [--skip-git] [--agent-input=TEXT|--agent-file=PATH] [--llm=MODEL] [--max-steps=N] [--dry-run]
       savant review [--persona=NAME]
       savant workflow <name> [--params='{}']
       savant agent create --name=NAME --persona=NAME --driver=TEXT [--rules='a,b'] [--favorite]
@@ -58,13 +58,12 @@ when 'run'
   require_relative '../lib/savant/agent/runtime'
   require 'json'
 
-  options = { persona_name: nil, skip_git: false, agent_input: nil, agent_file: nil, slm: nil, llm: nil, max_steps: nil, dry_run: false, quiet: false, force_tool: nil, force_args: '{}', force_finish: false, force_final: nil, force_finish_only: false }
+  options = { persona_name: nil, skip_git: false, agent_input: nil, agent_file: nil, llm: nil, max_steps: nil, dry_run: false, quiet: false, force_tool: nil, force_args: '{}', force_finish: false, force_final: nil, force_finish_only: false }
   OptionParser.new do |o|
     o.on('--persona=NAME', 'Persona to load (default: savant-engineer)') { |v| options[:persona_name] = v }
     o.on('--skip-git', 'Skip git repository detection') { options[:skip_git] = true }
     o.on('--agent-input=TEXT', 'Run agent with input goal text') { |v| options[:agent_input] = v }
     o.on('--agent-file=PATH', 'Run agent with input goal file') { |v| options[:agent_file] = v }
-    o.on('--slm=MODEL', 'Override SLM model') { |v| options[:slm] = v }
     o.on('--llm=MODEL', 'Override LLM model') { |v| options[:llm] = v }
     o.on('--max-steps=N', Integer, 'Max reasoning steps') { |v| options[:max_steps] = v }
     o.on('--dry-run', 'Plan and simulate tool calls only') { options[:dry_run] = true }
@@ -125,7 +124,7 @@ when 'run'
         options[:force_finish] = true
         options[:force_tool] = nil
       end
-      agent = Savant::Agent::Runtime.new(goal: goal, slm_model: options[:slm], llm_model: options[:llm], forced_tool: options[:force_tool], forced_args: force_args_hash, forced_finish: options[:force_finish], forced_final: options[:force_final])
+      agent = Savant::Agent::Runtime.new(goal: goal, llm_model: options[:llm], forced_tool: options[:force_tool], forced_args: force_args_hash, forced_finish: options[:force_finish], forced_final: options[:force_final])
       res = agent.run(max_steps: options[:max_steps] || 25, dry_run: options[:dry_run])
       puts JSON.pretty_generate(res)
     end

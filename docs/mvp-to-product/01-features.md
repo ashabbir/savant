@@ -25,9 +25,9 @@ This document outlines the complete feature set for Savant's evolution from MVP 
 
 #### 2.1.1 Agent Runtime System
 - **Autonomous Reasoning Loop**
-  - SLM-first execution (phi3.5:latest default)
-  - LLM escalation for complex tasks (llama3:latest)
-  - Token budget management (8k SLM, 32k LLM)
+  - Reasoning API–driven decisions
+  - LLM support for complex tool outputs
+  - Token budget management for LLM contexts
   - Step-based execution with configurable limits
   - Dry-run mode for testing
   - Force-tool execution for debugging
@@ -191,7 +191,7 @@ This document outlines the complete feature set for Savant's evolution from MVP 
   - Driver prompt customization
   - Ruleset assignment
   - Tool allowlist/blocklist
-  - Model preferences (SLM/LLM)
+  - LLM preferences (for heavy tool outputs)
   - Token budget overrides
 
 - **Agent Execution**

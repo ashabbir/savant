@@ -118,13 +118,28 @@ export default function Council() {
       history.forEach((t) => {
         if (t.user?.trim()) lines.push(`User: ${t.user.trim()}`);
         (t.replies || []).forEach((r) => {
-          if (r.status !== 'running' && (r.text?.trim() || r.status === 'error')) {
-            const body = (r.text || '').trim();
+          const bodyStr = toDisplayText(r.text).trim();
+          if (r.status !== 'running' && (bodyStr || r.status === 'error')) {
+            const body = bodyStr;
             if (body) lines.push(`${r.agent}: ${body}`);
           }
         });
       });
       return lines.join('\n');
+    } catch {
+      return '';
+    }
+  }
+
+  // Safely convert arbitrary values to displayable text
+  function toDisplayText(value: any): string {
+    try {
+      if (value == null) return '';
+      if (typeof value === 'string') return value;
+      if (typeof value === 'object') {
+        try { return JSON.stringify(value, null, 2); } catch { /* fallthrough */ }
+      }
+      return String(value);
     } catch {
       return '';
     }
@@ -231,7 +246,13 @@ export default function Council() {
             )));
           });
           setAgentSessions((prev) => ({ ...prev, [agent]: { lastRunId: runId, running: false } }));
-          if (sessionId) { try { const d = await agentRunRead(agent, runId); await councilAppendAgent(sessionId, agent, runId, d?.output_summary || '', 'ok'); } catch {} }
+          if (sessionId) {
+            try {
+              const d = await agentRunRead(agent, runId);
+              const text = extractAgentReplyText(d);
+              await councilAppendAgent(sessionId, agent, runId, text, 'ok');
+            } catch {}
+          }
         } else {
           const now = Date.now();
           const reply: AgentReply = { agent, runId: 0, text: 'submit failed', status: 'error', startedAt: submitStartedAt, finishedAt: now, durationMs: now - submitStartedAt };
@@ -254,7 +275,7 @@ export default function Council() {
       try {
         const d = await agentRunRead(agent, runId);
         const status = String(d?.status || '').toLowerCase();
-        const text = d?.output_summary || '';
+        const text = extractAgentReplyText(d);
         const now = Date.now();
         const normStatus: AgentReply['status'] = (status === 'running' ? 'running' : status === 'error' ? 'error' : 'ok');
         const payload: AgentReply = { agent, runId, text, status: normStatus };
@@ -272,6 +293,59 @@ export default function Council() {
       }
       if (!finished) await new Promise((r) => setTimeout(r, 1200));
     }
+  }
+
+  // Extract a useful reply string from run_read payload
+  function extractAgentReplyText(d: any): string {
+    try {
+      const sum = toDisplayText(d?.output_summary).trim();
+      // We'll attempt to compose an explanation + final if available
+      let finalOut = '';
+      if (sum) finalOut = sum;
+      const t = d?.transcript;
+      if (!t) return finalOut;
+      if (typeof t === 'string') return t;
+      // steps: find last action.final
+      const steps = (t?.steps ?? []) as any[];
+      let explanation = '';
+      if (Array.isArray(steps) && steps.length) {
+        // Walk forward to capture early explanations, and backward for final
+        for (let i = 0; i < steps.length; i++) {
+          const s = steps[i] || {};
+          const a = s.action || s['action'] || {};
+          const actionType = (a.action || a['action'] || '').toString().toLowerCase();
+          const rsn = toDisplayText(a.reasoning ?? a['reasoning'] ?? s.reasoning ?? s['reasoning']).trim();
+          if (actionType === 'reason' && rsn) explanation = rsn; // keep latest explanation
+        }
+        for (let i = steps.length - 1; i >= 0; i--) {
+          const s = steps[i] || {};
+          const a = s.action || s['action'] || {};
+          const f = a.final ?? a['final'] ?? s.final ?? s['final'];
+          const out = toDisplayText(f).trim();
+          if (out) { finalOut = out; break; }
+          const txt = a.text ?? a['text'] ?? s.text ?? s['text'];
+          const out2 = toDisplayText(txt).trim();
+          if (out2) { finalOut = out2; break; }
+        }
+      }
+      if (explanation && finalOut && explanation !== finalOut) return `${explanation}\n\n${finalOut}`;
+      if (finalOut) return finalOut;
+      if (explanation) return explanation;
+      // messages array: last assistant-like content
+      const msgs = (t?.messages ?? t?.chat ?? []) as any[];
+      if (Array.isArray(msgs) && msgs.length) {
+        for (let i = msgs.length - 1; i >= 0; i--) {
+          const m = msgs[i] || {};
+          const role = (m.role || '').toString().toLowerCase();
+          if (!role || role === 'assistant' || role === 'agent' || role === 'system') {
+            const content = m.content ?? m.text ?? m.message ?? '';
+            const out = toDisplayText(content).trim();
+            if (out) return out;
+          }
+        }
+      }
+      return '';
+    } catch { return ''; }
   }
 
   // Council Protocol Functions - Single action: escalate and run with live polling
@@ -935,11 +1009,12 @@ export default function Council() {
 
         <Box ref={chatRef} sx={{ flex: 1, minHeight: 200, overflowY: 'auto' }}>
         {turns.map((t, idx) => {
-          const replies = t.replies.filter((r) => r.status !== 'running' && (r.text?.trim() || r.status === 'error'));
+          // include all non-running replies so status-only responses still show metadata
+          const replies = t.replies.filter((r) => r.status !== 'running');
           // Day separator logic
           const thisTs = t.at || (replies[0]?.finishedAt || replies[0]?.at);
           const prevTurn = idx > 0 ? turns[idx - 1] : undefined;
-          const prevReplies = prevTurn ? prevTurn.replies.filter((r) => r.status !== 'running' && (r.text?.trim() || r.status === 'error')) : [];
+          const prevReplies = prevTurn ? prevTurn.replies.filter((r) => r.status !== 'running') : [];
           const prevTs = prevTurn ? (prevTurn.at || (prevReplies[prevReplies.length - 1]?.finishedAt || prevReplies[prevReplies.length - 1]?.at)) : undefined;
           const showDate = (() => {
             if (!thisTs) return idx === 0;
@@ -995,7 +1070,7 @@ export default function Council() {
                   if (g.system) {
                     return g.items.map((r, si) => (
                       <Box key={`${t.id}-${g.agent}-sys-${gi}-${si}`} sx={{ display: 'flex', justifyContent: 'center', my: 0.5 }}>
-                        <Chip size="small" label={`${g.agent} ${r.text}`} variant="outlined" />
+                        <Chip size="small" label={`${g.agent} ${toDisplayText(r.text)}`} variant="outlined" />
                       </Box>
                     ));
                   }
@@ -1016,7 +1091,7 @@ export default function Council() {
                         <Stack spacing={0.5}>
                           {g.items.map((r, ri) => (
                             <Paper key={`${t.id}-${g.agent}-msg-${gi}-${ri}`} elevation={0} sx={{ px: 1.25, py: 1, mt: 0.25, bgcolor: bg, color: theme.palette.getContrastText(bg), borderRadius: 2, borderTopRightRadius: 4 }}>
-                              <Typography sx={{ whiteSpace: 'pre-wrap' }}>{r.text}</Typography>
+                              <Typography sx={{ whiteSpace: 'pre-wrap' }}>{toDisplayText(r.text) || '(no summary)'}</Typography>
                             </Paper>
                           ))}
                         </Stack>
