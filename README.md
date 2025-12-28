@@ -580,7 +580,7 @@ lib/savant/
 
 **Key APIs**: `Runtime.new(goal:, llm_model:).run(max_steps:, dry_run:)`
 
-**See [memory_bank/agent_runtime.md](memory_bank/agent_runtime.md) for full architecture with visual diagrams.**
+**See [memory_bank/runtime.md](memory_bank/runtime.md) for full architecture with visual diagrams.**
 
 ### Module 6: LLM Adapters (`lib/savant/llm/`)
 
@@ -696,7 +696,7 @@ All detailed docs (with visual diagrams) live under `memory_bank/`. Use the tabl
 
 - Framework + architecture: [`framework.md`](memory_bank/framework.md), [`architecture.md`](memory_bank/architecture.md)
 - Boot Runtime: [`engine_boot.md`](memory_bank/engine_boot.md) - RuntimeContext, boot sequence, AMR system, CLI reference
-- **Agent Runtime: [`agent_runtime.md`](memory_bank/agent_runtime.md) - Reasoning loop, LLM adapters, memory system, token budgets, telemetry**
+- **Agent Runtime: [`runtime.md`](memory_bank/runtime.md) - Reasoning loop, LLM adapters, memory system, token budgets, telemetry**
 - Reasoning API: [`reasoning_api.md`](memory_bank/reasoning_api.md) - Stack, transport modes, endpoints, queue/callback flows, and diagrams
 - Engines: [`engine_context.md`](memory_bank/engine_context.md), [`engine_think.md`](memory_bank/engine_think.md), [`engine_jira.md`](memory_bank/engine_jira.md), [`engine_personas.md`](memory_bank/engine_personas.md)
 - Guardrails + patterns: [`engine_rules.md`](memory_bank/engine_rules.md)

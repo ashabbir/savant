@@ -843,7 +843,7 @@ make repo-index-all
 ## 12. Additional Resources
 
 ### Documentation
-- [Agent Runtime](memory_bank/agent_runtime.md)
+- [Agent Runtime](memory_bank/runtime.md)
 - [Boot Runtime](memory_bank/engine_boot.md)
 - [Multiplexer](memory_bank/multiplexer.md)
 - [Framework](memory_bank/framework.md)
