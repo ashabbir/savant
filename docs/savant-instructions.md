@@ -194,7 +194,7 @@ I recommend you now generate:
 - `ARCHITECTURE.md`  
 - `engine.md`  
 - `multiplexer.md`  
-- `agent_runtime.md`  
+- `runtime.md`  
 
 These four files form the “core” of the platform.
 
