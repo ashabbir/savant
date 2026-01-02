@@ -78,6 +78,7 @@ graph TD
 When a user submits an agent run (e.g., `savant run --agent-input="..."`), the following sequence occurs.
 
 ```mermaid
+%%{init: {'themeVariables': {'noteBkgColor': '#fff3bf', 'noteTextColor': '#111111', 'noteBorderColor': '#d4a017'}}}%%
 sequenceDiagram
   participant U as User/CLI
   participant Boot as Savant::Boot
@@ -121,6 +122,7 @@ sequenceDiagram
     end
     RT->>Mem: snapshot step + trace
   end
+  Note over U,Mux: Example: "Find where Framework is defined." → tool=savant-context.fts_search args={query:"Framework",limit:10}
 ```
 
 ## Tool Policy and Safety
@@ -223,34 +225,34 @@ The Agent Runtime is Savant's autonomous reasoning loop system. It orchestrates 
 │                        AGENT RUNTIME                            │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
-│  ┌──────────────┐      ┌──────────────┐      ┌──────────────┐ │
-│  │   Memory     │◄────►│   Prompt     │◄────►│   Output     │ │
-│  │   System     │      │   Builder    │      │   Parser     │ │
-│  └──────────────┘      └──────────────┘      └──────────────┘ │
+│  ┌──────────────┐      ┌──────────────┐      ┌──────────────┐   │
+│  │   Memory     │◄────►│   Prompt     │◄────►│   Output     │   │
+│  │   System     │      │   Builder    │      │   Parser     │   │
+│  └──────────────┘      └──────────────┘      └──────────────┘   │
 │         ▲                      │                      ▲         │
-│         │                      ▼                      │         │
-│         │              ┌──────────────┐              │         │
-│         │              │  LLM Adapter │              │         │
-│         │              └──────────────┘              │         │
-│         │                      │                      │         │
-│         │          ┌───────────┼───────────┐         │         │
-│         │          ▼           ▼           ▼         │         │
-│         │     ┌────────┐  ┌────────┐  ┌────────┐   │         │
-│         │     │ Ollama │  │Anthropic│ │ OpenAI │   │         │
-│         │     └────────┘  └────────┘  └────────┘   │         │
-│         │                                            │         │
-│         └────────────────────────────────────────────┘         │
+│         │                      ▼                     │          │
+│         │              ┌──────────────┐              │          │
+│         │              │  LLM Adapter │              │          │
+│         │              └──────────────┘              │          │
+│         │                      │                     │          │
+│         │          ┌───────────┼───────────┐         │          │
+│         │          ▼           ▼           ▼         │          │
+│         │     ┌────────┐  ┌────────┐  ┌────────┐     │          │
+│         │     │ Ollama │  │Anthropic│ │ OpenAI │     │          │
+│         │     └────────┘  └────────┘  └────────┘     │          │
+│         │                                            │          │
+│         └────────────────────────────────────────────┘          │
 │                                                                 │
-│                      ┌──────────────┐                          │
-│                      │ Multiplexer  │                          │
-│                      └──────────────┘                          │
+│                      ┌──────────────┐                           │
+│                      │ Multiplexer  │                           │
+│                      └──────────────┘                           │
 │                             │                                   │
-│              ┌──────────────┼──────────────┐                  │
-│              ▼              ▼              ▼                  │
-│         ┌────────┐     ┌────────┐     ┌────────┐            │
-│         │Context │     │ Think  │     │  Jira  │            │
-│         │ Engine │     │ Engine │     │ Engine │            │
-│         └────────┘     └────────┘     └────────┘            │
+│              ┌──────────────┼──────────────┐                    │
+│              ▼              ▼              ▼                    │
+│         ┌────────┐     ┌────────┐     ┌────────┐                │
+│         │Context │     │ Think  │     │  Jira  │                │
+│         │ Engine │     │ Engine │     │ Engine │                │
+│         └────────┘     └────────┘     └────────┘                │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -260,7 +262,7 @@ The Agent Runtime is Savant's autonomous reasoning loop system. It orchestrates 
 ```
 START
   │
-  ├─► [1] Build Prompt ─────────┐
+  ├─► [1] Build Prompt ──────────┐
   │    • Persona + Driver        │
   │    • AMR Rules               │
   │    • Repo Context            │
@@ -268,7 +270,7 @@ START
   │    • Last Tool Output        │
   │    • Schema Instructions     │
   │    • Token Budget: <8k SLM   │
-  │                               │
+  │                              │
   ├─► [2] Call LLM ◄─────────────┘
   │    • SLM-first (phi3.5)
   │    • Temp: 0.0-0.2
@@ -280,7 +282,7 @@ START
   │    • Auto-correct if malformed
   │    • Validate tool_name against multiplexer
   │
-  ├─► [4] Execute Action ────────┐
+  ├─► [4] Execute Action ─────────┐
   │                               │
   ├─► action=tool? ───────► Route via Multiplexer
   │                          • Call engine tool
@@ -314,16 +316,16 @@ The Prompt Builder enforces strict token limits to keep context windows manageab
 ┌─────────────────────────────────────────────────────────────┐
 │                    PROMPT ASSEMBLY                          │
 │                                                             │
-│  Priority  │ Section           │ Max Tokens │ Trimming     │
-│ ──────────────────────────────────────────────────────────  │
-│     1      │ System Schema     │    500     │ NEVER        │
-│     2      │ Persona           │    800     │ NEVER        │
-│     3      │ Driver Prompt     │   1200     │ NEVER        │
-│     4      │ AMR Rule Names    │    200     │ NEVER        │
-│     5      │ Last Tool Output  │   1500     │ If needed    │
-│     6      │ Memory Summaries  │   2000     │ LRU oldest   │
-│     7      │ Repo Context      │   1500     │ LRU oldest   │
-│     8      │ Extras            │    300     │ First to go  │
+│  Priority  │ Section           │ Max Tokens │ Trimming      │
+│ ────────────────────────────────────────────────────────────│
+│     1      │ System Schema     │    500     │ NEVER         │
+│     2      │ Persona           │    800     │ NEVER         │
+│     3      │ Driver Prompt     │   1200     │ NEVER         │
+│     4      │ AMR Rule Names    │    200     │ NEVER         │
+│     5      │ Last Tool Output  │   1500     │ If needed     │
+│     6      │ Memory Summaries  │   2000     │ LRU oldest    │
+│     7      │ Repo Context      │   1500     │ LRU oldest    │
+│     8      │ Extras            │    300     │ First to go   │
 │                                                             │
 │  SLM Budget:  8,000 tokens  (default)                       │
 │  LLM Budget: 32,000 tokens  (for escalation)                │
@@ -343,28 +345,28 @@ The Prompt Builder enforces strict token limits to keep context windows manageab
 │                      MEMORY LAYERS                           │
 ├──────────────────────────────────────────────────────────────┤
 │                                                              │
-│  EPHEMERAL (Runtime.current.memory[:ephemeral])             │
-│  ┌────────────────────────────────────────────────────────┐ │
+│  EPHEMERAL (Runtime.current.memory[:ephemeral])              │
+│  ┌─────────────────────────────────────────────────────────┐ │
 │  │  {                                                      │ │
 │  │    steps: [                                             │ │
-│  │      { step: 1, action: {...}, output: {...} },        │ │
-│  │      { step: 2, action: {...}, output: {...} }         │ │
+│  │      { step: 1, action: {...}, output: {...} },         │ │
+│  │      { step: 2, action: {...}, output: {...} }          │ │
 │  │    ],                                                   │ │
 │  │    errors: [...],                                       │ │
-│  │    summaries: ["step 1-3: searched codebase"],         │ │
-│  │    state: { current_goal: "...", context: {...} }      │ │
+│  │    summaries: ["step 1-3: searched codebase"],          │ │
+│  │    state: { current_goal: "...", context: {...} }       │ │
 │  │  }                                                      │ │
-│  └────────────────────────────────────────────────────────┘ │
+│  └─────────────────────────────────────────────────────────┘ │
 │                          │                                   │
 │                          ▼                                   │
-│  PERSISTENT (.savant/session.json)                          │
-│  ┌────────────────────────────────────────────────────────┐ │
-│  │  Snapshot written after each step                      │ │
-│  │  • Full state up to ~4k tokens                         │ │
-│  │  • Older steps → SLM summaries                         │ │
-│  │  • Tool outputs attached per step                      │ │
-│  │  • Supports session replay/debugging                   │ │
-│  └────────────────────────────────────────────────────────┘ │
+│  PERSISTENT (.savant/session.json)                           │
+│  ┌─────────────────────────────────────────────────────────┐ │
+│  │  Snapshot written after each step                       │ │
+│  │  • Full state up to ~4k tokens                          │ │
+│  │  • Older steps → SLM summaries                          │ │
+│  │  • Tool outputs attached per step                       │ │
+│  │  • Supports session replay/debugging                    │ │
+│  └─────────────────────────────────────────────────────────┘ │
 │                                                              │
 └──────────────────────────────────────────────────────────────┘
 ```
@@ -377,22 +379,22 @@ Pluggable provider architecture with env-based configuration:
 ┌─────────────────────────────────────────────────────────────┐
 │                      LLM::Adapter                           │
 │                                                             │
-│  ENV['LLM_PROVIDER']  →  delegates to backend              │
+│  ENV['LLM_PROVIDER']  →  delegates to backend               │
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
 │  Ollama (default)                                           │
-│  ├─ Host: ENV['OLLAMA_HOST'] || http://127.0.0.1:11434     │
-│  ├─ SLM:  ENV['SLM_MODEL']   || phi3.5:latest              │
-│  ├─ LLM:  ENV['LLM_MODEL']   || llama3:latest              │
-│  └─ API:  POST /api/generate                               │
+│  ├─ Host: ENV['OLLAMA_HOST'] || http://127.0.0.1:11434      │
+│  ├─ SLM:  ENV['SLM_MODEL']   || phi3.5:latest               │
+│  ├─ LLM:  ENV['LLM_MODEL']   || llama3:latest               │
+│  └─ API:  POST /api/generate                                │
 │                                                             │
 │  Anthropic (stub)                                           │
-│  ├─ API Key: ENV['ANTHROPIC_API_KEY']                      │
-│  └─ Models: claude-3-5-sonnet, claude-3-opus              │
+│  ├─ API Key: ENV['ANTHROPIC_API_KEY']                       │
+│  └─ Models: claude-3-5-sonnet, claude-3-opus                │
 │                                                             │
 │  OpenAI (stub)                                              │
-│  ├─ API Key: ENV['OPENAI_API_KEY']                         │
-│  └─ Models: gpt-4, gpt-3.5-turbo                           │
+│  ├─ API Key: ENV['OPENAI_API_KEY']                          │
+│  └─ Models: gpt-4, gpt-3.5-turbo                            │
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -434,13 +436,13 @@ All LLM responses must conform to this JSON schema:
 │  │ [INFO] Step 1: parse_output → 2.1ms                    │ │
 │  │ [INFO] Step 1: tool_call(context.fts_search) → 89ms    │ │
 │  │ [INFO] Step 1: update_memory → 3.4ms                   │ │
-│  │ [INFO] Step 2: ...                                      │ │
+│  │ [INFO] Step 2: ...                                     │ │
 │  │ [INFO] Session complete: 8 steps, 2 tools, 1 finish    │ │
 │  └────────────────────────────────────────────────────────┘ │
 │                                                             │
 │  logs/agent_trace.log  (Telemetry Events)                   │
 │  ┌────────────────────────────────────────────────────────┐ │
-│  │ {"type":"reasoning_step","step":1,"ts":"2025-11-30",  │ │
+│  │ {"type":"reasoning_step","step":1,"ts":"2025-11-30",   │ │
 │  │  "model":"phi3.5:latest","prompt_tokens":1234,         │ │
 │  │  "output_tokens":89,"duration_ms":450,"action":"tool", │ │
 │  │  "tool_name":"context.fts_search",                     │ │
@@ -494,36 +496,36 @@ Real-time agent monitoring UI at `/diagnostics/agents`:
 ├──────────────────────────────────────────────────────────────┤
 │                                                              │
 │  Controls:                                                   │
-│  [Timeline View] [Grouped View] [Live:ON] [Refresh]         │
+│  [Timeline View] [Grouped View] [Live:ON] [Refresh]          │
 │                                                              │
 │  Filters:                                                    │
-│  ☑ reasoning_step  ☑ llm_call  ☐ prompt_snapshot           │
-│  ☑ tool_call_started  ☑ tool_call_completed                │
+│  ☑ reasoning_step  ☑ llm_call  ☐ prompt_snapshot             │
+│  ☑ tool_call_started  ☑ tool_call_completed                  │
 │                                                              │
-│  ┌────────────────────────────────────────────────────────┐ │
-│  │ Step #1  tool  context.fts_search                      │ │
-│  │   events=4  model=phi3.5  tokens=1234/89               │ │
-│  ├────────────────────────────────────────────────────────┤ │
-│  │ Step #2  tool  think_prompts_list                      │ │
-│  │   events=3  model=phi3.5  tokens=1456/102              │ │
-│  ├────────────────────────────────────────────────────────┤ │
+│  ┌─────────────────────────────────────────────────────────┐ │
+│  │ Step #1  tool  context.fts_search                       │ │
+│  │   events=4  model=phi3.5  tokens=1234/89                │ │
+│  ├─────────────────────────────────────────────────────────┤ │
+│  │ Step #2  tool  think_prompts_list                       │ │
+│  │   events=3  model=phi3.5  tokens=1456/102               │ │
+│  ├─────────────────────────────────────────────────────────┤ │
 │  │ Step #3  finish                                         │ │
-│  │   events=1  model=phi3.5  tokens=1567/234              │ │
-│  └────────────────────────────────────────────────────────┘ │
+│  │   events=1  model=phi3.5  tokens=1567/234               │ │
+│  └─────────────────────────────────────────────────────────┘ │
 │                                                              │
 │  Details Panel:                                              │
-│  ┌────────────────────────────────────────────────────────┐ │
+│  ┌─────────────────────────────────────────────────────────┐ │
 │  │ Step: 1                                                 │ │
 │  │ Action: tool                                            │ │
-│  │ Tool: context.fts_search                               │ │
-│  │ Args: {"query":"auth","limit":10}                      │ │
+│  │ Tool: context.fts_search                                │ │
+│  │ Args: {"query":"auth","limit":10}                       │ │
 │  │ Output: [23 results]                                    │ │
-│  │ Reasoning: "Need to find authentication logic..."      │ │
+│  │ Reasoning: "Need to find authentication logic..."       │ │
 │  │ Duration: 450ms                                         │ │
-│  │ Tokens: 1234 → 89                                      │ │
-│  └────────────────────────────────────────────────────────┘ │
+│  │ Tokens: 1234 → 89                                       │ │
+│  └─────────────────────────────────────────────────────────┘ │
 │                                                              │
-│  [Download Trace] [Download Session]                        │
+│  [Download Trace] [Download Session]                         │
 │                                                              │
 └──────────────────────────────────────────────────────────────┘
 ```
@@ -639,7 +641,7 @@ Error Detected
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
 │  DEFAULT: SLM (phi3.5:latest)                               │
-│  ├─ Fast decisions (200-500ms)                             │
+│  ├─ Fast decisions (200-500ms)                              │
 │  ├─ Tool routing                                            │
 │  ├─ Simple analysis                                         │
 │  └─ Token budget: 8k                                        │

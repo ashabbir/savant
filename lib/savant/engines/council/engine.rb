@@ -38,6 +38,10 @@ module Savant
         @ops.session_delete(id: id)
       end
 
+      def session_clear(id:)
+        @ops.session_clear(id: id)
+      end
+
       # =========================
       # Chat Mode Operations
       # =========================
@@ -100,4 +104,3 @@ module Savant
     end
   end
 end
-

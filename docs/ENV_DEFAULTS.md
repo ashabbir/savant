@@ -27,7 +27,7 @@ MongoDB (Telemetry/Logs/Queue)
 
 Reasoning API
 - REASONING_API_URL: default 'http://127.0.0.1:9000'
-- REASONING_API_TIMEOUT_MS: default 5000
+- REASONING_API_TIMEOUT_MS: default 30000
 - REASONING_API_RETRIES: default 2
 - REASONING_API_VERSION: default 'v1'
 - REASONING_TRANSPORT: default 'mongo' (use 'http' to force HTTP transport)
@@ -71,3 +71,6 @@ Secrets / Licensing (optional)
 Notes
 - Reasoning transport defaults to 'mongo' so cancel and queue processing work out of the box. Set REASONING_TRANSPORT=http to use direct HTTP for /agent_intent.
 - Agent cancellation uses per‑run keys and checks before tools/LLM, so Stop is responsive. Tool engines may need cooperative cancel for long‑running calls.
+- Council intent mode defaults to async; set COUNCIL_INTENT_MODE=sync to keep Council reasoning steps blocking.
+- For async Council intent callbacks, set COUNCIL_ASYNC_CALLBACK_URL or SAVANT_HUB_URL (base) so callbacks can reach `/callbacks/reasoning/agent_intent`.
+- Council protocol role calls use COUNCIL_ROLE_TIMEOUT_MS (default 30000) before timing out.

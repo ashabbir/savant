@@ -220,27 +220,8 @@ fd-rails:
 	'
 
 # -----------------
-# Reasoning API (Python)
+# Reasoning (Redis Worker)
 # -----------------
-.PHONY: reasoning-setup reasoning-api reasoning-api-stdout reasoning-api-file
-reasoning-setup:
-	python3 -m venv .venv_reasoning && . .venv_reasoning/bin/activate && python3 -m pip install -r reasoning/requirements.txt
-
-reasoning-api:
-	./scripts/run_reasoning_api.sh
-
-# Run Reasoning API with stdout logging enabled
-reasoning-api-stdout:
-	REASONING_LOG_STDOUT=1 ./scripts/run_reasoning_api.sh
-
-# Run Reasoning API with file logging (override path: make reasoning-api-file log=logs/reasoning.log)
-reasoning-api-file:
-	@bash -lc '\
-	  LOG_PATH="$${log:-logs/reasoning.log}"; \
-	  echo "Writing reasoning logs to $$LOG_PATH"; \
-	  REASONING_LOG_FILE="$$LOG_PATH" ./scripts/run_reasoning_api.sh \
-	'
-
 # Run Reasoning queue worker only (no HTTP)
 .PHONY: reasoning-worker
 reasoning-worker:

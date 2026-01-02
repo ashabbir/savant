@@ -13,6 +13,12 @@ Rails.application.routes.draw do
   # Avoid noisy 404s from browsers auto-requesting /favicon.ico
   get '/favicon.ico', to: 'static#favicon'
 
+  # Engine UI (Reasoning Worker Dashboard)
+  namespace :engine do
+    resources :workers, only: [:index]
+    resources :jobs, only: [:index, :show]
+  end
+
   # Mount Savant Hub (Rack) for tools, diagnostics, and UI
   mount ->(env) { SavantRails::SavantContainer.hub_app.call(env) }, at: '/'
 end

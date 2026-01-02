@@ -9,6 +9,7 @@ module Savant
     :persona,
     :driver_prompt,
     :amr_rules,
+    :agent_rulesets,
     :repo,
     :memory,
     :logger,
@@ -21,6 +22,7 @@ module Savant
         persona: persona,
         driver_prompt: driver_prompt&.dig(:version),
         amr_rules: amr_rules&.dig(:rules) ? "#{amr_rules[:rules].size} rules" : nil,
+        agent_rulesets: agent_rulesets.is_a?(Array) ? "#{agent_rulesets.size} rulesets" : nil,
         repo: repo&.dig(:path),
         memory: memory ? 'initialized' : nil
       }

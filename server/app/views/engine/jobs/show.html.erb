@@ -1,0 +1,8 @@
+<h1>Job <%= @job_id %></h1>
+<% if @result %>
+  <p>Status: <%= @result['status'] %></p>
+  <pre><%= JSON.pretty_generate(@result) %></pre>
+<% else %>
+  <p>Job result not found (expired or not finished).</p>
+<% end %>
+<%= link_to 'Back', engine_jobs_path %>

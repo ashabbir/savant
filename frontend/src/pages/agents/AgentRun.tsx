@@ -12,10 +12,21 @@ import Accordion from '@mui/material/Accordion';
 import AccordionSummary from '@mui/material/AccordionSummary';
 import AccordionDetails from '@mui/material/AccordionDetails';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import { agentRunRead, getErrorMessage, getUserId, loadConfig, agentRunContinue } from '../../api';
+import { agentRunRead, getErrorMessage, getUserId, loadConfig, agentRunContinue, callEngineTool } from '../../api';
 import TextField from '@mui/material/TextField';
 import Snackbar from '@mui/material/Snackbar';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import Dialog from '@mui/material/Dialog';
+import DialogTitle from '@mui/material/DialogTitle';
+import DialogContent from '@mui/material/DialogContent';
+import DialogActions from '@mui/material/DialogActions';
+import IconButton from '@mui/material/IconButton';
+import Tooltip from '@mui/material/Tooltip';
+import ArticleIcon from '@mui/icons-material/Article';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import CloseIcon from '@mui/icons-material/Close';
+import Viewer from '../../components/Viewer';
+import yaml from 'js-yaml';
 
 // Ensure non-primitive values render safely in JSX
 function toText(v: any): string {
@@ -251,6 +262,10 @@ export default function AgentRun() {
   const [followup, setFollowup] = useState<string>('');
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [yamlOpen, setYamlOpen] = useState(false);
+  const [yamlText, setYamlText] = useState('');
+  const [yamlLoading, setYamlLoading] = useState(false);
+  const [yamlError, setYamlError] = useState<string | null>(null);
   const [chain, setChain] = useState<number[]>([]);
   const [mergedTranscript, setMergedTranscript] = useState<{ steps: any[]; errors: any[]; summaries: any[] }>({ steps: [], errors: [], summaries: [] });
   const [latestSummary, setLatestSummary] = useState<string | null>(null);
@@ -380,16 +395,66 @@ export default function AgentRun() {
     });
   }, [events]);
 
+  async function openYaml() {
+    setYamlLoading(true);
+    setYamlError(null);
+    try {
+      const agentRes = await callEngineTool('agents', 'agents_read', { name });
+      const agentYaml = agentRes?.agent_yaml || '';
+      let agentObj: any = agentYaml;
+      try {
+        agentObj = yaml.load(agentYaml) || {};
+      } catch {
+        agentObj = { raw_yaml: agentYaml };
+      }
+      const runInfo = {
+        id: data?.id,
+        status: data?.status,
+        duration_ms: data?.duration_ms,
+        output_summary: data?.output_summary
+      };
+      const payload = {
+        agent: agentObj,
+        run_params: data?.input || '',
+        run_info: runInfo,
+        run_steps: {
+          steps: mergedTranscript.steps || [],
+          errors: mergedTranscript.errors || [],
+          summaries: mergedTranscript.summaries || []
+        }
+      };
+      setYamlText(yaml.dump(payload, { lineWidth: 100 }));
+      setYamlOpen(true);
+    } catch (e: any) {
+      setYamlError(getErrorMessage(e));
+      setYamlOpen(true);
+    } finally {
+      setYamlLoading(false);
+    }
+  }
+
   return (
     <Grid container spacing={2}>
       <Grid xs={12}>
         <Paper sx={{ p:2, display: 'flex', flexDirection: 'column', gap: 1 }}>
           <Stack direction="row" alignItems="center" justifyContent="space-between">
             <Typography variant="subtitle1">Agent Run: {name}</Typography>
-            <Stack direction="row" spacing={1}>
+            <Stack direction="row" spacing={1} alignItems="center">
               {data?.id && <Chip size="small" label={`#${data.id}`} />}
               {data?.status && <Chip size="small" color={String(data.status) === 'ok' ? 'success' : 'warning'} label={String(data.status)} />}
               {typeof data?.duration_ms === 'number' && <Chip size="small" label={`${data.duration_ms} ms`} />}
+              <Tooltip title="Open Run YAML">
+                <span>
+                  <Button
+                    size="small"
+                    startIcon={<ArticleIcon fontSize="small" />}
+                    disabled={loading || !data}
+                    onClick={openYaml}
+                  >
+                    YAML
+                  </Button>
+                </span>
+              </Tooltip>
             </Stack>
           </Stack>
           {loading && <LinearProgress />}
@@ -517,6 +582,38 @@ export default function AgentRun() {
           )}
         </Paper>
       </Grid>
+      <Dialog open={yamlOpen} onClose={() => setYamlOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          Agent Run YAML
+          <Stack direction="row" spacing={1} alignItems="center">
+            <IconButton
+              size="small"
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(yamlText || '');
+                  setToast('YAML copied');
+                } catch {
+                  setToast('Copy failed');
+                }
+              }}
+              disabled={!yamlText}
+            >
+              <ContentCopyIcon fontSize="small" />
+            </IconButton>
+            <IconButton size="small" onClick={() => setYamlOpen(false)}>
+              <CloseIcon fontSize="small" />
+            </IconButton>
+          </Stack>
+        </DialogTitle>
+        <DialogContent dividers sx={{ p: 0 }}>
+          {yamlLoading && <LinearProgress />}
+          {yamlError && <Alert severity="error" sx={{ m: 2 }}>{yamlError}</Alert>}
+          {!yamlError && <Viewer content={yamlText || ''} language="yaml" height="70vh" />}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setYamlOpen(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
     </Grid>
   );
 }

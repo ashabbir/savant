@@ -34,6 +34,9 @@ import { agentRun, agentRunCancel, agentRunCancelId, agentsDelete, agentRunDelet
 import Snackbar from '@mui/material/Snackbar';
 import { useNavigate } from 'react-router-dom';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import ArticleIcon from '@mui/icons-material/Article';
+import Viewer from '../../components/Viewer';
 
 const PANEL_HEIGHT = 'calc(100vh - 260px)';
 
@@ -51,6 +54,10 @@ export default function Agents() {
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmName, setConfirmName] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [yamlOpen, setYamlOpen] = useState(false);
+  const [yamlText, setYamlText] = useState('');
+  const [yamlError, setYamlError] = useState<string | null>(null);
+  const [yamlLoading, setYamlLoading] = useState(false);
   const { data, isLoading, isError, error, refetch } = useAgents();
   const details = useAgent(sel);
   const runs = useAgentRuns(sel);
@@ -300,7 +307,34 @@ export default function Agents() {
         <Paper sx={{ p: 2, height: PANEL_HEIGHT, display: 'flex', flexDirection: 'column', gap: 1 }}>
           <Stack direction="row" alignItems="center" justifyContent="space-between">
             <Typography variant="subtitle2">Agent Details</Typography>
-            <span />
+            <Stack direction="row" spacing={1} alignItems="center">
+              <Tooltip title="Open Agent YAML">
+                <span>
+                  <Button
+                    size="small"
+                    startIcon={<ArticleIcon fontSize="small" />}
+                    disabled={!sel}
+                    onClick={async () => {
+                      if (!sel) return;
+                      setYamlLoading(true);
+                      setYamlError(null);
+                      try {
+                        const res = await callEngineTool('agents', 'agents_read', { name: sel });
+                        setYamlText(res.agent_yaml || '');
+                        setYamlOpen(true);
+                      } catch (e: any) {
+                        setYamlError(getErrorMessage(e));
+                        setYamlOpen(true);
+                      } finally {
+                        setYamlLoading(false);
+                      }
+                    }}
+                  >
+                    YAML
+                  </Button>
+                </span>
+              </Tooltip>
+            </Stack>
           </Stack>
           {details.isFetching && <LinearProgress />}
           {details.isError && <Alert severity="error">{getErrorMessage(details.error as any)}</Alert>}
@@ -465,6 +499,40 @@ export default function Agents() {
             setConfirmName(null);
             await refetch();
           }}>Delete</Button>
+        </DialogActions>
+      </Dialog>
+      <Dialog open={yamlOpen} onClose={() => setYamlOpen(false)} maxWidth="md" fullWidth>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          Agent YAML
+          <Stack direction="row" spacing={1} alignItems="center">
+            <IconButton
+              size="small"
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(yamlText || '');
+                  setToast('YAML copied');
+                } catch {
+                  setToast('Copy failed');
+                }
+              }}
+              disabled={!yamlText}
+            >
+              <ContentCopyIcon fontSize="small" />
+            </IconButton>
+            <IconButton size="small" onClick={() => setYamlOpen(false)}>
+              <CloseIcon fontSize="small" />
+            </IconButton>
+          </Stack>
+        </DialogTitle>
+        <DialogContent dividers sx={{ p: 0 }}>
+          {yamlLoading && <LinearProgress />}
+          {yamlError && <Alert severity="error" sx={{ m: 2 }}>{yamlError}</Alert>}
+          {!yamlError && (
+            <Viewer content={yamlText || ''} language="yaml" height="70vh" />
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setYamlOpen(false)}>Close</Button>
         </DialogActions>
       </Dialog>
     </Grid>

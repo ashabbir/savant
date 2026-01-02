@@ -24,13 +24,17 @@ module Savant
       def get(name:)
         @ops.get(name: name)
       end
-
-      def create(name:, persona:, driver:, rules: [], favorite: false, instructions: nil)
-        @ops.create(name: name, persona: persona, driver: driver, rules: rules, favorite: favorite, instructions: instructions)
+      
+      def read_yaml(name:)
+        @ops.read_yaml(name: name)
       end
 
-      def update(name:, persona: nil, driver: nil, rules: nil, favorite: nil, instructions: nil, model_id: nil)
-        @ops.update(name: name, persona: persona, driver: driver, rules: rules, favorite: favorite, instructions: instructions, model_id: model_id)
+      def create(name:, persona:, driver:, rules: [], favorite: false, instructions: nil, allowed_tools: nil)
+        @ops.create(name: name, persona: persona, driver: driver, rules: rules, favorite: favorite, instructions: instructions, allowed_tools: allowed_tools)
+      end
+
+      def update(name:, persona: nil, driver: nil, rules: nil, favorite: nil, instructions: nil, model_id: nil, allowed_tools: nil)
+        @ops.update(name: name, persona: persona, driver: driver, rules: rules, favorite: favorite, instructions: instructions, model_id: model_id, allowed_tools: allowed_tools)
       end
 
       def delete(name:)

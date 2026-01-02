@@ -19,14 +19,15 @@ module Savant
     class Runtime
       DEFAULT_MAX_STEPS = (ENV['AGENT_MAX_STEPS'] || '25').to_i
 
-      attr_accessor :agent_instructions, :agent_rulesets, :agent_llm, :state_machine, :system_message
+      attr_accessor :agent_instructions, :agent_rulesets, :agent_llm, :state_machine, :system_message, :allowed_tools
 
       def initialize(goal:, llm_model: nil, logger: nil, base_path: nil, forced_tool: nil, forced_args: nil, forced_finish: false, forced_final: nil, cancel_key: nil, run_id: nil)
         @goal = goal.to_s
         @context = Savant::Framework::Runtime.current
         @base_path = base_path || default_base_path
-        lvl = ENV['LOG_LEVEL'] || 'error'
-        io = ENV['SAVANT_QUIET'] == '1' ? nil : $stdout
+        if ENV['SAVANT_QUIET'] != '1'
+          # io = $stdout
+        end
         @logger = logger || Savant::Logging::MongoLogger.new(service: 'agent')
         # Use global recorder so Diagnostics/Logs (events) can display agent telemetry.
         @trace = Savant::Logging::EventRecorder.global
@@ -46,11 +47,15 @@ module Savant
         @agent_instructions = nil
         @agent_rulesets = nil
         @agent_llm = nil
+        @allowed_tools = nil
+        @last_tools_available = []
+        @last_tools_catalog = []
         @state_machine = Savant::Agent::StateMachine.new
         @system_message = nil
       end
 
       def run(max_steps: @max_steps, dry_run: false)
+        @logger.info(event: 'agent_runtime_start', run_id: @run_id, goal_len: @goal.length, max_steps: max_steps, dry_run: dry_run)
         steps = 0
         model = 'reasoning_api/v1'
         # AMR shortcut: if goal clearly requests a workflow, auto-trigger workflow_run once.
@@ -65,16 +70,16 @@ module Savant
           force = ENV['FORCE_REASONING_API']
 
           # Explicit disables take precedence
-          if env_true.call(dis) || env_true.call(force)
-            autodetect = false
-          elsif env_false.call(en)
-            autodetect = false
-          elsif env_true.call(en)
-            autodetect = true
-          else
-            # No overrides -> keep default true
-            autodetect = true
-          end
+          autodetect = if env_true.call(dis) || env_true.call(force)
+                         false
+                       elsif env_false.call(en)
+                         false
+                       elsif env_true.call(en)
+                         true
+                       else
+                         # No overrides -> keep default true
+                         true
+                       end
         rescue StandardError
           autodetect = true
         end
@@ -193,20 +198,33 @@ module Savant
 
             "- #{n} — #{d}#{req_info}"
           end.compact
+          # Persist tool lists for Reasoning API payload
+          @last_tools_available = tools_hint
+          @last_tools_catalog = catalog
           # Compose a system note communicating tool policy so the Reasoning API avoids disallowed tools.
           pol = instruction_tool_policy
           policy_note = if pol[:disable_all]
-            'Tool Policy: Tools are disabled by instruction. Always choose action="reason" or "finish"; do not select any tool.'
-          elsif pol[:disable_context] || pol[:disable_search]
-            dis = []
-            dis << 'context tools' if pol[:disable_context]
-            dis << 'search tools' if pol[:disable_search]
-            "Tool Policy: Avoid #{dis.join(' and ')} per instruction. Prefer reasoning and finishing without tools."
-          else
-            nil
-          end
+                          'Tool Policy: Tools are disabled by instruction. Always choose action="reason" or "finish"; do not select any tool.'
+                        elsif pol[:disable_context] || pol[:disable_search]
+                          dis = []
+                          dis << 'context tools' if pol[:disable_context]
+                          dis << 'search tools' if pol[:disable_search]
+                          "Tool Policy: Avoid #{dis.join(' and ')} per instruction. Prefer reasoning and finishing without tools."
+                        else
+                          nil
+                        end
           system_msg = [@system_message, policy_note].compact.join("\n\n")
-          prompt = @prompt_builder.build(goal: @goal, memory: @memory.data, last_output: @last_output, tools_hint: tools_hint, tools_catalog: catalog, agent_instructions: @agent_instructions, system: system_msg)
+          prompt = @prompt_builder.build(
+            goal: @goal,
+            memory: @memory.data,
+            last_output: @last_output,
+            tools_hint: tools_hint,
+            tools_catalog: catalog,
+            agent_instructions: @agent_instructions,
+            agent_rulesets: @agent_rulesets,
+            system: system_msg,
+            agent_state: @state_machine&.to_h
+          )
           begin
             ps = { type: 'prompt_snapshot', mcp: 'agent', run: @run_id, step: steps, length: prompt.length, hash: Digest::SHA256.hexdigest(prompt)[0, 16], text: prompt[0, 1500], ts: Time.now.utc.iso8601, timestamp: Time.now.to_i }
             @trace.record(ps)
@@ -238,20 +256,20 @@ module Savant
           # If tool action requested, ensure tool exists or ask for correction once
           action = ensure_valid_action(action, base_tools)
 
-        case action['action']
-        when 'tool'
-          # Before calling any tool, record a brief rationale so UIs can show "why"
-          begin
-            rationale = (action['reasoning'] || '').to_s
-            explain = rationale.empty? ? "Planning to call #{action['tool_name']}" : "Planning to call #{action['tool_name']} because: #{rationale}"
-            @memory.append_step(index: steps, action: { 'action' => 'reason', 'tool_name' => '', 'args' => {}, 'final' => '', 'reasoning' => explain })
-          rescue StandardError
-          end
-          # Check cancellation just before calling a potentially long-running tool
-          if @cancel_key && Savant::Agent::Cancel.signal?(@cancel_key)
-            final_text = 'Canceled by user'
-            finish_action = { 'action' => 'finish', 'tool_name' => '', 'args' => {}, 'final' => final_text, 'reasoning' => 'canceled' }
-            @memory.append_step(index: steps, action: finish_action, final: final_text)
+          case action['action']
+          when 'tool'
+            # Before calling any tool, record a brief rationale so UIs can show "why"
+            begin
+              rationale = (action['reasoning'] || '').to_s
+              explain = rationale.empty? ? "Planning to call #{action['tool_name']}" : "Planning to call #{action['tool_name']} because: #{rationale}"
+              @memory.append_step(index: steps, action: { 'action' => 'reason', 'tool_name' => '', 'args' => {}, 'final' => '', 'reasoning' => explain })
+            rescue StandardError
+            end
+            # Check cancellation just before calling a potentially long-running tool
+            if @cancel_key && Savant::Agent::Cancel.signal?(@cancel_key)
+              final_text = 'Canceled by user'
+              finish_action = { 'action' => 'finish', 'tool_name' => '', 'args' => {}, 'final' => final_text, 'reasoning' => 'canceled' }
+              @memory.append_step(index: steps, action: finish_action, final: final_text)
               @memory.snapshot!
               emit_step_event(steps: steps, model: nil, usage: {}, action: finish_action)
               return { status: 'canceled', steps: steps, final: final_text, memory_path: @memory.path, transcript: @memory.full_data }
@@ -302,12 +320,14 @@ module Savant
       def env_bool(name)
         v = ENV[name]
         return false if v.nil?
+
         %w[1 true yes on].include?(v.to_s.strip.downcase)
       end
 
       # Determine whether the agent is explicitly in a workflow-driving mode.
       def workflow_mode?
         return true if @forced_tool && @forced_tool.start_with?('workflow.')
+
         # Heuristic: if goal explicitly references a known workflow name
         !!detect_workflow_intent(@goal)
       rescue StandardError
@@ -329,6 +349,7 @@ module Savant
         disable_search = env_bool('AGENT_DISABLE_SEARCH_TOOLS') || pol[:disable_search]
 
         names_allowed_by_state = Array(@state_machine&.allowed_actions)
+        allowed_tools = allowed_tools_set
         # Policy: disable Think tools by default for agents.
         # Set AGENT_ALLOW_THINK_TOOLS=1 to opt-in.
         disable_think = !env_bool('AGENT_ALLOW_THINK_TOOLS')
@@ -339,34 +360,34 @@ module Savant
           next false if name.empty?
 
           # Optionally disable Context tools entirely or only search tools
-          if disable_context && name.start_with?('context.')
-            next false
-          end
-          if disable_search && %w[context.fts_search context.memory_search].include?(name)
-            next false
-          end
+          next false if disable_context && name.start_with?('context.')
+          next false if disable_search && %w[context.fts_search context.memory_search].include?(name)
+          next false if allowed_tools && !allowed_tools.include?(name)
 
           # If state machine specifies a non-empty allowlist, enforce it strictly
-          if names_allowed_by_state.any?
-            next false unless names_allowed_by_state.include?(name)
-          end
+          next false if names_allowed_by_state.any? && !names_allowed_by_state.include?(name)
 
           # Optionally disable all Think tools
-          if disable_think && name.start_with?('think.')
-            next false
-          end
+          next false if disable_think && name.start_with?('think.')
 
           # Avoid Think tools that require a workflow when not in workflow mode
           if name.start_with?('think.') && !in_workflow
             schema = s[:schema] || s['schema']
             req = (schema&.dig(:required) || schema&.dig('required') || []).map(&:to_s)
-            if req.include?('workflow')
-              next false
-            end
+            next false if req.include?('workflow')
           end
 
           true
         end
+      end
+
+      def allowed_tools_set
+        return nil if @allowed_tools.nil?
+
+        list = Array(@allowed_tools).map(&:to_s).map(&:strip).reject(&:empty?)
+        return [] if list.empty?
+
+        list.flat_map { |n| [n, n.tr('.', '/'), n.tr('/', '.')] }.uniq
       end
 
       def detect_workflow_intent(goal)
@@ -400,28 +421,58 @@ module Savant
         File.file?(path)
       end
 
-      def decide_and_parse(prompt:, model:, allowed_tools: [], step: nil, dry_run: false)
+      def decide_and_parse(_prompt: nil, model: nil, _allowed_tools: [], step: nil, dry_run: false)
         usage = { prompt_tokens: nil, output_tokens: nil }
         # In dry-run, do not hit external services; finish immediately
         if dry_run
           return [
             { 'action' => 'finish', 'tool_name' => '', 'args' => {}, 'final' => 'ok', 'reasoning' => 'dry_run' },
             usage,
-            'reasoning_api/v1'
+            'local'
           ]
         end
-        # Always route decisions through the Reasoning API; no local SLM fallback
+
+        started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+        @logger.info(event: 'reasoning_start', run_id: @run_id, step: step, model: model, mcp: 'reasoning')
+
+        # Build payload for Reasoning API / Worker
         payload = build_agent_payload
-        intent = reasoning_client.agent_intent(payload)
-        parsed = intent_to_action(intent)
-        [parsed, usage, 'reasoning_api/v1']
-      rescue StandardError => e
-        @logger.warn(event: 'agent_decide_failed', error: e.message)
-        [
-          { 'action' => 'error', 'final' => e.message, 'tool_name' => '', 'args' => {}, 'reasoning' => '' },
-          usage,
-          'reasoning_api/v1'
-        ]
+
+        # Call Reasoning Worker via Redis
+        begin
+          intent = reasoning_client.agent_intent(payload)
+
+          dur_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000.0).round
+
+          # Convert Intent struct to Hash for internal use
+          parsed = {
+            'action' => intent.finish ? 'finish' : 'tool',
+            'tool_name' => intent.tool_name.to_s,
+            'args' => intent.tool_args || {},
+            'final' => intent.final_text || '',
+            'reasoning' => intent.reasoning || ''
+          }
+
+          @logger.info(
+            event: 'reasoning_complete',
+            run_id: @run_id,
+            step: step,
+            duration_ms: dur_ms,
+            action: parsed['action'],
+            tool_name: parsed['tool_name'],
+            reasoning: parsed['reasoning'].to_s[0, 120],
+            mcp: 'reasoning'
+          )
+
+          [parsed, usage, 'worker']
+        rescue StandardError => e
+          @logger.warn(event: 'agent_decide_failed', error: e.message)
+          [
+            { 'action' => 'error', 'final' => e.message, 'tool_name' => '', 'args' => {}, 'reasoning' => '' },
+            usage,
+            'error'
+          ]
+        end
       end
 
       def build_agent_payload
@@ -447,15 +498,19 @@ module Savant
         }
         llm_obj[:api_key] = api_key if api_key
 
+        tools_disabled = @allowed_tools.is_a?(Array) && @allowed_tools.empty?
+        instr = @agent_instructions
         {
           session_id: ctx&.session_id || "run-#{Time.now.to_i}",
           persona: ctx&.persona || {},
           driver: ctx&.driver_prompt || {},
           rules: {
             agent_rulesets: @agent_rulesets || [],
-            global_amr: (ctx&.amr_rules || {})
+            global_amr: ctx&.amr_rules || {}
           },
-          instructions: @agent_instructions,
+          instructions: instr,
+          tools_available: tools_disabled ? [] : (@last_tools_available || []),
+          tools_catalog: tools_disabled ? [] : (@last_tools_catalog || []),
           repo_context: ctx&.repo || {},
           memory_state: @memory&.data || {},
           history: @memory&.full_data&.dig('steps') || [],
@@ -466,16 +521,6 @@ module Savant
           agent_state: @state_machine&.to_h,
           correlation_id: @run_id
         }
-      end
-
-      def intent_to_action(intent)
-        if intent.finish
-          { 'action' => 'finish', 'tool_name' => '', 'args' => {}, 'final' => intent.final_text.to_s, 'reasoning' => intent.reasoning.to_s }
-        elsif intent.tool_name && !intent.tool_name.to_s.empty?
-          { 'action' => 'tool', 'tool_name' => intent.tool_name.to_s, 'args' => intent.tool_args || {}, 'final' => '', 'reasoning' => intent.reasoning.to_s }
-        else
-          { 'action' => 'reason', 'tool_name' => '', 'args' => {}, 'final' => '', 'reasoning' => intent.reasoning.to_s }
-        end
       end
 
       def reasoning_client
@@ -501,8 +546,7 @@ module Savant
         if valid_tools.nil? || valid_tools.empty? || tools_disallowed ||
            (context_disallowed && name.start_with?('context.')) ||
            (search_disallowed && %w[context.fts_search context.memory_search].include?(name))
-          why = (action['reasoning'] || '').to_s
-          msg = "Tool call '#{name}' skipped due to instructions. Rationale: #{why.empty? ? 'n/a' : why}. Proceeding without tools."
+          msg = 'Provide a direct answer.'
           return { 'action' => 'reason', 'tool_name' => '', 'args' => {}, 'final' => '', 'reasoning' => msg }
         end
         return action if valid_tools.include?(name)
@@ -514,34 +558,77 @@ module Savant
         return action.merge('tool_name' => norm1) if valid_tools.include?(norm1)
 
         # Skip model-based correction; rely on Reasoning API/tool policy and simple heuristics only
-        # Heuristic fallback: if goal clearly asks for search/fts, use context.fts_search when available and not prohibited
-        unless env_bool('AGENT_DISABLE_CONTEXT_TOOLS') || env_bool('AGENT_DISABLE_SEARCH_TOOLS') || pol[:disable_context] || pol[:disable_search]
-          return action.merge('tool_name' => 'context.fts_search') if @goal =~ /\b(search|fts|find|lookup|README)\b/i && valid_tools.include?('context.fts_search')
-        end
+        # Heuristic fallback intentionally disabled per no_mcp policy enforcement.
+        # unless env_bool('AGENT_DISABLE_CONTEXT_TOOLS') || env_bool('AGENT_DISABLE_SEARCH_TOOLS') || pol[:disable_context] || pol[:disable_search]
+        #   return action.merge('tool_name' => 'context.fts_search') if @goal =~ /\b(search|fts|find|lookup|README)\b/i && valid_tools.include?('context.fts_search')
+        # end
 
         # Could not correct; convert to error so loop can finish or try again
         { 'action' => 'error', 'final' => "invalid tool: #{name}", 'tool_name' => name, 'args' => {}, 'reasoning' => '' }
       end
 
-
-
       # Derive tool-use policy heuristically from instructions/system/goal
       def instruction_tool_policy
+        return { disable_all: true, disable_context: true, disable_search: true } if @allowed_tools.is_a?(Array) && @allowed_tools.empty?
+
+        rules_text = rulesets_to_text(@agent_rulesets)
+        text = [@agent_instructions, @system_message, @goal, rules_text].compact.map(&:to_s).join("\n\n")
+        return { disable_all: false, disable_context: false, disable_search: false } if text.strip.empty?
+
+        lower = text.downcase
+        no_tools = !!(lower =~ /(no\s+tools|do not (use|call) (any )?tools|without\s+tools|do not use mcp|no\s+mcp|offline\s+only)/i)
+        no_search = !!(lower =~ /(do not (search|lookup)|no\s+(search|fts)|avoid\s+context\s+search)/i)
+        no_context = !!(lower =~ /(do not use\s+context\.?|no\s+context\s+tools|no\s+context\s+mcp)/i)
+        {
+          disable_all: no_tools,
+          disable_context: no_tools || no_context,
+          disable_search: no_tools || no_search
+        }
+      rescue StandardError
+        { disable_all: false, disable_context: false, disable_search: false }
+      end
+
+      def tool_allowed?(name)
+        pol = instruction_tool_policy
+        return false if pol[:disable_all] || env_bool('AGENT_DISABLE_TOOLS')
+        return false if pol[:disable_context] && name.start_with?('context.')
+        return false if pol[:disable_search] && %w[context.fts_search context.memory_search].include?(name)
+
+        allowed = allowed_tools_set
+        return true if allowed.nil?
+
+        allowed.include?(name) || allowed.include?(name.tr('.', '/')) || allowed.include?(name.tr('/', '.'))
+      end
+
+      def tool_disabled_fallback(text)
+        return '' if text.nil?
+
+        t = text.to_s
+        m = t.match(%r{(-?\d+(?:\.\d+)?(?:\s*[+\-*/]\s*-?\d+(?:\.\d+)?)+)})
+        return '' unless m
+
+        expr = m[1].to_s.strip
+        return '' unless expr.match?(%r{\A[\d.\s+\-*/()]+\z})
+
         begin
-          text = [@agent_instructions, @system_message, @goal].compact.map(&:to_s).join("\n\n")
-          return { disable_all: false, disable_context: false, disable_search: false } if text.strip.empty?
-          lower = text.downcase
-          no_tools = !!(lower =~ /(no\s+tools|do not (use|call) (any )?tools|without\s+tools|do not use mcp|no\s+mcp|offline\s+only)/i)
-          no_search = !!(lower =~ /(do not (search|lookup)|no\s+(search|fts)|avoid\s+context\s+search)/i)
-          no_context = !!(lower =~ /(do not use\s+context\.?|no\s+context\s+tools|no\s+context\s+mcp)/i)
-          {
-            disable_all: no_tools,
-            disable_context: no_tools || no_context,
-            disable_search: no_tools || no_search
-          }
+          val = eval(expr, binding, __FILE__, __LINE__) # safe due to whitelist
+          return '' unless val.is_a?(Numeric)
+          return val.to_i.to_s if (val % 1).zero?
+
+          val.to_s
         rescue StandardError
-          { disable_all: false, disable_context: false, disable_search: false }
+          ''
         end
+      end
+
+      def rulesets_to_text(rulesets)
+        return nil unless rulesets.is_a?(Array)
+
+        chunks = rulesets.map do |r|
+          r.is_a?(Hash) ? (r[:rules_md] || r['rules_md'] || r[:summary] || r['summary'] || '') : ''
+        end
+        text = chunks.map(&:to_s).map(&:strip).reject(&:empty?).join("\n\n")
+        text.empty? ? nil : text
       end
 
       def call_tool(name, args, step: nil)

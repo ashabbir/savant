@@ -56,7 +56,7 @@ module Savant
             nxt.call(ctx, nm, a2)
           end
 
-          tool 'fts_search', description: 'Full‑text search over indexed repos (filter by repo name(s))',
+          tool 'fts_search', description: 'Full‑text search over indexed code repos (filter by repo name(s))',
                              schema: { type: 'object', properties: { q: { type: 'string' }, query: { type: 'string' }, repo: { anyOf: [{ type: 'string' }, { type: 'array', items: { type: 'string' } }, { type: 'null' }] }, limit: { type: 'integer', minimum: 1, maximum: 100 } } } do |_ctx, a|
             limit = begin
               Integer(a['limit'] || 10)

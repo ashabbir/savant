@@ -3,11 +3,15 @@
 
 require 'json'
 require 'time'
+require 'yaml'
 require_relative '../../framework/db'
 require_relative '../../framework/boot'
 require_relative '../../agent/runtime'
 require_relative '../drivers/ops'
+require_relative '../personas/ops'
+require_relative '../rules/ops'
 require_relative '../llm/vault'
+require_relative '../../logging/mongo_logger'
 
 module Savant
   module Agents
@@ -16,11 +20,13 @@ module Savant
       def initialize(db: nil, base_path: nil)
         @db = db || Savant::Framework::DB.new
         @base_path = base_path || default_base_path
+        @logger = Savant::Logging::MongoLogger.new(service: 'agents', io: $stdout)
       end
-      
+
       # --- Mongo helpers ---
       def mongo_available?
         return @mongo_available if defined?(@mongo_available)
+
         begin
           require 'mongo'
           @mongo_available = true
@@ -32,11 +38,11 @@ module Savant
 
       def mongo_client
         return nil unless mongo_available?
+
         now = Time.now
         return nil if @mongo_disabled_until && now < @mongo_disabled_until
-        if defined?(@mongo_client) && @mongo_client
-          return @mongo_client
-        end
+        return @mongo_client if defined?(@mongo_client) && @mongo_client
+
         begin
           uri = ENV.fetch('MONGO_URI', "mongodb://#{mongo_host}/#{mongo_db_name}")
           client = Mongo::Client.new(uri, server_selection_timeout: 1.5, connect_timeout: 1.5, socket_timeout: 2)
@@ -75,15 +81,96 @@ module Savant
         to_agent_hash(row)
       end
 
-      def create(name:, persona:, driver:, rules: [], favorite: false, instructions: nil)
+      def read_yaml(name:)
+        row = @db.find_agent_by_name(name)
+        raise 'not_found' unless row
+
+        persona_data = nil
+        begin
+          pname = persona_name(row)
+          persona_data = Savant::Personas::Ops.new.get(name: pname) if pname
+        rescue StandardError
+          persona_data = nil
+        end
+
+        driver_data = nil
+        begin
+          dname = row['driver_name'] || row['driver_prompt']
+          driver_data = Savant::Drivers::Ops.new.get(name: dname) if dname && !dname.to_s.strip.empty?
+        rescue StandardError
+          driver_data = nil
+        end
+
+        rules_data = []
+        begin
+          rule_ids = parse_int_array(row['rule_set_ids'])
+          unless rule_ids.empty?
+            param = "{#{rule_ids.join(',')}}"
+            res = @db.exec_params('SELECT name FROM rulesets WHERE id = ANY($1::int[]) ORDER BY name ASC', [param])
+            names = res.map { |r| r['name'] }
+            ops = Savant::Rules::Ops.new
+            names.each do |nm|
+              rules_data << ops.get(name: nm)
+            rescue StandardError
+            end
+          end
+        rescue StandardError
+          rules_data = []
+        end
+
+        tools_list = parse_text_array(row['allowed_tools'])
+        tools_enabled = if !tools_list.nil? && !tools_list.empty?
+                          true
+                        else
+                          tools_list.nil? || false
+                        end
+
+        model_info = nil
+        begin
+          if row['model_id']
+            res = @db.exec_params(
+              'SELECT m.display_name, m.provider_model_id, p.name as provider_name FROM llm_models m JOIN llm_providers p ON p.id = m.provider_id WHERE m.id = $1',
+              [row['model_id']]
+            )
+            if res.ntuples.positive?
+              m = res[0]
+              model_info = {
+                id: row['model_id'].to_i,
+                display_name: m['display_name'],
+                provider_model_id: m['provider_model_id'],
+                provider_name: m['provider_name']
+              }
+            end
+          end
+        rescue StandardError
+          model_info = nil
+        end
+
+        payload = {
+          name: row['name'],
+          persona: persona_data,
+          driver: driver_data,
+          rules: rules_data,
+          instructions: row['instructions'],
+          tools: {
+            enabled: tools_enabled,
+            allowlist: tools_list || []
+          },
+          model: model_info,
+          favorite: ['t', true].include?(row['favorite'])
+        }
+        { agent_yaml: YAML.dump(stringify_keys(payload)) }
+      end
+
+      def create(name:, persona:, driver:, rules: [], favorite: false, instructions: nil, allowed_tools: nil)
         persona_id = ensure_persona(name: persona)
         rule_ids = ensure_rules(rules)
-        id = @db.create_agent(name: name, persona_id: persona_id, driver_name: driver, rule_set_ids: rule_ids, favorite: favorite, instructions: instructions)
+        id = @db.create_agent(name: name, persona_id: persona_id, driver_name: driver, rule_set_ids: rule_ids, favorite: favorite, instructions: instructions, allowed_tools: allowed_tools)
         row = @db.get_agent(id)
         to_agent_hash(row)
       end
 
-      def update(name:, persona: nil, driver: nil, rules: nil, favorite: nil, instructions: nil, model_id: nil)
+      def update(name:, persona: nil, driver: nil, rules: nil, favorite: nil, instructions: nil, model_id: nil, allowed_tools: nil)
         row = @db.find_agent_by_name(name)
         raise 'not_found' unless row
 
@@ -91,21 +178,22 @@ module Savant
         persona_id = ensure_persona(name: persona) if !persona.nil? && !persona.to_s.strip.empty?
         rule_ids = nil
         rule_ids = ensure_rules(rules) if rules.is_a?(Array)
+        tools_list = allowed_tools if allowed_tools.is_a?(Array)
 
         # Validate model_id if provided (must exist in llm_models table)
         final_model_id = if model_id.nil?
-          row['model_id']
-        else
-          model_id
-        end
+                           row['model_id']
+                         else
+                           model_id
+                         end
 
         # Build update via create_agent upsert semantics
         fav = if favorite.nil?
-          ['t', true].include?(row['favorite'])
-        else
-          # Coerce to strict boolean to avoid truthiness surprises
-          [true, 'true', '1', 't', 'yes', 'y'].include?(favorite)
-        end
+                ['t', true].include?(row['favorite'])
+              else
+                # Coerce to strict boolean to avoid truthiness surprises
+                [true, 'true', '1', 't', 'yes', 'y'].include?(favorite)
+              end
         begin
           log = Savant::Logging::MongoLogger.new(service: 'agents')
           log.info(event: 'agents.update', name: name, favorite_in: favorite, favorite_old: row['favorite'], favorite_final: fav)
@@ -117,6 +205,7 @@ module Savant
           driver_prompt: row['driver_prompt'],
           driver_name: driver.nil? ? row['driver_name'] : driver,
           rule_set_ids: rule_ids || parse_int_array(row['rule_set_ids']),
+          allowed_tools: tools_list.nil? ? parse_text_array(row['allowed_tools']) : tools_list,
           favorite: fav,
           instructions: instructions.nil? ? row['instructions'] : instructions,
           model_id: final_model_id
@@ -130,6 +219,7 @@ module Savant
       end
 
       def run(name:, input:, max_steps: nil, dry_run: false, user_id: nil, pre_run_id: nil, system_message: nil)
+        @logger.info(event: 'agent_run_start', agent: name, input_len: input.to_s.length, max_steps: max_steps, dry_run: dry_run, user_id: user_id)
         agent = @db.find_agent_by_name(name)
         raise 'not_found' unless agent
 
@@ -167,6 +257,7 @@ module Savant
           driver_prompt = { version: 'legacy', prompt_md: raw } if driver_prompt.nil? && !raw.empty? && (raw.include?("\n") || raw.length > 120)
           context.driver_prompt = driver_prompt if driver_prompt
         end
+        @logger.info(event: 'agent_run_booted', agent: name, run_id: pre_run_id, persona: persona_name(agent), driver: agent['driver_prompt'])
 
         # Clear any stale agent-wide cancellation before starting
         begin
@@ -241,14 +332,14 @@ module Savant
           begin
             if (col = agent_runs_col)
               col.insert_one({
-                run_id: run_id,
-                agent_id: agent['id'].to_i,
-                agent_name: agent['name'],
-                input: input.to_s,
-                status: 'running',
-                created_at: Time.now.utc,
-                started_at: Time.now.utc
-              })
+                               run_id: run_id,
+                               agent_id: agent['id'].to_i,
+                               agent_name: agent['name'],
+                               input: input.to_s,
+                               status: 'running',
+                               created_at: Time.now.utc,
+                               started_at: Time.now.utc
+                             })
             end
           rescue StandardError
             # best-effort only
@@ -264,6 +355,7 @@ module Savant
         rt = Savant::Agent::Runtime.new(goal: input.to_s, base_path: @base_path, cancel_key: cancel_key_run,
                                         forced_finish: forced_finish, forced_final: forced_final,
                                         llm_model: llm_model_name, run_id: run_id)
+        @logger.info(event: 'agent_runtime_init', agent: name, run_id: run_id, llm_model: llm_model_name, provider: llm_provider)
         # Seed a system message (e.g., prior run transcript summary) if provided
         begin
           rt.system_message = system_message if system_message && !system_message.to_s.empty?
@@ -294,6 +386,12 @@ module Savant
         rescue StandardError
           rt.agent_rulesets = nil
         end
+        # Pass through allowed tools list to runtime for tool filtering
+        begin
+          rt.allowed_tools = parse_text_array(agent['allowed_tools'])
+        rescue StandardError
+          rt.allowed_tools = nil
+        end
         # Carry provider, model, and API key for reasoning API
         begin
           if llm_model_name
@@ -312,6 +410,7 @@ module Savant
 
         res = rt.run(max_steps: (max_steps || Savant::Agent::Runtime::DEFAULT_MAX_STEPS).to_i, dry_run: dry_run)
         dur_ms = ((monotonic - started) * 1000.0).round
+        @logger.info(event: 'agent_runtime_done', agent: name, run_id: run_id, status: res[:status] || res['status'], duration_ms: dur_ms)
 
         # Persist run
         begin
@@ -384,6 +483,7 @@ module Savant
         end
         { status: 'ok', duration_ms: dur_ms, result: res }
       rescue StandardError => e
+        @logger.error(event: 'agent_run_error', agent: name, error: e.message)
         # Update persisted placeholders with error status
         begin
           dur_ms = ((monotonic - started) * 1000.0).round
@@ -400,15 +500,15 @@ module Savant
                 col.update_one({ agent_id: agent['id'].to_i, run_id: run_id }, { '$set' => { status: 'error', duration_ms: dur_ms.to_i, output_summary: e.message, completed_at: Time.now.utc } })
               else
                 col.insert_one({
-                  run_id: run_id,
-                  agent_id: agent['id'].to_i,
-                  agent_name: agent['name'],
-                  input: input.to_s,
-                  output_summary: e.message,
-                  status: 'error',
-                  duration_ms: dur_ms.to_i,
-                  created_at: Time.now.utc
-                })
+                                 run_id: run_id,
+                                 agent_id: agent['id'].to_i,
+                                 agent_name: agent['name'],
+                                 input: input.to_s,
+                                 output_summary: e.message,
+                                 status: 'error',
+                                 duration_ms: dur_ms.to_i,
+                                 created_at: Time.now.utc
+                               })
               end
             rescue StandardError
             end
@@ -452,30 +552,28 @@ module Savant
         begin
           if (col = agent_runs_col)
             col.insert_one({
-              run_id: run_id,
-              agent_id: agent['id'].to_i,
-              agent_name: agent['name'],
-              input: input.to_s,
-              status: 'running',
-              created_at: Time.now.utc,
-              started_at: Time.now.utc
-            })
+                             run_id: run_id,
+                             agent_id: agent['id'].to_i,
+                             agent_name: agent['name'],
+                             input: input.to_s,
+                             status: 'running',
+                             created_at: Time.now.utc,
+                             started_at: Time.now.utc
+                           })
           end
         rescue StandardError
         end
 
         # Spawn background execution using a fresh Ops instance to avoid thread-sharing DB clients
         Thread.new do
+          ENV['SAVANT_DEV'] = '1' # Ensure license check is skipped in background threads
+          Savant::Agents::Ops.new(base_path: @base_path).run(name: name, input: input, max_steps: max_steps, dry_run: dry_run, user_id: user_id, pre_run_id: run_id)
+        rescue StandardError => e
+          # Log the error for debugging
           begin
-            ENV['SAVANT_DEV'] = '1'  # Ensure license check is skipped in background threads
-            Savant::Agents::Ops.new(base_path: @base_path).run(name: name, input: input, max_steps: max_steps, dry_run: dry_run, user_id: user_id, pre_run_id: run_id)
-          rescue StandardError => e
-            # Log the error for debugging
-            begin
-              Savant::Logging::MongoLogger.new(service: 'agents').error("Agent run failed: #{e.class} #{e.message}\n#{e.backtrace.first(5).join("\n")}")
-            rescue StandardError
-              # Silently ignore logging errors
-            end
+            Savant::Logging::MongoLogger.new(service: 'agents').error("Agent run failed: #{e.class} #{e.message}\n#{e.backtrace.first(5).join("\n")}")
+          rescue StandardError
+            # Silently ignore logging errors
           end
         end
 
@@ -507,46 +605,44 @@ module Savant
         begin
           if (col = agent_runs_col)
             col.insert_one({
-              run_id: new_run_id,
-              agent_id: agent['id'].to_i,
-              agent_name: agent['name'],
-              input: message.to_s,
-              status: 'running',
-              created_at: Time.now.utc,
-              started_at: Time.now.utc,
-              continued_from: from_run_id.to_i
-            })
+                             run_id: new_run_id,
+                             agent_id: agent['id'].to_i,
+                             agent_name: agent['name'],
+                             input: message.to_s,
+                             status: 'running',
+                             created_at: Time.now.utc,
+                             started_at: Time.now.utc,
+                             continued_from: from_run_id.to_i
+                           })
           end
         rescue StandardError
         end
 
         # Spawn background execution that builds a system message from the previous run
         Thread.new do
+          ENV['SAVANT_DEV'] = '1'
+          prev = nil
           begin
-            ENV['SAVANT_DEV'] = '1'
+            prev = run_read(name: name, run_id: from_run_id)
+          rescue StandardError
             prev = nil
-            begin
-              prev = run_read(name: name, run_id: from_run_id)
-            rescue StandardError
-              prev = nil
-            end
+          end
 
-            sys = build_system_message(prev, from_run_id)
+          sys = build_system_message(prev, from_run_id)
 
-            Savant::Agents::Ops.new(base_path: @base_path).run(
-              name: name,
-              input: message,
-              max_steps: max_steps,
-              dry_run: false,
-              user_id: user_id,
-              pre_run_id: new_run_id,
-              system_message: sys
-            )
-          rescue StandardError => e
-            begin
-              Savant::Logging::MongoLogger.new(service: 'agents').error("Agent continue failed: #{e.class} #{e.message}\n#{e.backtrace.first(5).join("\n")}")
-            rescue StandardError
-            end
+          Savant::Agents::Ops.new(base_path: @base_path).run(
+            name: name,
+            input: message,
+            max_steps: max_steps,
+            dry_run: false,
+            user_id: user_id,
+            pre_run_id: new_run_id,
+            system_message: sys
+          )
+        rescue StandardError => e
+          begin
+            Savant::Logging::MongoLogger.new(service: 'agents').error("Agent continue failed: #{e.class} #{e.message}\n#{e.backtrace.first(5).join("\n")}")
+          rescue StandardError
           end
         end
 
@@ -556,46 +652,50 @@ module Savant
       private
 
       def build_system_message(prev_run, from_run_id)
-        begin
-          return "Follow-up to run ##{from_run_id}." unless prev_run.is_a?(Hash)
-          summary = (prev_run[:output_summary] || prev_run['output_summary'] || '').to_s
-          transcript = prev_run[:transcript] || prev_run['transcript']
-          steps = []
-          if transcript.is_a?(Hash)
-            arr = transcript[:steps] || transcript['steps'] || []
-            steps = arr.is_a?(Array) ? arr : []
-          end
-          recent = steps.last(6)
-          def trunc(s, n)
-            str = s.to_s
-            return str if str.length <= n
-            str[0, n] + '…'
-          end
-          lines = []
-          lines << "Continuing from prior agent run ##{from_run_id}. Use this history as context for the user's follow-up."
-          lines << (summary.empty? ? nil : "Previous final: #{trunc(summary, 400)}")
-          unless recent.empty?
-            lines << "Recent transcript:"
-            recent.each do |s|
-              idx = s['index'] || s[:index] || '?'
-              act = (s['action'] || s[:action] || {})
-              a = (act['action'] || act[:action] || '').to_s
-              tool = (act['tool_name'] || act[:tool_name] || '').to_s
-              fin = (act['final'] || act[:final] || '').to_s
-              out = s['output'] || s[:output]
-              out_s = out.is_a?(String) ? out : (out.nil? ? '' : out.to_json)
-              text = [
-                "Step #{idx}: #{a}#{tool.empty? ? '' : " → #{tool}"}",
-                (fin.empty? ? nil : "final: #{trunc(fin, 280)}"),
-                (out_s.empty? ? nil : "output: #{trunc(out_s, 280)}")
-              ].compact.join(' | ')
-              lines << "- #{text}"
-            end
-          end
-          lines.compact.join("\n")
-        rescue StandardError
-          "Follow-up to run ##{from_run_id}."
+        return "Follow-up to run ##{from_run_id}." unless prev_run.is_a?(Hash)
+
+        summary = (prev_run[:output_summary] || prev_run['output_summary'] || '').to_s
+        transcript = prev_run[:transcript] || prev_run['transcript']
+        steps = []
+        if transcript.is_a?(Hash)
+          arr = transcript[:steps] || transcript['steps'] || []
+          steps = arr.is_a?(Array) ? arr : []
         end
+        recent = steps.last(6)
+        trunc = lambda do |s, n|
+          str = s.to_s
+          return str if str.length <= n
+
+          str[0, n] + '…'
+        end
+        lines = []
+        lines << "Continuing from prior agent run ##{from_run_id}. Use this history as context for the user's follow-up."
+        lines << (summary.empty? ? nil : "Previous final: #{trunc(summary, 400)}")
+        unless recent.empty?
+          lines << 'Recent transcript:'
+          recent.each do |s|
+            idx = s['index'] || s[:index] || '?'
+            act = s['action'] || s[:action] || {}
+            a = (act['action'] || act[:action] || '').to_s
+            tool = (act['tool_name'] || act[:tool_name] || '').to_s
+            fin = (act['final'] || act[:final] || '').to_s
+            out = s['output'] || s[:output]
+            out_s = if out.is_a?(String)
+                      out
+                    else
+                      (out.nil? ? '' : out.to_json)
+                    end
+            text = [
+              "Step #{idx}: #{a}#{tool.empty? ? '' : " → #{tool}"}",
+              (fin.empty? ? nil : "final: #{trunc(fin, 280)}"),
+              (out_s.empty? ? nil : "output: #{trunc(out_s, 280)}")
+            ].compact.join(' | ')
+            lines << "- #{text}"
+          end
+        end
+        lines.compact.join("\n")
+      rescue StandardError
+        "Follow-up to run ##{from_run_id}."
       end
 
       public
@@ -767,6 +867,7 @@ module Savant
       def run_delete(name:, run_id:)
         agent = @db.find_agent_by_name(name)
         raise 'not_found' unless agent
+
         # Delete from DB
         res = @db.exec_params('DELETE FROM agent_runs WHERE id=$1 AND agent_id=$2', [run_id.to_i, agent['id']])
         ok = res.cmd_tuples.positive?
@@ -783,6 +884,7 @@ module Savant
       def runs_clear_all(name:)
         agent = @db.find_agent_by_name(name)
         raise 'not_found' unless agent
+
         count = 0
         res = @db.exec_params('DELETE FROM agent_runs WHERE agent_id=$1', [agent['id']])
         count = res.cmd_tuples
@@ -873,6 +975,7 @@ module Savant
           instructions: row['instructions'],
           rule_set_ids: rule_ids,
           rules_names: rules_names,
+          allowed_tools: parse_text_array(row['allowed_tools']),
           model_id: row['model_id']&.to_i,
           favorite: ['t', true].include?(row['favorite']),
           run_count: row['run_count']&.to_i,
@@ -887,6 +990,26 @@ module Savant
 
         # PG returns like "{1,2,3}"; quick parse
         pg_array_text.to_s.delete('{}').split(',').map(&:to_i)
+      end
+
+      def parse_text_array(pg_array_text)
+        return nil if pg_array_text.nil?
+
+        # PG returns like "{a,b}"; tools are simple identifiers without commas.
+        pg_array_text.to_s.delete('{}').split(',').map(&:strip).reject(&:empty?)
+      end
+
+      def stringify_keys(obj)
+        case obj
+        when Array
+          obj.map { |v| stringify_keys(v) }
+        when Hash
+          obj.each_with_object({}) do |(k, v), h|
+            h[k.to_s] = stringify_keys(v)
+          end
+        else
+          obj
+        end
       end
 
       # Build a compact agent config hash for run_read
@@ -980,7 +1103,7 @@ module Savant
           duration_ms: (d['duration_ms'] || d[:duration_ms]).to_i,
           created_at: (d['created_at'] || d[:created_at]).is_a?(Time) ? (d['created_at'] || d[:created_at]).iso8601 : d['created_at'] || d[:created_at],
           steps: steps_count,
-          final: (d['output_summary'] && !d['output_summary'].to_s.empty?) ? d['output_summary'] : final_text
+          final: d['output_summary'] && !d['output_summary'].to_s.empty? ? d['output_summary'] : final_text
         }
       end
     end

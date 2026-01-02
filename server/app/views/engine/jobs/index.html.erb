@@ -1,0 +1,32 @@
+<h1>Engine Jobs</h1>
+<p>Queue Length: <%= @queue_len %></p>
+<p>Running: <%= @running_ids.count %></p>
+<ul>
+  <% @running_ids.each do |id| %>
+    <li>Running: <%= link_to id, engine_job_path(id) %></li>
+  <% end %>
+</ul>
+
+<h2>Recent Completed</h2>
+<table border="1">
+  <tr><th>Job ID</th><th>Status</th><th>Time</th></tr>
+  <% @completed.each do |job| %>
+    <tr>
+      <td><%= link_to job['job_id'], engine_job_path(job['job_id']) %></td>
+      <td><%= job['status'] %></td>
+      <td><%= Time.at(job['ts']) rescue '' %></td>
+    </tr>
+  <% end %>
+</table>
+
+<h2>Recent Failed</h2>
+<table border="1">
+  <tr><th>Job ID</th><th>Error</th><th>Time</th></tr>
+  <% @failed.each do |job| %>
+    <tr>
+      <td><%= link_to job['job_id'], engine_job_path(job['job_id']) %></td>
+      <td><%= job['error'] %></td>
+      <td><%= Time.at(job['ts']) rescue '' %></td>
+    </tr>
+  <% end %>
+</table>

@@ -1,9 +1,11 @@
 import React, { useMemo, useState } from 'react';
 import { Link, Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router-dom';
-import { AppBar, Toolbar, Typography, Tabs, Tab, IconButton, Container, Alert, Snackbar, Chip, Box, Tooltip, Stack, CssBaseline } from '@mui/material';
+import { AppBar, Toolbar, Typography, Tabs, Tab, IconButton, Container, Alert, Snackbar, Chip, Box, Tooltip, Stack, CssBaseline, Dialog, DialogTitle, DialogContent, DialogActions, Button } from '@mui/material';
 import Council from './pages/council/Council';
+import CouncilTools from './pages/council/Tools';
 import GroupsIcon from '@mui/icons-material/Groups';
 import SettingsIcon from '@mui/icons-material/Settings';
+import CloseIcon from '@mui/icons-material/Close';
 import { ThemeProvider } from '@mui/material/styles';
 import { createCompactTheme } from './theme/compact';
 import Search from './pages/Search';
@@ -32,7 +34,6 @@ import RulesPage from './pages/rules/Rules';
 import RulesTools from './pages/rules/Tools';
 import RuleEditor from './pages/rules/RuleEditor';
 import Agents from './pages/agents/Agents';
-import AgentWizard from './pages/agents/AgentWizard';
 import AgentDetail from './pages/agents/AgentDetail';
 import AgentRun from './pages/agents/AgentRun';
 import JiraTools from './pages/jira/Tools';
@@ -50,6 +51,7 @@ import HubIcon from '@mui/icons-material/Hub';
 import StorageIcon from '@mui/icons-material/Storage';
 import ManageSearchIcon from '@mui/icons-material/ManageSearch';
 import CodeIcon from '@mui/icons-material/Code';
+import LLMIcon from './components/icons/LLMIcon';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import SettingsDialog from './components/SettingsDialog';
@@ -62,8 +64,8 @@ function useMainTabIndex() {
   if (pathname.startsWith('/agents')) return 2;
   if (pathname.startsWith('/workflows')) return 3;
   if (pathname.startsWith('/llm-registry')) return 4;
-  if (pathname.startsWith('/diagnostics')) return 5;
-  if (pathname.startsWith('/council') || pathname.startsWith('/qorum')) return 6;
+  if (pathname.startsWith('/council') || pathname.startsWith('/qorum')) return 5;
+  if (pathname.startsWith('/diagnostics')) return 6;
   return 0;
 }
 
@@ -167,6 +169,7 @@ function defaultEngineRoute(name: string): string {
   if (name === 'context') return '/engines/context/resources';
   if (name === 'think') return '/engines/think/tools';  // Prompts moved to Drivers
   if (name === 'jira') return '/engines/jira/tools';
+  if (name === 'council') return '/engines/council/tools';
   if (name === 'personas') return '/engines/personas';
   if (name === 'drivers') return '/engines/drivers';
   if (name === 'rules') return '/engines/rules';
@@ -208,9 +211,61 @@ function formatUptime(seconds: number): string {
   return `${mins}m`;
 }
 
+function componentNameFromPath(pathname: string): string {
+  if (pathname.startsWith('/agents/run/')) return 'Agent Run';
+  if (pathname.startsWith('/agents/edit/')) return 'Agent Edit';
+  if (pathname.startsWith('/agents/new')) return 'Agent Create';
+  if (pathname.startsWith('/engines/agents/edit/')) return 'Agent Edit';
+  if (pathname.startsWith('/engines/agents/new')) return 'Agent Create';
+  if (pathname.startsWith('/agents')) return 'Agents';
+  if (pathname.startsWith('/workflows')) return 'Workflows';
+  if (pathname.startsWith('/llm-registry')) return 'LLM Registry';
+  if (pathname.startsWith('/diagnostics/agent-runs')) return 'Diagnostics: Agent Runs';
+  if (pathname.startsWith('/diagnostics/reasoning')) return 'Diagnostics: Reasoning';
+  if (pathname.startsWith('/diagnostics/workflows')) return 'Diagnostics: Workflows';
+  if (pathname.startsWith('/diagnostics/requests')) return 'Diagnostics: Requests';
+  if (pathname.startsWith('/diagnostics/logs')) return 'Diagnostics: Logs';
+  if (pathname.startsWith('/diagnostics/routes')) return 'Diagnostics: Routes';
+  if (pathname.startsWith('/diagnostics/api')) return 'Diagnostics: API Health';
+  if (pathname.startsWith('/diagnostics')) return 'Diagnostics: Overview';
+  if (pathname.startsWith('/engines/context/resources')) return 'Context: Resources';
+  if (pathname.startsWith('/engines/context/search')) return 'Context: FTS Search';
+  if (pathname.startsWith('/engines/context/memory-search')) return 'Context: Memory Search';
+  if (pathname.startsWith('/engines/context/repos')) return 'Context: Repos';
+  if (pathname.startsWith('/engines/context/tools')) return 'Context: Tools';
+  if (pathname.startsWith('/engines/think/workflows')) return 'Think: Workflows';
+  if (pathname.startsWith('/engines/think/runs')) return 'Think: Runs';
+  if (pathname.startsWith('/engines/think/tools')) return 'Think: Tools';
+  if (pathname.startsWith('/engines/workflow/runs')) return 'Workflow: Runs';
+  if (pathname.startsWith('/engines/workflow/tools')) return 'Workflow: Tools';
+  if (pathname.startsWith('/engines/personas')) return 'Personas';
+  if (pathname.startsWith('/engines/drivers')) return 'Drivers';
+  if (pathname.startsWith('/engines/rules')) return 'Rules';
+  if (pathname.startsWith('/engines/llm/providers')) return 'LLM: Providers';
+  if (pathname.startsWith('/engines/llm/models')) return 'LLM: Models';
+  if (pathname.startsWith('/engines/llm/tools')) return 'LLM: Tools';
+  if (pathname.startsWith('/engines/git')) return 'Git Tools';
+  if (pathname.startsWith('/engines/jira')) return 'Jira Tools';
+  if (pathname.startsWith('/engines/council')) return 'Council Tools';
+  if (pathname.startsWith('/council') || pathname.startsWith('/qorum')) return 'Council';
+  if (pathname.startsWith('/ctx/search') || pathname.startsWith('/ctx/fts')) return 'Context: FTS Search';
+  if (pathname.startsWith('/ctx/memory')) return 'Context: Memory Search';
+  if (pathname.startsWith('/ctx/repos')) return 'Context: Repos';
+  if (pathname.startsWith('/ctx/resources')) return 'Context: Resources';
+  if (pathname.startsWith('/dashboard') || pathname === '/') return 'Dashboard';
+  return 'Unknown';
+}
+
+function AgentsEditRedirect() {
+  const params = useParams();
+  const name = params.name || '';
+  return <Navigate to={`/agents/edit/${name}`} replace />;
+}
+
 
 export default function App() {
   const [open, setOpen] = useState(false);
+  const [debugOpen, setDebugOpen] = useState(false);
   const [themeMode, setThemeMode] = useState<'light' | 'dark'>(() => loadConfig().themeMode || 'light');
   const theme = useMemo(() => createCompactTheme(themeMode), [themeMode]);
   const mainIdx = useMainTabIndex();
@@ -234,6 +289,7 @@ export default function App() {
   const uiEngines = useMemo(() => sortEngines(Array.from(new Set([...(engines || []), ...routeEngines]))), [engines, routeEngines]);
   // Selected engine recomputed against merged list
   const { pathname } = useLocation();
+  const compName = componentNameFromPath(pathname);
   const uiEngIdx = useMemo(() => {
     const seg = pathname.split('/').filter(Boolean);
     const idx = seg[0] === 'engines' && seg[1] ? uiEngines.indexOf(seg[1]) : -1;
@@ -270,7 +326,7 @@ export default function App() {
   }, [mainIdx, loc.pathname]);
   // Normalize Diagnostics root to a concrete sub-route so tabs highlight consistently
   React.useEffect(() => {
-    if (mainIdx === 5 && (loc.pathname === '/diagnostics' || loc.pathname === '/diagnostics/')) {
+    if (mainIdx === 6 && (loc.pathname === '/diagnostics' || loc.pathname === '/diagnostics/')) {
       navigate('/diagnostics/overview', { replace: true });
     }
   }, [mainIdx, loc.pathname]);
@@ -351,16 +407,16 @@ export default function App() {
         else if (v === 2) navigate('/agents');
         else if (v === 3) navigate('/workflows');
         else if (v === 4) navigate('/llm-registry');
-        else if (v === 5) navigate('/diagnostics');
-        else if (v === 6) navigate('/council');
+        else if (v === 5) navigate('/council');
+        else if (v === 6) navigate('/diagnostics');
       }} centered>
         <Tab icon={<DashboardIcon />} iconPosition="start" label="Dashboard" component={Link} to="/dashboard" />
         <Tab icon={<StorageIcon />} iconPosition="start" label="Tools" component={Link} to="/engines" />
         <Tab icon={<SmartToyIcon />} iconPosition="start" label="Agents" component={Link} to="/agents" />
         <Tab icon={<AccountTreeIcon />} iconPosition="start" label="Workflows" component={Link} to="/workflows" />
-        <Tab icon={<CodeIcon />} iconPosition="start" label="LLM Registry" component={Link} to="/llm-registry" />
-        <Tab icon={<ManageSearchIcon />} iconPosition="start" label="Diagnostics" component={Link} to="/diagnostics" />
+        <Tab icon={<LLMIcon />} iconPosition="start" label="LLM Registry" component={Link} to="/llm-registry" />
         <Tab icon={<GroupsIcon />} iconPosition="start" label="Council" component={Link} to="/council" />
+        <Tab icon={<ManageSearchIcon />} iconPosition="start" label="Diagnostics" component={Link} to="/diagnostics" />
       </Tabs>
       {mainIdx === 1 && (
         <Tabs value={uiEngIdx} onChange={(_, v) => {
@@ -484,6 +540,15 @@ export default function App() {
           <Tab label="Tools" component={Link} to="/engines/jira/tools" />
         </Tabs>
       )}
+      {mainIdx === 1 && (uiSelEngine || selEngine) === 'council' && (
+        <Tabs value={0} centered sx={{
+          '& .MuiTab-root': { fontSize: 12, minHeight: 36, py: 0.5, textTransform: 'none', color: 'text.secondary' },
+          '& .Mui-selected': { color: 'primary.main !important' },
+          '& .MuiTabs-indicator': { height: 2, backgroundColor: 'primary.light' }
+        }}>
+          <Tab label="Tools" component={Link} to="/engines/council/tools" />
+        </Tabs>
+      )}
       {mainIdx === 1 && selEngine === 'git' && (
         <Tabs value={0} centered sx={{
           '& .MuiTab-root': { fontSize: 12, minHeight: 36, py: 0.5, textTransform: 'none', color: 'text.secondary' },
@@ -494,7 +559,7 @@ export default function App() {
         </Tabs>
       )}
       {/* Diagnostics subtabs */}
-      {mainIdx === 5 && (
+      {mainIdx === 6 && (
         <Tabs value={diagSubIdx} centered sx={{
           '& .MuiTab-root': { fontSize: 12, minHeight: 32, py: 0.5, textTransform: 'none', color: 'text.secondary' },
           '& .Mui-selected': { color: 'primary.main !important' },
@@ -518,7 +583,7 @@ export default function App() {
 
           {/* Top-level Agents routes */}
           <Route path="/agents" element={<Agents />} />
-          <Route path="/agents/new" element={<AgentWizard />} />
+          <Route path="/agents/new" element={<AgentDetail />} />
           <Route path="/agents/edit/:name" element={<AgentDetail />} />
           <Route path="/agents/run/:name/:id" element={<AgentRun />} />
 
@@ -583,10 +648,12 @@ export default function App() {
           <Route path="/engines/llm/providers" element={<LLMBrowse type="providers" />} />
           <Route path="/engines/llm/models" element={<LLMBrowse type="models" />} />
           <Route path="/engines/llm/tools" element={<LLMTools />} />
+          <Route path="/engines/council" element={<Navigate to="/engines/council/tools" replace />} />
+          <Route path="/engines/council/tools" element={<CouncilTools />} />
           {/* Keep old agents routes for backward compatibility */}
           <Route path="/engines/agents" element={<Agents />} />
-          <Route path="/engines/agents/new" element={<AgentWizard />} />
-          <Route path="/engines/agents/edit/:name" element={<AgentDetail />} />
+          <Route path="/engines/agents/new" element={<Navigate to="/agents/new" replace />} />
+          <Route path="/engines/agents/edit/:name" element={<AgentsEditRedirect />} />
           <Route path="/engines/agents/run/:name/:id" element={<AgentRun />} />
           {/* Workflows editor moved under Think engine */}
           {/* Legacy shortcuts */}
@@ -622,7 +689,9 @@ export default function App() {
         justifyContent: 'space-between',
         mt: 'auto'
       }}>
-        <Typography variant="caption" sx={{ opacity: 0.9 }}>amdSh@2025</Typography>
+        <Typography variant="caption" sx={{ opacity: 0.9, cursor: 'pointer' }} onClick={() => setDebugOpen(true)}>
+          amdSh@2025
+        </Typography>
         {isDev ? (
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
             <CodeIcon sx={{ fontSize: 14, opacity: 0.9 }} />
@@ -633,6 +702,30 @@ export default function App() {
         )}
         <Typography variant="caption" sx={{ opacity: 0.9 }}>github.com/ashabbir</Typography>
       </Box>
+      <Dialog open={debugOpen} onClose={() => setDebugOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          Debug Info
+          <IconButton size="small" onClick={() => setDebugOpen(false)}>
+            <CloseIcon fontSize="small" />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent dividers>
+          <Stack spacing={1}>
+            <Typography variant="body2"><strong>Component</strong>: {compName}</Typography>
+            <Typography variant="body2"><strong>Path</strong>: {pathname}</Typography>
+            <Typography variant="body2"><strong>Mode</strong>: {isDev ? 'Dev' : 'Build'}</Typography>
+            <Typography variant="body2"><strong>Hub Base URL</strong>: {loadConfig().baseUrl}</Typography>
+            <Typography variant="body2"><strong>User ID</strong>: {loadConfig().userId}</Typography>
+            <Typography variant="body2"><strong>Engine</strong>: {uiSelEngine || 'n/a'}</Typography>
+            <Typography variant="body2"><strong>Hub Status</strong>: {hubStatus?.status || 'unknown'}</Typography>
+            {hub.data?.version && <Typography variant="body2"><strong>Hub Version</strong>: {hub.data.version}</Typography>}
+            {hub.data?.transport && <Typography variant="body2"><strong>Transport</strong>: {hub.data.transport}</Typography>}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDebugOpen(false)}>Close</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
       <SettingsDialog
         open={open}
