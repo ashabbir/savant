@@ -15,12 +15,12 @@ export function loadConfig(): HubConfig {
     if (!raw) throw new Error('no config');
     const parsed = JSON.parse(raw);
     return {
-      baseUrl: parsed.baseUrl || import.meta.env.VITE_HUB_BASE || 'http://localhost:9999',
+      baseUrl: parsed.baseUrl || (import.meta as any).env.VITE_API_BASE_URL || 'http://localhost:9999',
       userId: parsed.userId || 'dev',
       themeMode: parsed.themeMode === 'dark' ? 'dark' : 'light'
     };
   } catch {
-    return { baseUrl: import.meta.env.VITE_HUB_BASE || 'http://localhost:9999', userId: 'dev', themeMode: 'light' };
+    return { baseUrl: (import.meta as any).env.VITE_API_BASE_URL || 'http://localhost:9999', userId: 'dev', themeMode: 'light' };
   }
 }
 
@@ -167,6 +167,7 @@ export type LLMDiagnostics = {
   running?: number;
   states?: Record<string, number>;
   models?: LLMModelInfo[];
+  providers?: any;
   error?: string;
 };
 
@@ -188,15 +189,7 @@ export type Diagnostics = {
   secrets?: { path: string; exists: boolean; users?: number; services?: string[]; error?: string };
   llm_models?: LLMDiagnostics;
   llm_runtime?: LLMDiagnosticRuntime;
-  reasoning?: {
-    configured: boolean;
-    base_url?: string;
-    reachable?: boolean;
-    status_code?: number;
-    error?: string;
-    calls?: { total?: number; last_1h?: number; last_24h?: number; last_at?: string; by_event?: Record<string, number | null>; error?: string };
-    agents?: { total?: number; runs_total?: number; runs_24h?: number; last_run_at?: string; error?: string };
-  };
+  reasoning?: ReasoningDiagnostics;
 };
 
 export function useDiagnostics() {
@@ -212,6 +205,15 @@ export function useDiagnostics() {
 
 // Reasoning-only diagnostics and clear
 export type ReasoningDiagnostics = {
+  architecture?: string;
+  redis?: string;
+  workers?: { id: string; last_seen: string; status: string }[];
+  queue_length?: number;
+  running_jobs?: number;
+  dashboard_url?: string;
+  workers_url?: string;
+  recent_completed?: any[];
+  recent_failed?: any[];
   configured: boolean;
   base_url?: string;
   reachable?: boolean;
@@ -660,7 +662,7 @@ export async function rulesCatalogWrite(yaml: string) {
 // AGENTS engine API
 export type AgentSummary = { id: number; name: string; favorite: boolean; run_count?: number; last_run_at?: string | null };
 export type AgentsList = { agents: AgentSummary[] };
-export type Agent = { id: number; name: string; persona_id?: number | null; persona_name?: string | null; driver: string; instructions?: string | null; rule_set_ids: number[]; rules_names?: string[]; model_id?: number | null; favorite: boolean; run_count?: number; last_run_at?: string | null };
+export type Agent = { id: number; name: string; persona_id?: number | null; persona_name?: string | null; driver: string; instructions?: string | null; rule_set_ids: number[]; rules_names?: string[]; allowed_tools?: string[]; model_id?: number | null; favorite: boolean; run_count?: number; last_run_at?: string | null };
 
 export function useAgents() {
   return useQuery<AgentsList>({
@@ -683,12 +685,12 @@ export function useAgent(name: string | null) {
   });
 }
 
-export async function agentsCreate(payload: { name: string; persona: string; driver: string; rules?: string[]; favorite?: boolean; instructions?: string }) {
+export async function agentsCreate(payload: { name: string; persona: string; driver: string; rules?: string[]; favorite?: boolean; instructions?: string; allowed_tools?: string[] }) {
   const res = await client().post('/agents/tools/agents_create/call', { params: payload });
   return res.data as Agent;
 }
 
-export async function agentsUpdate(payload: { name: string; persona?: string; driver?: string; rules?: string[]; favorite?: boolean; instructions?: string; model_id?: number }) {
+export async function agentsUpdate(payload: { name: string; persona?: string; driver?: string; rules?: string[]; favorite?: boolean; instructions?: string; model_id?: number; allowed_tools?: string[] }) {
   const res = await client().post('/agents/tools/agents_update/call', { params: payload });
   return res.data as Agent;
 }
@@ -874,6 +876,7 @@ export async function councilSessionGet(id: number) {
       text?: string | null;
       status?: string | null;
       run_id?: number | null;
+      run_key?: string | null;
       created_at?: string;
     }>;
   };
@@ -891,6 +894,11 @@ export async function councilAppendAgent(session_id: number, agent_name: string,
 
 export async function councilSessionDelete(id: number) {
   const res = await client().post('/council/tools/council_session_delete/call', { params: { id } });
+  return res.data as { ok: boolean };
+}
+
+export async function councilSessionClear(id: number) {
+  const res = await client().post('/council/tools/council_session_clear/call', { params: { id } });
   return res.data as { ok: boolean };
 }
 
@@ -1016,7 +1024,7 @@ export function useHubRequests(n: number = 100) {
   });
 }
 
-// Reasoning API events (from Mongo aggregated logs)
+// Reasoning Worker events (from Mongo aggregated logs)
 export type ReasoningEventsResponse = { count: number; events: any[] };
 export function useReasoningEvents(n: number = 200, type: string = 'all') {
   return useQuery<ReasoningEventsResponse>({

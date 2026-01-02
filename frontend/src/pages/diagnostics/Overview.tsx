@@ -530,7 +530,7 @@ export default function DiagnosticsOverview() {
                 <Stack spacing={1}>
                   {llmProviders.length > 0 && llmModelList.length > 0 && (
                     <Stack direction="row" spacing={0.5} flexWrap="wrap" useFlexGap>
-                      <Chip size="small" label={`Providers: ${llmProviders.filter((p) => p.status === 'valid').length}/${llmProviders.length}`} variant="outlined" />
+                      <Chip size="small" label={`Providers: ${llmProviders.filter((p: any) => p.status === 'valid').length}/${llmProviders.length}`} variant="outlined" />
                       <Chip size="small" label={`Models: ${llmModelList.filter((m: any) => m.enabled).length}/${llmModelList.length}`} variant="outlined" />
                     </Stack>
                   )}
@@ -793,26 +793,50 @@ export default function DiagnosticsOverview() {
               )}
             </Paper>
 
-            {/* Reasoning API */}
+            {/* Reasoning Worker */}
             <Paper sx={{ p: 1.5 }}>
-              <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 600 }}>Reasoning API</Typography>
+              <Stack direction="row" spacing={1} alignItems="center" justifyContent="space-between" sx={{ mb: 1 }}>
+                <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>Reasoning Worker</Typography>
+                <Stack direction="row" spacing={1}>
+                  {diag.data?.reasoning?.dashboard_url && (
+                    <Tooltip title="View Job Dashboard">
+                      <IconButton size="small" component="a" href={diag.data.reasoning.dashboard_url}>
+                        <OpenInNewIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                  )}
+                  {diag.data?.reasoning?.workers_url && (
+                    <Tooltip title="View Active Workers">
+                      <IconButton size="small" component="a" href={diag.data.reasoning.workers_url}>
+                        <StorageIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                  )}
+                </Stack>
+              </Stack>
               {diag.isLoading && <LinearProgress />}
               {diag.data && (diag.data as any).reasoning && (
                 <Stack spacing={1.0}>
                   <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                     <Chip
                       size="small"
-                      icon={(diag.data as any).reasoning.configured ? <CheckCircleIcon /> : <ErrorIcon />}
-                      label={(diag.data as any).reasoning.configured ? 'Configured' : 'Not configured'}
-                      color={(diag.data as any).reasoning.configured ? 'success' : 'error'}
+                      icon={(diag.data as any).reasoning.redis === 'connected' ? <CheckCircleIcon /> : <ErrorIcon />}
+                      label={`Redis: ${(diag.data as any).reasoning.redis || 'unknown'}`}
+                      color={(diag.data as any).reasoning.redis === 'connected' ? 'success' : 'error'}
                     />
-                    {((diag.data as any).reasoning.configured) && (
+                    {((diag.data as any).reasoning.workers?.length > 0) && (
                       <Chip
                         size="small"
-                        icon={(diag.data as any).reasoning.reachable ? <CheckCircleIcon /> : <ErrorIcon />}
-                        label={(diag.data as any).reasoning.reachable ? 'Reachable' : 'Unreachable'}
-                        color={(diag.data as any).reasoning.reachable ? 'success' : 'error'}
+                        icon={<StorageIcon />}
+                        label={`Workers: ${(diag.data as any).reasoning.workers.length}`}
+                        color="success"
                       />
+                    )}
+                    {((diag.data as any).reasoning.queue_length > 0) && (
+                      <Chip size="small" label={`Queue: ${(diag.data as any).reasoning.queue_length}`} color="warning" variant="outlined" />
+                    )}
+                    {((diag.data as any).reasoning.running_jobs > 0) && (
+                      <Chip size="small" label={`Running: ${(diag.data as any).reasoning.running_jobs}`} color="info" variant="outlined" />
                     )}
                     {((diag.data as any).reasoning.base_url) && (
                       <Chip size="small" label={(diag.data as any).reasoning.base_url} variant="outlined" />
@@ -850,6 +874,26 @@ export default function DiagnosticsOverview() {
                   )}
                   {((diag.data as any).reasoning.agents?.last_run_at) && (
                     <Typography variant="caption" color="text.secondary">Last run: {(diag.data as any).reasoning.agents.last_run_at}</Typography>
+                  )}
+                  {((diag.data as any).reasoning.recent_completed?.length > 0) && (
+                    <Box sx={{ mt: 1 }}>
+                      <Typography variant="caption" sx={{ fontWeight: 600, display: 'block' }}>Recent Completed:</Typography>
+                      <Stack direction="row" spacing={0.5} flexWrap="wrap">
+                        {(diag.data as any).reasoning.recent_completed.map((j: any, idx: number) => (
+                          <Chip key={idx} size="small" label={j.job_id || 'job'} variant="outlined" color="success" sx={{ fontSize: 10 }} />
+                        ))}
+                      </Stack>
+                    </Box>
+                  )}
+                  {((diag.data as any).reasoning.recent_failed?.length > 0) && (
+                    <Box sx={{ mt: 1 }}>
+                      <Typography variant="caption" sx={{ fontWeight: 600, display: 'block' }}>Recent Failed:</Typography>
+                      <Stack direction="row" spacing={0.5} flexWrap="wrap">
+                        {(diag.data as any).reasoning.recent_failed.map((j: any, idx: number) => (
+                          <Chip key={idx} size="small" label={j.job_id || 'job'} variant="outlined" color="error" sx={{ fontSize: 10 }} />
+                        ))}
+                      </Stack>
+                    </Box>
                   )}
                   {((diag.data as any).reasoning.error) && (
                     <Alert severity="warning">{(diag.data as any).reasoning.error}</Alert>

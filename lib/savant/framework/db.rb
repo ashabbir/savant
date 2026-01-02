@@ -218,6 +218,7 @@ module Savant
             driver_name TEXT,
             instructions TEXT,
             rule_set_ids INTEGER[],
+            allowed_tools TEXT[],
             favorite BOOLEAN NOT NULL DEFAULT FALSE,
             run_count INTEGER NOT NULL DEFAULT 0,
             last_run_at TIMESTAMPTZ,
@@ -286,11 +287,18 @@ module Savant
             agent_name TEXT,
             run_id INTEGER,
             status TEXT,
+            correlation_id TEXT,
+            job_id TEXT,
+            run_key TEXT,
             text TEXT,
             created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
           );
         SQL
+        exec('ALTER TABLE council_messages ADD COLUMN IF NOT EXISTS correlation_id TEXT')
+        exec('ALTER TABLE council_messages ADD COLUMN IF NOT EXISTS job_id TEXT')
+        exec('ALTER TABLE council_messages ADD COLUMN IF NOT EXISTS run_key TEXT')
         exec('CREATE INDEX IF NOT EXISTS idx_council_messages_session ON council_messages(session_id, created_at)')
+        exec('CREATE INDEX IF NOT EXISTS idx_council_messages_correlation ON council_messages(correlation_id)')
         @council_schema_initialized = true
         true
       rescue StandardError
@@ -324,12 +332,39 @@ module Savant
         { session: row, messages: msgs }
       end
 
-      def add_council_message(session_id:, role:, agent_name: nil, run_id: nil, text:, status: nil)
+      def add_council_message(session_id:, role:, agent_name: nil, run_id: nil, text:, status: nil, correlation_id: nil, job_id: nil, run_key: nil)
         ensure_council_schema!
         exec_params(
-          'INSERT INTO council_messages(session_id, role, agent_name, run_id, status, text, created_at) VALUES($1,$2,$3,$4,$5,$6,NOW())',
-          [session_id.to_i, role.to_s, agent_name, run_id, status, text]
+          'INSERT INTO council_messages(session_id, role, agent_name, run_id, status, correlation_id, job_id, run_key, text, created_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW())',
+          [session_id.to_i, role.to_s, agent_name, run_id, status, correlation_id, job_id, run_key, text]
         )
+        true
+      end
+
+      def update_council_message_by_correlation_id(correlation_id:, text: nil, status: nil, job_id: nil)
+        ensure_council_schema!
+        fields = []
+        values = []
+        idx = 1
+        unless text.nil?
+          fields << "text=$#{idx}"
+          values << text
+          idx += 1
+        end
+        unless status.nil?
+          fields << "status=$#{idx}"
+          values << status
+          idx += 1
+        end
+        unless job_id.nil?
+          fields << "job_id=$#{idx}"
+          values << job_id
+          idx += 1
+        end
+        return false if fields.empty?
+
+        values << correlation_id.to_s
+        exec_params("UPDATE council_messages SET #{fields.join(', ')} WHERE correlation_id=$#{idx}", values)
         true
       end
 
@@ -350,6 +385,12 @@ module Savant
         ensure_council_schema!
         return true if description.nil?
         exec_params('UPDATE council_sessions SET description=$1, updated_at=NOW() WHERE id=$2', [description, id.to_i])
+        true
+      end
+
+      def clear_council_messages(session_id:)
+        ensure_council_schema!
+        exec_params('DELETE FROM council_messages WHERE session_id=$1', [session_id.to_i])
         true
       end
 
@@ -859,17 +900,19 @@ module Savant
       # =========================
       # App CRUD: Agents
       # =========================
-      def create_agent(name:, persona_id: nil, driver_prompt: nil, driver_name: nil, rule_set_ids: [], favorite: false, instructions: nil, model_id: nil)
-        params = [name, persona_id, driver_prompt, driver_name, int_array_encoder.encode(rule_set_ids), favorite, instructions, model_id]
+      def create_agent(name:, persona_id: nil, driver_prompt: nil, driver_name: nil, rule_set_ids: [], favorite: false, instructions: nil, model_id: nil, allowed_tools: nil)
+        allowed_encoded = allowed_tools.nil? ? nil : text_array_encoder.encode(Array(allowed_tools).map(&:to_s))
+        params = [name, persona_id, driver_prompt, driver_name, int_array_encoder.encode(rule_set_ids), allowed_encoded, favorite, instructions, model_id]
         res = exec_params(
           <<~SQL, params
-            INSERT INTO agents(name, persona_id, driver_prompt, driver_name, rule_set_ids, favorite, instructions, model_id, created_at, updated_at)
-            VALUES($1,$2,$3,$4,$5,$6,$7,$8,NOW(),NOW())
+            INSERT INTO agents(name, persona_id, driver_prompt, driver_name, rule_set_ids, allowed_tools, favorite, instructions, model_id, created_at, updated_at)
+            VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,NOW(),NOW())
             ON CONFLICT (name) DO UPDATE
             SET persona_id=EXCLUDED.persona_id,
                 driver_prompt=COALESCE(EXCLUDED.driver_prompt, agents.driver_prompt),
                 driver_name=COALESCE(EXCLUDED.driver_name, agents.driver_name),
                 rule_set_ids=EXCLUDED.rule_set_ids,
+                allowed_tools=COALESCE(EXCLUDED.allowed_tools, agents.allowed_tools),
                 favorite=EXCLUDED.favorite,
                 instructions=COALESCE(EXCLUDED.instructions, agents.instructions),
                 model_id=EXCLUDED.model_id,

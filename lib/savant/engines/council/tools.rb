@@ -42,6 +42,11 @@ module Savant
             eng.session_delete(id: a['id'])
           end
 
+          tool 'council_session_clear', description: 'Clear all messages and runs for a Council session',
+               schema: { type: 'object', properties: { id: { type: 'integer' } }, required: ['id'] } do |_ctx, a|
+            eng.session_clear(id: a['id'])
+          end
+
           # =========================
           # Chat Mode Tools
           # =========================
@@ -93,8 +98,12 @@ module Savant
                  },
                  required: ['session_id']
                } do |ctx, a|
-            user_id = ctx && ctx[:user_id]
-            eng.escalate_to_council(session_id: a['session_id'], query: a['query'], user_id: user_id)
+            begin
+              user_id = ctx && ctx[:user_id]
+              eng.escalate_to_council(session_id: a['session_id'], query: a['query'], user_id: user_id)
+            rescue StandardError => e
+              { ok: false, error: e.message.to_s }
+            end
           end
 
           tool 'council_run', description: 'Run the full council protocol (Initial Positions → Debate → Synthesis). Returns the final recommendation.',

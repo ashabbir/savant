@@ -33,6 +33,8 @@ module Savant
         @stats = { total: 0, by_engine: Hash.new(0), by_status: Hash.new(0), by_method: Hash.new(0), recent: [] }
         @stats_mutex = Mutex.new
         @engine_loggers = {}
+        @reasoning_callback_cache = {}
+        @reasoning_callback_mutex = Mutex.new
       end
 
       def call(env)
@@ -75,6 +77,7 @@ module Savant
         list << { module: 'hub', method: 'GET', path: '/diagnostics/mcp/:name', description: 'Per-engine diagnostics' }
         list << { module: 'hub', method: 'GET', path: '/routes', description: 'Routes list (add ?expand=1 to include tool calls)' }
         list << { module: 'hub', method: 'GET', path: '/logs', description: 'Aggregated recent events from Mongo (?n=100,&mcp=,&since=ISO8601)' }
+        list << { module: 'hub', method: 'GET', path: '/callbacks/reasoning/agent_intent/status', description: 'Fetch async reasoning intent result by correlation_id' }
 
         mounts.keys.sort.each do |engine_name|
           base = "/#{engine_name}"
@@ -112,17 +115,16 @@ module Savant
       end
 
       def init_hub_mongo_logger
-        begin
-          require_relative '../logging/mongo_logger'
-          Savant::Logging::MongoLogger.new(service: 'hub', collection: 'hub')
-        rescue StandardError
-          nil
-        end
+        require_relative '../logging/mongo_logger'
+        Savant::Logging::MongoLogger.new(service: 'hub', collection: 'hub')
+      rescue StandardError
+        nil
       end
 
       # --- Mongo helpers for polling logs ---
       def mongo_available?
         return @mongo_available if defined?(@mongo_available)
+
         begin
           require 'mongo'
           @mongo_available = true
@@ -134,11 +136,11 @@ module Savant
 
       def mongo_client
         return nil unless mongo_available?
+
         now = Time.now
         return nil if @mongo_disabled_until && now < @mongo_disabled_until
-        if defined?(@mongo_client) && @mongo_client
-          return @mongo_client
-        end
+        return @mongo_client if defined?(@mongo_client) && @mongo_client
+
         begin
           uri = ENV.fetch('MONGO_URI', "mongodb://#{mongo_host}/#{mongo_db_name}")
           client = Mongo::Client.new(uri, server_selection_timeout: 1.5, connect_timeout: 1.5, socket_timeout: 2)
@@ -164,11 +166,11 @@ module Savant
 
       def mongo_collections
         return [] unless (cli = mongo_client)
+
         # Cache collection names briefly to reduce load
         now = Time.now
-        if @mongo_col_cache && @mongo_col_cache[:ts] && (now - @mongo_col_cache[:ts] < 5)
-          return @mongo_col_cache[:names]
-        end
+        return @mongo_col_cache[:names] if @mongo_col_cache && @mongo_col_cache[:ts] && (now - @mongo_col_cache[:ts] < 5)
+
         begin
           names = cli.database.collections.map(&:name)
           @mongo_col_cache = { names: names, ts: now }
@@ -180,6 +182,7 @@ module Savant
 
       def mongo_fetch_aggregated(n:, mcp: nil, since: nil)
         return [] unless mongo_client
+
         t_since = parse_time_iso8601(since)
         names = mongo_collections.select { |nm| nm == 'hub' || nm.end_with?('_logs') }
         docs = []
@@ -202,6 +205,7 @@ module Savant
 
       def mongo_fetch_service(service_prefix:, n:, since: nil)
         return [] unless mongo_client
+
         t_since = parse_time_iso8601(since)
         names = mongo_collections.select { |nm| nm == 'hub' || nm.end_with?('_logs') }
         docs = []
@@ -222,6 +226,7 @@ module Savant
 
       def parse_time_iso8601(str)
         return nil if str.nil? || str.to_s.strip.empty?
+
         Time.iso8601(str)
       rescue ArgumentError
         nil
@@ -233,11 +238,15 @@ module Savant
         h = h.transform_keys(&:to_s)
         h['_id'] = h['_id'].to_s if h['_id'] && h['_id'].respond_to?(:to_s)
         # Ensure timestamp is ISO 8601
-        if h['timestamp'].respond_to?(:iso8601)
-          h['timestamp'] = h['timestamp'].iso8601(3)
-        else
-          h['timestamp'] = Time.parse(h['timestamp'].to_s).iso8601(3) rescue h['timestamp'].to_s
-        end
+        h['timestamp'] = if h['timestamp'].respond_to?(:iso8601)
+                           h['timestamp'].iso8601(3)
+                         else
+                           begin
+                             Time.parse(h['timestamp'].to_s).iso8601(3)
+                           rescue StandardError
+                             h['timestamp'].to_s
+                           end
+                         end
         h
       end
 
@@ -344,6 +353,7 @@ module Savant
         return diagnostics_jira(req) if req.get? && req.path_info == '/diagnostics/jira'
         # Reasoning callbacks (webhook)
         return callbacks_reasoning_agent_intent(req) if req.post? && req.path_info == '/callbacks/reasoning/agent_intent'
+        return callbacks_reasoning_agent_intent_status(req) if req.get? && req.path_info == '/callbacks/reasoning/agent_intent/status'
         return diagnostics_agent(req) if req.get? && %w[/diagnostics/agent /diagnostics/agents].include?(req.path_info)
         return diagnostics_agent_clear(req) if req.delete? && %w[/diagnostics/agent /diagnostics/agents].include?(req.path_info)
         return diagnostics_agent_trace(req) if req.get? && req.path_info == '/diagnostics/agent/trace'
@@ -406,6 +416,11 @@ module Savant
       # POST /callbacks/reasoning/agent_intent -> receive async intent from Reasoning API
       def callbacks_reasoning_agent_intent(req)
         js = parse_json_body(req)
+        begin
+          cache_reasoning_callback(js)
+        rescue StandardError
+          # ignore cache errors
+        end
         # Record to in-memory events for UI visibility
         begin
           @recorder.record(type: 'agent_intent', mcp: 'reasoning', correlation_id: js['correlation_id'], job_id: js['job_id'], tool: js['tool_name'], finish: js['finish'], status: js['status'], ts: Time.now.utc.iso8601, timestamp: Time.now.to_i)
@@ -418,7 +433,93 @@ module Savant
         rescue StandardError
           # ignore logging problems
         end
+        begin
+          update_council_message_from_intent(js)
+        rescue StandardError
+          # ignore update problems
+        end
         respond(200, { ok: true })
+      end
+
+      def callbacks_reasoning_agent_intent_status(req)
+        cid = req.params['correlation_id'].to_s
+        return respond(400, { ok: false, error: 'missing_correlation_id' }) if cid.empty?
+
+        payload = nil
+        @reasoning_callback_mutex.synchronize do
+          payload = @reasoning_callback_cache.delete(cid)
+        end
+        return respond(404, { ok: false, status: 'pending' }) unless payload
+
+        respond(200, { ok: true, status: 'delivered', payload: payload })
+      end
+
+      def cache_reasoning_callback(payload)
+        cid = payload['correlation_id'] || payload[:correlation_id]
+        return if cid.to_s.strip.empty?
+
+        @reasoning_callback_mutex.synchronize do
+          @reasoning_callback_cache[cid.to_s] = payload.merge('received_at' => Time.now.utc.iso8601)
+          # simple cap to avoid unbounded growth
+          @reasoning_callback_cache.shift if @reasoning_callback_cache.size > 2000
+        end
+      end
+
+      def update_council_message_from_intent(payload)
+        correlation_id = payload['correlation_id'] || payload[:correlation_id]
+        return if correlation_id.to_s.strip.empty?
+        return unless correlation_id.to_s.start_with?('council-')
+
+        require_relative '../framework/db'
+        db_client = Savant::Framework::DB.new
+
+        job_id = payload['job_id'] || payload[:job_id]
+        status = (payload['status'] || payload[:status]).to_s
+        if status == 'error'
+          err = {
+            schema: 'council.v1.agent_intent',
+            type: 'error',
+            error: (payload['error'] || payload[:error]).to_s
+          }
+          db_client.update_council_message_by_correlation_id(
+            correlation_id: correlation_id,
+            text: JSON.generate(err),
+            status: 'error',
+            job_id: job_id
+          )
+          return
+        end
+
+        finish = payload['finish'] || payload[:finish]
+        tool_name = payload['tool_name'] || payload[:tool_name]
+        tool_args = payload['tool_args'] || payload[:tool_args] || {}
+        action = if finish
+                   'finish'
+                 elsif tool_name && !tool_name.to_s.empty?
+                   'tool'
+                 else
+                   'reason'
+                 end
+        message = {
+          schema: 'council.v1.agent_intent',
+          type: 'agent_intent',
+          action: action,
+          finish: !!finish,
+          intent_id: payload['intent_id'] || payload[:intent_id],
+          tool_name: tool_name,
+          tool_args: tool_args,
+          final_text: payload['final_text'] || payload[:final_text],
+          reasoning: payload['reasoning'] || payload[:reasoning],
+          trace: payload['trace'] || payload[:trace],
+          correlation_id: correlation_id,
+          job_id: job_id
+        }
+        db_client.update_council_message_by_correlation_id(
+          correlation_id: correlation_id,
+          text: JSON.generate(message),
+          status: finish ? 'done' : 'pending',
+          job_id: job_id
+        )
       end
 
       # GET /diagnostics/jira -> presence/shape of Jira credentials for current user
@@ -467,9 +568,7 @@ module Savant
           resolved_user ||= user_id
         end
 
-        def present?(v)
-          !(v.nil? || v.to_s.strip.empty?)
-        end
+        present = ->(v) { !(v.nil? || v.to_s.strip.empty?) }
 
         base_url = creds[:base_url] || creds['base_url'] || creds[:jira_base_url] || creds['jira_base_url']
         email = creds[:email] || creds['email'] || creds[:jira_email] || creds['jira_email']
@@ -480,11 +579,12 @@ module Savant
         allow_writes = %w[true 1 yes].include?(allow_writes_raw.to_s.downcase)
 
         fields = {
-          base_url: present?(base_url),
-          email: present?(email),
-          api_token: present?(api_token),
-          username: present?(username),
-          password: present?(password)
+          base_url: present.call(base_url),
+          email: present.call(email),
+          api_token: present.call(api_token),
+          username: present.call(username),
+          password: present.call(password),
+          allow_writes: allow_writes
         }
 
         auth_mode = if fields[:email] && fields[:api_token]
@@ -728,9 +828,9 @@ module Savant
             rescue StandardError
               Time.now.utc.iso8601
             end,
-            'level' => (e[:level] || 'info'),
-            'service' => (e[:mcp] || e[:service] || 'hub'),
-            'event' => (e[:event] || e[:type] || 'event')
+            'level' => e[:level] || 'info',
+            'service' => e[:mcp] || e[:service] || 'hub',
+            'event' => e[:event] || e[:type] || 'event'
           }.merge(e)
         end
         docs.sort_by { |d| d['timestamp'].to_s }.reverse.first(n)
@@ -758,10 +858,14 @@ module Savant
         end
         arr.map do |e|
           {
-            'timestamp' => (e[:ts] || (Time.at(e[:timestamp].to_i).utc.iso8601 rescue Time.now.utc.iso8601)),
-            'level' => (e[:level] || 'info'),
-            'service' => (e[:mcp] || e[:service] || service_prefix),
-            'event' => (e[:event] || e[:type] || 'event')
+            'timestamp' => begin
+              e[:ts] || Time.at(e[:timestamp].to_i).utc.iso8601
+            rescue StandardError
+              Time.now.utc.iso8601
+            end,
+            'level' => e[:level] || 'info',
+            'service' => e[:mcp] || e[:service] || service_prefix,
+            'event' => e[:event] || e[:type] || 'event'
           }.merge(e)
         end.sort_by { |d| d['timestamp'].to_s }.reverse.first(n)
       end
@@ -931,7 +1035,7 @@ module Savant
           # ignore
         end
 
-        # Reasoning API diagnostics (uptime/usage/agents)
+        # Reasoning diagnostics (Redis-based worker, legacy API check for backwards compat)
         begin
           info[:reasoning] = build_reasoning_diagnostics
         rescue StandardError => e
@@ -941,14 +1045,12 @@ module Savant
         respond(200, info)
       end
 
-      # GET /diagnostics/reasoning -> Reasoning API diagnostics only
+      # GET /diagnostics/reasoning -> Reasoning diagnostics only
       def diagnostics_reasoning(_req)
-        begin
-          data = build_reasoning_diagnostics
-          return respond(200, data)
-        rescue StandardError => e
-          return respond(500, { configured: false, error: e.message })
-        end
+        data = build_reasoning_diagnostics
+        respond(200, data)
+      rescue StandardError => e
+        respond(500, { architecture: 'worker-based', error: e.message })
       end
 
       # DELETE /diagnostics/reasoning -> clear Reasoning activity (Mongo + in-memory)
@@ -960,14 +1062,12 @@ module Savant
         begin
           if mongo_client
             %w[reasoning_logs reasoning_hooks_logs].each do |col_name|
-              begin
-                col = mongo_client[col_name]
-                # Delete all docs without dropping collection (preserves indexes)
-                res = col.delete_many({})
-                cleared << { collection: col_name, deleted_count: (res.respond_to?(:deleted_count) ? res.deleted_count : nil) }
-              rescue StandardError => e
-                errors << { collection: col_name, error: e.message }
-              end
+              col = mongo_client[col_name]
+              # Delete all docs without dropping collection (preserves indexes)
+              res = col.delete_many({})
+              cleared << { collection: col_name, deleted_count: (res.respond_to?(:deleted_count) ? res.deleted_count : nil) }
+            rescue StandardError => e
+              errors << { collection: col_name, error: e.message }
             end
           end
         rescue StandardError => e
@@ -986,48 +1086,58 @@ module Savant
 
       # Helper: Build Reasoning diagnostics payload
       def build_reasoning_diagnostics
-        reasoning = { configured: false }
-        base_url = ENV['REASONING_API_URL'].to_s
-        if !base_url.empty?
-          reasoning[:configured] = true
-          begin
-            require 'uri'
-            uri = URI.parse(base_url)
-            if uri.host
-              reasoning[:base_url] = "#{uri.scheme}://#{uri.host}#{(uri.port && ![80, 443].include?(uri.port)) ? ":#{uri.port}" : ''}"
-            else
-              reasoning[:base_url] = base_url
-            end
-          rescue StandardError
-            reasoning[:base_url] = base_url
+        reasoning = {
+          architecture: 'worker-based',
+          redis: 'unknown',
+          workers: [],
+          queue_length: 0,
+          running_jobs: 0,
+          dashboard_url: '/engine/jobs',
+          workers_url: '/engine/workers',
+          configured: true # Mark as configured so FE doesn't show 'not configured'
+        }
+
+        # Check Redis connectivity and collect stats
+        begin
+          require 'redis'
+        rescue LoadError
+          reasoning[:redis] = 'missing gem'
+          return reasoning
+        end
+
+        begin
+          # Use top-level Redis to avoid conflict with any local namespace
+          redis_url = ENV['REDIS_URL'] || 'redis://localhost:6379/0'
+          r = ::Redis.new(url: redis_url, timeout: 1.0)
+          r.ping
+          reasoning[:redis] = 'connected'
+
+          # Collect worker heartbeats
+          worker_keys = r.keys('savant:workers:heartbeat:*')
+          reasoning[:workers] = worker_keys.map do |k|
+            name = k.split(':').last
+            last_seen = r.get(k).to_f
+            status = Time.now.to_f - last_seen < 60 ? 'alive' : 'dead'
+            { id: name, last_seen: Time.at(last_seen).utc.iso8601, status: status }
           end
 
-          # Reachability probe with short timeouts
-          begin
-            require 'net/http'
-            uri = URI.parse(base_url)
-            http = Net::HTTP.new(uri.host, uri.port)
-            http.use_ssl = (uri.scheme == 'https')
-            http.read_timeout = 1.5
-            http.open_timeout = 1.5
-            code = nil
-            ['/healthz', '/health', '/version', uri.path.to_s, '/'].uniq.each do |p|
-              next if p.nil? || p.to_s.empty?
-              begin
-                req = Net::HTTP::Get.new(p)
-                resp = http.request(req)
-                code = resp.code.to_i
-                break if code && code > 0
-              rescue StandardError
-                # try next
-              end
-            end
-            reasoning[:reachable] = !code.nil? && code < 500
-            reasoning[:status_code] = code if code
-          rescue StandardError => e
-            reasoning[:reachable] = false
-            reasoning[:error] = e.message
+          # Queue stats
+          reasoning[:queue_length] = r.llen('savant:queue:reasoning')
+          reasoning[:running_jobs] = r.scard('savant:jobs:running')
+
+          # Recent jobs for visibility
+          reasoning[:recent_completed] = r.lrange('savant:jobs:completed', 0, 9).map do |j|
+            JSON.parse(j)
+          rescue StandardError
+            j
           end
+          reasoning[:recent_failed] = r.lrange('savant:jobs:failed', 0, 9).map do |j|
+            JSON.parse(j)
+          rescue StandardError
+            j
+          end
+        rescue Exception => e
+          reasoning[:redis] = "error: #{e.class} - #{e.message}"
         end
 
         # Usage stats via Mongo logs (service 'reasoning'); fallback to recorder if Mongo unavailable
@@ -1114,12 +1224,28 @@ module Savant
           agents_total = runs_total = runs_24h = nil
           last_run_at = nil
           if defined?(db_client) && db_client && db_client.table_exists?('agents')
-            agents_total = db_client.exec('SELECT COUNT(*) AS c FROM agents')[0]['c'].to_i rescue nil
+            agents_total = begin
+              db_client.exec('SELECT COUNT(*) AS c FROM agents')[0]['c'].to_i
+            rescue StandardError
+              nil
+            end
           end
           if defined?(db_client) && db_client && db_client.table_exists?('agent_runs')
-            runs_total = db_client.exec('SELECT COUNT(*) AS c FROM agent_runs')[0]['c'].to_i rescue nil
-            runs_24h = db_client.exec("SELECT COUNT(*) AS c FROM agent_runs WHERE created_at > NOW() - interval '24 hours'")[0]['c'].to_i rescue nil
-            last_run_at = db_client.exec('SELECT MAX(created_at) AS m FROM agent_runs')[0]['m'] rescue nil
+            runs_total = begin
+              db_client.exec('SELECT COUNT(*) AS c FROM agent_runs')[0]['c'].to_i
+            rescue StandardError
+              nil
+            end
+            runs_24h = begin
+              db_client.exec("SELECT COUNT(*) AS c FROM agent_runs WHERE created_at > NOW() - interval '24 hours'")[0]['c'].to_i
+            rescue StandardError
+              nil
+            end
+            last_run_at = begin
+              db_client.exec('SELECT MAX(created_at) AS m FROM agent_runs')[0]['m']
+            rescue StandardError
+              nil
+            end
           end
           reasoning[:agents] = { total: agents_total, runs_total: runs_total, runs_24h: runs_24h, last_run_at: last_run_at }
         rescue StandardError => e
@@ -1298,6 +1424,7 @@ module Savant
       # Reuse a single file-backed logger per engine to avoid leaking file descriptors.
       def engine_logger_for(engine_name)
         return nil if engine_name.to_s.empty?
+
         @engine_loggers[engine_name] ||= begin
           path = log_path(engine_name)
           require_relative '../logging/logger'

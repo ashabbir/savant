@@ -8,15 +8,17 @@ module Savant
     # Builds deterministic prompts for SLM/LLM calls.
     class PromptBuilder
       ACTION_SCHEMA_MD = <<~MD
-        You MUST output a single JSON object with the following exact schema:
-        {
-          "action": "tool" | "reason" | "finish" | "error",
-          "tool_name": "",
-          "args": {},
-          "final": "",
-          "reasoning": ""
-        }
-        Return ONLY the JSON. Do not include any prose.
+        You are analyzing a task and deciding how to proceed.
+        Respond with ONLY these exact lines:
+        ACTION: finish
+        RESULT: your final answer
+        REASONING: short explanation of your decision
+
+        OR
+
+        ACTION: tool_name
+        RESULT: tool arguments (query or JQL)
+        REASONING: why you need this tool
       MD
 
       def initialize(runtime:, logger: nil)
@@ -32,17 +34,18 @@ module Savant
       # - last_output [String,nil]
       # - system [String,nil]
       # - tools_hint [Array<String>,nil]
-      def build(goal:, memory:, last_output: nil, system: nil, tools_hint: nil, tools_catalog: nil, agent_instructions: nil)
+      def build(goal:, memory:, last_output: nil, system: nil, tools_hint: nil, tools_catalog: nil, agent_instructions: nil, agent_rulesets: nil, agent_state: nil)
         persona = @runtime&.persona || {}
         driver = @runtime&.driver_prompt || {}
         amr = @runtime&.amr_rules || {}
         repo = @runtime&.repo
 
         sections = []
-        sections << header_section
+        sections << header_section(tools_hint, tools_catalog)
         sections << section('Persona', persona[:prompt_md] || persona[:summary])
         sections << section('Driver', driver[:prompt_md])
         sections << section('Agent Instructions', agent_instructions)
+        sections << section('Agent Rulesets', summarize_rulesets(agent_rulesets))
         sections << section('AMR Rules', summarize_rules(amr[:rules]))
         sections << section('Repo', repo_to_text(repo)) if repo
         sections << section('Goal', goal)
@@ -54,6 +57,7 @@ module Savant
                               "When action='tool', tool_name MUST be one of the 'Tools Available' list. Use the fully qualified name exactly (e.g., 'context.fts_search'). NEVER invent or use external tools like 'GitHub CLI', 'curl', 'bash', or 'npm'.")
         end
         sections << section('Tools Catalog', tools_catalog.take(150).join("\n")) if tools_catalog&.any?
+        sections << section('Agent State', summarize_state(agent_state)) if agent_state
         sections << section('System Instructions', system) if system
         sections << section('Action Schema', ACTION_SCHEMA_MD)
 
@@ -65,7 +69,10 @@ module Savant
 
       private
 
-      def header_section
+      def header_section(tools_hint, tools_catalog)
+        has_tools = tools_hint&.any? || tools_catalog&.any?
+        return 'You are Savant Agent Runtime. Answer the goal directly without tools. Always return the required JSON envelope.' unless has_tools
+
         'You are Savant Agent Runtime. Plan tool calls to accomplish the goal. Always return the required JSON envelope.'
       end
 
@@ -79,6 +86,22 @@ module Savant
         return '' unless rules.is_a?(Array)
 
         rules.first(10).map { |r| "- #{r['id'] || r[:id]} (#{r['priority'] || r[:priority] || 'n/a'})" }.join("\n")
+      end
+
+      def summarize_rulesets(rulesets)
+        return '' unless rulesets.is_a?(Array)
+
+        # Prefer explicit rules_md from rulesets; fall back to summary/name.
+        lines = rulesets.first(10).map do |r|
+          name = (r['name'] || r[:name] || 'ruleset').to_s
+          text = (r['rules_md'] || r[:rules_md] || r['summary'] || r[:summary] || '').to_s
+          next nil if text.strip.empty?
+
+          "- #{name}: #{text.strip}"
+        end.compact
+        return '' if lines.empty?
+
+        lines.join("\n")
       end
 
       def repo_to_text(repo)
@@ -123,6 +146,17 @@ module Savant
         @logger&.trace(event: 'agent_prompt', size: prompt.length, hash: Digest::SHA256.hexdigest(prompt)[0, 16])
       rescue StandardError
         # no-op if digest not available
+      end
+
+      def summarize_state(state)
+        return nil unless state.is_a?(Hash)
+
+        lines = []
+        lines << "Current Phase: #{state[:current_state].to_s.upcase}"
+        lines << "Phase Duration: #{state[:duration_ms]}ms"
+        lines << "Status: #{state[:stuck] ? 'STUCK' : 'HEALTHY'}"
+        lines << "Advice: #{state[:suggested_exit]}" if state[:suggested_exit]
+        lines.join("\n")
       end
     end
   end

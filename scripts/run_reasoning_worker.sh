@@ -11,7 +11,9 @@ if [ ! -d "$VENV" ]; then
 fi
 
 source "$VENV/bin/activate"
-python3 -m pip install -r reasoning/requirements.txt
+export PIP_DISABLE_PIP_VERSION_CHECK=1
+export PYTHONWARNINGS=${PYTHONWARNINGS:-"ignore:Importing verbose from langchain root module is no longer supported.:UserWarning"}
+python3 -m pip install -r reasoning/requirements.txt >/dev/null 2>&1 || true
 
 # Enable worker unless explicitly disabled; spawn 4 threads by default
 export REASONING_QUEUE_WORKER=${REASONING_QUEUE_WORKER:-1}

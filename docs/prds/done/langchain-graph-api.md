@@ -122,7 +122,7 @@ sequenceDiagram
 ## Implementation Plan
 ### Phase 1 — Schema & Contract (2–3 days)
 - Define the request/response schema in `config/reasoning_api_schema.json`, covering fields (`session_id`, `goal`, `history`, `tool_name`, `next_node`, `finish`, `reasoning`, `trace`), error codes (`invalid_tool`, `timeout`, `unsupported_version`), and headers (`Accept-Version`, `Authorization`).
-- Create sample payloads for agent success/failure and workflow transitions. Publish guidance in `docs/reasoning_api.md` (or extend this PRD).
+- Create sample payloads for agent success/failure and workflow transitions. Publish guidance in `memory_bank/reasoning_api.md` (or extend this PRD).
 - Draft a spec for response validation so both Ruby and Python can reference the same contract.
 
 ### Phase 2 — Ruby Adapter + Runtime Integration (1 week)
@@ -145,7 +145,7 @@ sequenceDiagram
 - Add smoke test to `make` or CI verifying Ruby -> Python -> MCP flow (dry run without real tools, just stub responses).
 
 ### Phase 5 — Documentation & Onboarding (1–2 days)
-- Update `README.md`, `docs/getting-started.md`, or create `docs/reasoning_api.md` with install/run steps for the reasoning service, env vars, debugging tips, and error explanations.
+- Update `README.md`, `docs/getting-started.md`, or create `memory_bank/reasoning_api.md` with install/run steps for the reasoning service, env vars, debugging tips, and error explanations.
 - Provide a Hub FAQ entry describing how agents/workflows route to LangChain/LangGraph, how to restart the service, and which logs to monitor.
 - If possible, add Hub UI indicator showing reasoning API health/status (optional, but include instructions for manual checking via `/healthz`).
 
@@ -246,7 +246,7 @@ Steps
   - `GET /healthz` (200 OK), `POST /agent_intent` and `POST /workflow_intent` returning stub intents matching schema (finish-first or echo forced tool).
   - `requirements.txt` and `scripts/run_reasoning_api.sh` for local dev; Makefile targets `reasoning-setup` and `reasoning-api`.
 - Tests: RSpec for the Ruby client covering success, timeout/retry, and invalid-tool validation (using WebMock). Keep Python tests out-of-scope for the first MR.
-- Docs: `docs/reasoning_api.md` with setup, env vars, run instructions, and troubleshooting. Add `.env.example` vars.
+- Docs: `memory_bank/reasoning_api.md` with setup, env vars, run instructions, and troubleshooting. Add `.env.example` vars.
 
 Delivery
 - Branch: `feature/langchain-graph-api` with one commit.

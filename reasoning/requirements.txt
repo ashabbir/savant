@@ -5,4 +5,5 @@ pydantic==2.9.2
 langchain==0.2.16
 langgraph==0.2.27
 langchain-community==0.2.12
+redis
 requests==2.32.3

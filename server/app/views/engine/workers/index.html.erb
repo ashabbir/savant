@@ -1,0 +1,11 @@
+<h1>Engine Workers</h1>
+<table border="1">
+  <tr><th>Worker ID</th><th>Status</th><th>Last Seen</th></tr>
+  <% @workers.each do |w| %>
+    <tr>
+      <td><%= w[:id] %></td>
+      <td><%= w[:status] %></td>
+      <td><%= w[:last_seen] %></td>
+    </tr>
+  <% end %>
+</table>

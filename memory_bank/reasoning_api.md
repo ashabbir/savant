@@ -57,12 +57,62 @@ Headers
 - `Accept-Version: v1` (default)
 - `Authorization: Bearer <token>` when fronted by an auth proxy
 
+## Schema Reference
+
+- Reference `config/reasoning_api_schema.json` for request/response shapes.
+- Minimal example request:
+  ```json
+  {"session_id":"s1","persona":{},"goal_text":"search project for TODOs"}
+  ```
+- Minimal example response:
+  ```json
+  {"status":"ok","intent_id":"agent-1","tool_name":"context.fts_search","tool_args":{"query":"search project for TODOs"},"finish":false}
+  ```
+
 ## Transport Modes
 - HTTP (default): Ruby client POSTs to `/agent_intent` with retry/backoff.
 - Mongo queue (default in client when `REASONING_TRANSPORT=mongo`):
   - Client inserts `{ type: 'agent_intent', correlation_id, status: 'queued', payload }` into `reasoning_queue` then polls until `status: 'done'` or timeout.
   - API runs a background worker thread processing queue items, computing results, and writing `{ status: 'done', result }` back.
   - Cancel: set `status: 'canceled'` on queued/processing docs by `correlation_id`.
+
+## LLM Invocation (Who / Where / When)
+
+- **Who calls the LLM:** The Reasoning API service (Python) or its queue worker, not the Ruby runtime.
+- **Where in code:** `reasoning/api.py` in `_use_llm_for_reasoning`, invoked by `_compute_intent_sync`.
+- **When it happens:** Each intent decision unless a forced tool is provided or the heuristic fallback short‑circuits.
+  - HTTP mode: `POST /agent_intent` and `POST /workflow_intent` execute `_compute_intent_sync` inside the API process.
+  - Mongo queue mode: the queue worker runs `_process_one_queue_item` → `_compute_intent_sync`.
+
+Description: HTTP mode calls the LLM from the API process; queue mode calls the LLM from the worker process. Both share the same reasoning function.
+
+```mermaid
+sequenceDiagram
+  participant RT as Agent Runtime (Ruby)
+  participant RC as Reasoning::Client
+  participant API as Reasoning API (Python)
+  participant MQ as Mongo Queue
+  participant QW as Queue Worker
+  participant LLM as LLM Provider
+
+  alt HTTP transport
+    RT->>RC: agent_intent(payload)
+    RC->>API: POST /agent_intent
+    API->>LLM: _use_llm_for_reasoning(...)
+    LLM-->>API: intent JSON
+    API-->>RC: response
+    RC-->>RT: intent
+  else Mongo queue transport
+    RT->>RC: agent_intent(payload)
+    RC->>MQ: enqueue intent
+    QW->>MQ: claim item
+    QW->>LLM: _use_llm_for_reasoning(...)
+    LLM-->>QW: intent JSON
+    QW->>MQ: write result
+    RC->>MQ: poll result
+    RC-->>RT: intent
+  end
+```
 
 ## Configuration
 - Make targets
@@ -225,6 +275,10 @@ See rendered: `memory_bank/assets/reasoning_api/cancel_queue.svg`
 - Security: front with an auth proxy if exposing externally; set `REASONING_API_TOKEN` and validate in a gateway if needed.
 - Performance: queue mode avoids HTTP overhead and tolerates transient API restarts; sync HTTP is simplest to integrate.
 - Failure Modes: client timeouts raise `timeout`; HTTP ≥500 retried; 4xx surface server error messages.
+- Troubleshooting:
+  - Timeouts: increase `REASONING_API_TIMEOUT_MS` or inspect API logs.
+  - Invalid tools: client validates tool names against Multiplexer; ensure the tool exists.
+  - Health: `curl http://127.0.0.1:9000/healthz` should return `{ "status": "ok" }`.
 
 Queue status output (worker)
 - The worker prints a concise status line when counts change, and at least once per minute.

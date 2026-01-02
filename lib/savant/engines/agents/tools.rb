@@ -27,6 +27,11 @@ module Savant
           tool 'agents_get', description: 'Get an agent by name', schema: { type: 'object', properties: { name: { type: 'string' } }, required: ['name'] } do |_ctx, a|
             eng.get(name: a['name'])
           end
+          
+          tool 'agents_read', description: 'Read a single agent YAML by name',
+                              schema: { type: 'object', properties: { name: { type: 'string' } }, required: ['name'] } do |_ctx, a|
+            eng.read_yaml(name: a['name'])
+          end
 
           tool 'agents_create', description: 'Create an agent',
                                 schema: { type: 'object', properties: {
@@ -35,9 +40,10 @@ module Savant
                                   driver: { type: 'string' },
                                   rules: { type: 'array', items: { type: 'string' } },
                                   favorite: { type: 'boolean' },
-                                  instructions: { type: 'string' }
+                                  instructions: { type: 'string' },
+                                  allowed_tools: { type: 'array', items: { type: 'string' } }
                                 }, required: %w[name persona driver] } do |_ctx, a|
-            eng.create(name: a['name'], persona: a['persona'], driver: a['driver'], rules: a['rules'] || [], favorite: a['favorite'] || false, instructions: a['instructions'])
+            eng.create(name: a['name'], persona: a['persona'], driver: a['driver'], rules: a['rules'] || [], favorite: a['favorite'] || false, instructions: a['instructions'], allowed_tools: a['allowed_tools'])
           end
 
           tool 'agents_update', description: 'Update an agent (partial)',
@@ -48,7 +54,8 @@ module Savant
                                   rules: { type: 'array', items: { type: 'string' } },
                                   favorite: { type: 'boolean' },
                                   instructions: { type: 'string' },
-                                  model_id: { type: 'integer' }
+                                  model_id: { type: 'integer' },
+                                  allowed_tools: { type: 'array', items: { type: 'string' } }
                                 }, required: ['name'] } do |_ctx, a|
             logger = (_ctx && _ctx[:logger]) || begin
               require_relative '../../logging/logger'
@@ -68,7 +75,7 @@ module Savant
               nil
             end
             logger&.info(event: 'agents_update start', name: a['name'], persona: a['persona'], driver: a['driver'], rules: a['rules'], favorite_raw: a['favorite'], favorite: favorite_param)
-            res = eng.update(name: a['name'], persona: a['persona'], driver: a['driver'], rules: a['rules'], favorite: favorite_param, instructions: a['instructions'], model_id: a['model_id'])
+            res = eng.update(name: a['name'], persona: a['persona'], driver: a['driver'], rules: a['rules'], favorite: favorite_param, instructions: a['instructions'], model_id: a['model_id'], allowed_tools: a['allowed_tools'])
             logger&.info(event: 'agents_update finish', name: a['name'], favorite: res[:favorite]) rescue nil
             res
           end

@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.2].define(version: 202512140001) do
+ActiveRecord::Schema[7.2].define(version: 202512280001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
 
@@ -33,6 +33,7 @@ ActiveRecord::Schema[7.2].define(version: 202512140001) do
     t.text "driver_name"
     t.text "instructions"
     t.integer "rule_set_ids", array: true
+    t.text "allowed_tools", array: true
     t.boolean "favorite", default: false, null: false
     t.integer "run_count", default: 0, null: false
     t.datetime "last_run_at"

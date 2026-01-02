@@ -66,6 +66,7 @@ class CreateIndexCoreAndAppTables < ActiveRecord::Migration[7.2]
       t.text :driver_name
       t.text :instructions
       t.integer :rule_set_ids, array: true
+      t.text :allowed_tools, array: true
       t.boolean :favorite, null: false, default: false
       t.integer :run_count, null: false, default: 0
       t.datetime :last_run_at

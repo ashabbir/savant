@@ -128,3 +128,4 @@ UI Layout Rules (Codex)
 - Preview Behavior: Use popups (modal Dialog) for large YAML/Markdown previews. Keep the right panel focused on the primary result (graph/list/view) and only open larger previews in a dialog.
 - Close Controls: All dialogs must include a close icon button in the title bar and may also include a Close action button.
 - Consistency: Apply this pattern to all “Rules” windows and editors, and prefer it across the app (Workflows, Personas, Diagnostics) unless a different UX is clearly better for usability.
+- Footer Debug: Clicking the footer label "amdSh@2025" opens a modal with the current component name and debug info (path, mode, hub base URL, user ID, engine, hub status).

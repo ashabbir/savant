@@ -102,14 +102,19 @@ export default function DiagnosticsReasoning() {
     <Box>
       <Paper sx={{ p: 2, mb: 2 }}>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ xs: 'stretch', sm: 'center' }} justifyContent="space-between">
-          <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>Reasoning Diagnostics</Typography>
+          <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>Reasoning Worker Diagnostics</Typography>
           <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" useFlexGap>
-            {diag.data?.configured ? (
-              <Chip size="small" color={diag.data?.reachable ? 'success' as any : 'warning' as any} label={`API ${diag.data?.reachable ? 'reachable' : 'unreachable'}`} />
+            {diag.data?.redis === 'connected' ? (
+              <Chip size="small" color="success" label="Redis connected" />
             ) : (
-              <Chip size="small" label="API not configured" />
+              <Chip size="small" color="error" label={`Redis: ${diag.data?.redis || 'disconnected'}`} />
             )}
-            {diag.data?.base_url && <Chip size="small" variant="outlined" label={diag.data.base_url} />}
+            {diag.data?.dashboard_url && (
+              <Button size="small" variant="outlined" component="a" href={diag.data.dashboard_url}>Job Dashboard</Button>
+            )}
+            {diag.data?.workers_url && (
+              <Button size="small" variant="outlined" component="a" href={diag.data.workers_url}>Workers</Button>
+            )}
             {typeof diag.data?.calls?.total === 'number' && <Chip size="small" label={`Total ${diag.data.calls.total}`} />}
             {typeof diag.data?.calls?.last_24h === 'number' && <Chip size="small" label={`24h ${diag.data.calls.last_24h}`} />}
             <Button size="small" variant="outlined" color="error" disabled={clearing} onClick={async () => {
@@ -123,11 +128,31 @@ export default function DiagnosticsReasoning() {
             }}>Clear All Activity</Button>
           </Stack>
         </Stack>
+        {(diag.data?.recent_completed?.length ?? 0) > 0 && (
+          <Box sx={{ mt: 2 }}>
+            <Typography variant="caption" sx={{ fontWeight: 600, display: 'block', mb: 0.5 }}>Recent Redis Processing (Completed):</Typography>
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+              {diag.data?.recent_completed?.map((j: any, i: number) => (
+                <Chip key={i} size="small" variant="outlined" color="success" label={j.job_id || 'job'} sx={{ fontSize: 11 }} />
+              ))}
+            </Stack>
+          </Box>
+        )}
+        {(diag.data?.recent_failed?.length ?? 0) > 0 && (
+          <Box sx={{ mt: 1.5 }}>
+            <Typography variant="caption" sx={{ fontWeight: 600, display: 'block', mb: 0.5 }}>Recent Redis Processing (Failed):</Typography>
+            <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
+              {diag.data?.recent_failed?.map((j: any, i: number) => (
+                <Chip key={i} size="small" variant="outlined" color="error" label={j.job_id || 'job'} sx={{ fontSize: 11 }} />
+              ))}
+            </Stack>
+          </Box>
+        )}
       </Paper>
 
       <Paper sx={{ p: 2, mb: 2 }}>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} alignItems={{ xs: 'stretch', sm: 'center' }} justifyContent="space-between">
-          <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>Reasoning API Activity</Typography>
+          <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>Reasoning Activity</Typography>
           <Stack direction="row" spacing={2} alignItems="center">
             <FormControl size="small" sx={{ minWidth: 200 }}>
               <InputLabel>Event Type</InputLabel>
