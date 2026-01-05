@@ -12,7 +12,7 @@ import Select from '@mui/material/Select';
 import MenuItem from '@mui/material/MenuItem';
 import LinearProgress from '@mui/material/LinearProgress';
 import Divider from '@mui/material/Divider';
-import { clearReasoning, useReasoningDiagnostics, useReasoningEvents } from '../../api';
+import { clearReasoning, useReasoningDiagnostics, useReasoningEvents, loadConfig } from '../../api';
 import Button from '@mui/material/Button';
 import List from '@mui/material/List';
 import ListItemButton from '@mui/material/ListItemButton';
@@ -110,10 +110,10 @@ export default function DiagnosticsReasoning() {
               <Chip size="small" color="error" label={`Redis: ${diag.data?.redis || 'disconnected'}`} />
             )}
             {diag.data?.dashboard_url && (
-              <Button size="small" variant="outlined" component="a" href={diag.data.dashboard_url}>Job Dashboard</Button>
+              <Button size="small" variant="outlined" component="a" href={diag.data.dashboard_url.startsWith('/') ? `${loadConfig().baseUrl}${diag.data.dashboard_url}` : diag.data.dashboard_url} target="_blank">Job Dashboard</Button>
             )}
             {diag.data?.workers_url && (
-              <Button size="small" variant="outlined" component="a" href={diag.data.workers_url}>Workers</Button>
+              <Button size="small" variant="outlined" component="a" href={diag.data.workers_url.startsWith('/') ? `${loadConfig().baseUrl}${diag.data.workers_url}` : diag.data.workers_url} target="_blank">Workers</Button>
             )}
             {typeof diag.data?.calls?.total === 'number' && <Chip size="small" label={`Total ${diag.data.calls.total}`} />}
             {typeof diag.data?.calls?.last_24h === 'number' && <Chip size="small" label={`24h ${diag.data.calls.last_24h}`} />}

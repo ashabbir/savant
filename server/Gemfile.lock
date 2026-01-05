@@ -123,6 +123,10 @@ GEM
     mongo (2.22.0)
       base64
       bson (>= 4.14.1, < 6.0.0)
+    mongoid (9.0.9)
+      activemodel (>= 5.1, < 8.2, != 7.0.0)
+      concurrent-ruby (>= 1.0.5, < 2.0)
+      mongo (>= 2.18.0, < 3.0.0)
     msgpack (1.8.0)
     net-imap (0.5.12)
       date
@@ -289,6 +293,7 @@ DEPENDENCIES
   brakeman
   debug
   mongo (~> 2.20)
+  mongoid (~> 9.0)
   pg (~> 1.1)
   puma (>= 5.0)
   rack-cors

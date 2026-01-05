@@ -54,6 +54,11 @@ module Savant
           max_tokens: max_tokens,
           temperature: temperature
         )
+      when :google
+        # For now, we assume the worker handles Google;
+        # but if called directly from Ruby, we might need a google.rb adapter.
+        # Adding as a symbol for payload parity.
+        raise ProviderError, 'google provider requires worker-based execution or google.rb adapter'
       else
         raise ProviderError, "unknown provider: #{prov}"
       end
@@ -63,6 +68,7 @@ module Savant
       # Simple heuristic: use ollama by default; allow explicit prefixes
       return :openai if model.to_s.start_with?('gpt-')
       return :anthropic if model.to_s.start_with?('claude')
+      return :google if model.to_s.start_with?('gemini-')
 
       :ollama
     end

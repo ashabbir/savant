@@ -190,6 +190,13 @@ export type Diagnostics = {
   llm_models?: LLMDiagnostics;
   llm_runtime?: LLMDiagnosticRuntime;
   reasoning?: ReasoningDiagnostics;
+  blackboard?: BlackboardStats;
+};
+
+export type BlackboardStats = {
+  sessions: number;
+  events: number;
+  artifacts: number;
 };
 
 export function useDiagnostics() {
@@ -539,6 +546,18 @@ export function useEngineTools(engine: string) {
 export async function callEngineTool(engine: string, name: string, params: any): Promise<any> {
   const res = await client().post(`/${engine}/tools/${name}/call`, { params });
   return res.data;
+}
+
+// Blackboard API
+export function useBlackboardStats() {
+  return useQuery<BlackboardStats>({
+    queryKey: ['blackboard', 'stats'],
+    queryFn: async () => {
+      const res = await client().get('/blackboard/stats');
+      return res.data as BlackboardStats;
+    },
+    refetchInterval: 5000
+  });
 }
 
 // PERSONAS engine API

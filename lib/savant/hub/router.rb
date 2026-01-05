@@ -1086,27 +1086,21 @@ module Savant
 
       # Helper: Build Reasoning diagnostics payload
       def build_reasoning_diagnostics
+        require 'json'
         reasoning = {
           architecture: 'worker-based',
-          redis: 'unknown',
+          redis: 'disconnected',
           workers: [],
           queue_length: 0,
           running_jobs: 0,
           dashboard_url: '/engine/jobs',
           workers_url: '/engine/workers',
-          configured: true # Mark as configured so FE doesn't show 'not configured'
+          configured: true
         }
 
         # Check Redis connectivity and collect stats
         begin
           require 'redis'
-        rescue LoadError
-          reasoning[:redis] = 'missing gem'
-          return reasoning
-        end
-
-        begin
-          # Use top-level Redis to avoid conflict with any local namespace
           redis_url = ENV['REDIS_URL'] || 'redis://localhost:6379/0'
           r = ::Redis.new(url: redis_url, timeout: 1.0)
           r.ping
@@ -1125,20 +1119,18 @@ module Savant
           reasoning[:queue_length] = r.llen('savant:queue:reasoning')
           reasoning[:running_jobs] = r.scard('savant:jobs:running')
 
-          # Recent jobs for visibility
-          reasoning[:recent_completed] = r.lrange('savant:jobs:completed', 0, 9).map do |j|
-            JSON.parse(j)
-          rescue StandardError
-            j
-          end
-          reasoning[:recent_failed] = r.lrange('savant:jobs:failed', 0, 9).map do |j|
-            JSON.parse(j)
-          rescue StandardError
-            j
-          end
+          # Recent jobs
+          reasoning[:recent_completed] = r.lrange('savant:jobs:completed', 0, 9).map { |j| JSON.parse(j) rescue j }
+          reasoning[:recent_failed] = r.lrange('savant:jobs:failed', 0, 9).map { |j| JSON.parse(j) rescue j }
+        rescue LoadError
+          reasoning[:redis] = 'missing gem'
         rescue Exception => e
           reasoning[:redis] = "error: #{e.class} - #{e.message}"
         end
+
+        # Support legacy base_url/reachable fields for compatibility
+        reasoning[:base_url] = ENV['REASONING_API_URL'] || 'http://127.0.0.1:9000'
+        reasoning[:reachable] = reasoning[:redis] == 'connected'
 
         # Usage stats via Mongo logs (service 'reasoning'); fallback to recorder if Mongo unavailable
         if mongo_client

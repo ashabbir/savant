@@ -421,7 +421,7 @@ module Savant
         File.file?(path)
       end
 
-      def decide_and_parse(_prompt: nil, model: nil, _allowed_tools: [], step: nil, dry_run: false)
+      def decide_and_parse(prompt: nil, model: nil, allowed_tools: [], step: nil, dry_run: false)
         usage = { prompt_tokens: nil, output_tokens: nil }
         # In dry-run, do not hit external services; finish immediately
         if dry_run
@@ -519,7 +519,7 @@ module Savant
           max_steps: 1,
           llm: llm_obj,
           agent_state: @state_machine&.to_h,
-          correlation_id: @run_id
+          correlation_id: @run_id.to_s
         }
       end
 

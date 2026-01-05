@@ -1,7 +1,7 @@
 require 'redis'
 
 module Engine
-  class WorkersController < ::ApplicationController
+  class WorkersController < ActionController::Base
     def index
       # Scan for heartbeats
       keys = redis.keys('savant:workers:heartbeat:*')

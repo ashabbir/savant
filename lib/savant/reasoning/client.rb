@@ -17,7 +17,7 @@ module Savant
 
     class Client
       DEFAULT_TRANSPORT = 'redis'
-      DEFAULT_TIMEOUT_MS = (ENV['REASONING_API_TIMEOUT_MS'] || '30000').to_i
+      DEFAULT_TIMEOUT_MS = (ENV['REASONING_API_TIMEOUT_MS'] || '60000').to_i
       DEFAULT_RETRIES = (ENV['REASONING_API_RETRIES'] || '2').to_i
 
       def initialize(_base_url: nil, _token: nil, timeout_ms: nil, retries: nil, _version: nil, logger: nil, _transport: nil) # rubocop:disable Metrics/ParameterLists
@@ -146,8 +146,8 @@ module Savant
         # Block pop result
         result_key = "savant:result:#{job_id}"
         # blpop returns [key, value]
-        # timeout in seconds (int)
-        timeout_sec = (@timeout_ms.to_f / 1000.0).ceil
+        # timeout in seconds (int). 0 means block indefinitely.
+        timeout_sec = @timeout_ms.zero? ? 0 : (@timeout_ms.to_f / 1000.0).ceil
         res = redis.blpop(result_key, timeout: timeout_sec)
 
         raise StandardError, 'timeout' unless res

@@ -1,0 +1,30 @@
+<div style="font-family: sans-serif; padding: 20px; background: #f4f4f9; color: #333;">
+  <a href="/engine/blackboard" style="color: #3498db; text-decoration: none;">&larr; Back to Dashboard</a>
+  
+  <h1 style="color: #2c3e50;">Session: <%= @session.session_id %></h1>
+  <div style="background: white; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 5px solid #3498db;">
+    <strong>Type:</strong> <%= @session.type %> | 
+    <strong>State:</strong> <%= @session.state %> | 
+    <strong>Actors:</strong> <%= @session.actors.join(", ") %>
+  </div>
+
+  <h2>Timeline</h2>
+  <div style="position: relative; padding-left: 30px; border-left: 2px solid #3498db; margin-left: 10px;">
+    <% @events.each do |event| %>
+      <div style="margin-bottom: 20px; position: relative;">
+        <div style="position: absolute; left: -36px; top: 0; width: 10px; height: 10px; background: #3498db; border-radius: 50%; border: 2px solid white;"></div>
+        <div style="background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+            <strong style="font-size: 1.1em; color: #2c3e50;"><%= event.type %></strong>
+            <span style="color: #95a5a6; font-size: 0.9em;"><%= event.created_at.strftime("%Y-%m-%d %H:%M:%S.%L") %></span>
+          </div>
+          <div style="font-size: 0.9em; color: #7f8c8d; margin-bottom: 10px;">
+            Actor: <strong><%= event.actor_id %></strong> (<%= event.actor_type %>) | 
+            Visibility: <%= event.visibility %>
+          </div>
+          <pre style="background: #f8f9fa; padding: 10px; border-radius: 4px; overflow-x: auto; font-size: 0.85em;"><%= JSON.pretty_generate(event.payload || {}) %></pre>
+        </div>
+      </div>
+    <% end %>
+  </div>
+</div>

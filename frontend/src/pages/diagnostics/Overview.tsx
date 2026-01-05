@@ -28,7 +28,7 @@ import HubIcon from '@mui/icons-material/Hub';
 import HttpIcon from '@mui/icons-material/Http';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
-import { useHubInfo, useDiagnostics, useHubStats, testDbQuery, DbQueryTest } from '../../api';
+import { useHubInfo, useDiagnostics, useHubStats, testDbQuery, DbQueryTest, loadConfig } from '../../api';
 import SmallMultiples, { SmallSeries } from '../../components/SmallMultiples';
 import SmallMultiplesMulti, { MultiSeries } from '../../components/SmallMultiplesMulti';
 
@@ -800,14 +800,14 @@ export default function DiagnosticsOverview() {
                 <Stack direction="row" spacing={1}>
                   {diag.data?.reasoning?.dashboard_url && (
                     <Tooltip title="View Job Dashboard">
-                      <IconButton size="small" component="a" href={diag.data.reasoning.dashboard_url}>
+                      <IconButton size="small" component="a" href={diag.data.reasoning.dashboard_url.startsWith('/') ? `${loadConfig().baseUrl}${diag.data.reasoning.dashboard_url}` : diag.data.reasoning.dashboard_url} target="_blank">
                         <OpenInNewIcon fontSize="small" />
                       </IconButton>
                     </Tooltip>
                   )}
                   {diag.data?.reasoning?.workers_url && (
                     <Tooltip title="View Active Workers">
-                      <IconButton size="small" component="a" href={diag.data.reasoning.workers_url}>
+                      <IconButton size="small" component="a" href={diag.data.reasoning.workers_url.startsWith('/') ? `${loadConfig().baseUrl}${diag.data.reasoning.workers_url}` : diag.data.reasoning.workers_url} target="_blank">
                         <StorageIcon fontSize="small" />
                       </IconButton>
                     </Tooltip>

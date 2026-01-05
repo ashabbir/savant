@@ -11,6 +11,7 @@ import Alert from '@mui/material/Alert';
 import LinearProgress from '@mui/material/LinearProgress';
 import { useHubInfo } from '../api';
 import EngineCard from '../components/EngineCard';
+import BlackboardCard from '../components/BlackboardCard';
 // import MultiplexerCard from '../components/MultiplexerCard';
 
 export default function Dashboard() {
@@ -86,6 +87,19 @@ export default function Dashboard() {
       )}
 
       {/* Multiplexer detailed card intentionally omitted to keep header compact */}
+
+      {/* Core Infrastructure */}
+      <Typography variant="h6" sx={{ mb: 2, fontWeight: 500 }}>
+        Substrate
+      </Typography>
+      <Divider sx={{ mb: 3 }} />
+      <Box sx={{ mb: 4 }}>
+        <Grid container spacing={2}>
+          <Grid xs={12} sm={6} md={4}>
+            <BlackboardCard />
+          </Grid>
+        </Grid>
+      </Box>
 
       {/* Engines Section */}
       <Typography variant="h6" sx={{ mb: 2, fontWeight: 500 }}>

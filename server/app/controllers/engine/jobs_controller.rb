@@ -2,7 +2,7 @@ require 'redis'
 require 'json'
 
 module Engine
-  class JobsController < ::ApplicationController
+  class JobsController < ActionController::Base
     def index
       @queue_len = redis.llen('savant:queue:reasoning')
       @running_ids = redis.smembers('savant:jobs:running')

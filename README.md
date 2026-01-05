@@ -403,7 +403,7 @@ export SAVANT_ENC_KEY=$(ruby -e "require 'securerandom'; puts SecureRandom.hex(3
 
 # Optional environment variables
 export REASONING_API_URL="http://localhost:9000"  # For LangChain/LangGraph integration
-export REASONING_API_TIMEOUT_MS="5000"
+export REASONING_API_TIMEOUT_MS="0" # 0 for indefinite wait, or e.g. "60000" for 1 minute
 export REASONING_API_RETRIES="2"
 ```
 

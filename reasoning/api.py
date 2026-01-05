@@ -485,7 +485,7 @@ def _use_llm_for_reasoning(goal_text: str, instructions: Optional[str], llm_prov
                 log_event('history_received_error', history_count=len(history), goal_text=goal_text, error=str(e))
             history_context = _history_context_with_weights(history)
 
-        if provider_name == 'google api':
+        if provider_name in ['google api', 'google']:
             if not api_key:
                 raise Exception('API key not provided for Google API provider')
             response = _call_google_api(model_name, goal_text, instructions, api_key, history, persona, driver)
