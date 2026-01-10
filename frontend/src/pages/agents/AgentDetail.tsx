@@ -12,7 +12,7 @@ import Chip from '@mui/material/Chip';
 import Stack from '@mui/material/Stack';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import Switch from '@mui/material/Switch';
-import { agentsCreate, agentsUpdate, getErrorMessage, useAgent, useDrivers, usePersonas, useRules, callEngineTool, useRoutes } from '../../api';
+import { agentsCreate, agentsUpdate, agentsRename, getErrorMessage, useAgent, useDrivers, usePersonas, useRules, callEngineTool, useRoutes } from '../../api';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -58,6 +58,7 @@ export default function AgentDetail() {
     [models.data]
   );
   const [nameValue, setNameValue] = useState('');
+  const [idValue, setIdValue] = useState<number | null>(null);
   const [persona, setPersona] = useState<string | null>(null);
   const [driver, setDriver] = useState('');
   const [instructions, setInstructions] = useState('');
@@ -72,6 +73,7 @@ export default function AgentDetail() {
     const a = agent.data as any;
     if (!a) return;
     setNameValue(a.name || '');
+    if (typeof a.id === 'number') setIdValue(a.id);
     setDriver(a.driver || '');
     setInstructions((a.instructions as string) || '');
     if (typeof a.persona_name === 'string' && a.persona_name.length > 0) setPersona(a.persona_name);
@@ -122,8 +124,12 @@ export default function AgentDetail() {
         });
         queryClient.invalidateQueries({ queryKey: ['agents', 'list'] });
       } else {
+        // If renamed, perform rename first
+        if (name && nameValue && nameValue !== name) {
+          await agentsRename({ name, new_name: nameValue });
+        }
         await agentsUpdate({
-          name,
+          name: nameValue || name || '',
           persona: persona || undefined,
           driver,
           rules: selRules.length ? selRules : undefined,
@@ -133,15 +139,15 @@ export default function AgentDetail() {
         });
         await agent.refetch();
         queryClient.invalidateQueries({ queryKey: ['agents', 'list'] });
-        queryClient.invalidateQueries({ queryKey: ['agents', 'get', name] });
+        if (nameValue) queryClient.invalidateQueries({ queryKey: ['agents', 'get', nameValue] });
       }
-      nav('/agents');
+      nav(`/agents/edit/${nameValue || name}`);
     } catch (e:any) { setErr(getErrorMessage(e)); } finally { setSaving(false); }
   }
 
   const canSave = isCreate
-    ? !!nameValue && !!persona && !!driver && !saving
-    : !saving;
+    ? !!nameValue && !!persona && Number.isFinite(Number(selectedModelId)) && !saving
+    : !!nameValue && Number.isFinite(Number(selectedModelId)) && !saving;
   return (
     <Grid container spacing={2}>
       <Grid xs={12}>
@@ -151,14 +157,22 @@ export default function AgentDetail() {
           {err && <Alert severity="error" sx={{ mb: 2 }}>{err}</Alert>}
           <Stack spacing={2}>
             <Grid container spacing={2}>
-              <Grid xs={12} md={3}>
+              <Grid xs={12} md={1}>
+                <TextField
+                  size="small"
+                  label="ID"
+                  value={idValue ?? ''}
+                  fullWidth
+                  disabled
+                />
+              </Grid>
+              <Grid xs={12} md={2}>
                 <TextField
                   size="small"
                   label="Name"
-                  value={isCreate ? nameValue : (name || nameValue)}
+                  value={nameValue}
                   onChange={(e) => setNameValue(e.target.value)}
                   fullWidth
-                  disabled={!isCreate}
                 />
               </Grid>
               <Grid xs={12} md={3}>

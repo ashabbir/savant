@@ -10,6 +10,7 @@
 # intentionally focused on connection lifecycle and schema operations.
 
 require 'pg'
+require 'time'
 require 'json'
 require 'pathname'
 
@@ -392,6 +393,96 @@ module Savant
         ensure_council_schema!
         exec_params('DELETE FROM council_messages WHERE session_id=$1', [session_id.to_i])
         true
+      end
+
+      # Delete a single council message by its correlation_id (primarily for agent replies)
+      def delete_council_message_by_correlation_id(correlation_id:)
+        ensure_council_schema!
+        exec_params('DELETE FROM council_messages WHERE correlation_id=$1', [correlation_id.to_s])
+        true
+      end
+
+      # Delete a single council message record by id
+      def delete_council_message_by_id(id)
+        ensure_council_schema!
+        exec_params('DELETE FROM council_messages WHERE id=$1', [id.to_i])
+        true
+      end
+
+      # Delete council messages for a session within a time window (inclusive start, exclusive end)
+      def delete_council_messages_in_time_range(session_id:, start_time:, end_time:)
+        ensure_council_schema!
+        exec_params('DELETE FROM council_messages WHERE session_id=$1 AND created_at >= $2 AND created_at < $3', [session_id.to_i, start_time, end_time])
+        true
+      end
+
+      # Find the most likely council message id for a 'user' message by text and time proximity
+      # Returns id or nil
+      def find_user_message_id_by_text_near(session_id:, text:, around_time:, window_seconds: 300)
+        ensure_council_schema!
+        from_time = (Time.parse(around_time.to_s) - window_seconds).utc rescue around_time
+        to_time   = (Time.parse(around_time.to_s) + window_seconds).utc rescue around_time
+        res = exec_params(
+          <<~SQL, [session_id.to_i, text.to_s, from_time, to_time]
+            SELECT id FROM council_messages
+            WHERE session_id=$1 AND role='user' AND text=$2 AND created_at BETWEEN $3 AND $4
+            ORDER BY created_at ASC
+            LIMIT 1
+          SQL
+        )
+        return nil if res.ntuples.zero?
+        res[0]['id'].to_i
+      end
+
+      # Find the most likely agent message id by correlation_id/run_id/agent_name or by text near time
+      # Returns id or nil
+      def find_agent_message_id(session_id:, agent_name: nil, correlation_id: nil, job_id: nil, run_id: nil, text: nil, around_time: nil, window_seconds: 300)
+        ensure_council_schema!
+        # Prefer correlation_id
+        unless correlation_id.nil? || correlation_id.to_s.strip.empty?
+          res = exec_params('SELECT id FROM council_messages WHERE session_id=$1 AND role=\'agent\' AND correlation_id=$2 ORDER BY created_at DESC LIMIT 1', [session_id.to_i, correlation_id.to_s])
+          return res[0]['id'].to_i if res.ntuples.positive?
+        end
+        # Then job_id
+        unless job_id.nil? || job_id.to_s.strip.empty?
+          res = exec_params('SELECT id FROM council_messages WHERE session_id=$1 AND role=\'agent\' AND job_id=$2 ORDER BY created_at DESC LIMIT 1', [session_id.to_i, job_id.to_s])
+          return res[0]['id'].to_i if res.ntuples.positive?
+        end
+        # Then run_id + agent_name
+        if run_id
+          if agent_name && !agent_name.to_s.strip.empty?
+            res = exec_params('SELECT id FROM council_messages WHERE session_id=$1 AND role=\'agent\' AND agent_name=$2 AND run_id=$3 ORDER BY created_at DESC LIMIT 1', [session_id.to_i, agent_name.to_s, run_id.to_i])
+          else
+            res = exec_params('SELECT id FROM council_messages WHERE session_id=$1 AND role=\'agent\' AND run_id=$2 ORDER BY created_at DESC LIMIT 1', [session_id.to_i, run_id.to_i])
+          end
+          return res[0]['id'].to_i if res.ntuples.positive?
+        end
+        # Finally, attempt text + time proximity
+        if text && around_time
+          from_time = (Time.parse(around_time.to_s) - window_seconds).utc rescue around_time
+          to_time   = (Time.parse(around_time.to_s) + window_seconds).utc rescue around_time
+          if agent_name && !agent_name.to_s.strip.empty?
+            res = exec_params(
+              <<~SQL, [session_id.to_i, agent_name.to_s, text.to_s, from_time, to_time]
+                SELECT id FROM council_messages
+                WHERE session_id=$1 AND role='agent' AND agent_name=$2 AND text=$3 AND created_at BETWEEN $4 AND $5
+                ORDER BY created_at DESC
+                LIMIT 1
+              SQL
+            )
+          else
+            res = exec_params(
+              <<~SQL, [session_id.to_i, text.to_s, from_time, to_time]
+                SELECT id FROM council_messages
+                WHERE session_id=$1 AND role='agent' AND text=$2 AND created_at BETWEEN $3 AND $4
+                ORDER BY created_at DESC
+                LIMIT 1
+              SQL
+            )
+          end
+          return res[0]['id'].to_i if res.ntuples.positive?
+        end
+        nil
       end
 
       def table_exists?(name)
@@ -931,6 +1022,15 @@ module Savant
       def find_agent_by_name(name)
         res = exec_params('SELECT * FROM agents WHERE name=$1', [name])
         res.ntuples.positive? ? res[0] : nil
+      end
+
+      # Rename an agent by name; returns id or nil if not found
+      def rename_agent(old_name:, new_name:)
+        res = exec_params('UPDATE agents SET name=$2, updated_at=NOW() WHERE name=$1 RETURNING id', [old_name, new_name])
+        return nil if res.ntuples.zero?
+        res[0]['id'].to_i
+      rescue PG::UniqueViolation
+        raise StandardError, 'duplicate_agent_name'
       end
 
       def list_agents

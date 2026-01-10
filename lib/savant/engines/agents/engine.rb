@@ -29,8 +29,8 @@ module Savant
         @ops.read_yaml(name: name)
       end
 
-      def create(name:, persona:, driver:, rules: [], favorite: false, instructions: nil, allowed_tools: nil)
-        @ops.create(name: name, persona: persona, driver: driver, rules: rules, favorite: favorite, instructions: instructions, allowed_tools: allowed_tools)
+      def create(name:, persona:, driver:, rules: [], favorite: false, instructions: nil, allowed_tools: nil, model_id: nil)
+        @ops.create(name: name, persona: persona, driver: driver, rules: rules, favorite: favorite, instructions: instructions, allowed_tools: allowed_tools, model_id: model_id)
       end
 
       def update(name:, persona: nil, driver: nil, rules: nil, favorite: nil, instructions: nil, model_id: nil, allowed_tools: nil)

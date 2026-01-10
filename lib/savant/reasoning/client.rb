@@ -11,7 +11,7 @@ require_relative '../framework/engine/runtime_context'
 module Savant
   module Reasoning
     Intent = Struct.new(
-      :intent_id, :tool_name, :tool_args, :finish, :final_text, :next_node, :action_type, :reasoning, :trace,
+      :intent_id, :tool_name, :tool_args, :finish, :final_text, :next_node, :action_type, :reasoning, :trace, :llm_input, :llm_output,
       keyword_init: true
     )
 
@@ -49,7 +49,9 @@ module Savant
                      reasoning: res[:reasoning],
                      finish: res[:finish],
                      final_text: res[:final_text],
-                     intent_id: res[:intent_id])
+                     intent_id: res[:intent_id],
+                     llm_input: res[:llm_input],
+                     llm_output: res[:llm_output])
         validate_agent_response!(res)
         Intent.new(
           intent_id: res[:intent_id],
@@ -58,7 +60,9 @@ module Savant
           finish: !!res[:finish],
           final_text: res[:final_text],
           reasoning: res[:reasoning],
-          trace: res[:trace]
+          trace: res[:trace],
+          llm_input: res[:llm_input],
+          llm_output: res[:llm_output]
         )
       end
 
@@ -82,6 +86,14 @@ module Savant
 
         redis = redis_client
         raise StandardError, 'reasoning_redis_unavailable' unless redis
+
+        # Persist meta for manual retry/debug (TTL)
+        begin
+          ttl = (ENV['REASONING_JOB_META_TTL'] || '3600').to_i
+          redis.setex("savant:job:meta:#{job_id}", ttl, JSON.generate(job))
+        rescue StandardError
+          # ignore meta failures
+        end
 
         redis.rpush('savant:queue:reasoning', JSON.generate(job))
 
@@ -141,19 +153,42 @@ module Savant
         }
 
         # Push to Redis Queue (Right push for FIFO)
+        begin
+          ttl = (ENV['REASONING_JOB_META_TTL'] || '3600').to_i
+          redis.setex("savant:job:meta:#{job_id}", ttl, JSON.generate(job))
+        rescue StandardError
+          # ignore meta failures
+        end
         redis.rpush('savant:queue:reasoning', JSON.generate(job))
 
-        # Block pop result
+        # Wait for result written by worker.
+        # Contract divergence observed: some workers SET result at "savant:result:<job_id>" (string),
+        # while others RPUSH to a list for BLPOP. Prefer polling GET to support both.
         result_key = "savant:result:#{job_id}"
-        # blpop returns [key, value]
-        # timeout in seconds (int). 0 means block indefinitely.
-        timeout_sec = @timeout_ms.zero? ? 0 : (@timeout_ms.to_f / 1000.0).ceil
-        res = redis.blpop(result_key, timeout: timeout_sec)
+        deadline = @timeout_ms.zero? ? nil : Time.now + (@timeout_ms.to_f / 1000.0)
+        result_json = nil
 
-        raise StandardError, 'timeout' unless res
+        # First, try a short BLPOP to support list-based workers without busy-waiting
+        begin
+          res = redis.blpop(result_key, timeout: 1)
+          result_json = res && res[1]
+        rescue StandardError
+          # ignore blpop errors; fall back to GET polling
+        end
 
-        # Parse result
-        result_json = res[1]
+        # Poll GET until timeout or found
+        while result_json.nil?
+          raw = redis.get(result_key)
+          if raw
+            result_json = raw
+            break
+          end
+          raise StandardError, 'timeout' if deadline && Time.now > deadline
+
+          sleep 0.2
+        end
+
+        # Parse result JSON
         result = JSON.parse(result_json, symbolize_names: true)
 
         raise StandardError, result[:error] || 'unknown_worker_error' if result[:status] == 'error'

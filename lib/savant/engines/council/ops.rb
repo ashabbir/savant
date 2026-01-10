@@ -2,6 +2,7 @@
 # frozen_string_literal: true
 
 require 'json'
+require 'time'
 require 'securerandom'
 require_relative '../../framework/db'
 require_relative '../../reasoning/client'
@@ -156,12 +157,13 @@ module Savant
       # Ensure council protocol schema extensions exist
       def ensure_council_protocol_schema!
         return if @protocol_schema_initialized
+
         @db.ensure_council_schema!
         # Add mode column if missing
         begin
           @db.exec("ALTER TABLE council_sessions ADD COLUMN IF NOT EXISTS mode TEXT DEFAULT 'chat'")
-          @db.exec("ALTER TABLE council_sessions ADD COLUMN IF NOT EXISTS context JSONB")
-          @db.exec("ALTER TABLE council_sessions ADD COLUMN IF NOT EXISTS artifacts JSONB")
+          @db.exec('ALTER TABLE council_sessions ADD COLUMN IF NOT EXISTS context JSONB')
+          @db.exec('ALTER TABLE council_sessions ADD COLUMN IF NOT EXISTS artifacts JSONB')
         rescue StandardError
           # Column may already exist
         end
@@ -196,6 +198,7 @@ module Savant
       # Mongo helpers (best-effort)
       def mongo_available?
         return @mongo_available if defined?(@mongo_available)
+
         begin
           require 'mongo'
           @mongo_available = true
@@ -207,9 +210,11 @@ module Savant
 
       def mongo_client
         return nil unless mongo_available?
+
         now = Time.now
         return nil if @mongo_disabled_until && now < @mongo_disabled_until
         return @mongo_client if defined?(@mongo_client) && @mongo_client
+
         begin
           uri = ENV.fetch('MONGO_URI', "mongodb://#{mongo_host}/#{mongo_db_name}")
           client = Mongo::Client.new(uri, server_selection_timeout: 1.5, connect_timeout: 1.5, socket_timeout: 2)
@@ -241,12 +246,137 @@ module Savant
         c ? c[:council_messages] : nil
       end
 
+      # Blackboard collections (shared with Rails app)
+      def blackboard_sessions_col
+        c = mongo_client
+        c ? c[:blackboard_sessions] : nil
+      end
+
+      def blackboard_events_col
+        c = mongo_client
+        c ? c[:blackboard_events] : nil
+      end
+
+      def blackboard_sid_for(council_session_id)
+        "council-#{council_session_id}"
+      end
+
+      # Ensure a Blackboard session exists for a given council session id.
+      # Best-effort: ignore errors to avoid impacting chat.
+      def ensure_blackboard_session_for(council_session_id:, title: nil, description: nil, user_id: nil, agents: [])
+        return unless (bcol = blackboard_sessions_col)
+
+        bb_sid = blackboard_sid_for(council_session_id)
+        doc = bcol.find({ session_id: bb_sid }).limit(1).first
+        now = Time.now.utc
+        if doc
+          # Reactivate/update an existing session if not active
+          if (doc['state'] != 'active') || (doc['actors'].is_a?(Array) && !doc['actors'].include?(user_id))
+            actors = (doc['actors'].is_a?(Array) ? doc['actors'] : [])
+            actors << user_id.to_s if user_id && !user_id.to_s.empty? && !actors.include?(user_id.to_s)
+            bcol.update_one({ session_id: bb_sid }, {
+                              '$set' => {
+                                state: 'active',
+                                actors: actors.compact.uniq,
+                                'metadata.title' => title || doc.dig('metadata', 'title'),
+                                'metadata.description' => description || doc.dig('metadata', 'description'),
+                                updated_at: now
+                              }
+                            })
+          end
+          return
+        end
+        # Create a fresh session document if missing
+        actors = []
+        actors << user_id.to_s if user_id && !user_id.to_s.empty?
+        actors.concat(Array(agents).map(&:to_s))
+        payload = {
+          session_id: bb_sid,
+          type: 'chat',
+          actors: actors.compact.uniq,
+          state: 'active',
+          metadata: { source: 'council', council_session_id: council_session_id, title: title, description: description },
+          created_at: now,
+          updated_at: now
+        }
+        bcol.insert_one(payload)
+        if (be = blackboard_events_col)
+          be.insert_one({
+                          event_id: SecureRandom.uuid,
+                          session_id: bb_sid,
+                          type: 'session_created',
+                          actor_id: (user_id || 'system').to_s,
+                          actor_type: user_id ? 'human' : 'system',
+                          visibility: 'public',
+                          payload: { title: title, description: description, agents: Array(agents).map(&:to_s) },
+                          created_at: now,
+                          updated_at: now,
+                          version: 1
+                        })
+        end
+      rescue StandardError
+        # ignore
+      end
+
+      def insert_blackboard_event_for(council_session_id:, type:, actor_id:, actor_type:, payload: {})
+        return unless (be = blackboard_events_col)
+
+        now = Time.now.utc
+        be.insert_one({
+                        event_id: SecureRandom.uuid,
+                        session_id: blackboard_sid_for(council_session_id),
+                        type: type.to_s,
+                        actor_id: (actor_id || 'system').to_s,
+                        actor_type: (actor_type || 'system').to_s,
+                        visibility: 'public',
+                        payload: payload || {},
+                        created_at: now,
+                        updated_at: now,
+                        version: 1
+                      })
+      rescue StandardError
+        # ignore
+      end
+
       # API
       def session_create(title: nil, agents: [], user_id: nil, description: nil)
         id = @db.create_council_session(title: title, user_id: user_id, agents: Array(agents).map(&:to_s), description: description)
         begin
           if (col = sessions_col)
             col.insert_one({ session_id: id, title: title, agents: Array(agents).map(&:to_s), description: description, user_id: user_id, created_at: Time.now.utc })
+          end
+          # Best-effort: mirror into Blackboard as a chat session for diagnostics/explorer
+          if (bcol = blackboard_sessions_col)
+            bb_sid = "council-#{id}"
+            now = Time.now.utc
+            actors = []
+            actors << user_id.to_s if user_id && !user_id.to_s.empty?
+            actors.concat(Array(agents).map(&:to_s))
+            doc = {
+              session_id: bb_sid,
+              type: 'chat',
+              actors: actors.compact.uniq,
+              state: 'active',
+              metadata: { source: 'council', council_session_id: id, title: title, description: description },
+              created_at: now,
+              updated_at: now
+            }
+            bcol.insert_one(doc)
+            # Emit a creation event into blackboard_events for visibility
+            if (be = blackboard_events_col)
+              be.insert_one({
+                              event_id: SecureRandom.uuid,
+                              session_id: bb_sid,
+                              type: 'session_created',
+                              actor_id: (user_id || 'system').to_s,
+                              actor_type: user_id ? 'human' : 'system',
+                              visibility: 'public',
+                              payload: { title: title, description: description, agents: Array(agents).map(&:to_s) },
+                              created_at: now,
+                              updated_at: now,
+                              version: 1
+                            })
+            end
           end
         rescue StandardError
         end
@@ -271,7 +401,7 @@ module Savant
               if last_role == 'user'
                 preview = "You: #{snippet}"
               else
-                who = (last_agent || 'Agent')
+                who = last_agent || 'Agent'
                 preview = "#{who}: #{snippet}"
               end
               last_at = row['created_at']
@@ -290,7 +420,7 @@ module Savant
             last_preview: preview,
             last_at: last_at,
             last_role: last_role,
-            last_agent_name: last_agent,
+            last_agent_name: last_agent
           }
         end
       end
@@ -298,6 +428,7 @@ module Savant
       def session_get(id:)
         data = @db.get_council_session(id)
         raise 'not_found' unless data
+
         sess = data[:session]
         msgs = data[:messages]
         # Get current council run if any
@@ -330,8 +461,34 @@ module Savant
           if (col = messages_col)
             col.insert_one({ session_id: session_id.to_i, role: 'user', text: text.to_s, created_at: Time.now.utc, user_id: user_id })
           end
+          # Ensure Blackboard session exists and emit a message event
+          begin
+            sess = @db.get_council_session(session_id)
+            ensure_blackboard_session_for(
+              council_session_id: session_id,
+              title: sess && sess[:session] && sess[:session]['title'],
+              description: sess && sess[:session] && sess[:session]['description'],
+              user_id: user_id,
+              agents: (sess && sess[:session] && sess[:session]['agents'] ? parse_text_array(sess[:session]['agents']) : [])
+            )
+          rescue StandardError
+          end
+          insert_blackboard_event_for(
+            council_session_id: session_id,
+            type: 'message_posted',
+            actor_id: user_id || 'user',
+            actor_type: 'human',
+            payload: { text: text.to_s }
+          )
         rescue StandardError
         end
+
+        # Trigger reactions from all agents in the "room"
+        begin
+          trigger_agent_reactions(session_id: session_id, trigger_message_text: text, trigger_actor: user_id || 'User')
+        rescue StandardError
+        end
+
         # Optional: auto-run one reasoning step for this user input
         begin
           if env_truthy(ENV['COUNCIL_AUTO_AGENT_STEP'])
@@ -346,16 +503,33 @@ module Savant
           end
         rescue StandardError
         end
+
         { ok: true }
       end
 
       def append_agent(session_id:, agent_name:, run_id: nil, text: nil, status: 'ok', correlation_id: nil, job_id: nil, run_key: nil)
+        # Sanitize echoed prompts
+        display_text = text.to_s
+        if is_echo?(display_text)
+          display_text = '🤷'
+        else
+          begin
+            # If it's a JSON payload, check the final_text field
+            parsed = JSON.parse(display_text)
+            if parsed.is_a?(Hash) && is_echo?(parsed['final_text'])
+              parsed['final_text'] = '🤷'
+              display_text = JSON.generate(parsed)
+            end
+          rescue StandardError
+          end
+        end
+
         @db.add_council_message(
           session_id: session_id,
           role: 'agent',
           agent_name: agent_name,
           run_id: run_id,
-          text: text,
+          text: display_text,
           status: status,
           correlation_id: correlation_id,
           job_id: job_id,
@@ -364,20 +538,50 @@ module Savant
         begin
           if (col = messages_col)
             col.insert_one({
-              session_id: session_id.to_i,
-              role: 'agent',
-              agent_name: agent_name.to_s,
-              run_id: run_id,
-              status: status.to_s,
-              correlation_id: correlation_id,
-              job_id: job_id,
-              run_key: run_key,
-              text: text.to_s,
-              created_at: Time.now.utc
-            })
+                             session_id: session_id.to_i,
+                             role: 'agent',
+                             agent_name: agent_name.to_s,
+                             run_id: run_id,
+                             status: status.to_s,
+                             correlation_id: correlation_id,
+                             job_id: job_id,
+                             run_key: run_key,
+                             text: text.to_s,
+                             created_at: Time.now.utc
+                           })
+          end
+          # Ensure Blackboard session exists and emit an agent reply event.
+          unless status.to_s.strip.downcase == 'pending'
+            begin
+              sess = @db.get_council_session(session_id)
+              ensure_blackboard_session_for(
+                council_session_id: session_id,
+                title: sess && sess[:session] && sess[:session]['title'],
+                description: sess && sess[:session] && sess[:session]['description'],
+                user_id: sess && sess[:session] && sess[:session]['user_id'],
+                agents: (sess && sess[:session] && sess[:session]['agents'] ? parse_text_array(sess[:session]['agents']) : [])
+              )
+            rescue StandardError
+            end
+            insert_blackboard_event_for(
+              council_session_id: session_id,
+              type: 'agent_reply',
+              actor_id: agent_name.to_s,
+              actor_type: 'agent',
+              payload: { text: text.to_s, status: status.to_s, run_id: run_id, correlation_id: correlation_id, job_id: job_id }
+            )
           end
         rescue StandardError
         end
+
+        # Trigger reactions if this wasn't a reaction itself
+        unless run_key == 'reaction' || status.to_s.strip.downcase == 'pending'
+          begin
+            trigger_agent_reactions(session_id: session_id, trigger_message_text: text, trigger_actor: agent_name)
+          rescue StandardError
+          end
+        end
+
         { ok: true }
       end
 
@@ -390,30 +594,27 @@ module Savant
         callback_url = council_reasoning_callback_url
         use_async = council_intent_async?
         payload = build_agent_payload(goal_text: goal_text.to_s, agent_name: agent_name, session_id: session_id)
+        payload[:goal_text] = enrich_conversation_history(session_id, goal_text)
+        # Include Blackboard session reference for workers
+        begin
+          payload[:blackboard_session_id] = blackboard_sid_for(session_id)
+        rescue StandardError
+          # ignore
+        end
         if use_async && callback_url
           correlation_id = payload[:correlation_id].to_s
-          pending_message = {
-            schema: 'council.v1.agent_intent',
-            type: 'agent_intent',
-            action: 'pending',
-            status: 'accepted',
-            finish: false,
-            intent_id: nil,
-            tool_name: nil,
-            tool_args: {},
-            final_text: nil,
-            reasoning: nil,
-            trace: [],
-            correlation_id: correlation_id
-          }
-          append_agent(
-            session_id: session_id,
-            agent_name: (agent_name || 'agent'),
-            run_id: nil,
-            text: JSON.generate(pending_message),
-            status: 'pending',
-            correlation_id: correlation_id
-          )
+          # Record pending state in DB only; do not emit Blackboard pending events
+          begin
+            append_agent(
+              session_id: session_id,
+              agent_name: agent_name || 'agent',
+              run_id: nil,
+              text: JSON.generate({ schema: 'council.v1.agent_intent', type: 'agent_intent', action: 'pending', status: 'accepted', correlation_id: correlation_id }),
+              status: 'pending',
+              correlation_id: correlation_id
+            )
+          rescue StandardError
+          end
           begin
             res = client.agent_intent_async(payload, callback_url: callback_url)
             @db.update_council_message_by_correlation_id(
@@ -469,22 +670,83 @@ module Savant
         }
         append_agent(
           session_id: session_id,
-          agent_name: (agent_name || 'agent'),
+          agent_name: agent_name || 'agent',
           run_id: nil,
           text: JSON.generate(message),
           status: intent.finish ? 'done' : 'pending'
         )
+        # Blackboard: enrich timeline with reasoning/tool/results
+        begin
+          # Always record reasoning summary if present
+          if intent.reasoning && !intent.reasoning.to_s.empty?
+            insert_blackboard_event_for(
+              council_session_id: session_id,
+              type: 'agent_reasoning',
+              actor_id: agent_name || 'agent',
+              actor_type: 'agent',
+              payload: { reasoning: intent.reasoning.to_s, trace_len: (intent.trace || []).length }
+            )
+          end
+          # Tool suggested/requested
+          if action == 'tool' && intent.tool_name && !intent.tool_name.to_s.empty?
+            insert_blackboard_event_for(
+              council_session_id: session_id,
+              type: 'tool_call_requested',
+              actor_id: agent_name || 'agent',
+              actor_type: 'agent',
+              payload: { tool_name: intent.tool_name, tool_args: intent.tool_args || {} }
+            )
+          end
+          # Final result emitted
+          if intent.finish && intent.final_text && !intent.final_text.to_s.empty?
+            insert_blackboard_event_for(
+              council_session_id: session_id,
+              type: 'result_emitted',
+              actor_id: agent_name || 'agent',
+              actor_type: 'agent',
+              payload: { text: intent.final_text.to_s }
+            )
+          end
+        rescue StandardError
+        end
         { status: 'ok' }.merge(message)
       rescue StandardError => e
         err = { schema: 'council.v1.agent_intent', type: 'error', error: e.message.to_s }
         begin
-          append_agent(session_id: session_id, agent_name: (agent_name || 'agent'), run_id: nil, text: JSON.generate(err), status: 'error')
+          append_agent(session_id: session_id, agent_name: agent_name || 'agent', run_id: nil, text: JSON.generate(err), status: 'error')
         rescue StandardError
         end
         { status: 'error', error: e.message }
       end
 
       def session_delete(id:)
+        # Best-effort: cancel any in-flight reasoning jobs associated with this session's Blackboard ID
+        begin
+          bb_sid = blackboard_sid_for(id.to_i)
+          begin
+            require 'redis'
+            r = Redis.new(url: ENV.fetch('REDIS_URL', 'redis://localhost:6379/0'))
+            running = r.smembers('savant:jobs:running') || []
+            running.each do |jid|
+              meta_json = r.get("savant:job:meta:#{jid}")
+              next unless meta_json && !meta_json.empty?
+
+              begin
+                meta = JSON.parse(meta_json)
+                payload = meta.is_a?(Hash) ? (meta['payload'] || {}) : {}
+                r.sadd('savant:jobs:cancel:requested', jid) if payload.is_a?(Hash) && payload['blackboard_session_id'].to_s == bb_sid
+              rescue StandardError
+              end
+            end
+          rescue StandardError
+          ensure
+            begin
+              r&.close
+            rescue StandardError
+            end
+          end
+        rescue StandardError
+        end
         # Simple delete: rely on FK cascade for messages
         @db.exec_params('DELETE FROM council_sessions WHERE id=$1', [id.to_i])
         begin
@@ -493,6 +755,26 @@ module Savant
           end
           if (col2 = messages_col)
             col2.delete_many({ session_id: id.to_i })
+          end
+          # Kill (complete) the corresponding Blackboard session instead of deleting it
+          bb_sid = blackboard_sid_for(id.to_i)
+          now = Time.now.utc
+          if (bcol = blackboard_sessions_col)
+            bcol.update_one({ session_id: bb_sid }, { '$set' => { state: 'completed', updated_at: now } })
+          end
+          if (be = blackboard_events_col)
+            be.insert_one({
+                            event_id: SecureRandom.uuid,
+                            session_id: bb_sid,
+                            type: 'session_killed',
+                            actor_id: 'System',
+                            actor_type: 'system',
+                            visibility: 'public',
+                            payload: { reason: 'council_deleted', at: now.iso8601 },
+                            created_at: now,
+                            updated_at: now,
+                            version: 1
+                          })
           end
         rescue StandardError
         end
@@ -510,9 +792,119 @@ module Savant
           if (col = messages_col)
             col.delete_many({ session_id: id.to_i })
           end
+          # Clear Blackboard events for this session, keep session doc
+          if (be = blackboard_events_col)
+            be.delete_many({ session_id: blackboard_sid_for(id.to_i) })
+          end
+          # Emit session_cleared marker for history trails
+          begin
+            insert_blackboard_event_for(
+              council_session_id: id.to_i,
+              type: 'session_cleared',
+              actor_id: 'System',
+              actor_type: 'system',
+              payload: {}
+            )
+          rescue StandardError
+          end
         rescue StandardError
         end
         { ok: true }
+      end
+
+      # Delete a single Blackboard event (and corresponding council_messages row where possible).
+      # scope: 'single' (default) deletes just that event; 'turn' deletes from a user message until the next user message.
+      def delete_message_event(session_id:, event_id:, scope: 'single')
+        be = blackboard_events_col
+        raise 'blackboard_unavailable' unless be
+
+        ev = be.find({ event_id: event_id.to_s }).limit(1).first
+        raise 'event_not_found' unless ev
+
+        bb_sid = blackboard_sid_for(session_id)
+        deleted_events = 0
+        deleted_pg = 0
+        # Normalize created_at as Time
+        ev_created_at = begin
+          t = ev['created_at'] || ev[:created_at]
+          t.is_a?(Time) ? t : Time.parse(t.to_s)
+        rescue StandardError
+          Time.now.utc
+        end
+
+        if scope.to_s == 'turn'
+          # Determine time window from this user message to next user message
+          # If the event is not a user message, we still use its created_at as start
+          start_at = ev_created_at
+          nxt = be.find({ session_id: bb_sid, type: 'message_posted', :created_at => { '$gt' => start_at } }).sort({ created_at: 1 }).limit(1).first rescue nil
+          end_at = begin
+            if nxt
+              t = nxt['created_at'] || nxt[:created_at]
+              t.is_a?(Time) ? t : Time.parse(t.to_s)
+            else
+              Time.now.utc + 1 # exclusive upper bound
+            end
+          rescue StandardError
+            Time.now.utc + 1
+          end
+          # Delete Blackboard events in this window
+          begin
+            res = be.delete_many({ session_id: bb_sid, :created_at => { '$gte' => start_at, '$lt' => end_at } })
+            deleted_events += (res.respond_to?(:deleted_count) ? res.deleted_count : 0)
+          rescue StandardError
+            # ignore
+          end
+          # Delete PG messages in the same window
+          begin
+            @db.delete_council_messages_in_time_range(session_id: session_id, start_time: start_at, end_time: end_at)
+            # We can't easily retrieve count without extra query
+          rescue StandardError
+            # ignore
+          end
+          return { ok: true, deleted_events: deleted_events, scope: 'turn' }
+        end
+
+        # scope == 'single'
+        begin
+          res = be.delete_one({ event_id: event_id.to_s })
+          deleted_events += (res.respond_to?(:deleted_count) ? res.deleted_count : 0)
+        rescue StandardError
+          # ignore
+        end
+
+        # Best-effort: delete a matching council_messages row
+        begin
+          type = (ev['type'] || ev[:type]).to_s
+          payload = (ev['payload'] || ev[:payload] || {})
+          if type == 'message_posted'
+            # Match by exact text and time proximity
+            text = (payload['text'] || payload[:text] || '').to_s
+            if text && !text.empty?
+              mid = @db.find_user_message_id_by_text_near(session_id: session_id, text: text, around_time: ev_created_at)
+              @db.delete_council_message_by_id(mid) if mid
+            end
+          elsif type == 'agent_reply'
+            agent_name = (ev['actor_id'] || ev[:actor_id] || 'agent').to_s
+            corr = payload['correlation_id'] || payload[:correlation_id]
+            job = payload['job_id'] || payload[:job_id]
+            rid = payload['run_id'] || payload[:run_id]
+            text = payload['text'] || payload[:text]
+            mid = @db.find_agent_message_id(
+              session_id: session_id,
+              agent_name: agent_name,
+              correlation_id: corr,
+              job_id: job,
+              run_id: rid,
+              text: text,
+              around_time: ev_created_at
+            )
+            @db.delete_council_message_by_id(mid) if mid
+          end
+        rescue StandardError
+          # ignore
+        end
+
+        { ok: true, deleted_events: deleted_events }
       end
 
       # =========================
@@ -530,6 +922,7 @@ module Savant
       def session_mode(session_id:)
         res = @db.exec_params('SELECT mode FROM council_sessions WHERE id=$1', [session_id.to_i])
         return 'chat' if res.ntuples.zero?
+
         res[0]['mode'] || 'chat'
       end
 
@@ -548,6 +941,7 @@ module Savant
           [session_id.to_i]
         )
         return nil if res.ntuples.zero?
+
         normalize_council_run(res[0])
       end
 
@@ -555,6 +949,7 @@ module Savant
       def get_council_run(run_id:)
         res = @db.exec_params('SELECT * FROM council_runs WHERE run_id=$1', [run_id.to_s])
         return nil if res.ntuples.zero?
+
         normalize_council_run(res[0])
       end
 
@@ -602,6 +997,25 @@ module Savant
 
         # Update session mode
         set_session_mode(session_id: session_id, mode: 'council')
+
+        # Blackboard: council started
+        begin
+          ensure_blackboard_session_for(
+            council_session_id: session_id,
+            title: session[:title],
+            description: session[:description],
+            user_id: session[:user_id],
+            agents: session[:agents]
+          )
+          insert_blackboard_event_for(
+            council_session_id: session_id,
+            type: 'council_started',
+            actor_id: user_id || 'system',
+            actor_type: user_id ? 'human' : 'system',
+            payload: { run_id: run_id, query: query || context[:original_query] }
+          )
+        rescue StandardError
+        end
 
         # Add system message about council escalation
         append_agent(
@@ -712,6 +1126,18 @@ module Savant
       def return_to_chat(session_id:, message: nil)
         set_session_mode(session_id: session_id, mode: 'chat')
 
+        # Blackboard: return to chat event
+        begin
+          insert_blackboard_event_for(
+            council_session_id: session_id,
+            type: 'return_to_chat',
+            actor_id: 'System',
+            actor_type: 'system',
+            payload: { message: message }
+          )
+        rescue StandardError
+        end
+
         if message
           append_agent(
             session_id: session_id,
@@ -740,15 +1166,122 @@ module Savant
 
       # Check if demo mode is enabled (for testing without reasoning API)
       def demo_mode?
-        ENV['COUNCIL_DEMO_MODE'] == '1' || ENV['COUNCIL_DEMO_MODE'] == 'true'
+        %w[1 true].include?(ENV['COUNCIL_DEMO_MODE'])
       end
 
       # Execute initial positions for all agents in the council session
+      def trigger_agent_reactions(session_id:, trigger_message_text:, trigger_actor:)
+        return if env_falsy(ENV['COUNCIL_REACTIONS_ENABLED']) # Allow disabling if needed
+
+        agents = begin
+          sess = session_get(id: session_id)
+          parse_text_array(sess[:session]['agents'])
+        rescue StandardError
+          []
+        end
+
+        # Don't react to yourself
+        agents.reject! { |a| a.to_s.downcase == trigger_actor.to_s.downcase }
+        return if agents.empty?
+
+        Thread.new do
+          agents.each do |agent_name|
+            Thread.new do
+              client = council_reasoning_client
+              next unless client.available?
+
+              # We use a specialized payload for reactions
+              payload = build_agent_payload(goal_text: trigger_message_text, agent_name: agent_name, session_id: session_id)
+              payload[:is_reaction] = true
+              payload[:instructions] = "You are in REACTION MODE. Evaluate the last message from #{trigger_actor} and decide if you want to AGREE, DISAGREE, or IGNORE."
+              payload[:goal_text] = enrich_conversation_history(session_id, trigger_message_text)
+
+              intent = with_retries("reaction:#{agent_name}") do
+                client.agent_intent(payload)
+              end
+
+              if intent.finish && intent.final_text && !intent.final_text.strip.empty?
+                # Use a dedicated run_key to avoid recursive reactions
+                append_agent(
+                  session_id: session_id,
+                  agent_name: agent_name,
+                  text: intent.final_text,
+                  status: 'ok',
+                  correlation_id: "reaction-#{SecureRandom.hex(4)}",
+                  run_key: 'reaction'
+                )
+              end
+            rescue StandardError
+              # Silent failure for reactions
+            end
+          end
+        end
+      end
+
+      def enrich_conversation_history(session_id, goal_text)
+        sess = session_get(id: session_id)
+        msgs = Array(sess[:messages] || [])
+        # Filter: keep only user and non-system agent messages
+        filtered = msgs.select do |m|
+          r = (m[:role] || '').to_s
+          agent = (m[:agent_name] || '').to_s.downcase
+          status = (m[:status] || '').to_s.downcase
+          (r == 'user' || (r == 'agent' && agent != 'system')) && status != 'pending'
+        end
+        # The latest message is the one we are reacting to or answering
+        # If we are in agent_step, the latest message is ALREADY in the DB if called after append_user.
+        # However, enrich_conversation_history is called with goal_text.
+
+        # Build chronological lines
+        lines = filtered.map do |m|
+          who = m[:role] == 'user' ? 'User' : (m[:agent_name] || 'Agent')
+          txt = (m[:text] || '').to_s
+          "#{who}: #{txt}"
+        end
+
+        # If the goal_text is already the last line of history, avoid duplication
+        last_line = lines.last.to_s
+        if last_line.include?(goal_text.to_s[0..20])
+          # Already there
+        else
+          # Append it if it's new context
+          # lines << "QUERY: #{goal_text}"
+        end
+
+        history = lines.join("\n")
+        <<~PROMPT
+          Conversation History:
+          #{history}
+
+          CURRENT CONTEXT: #{goal_text}
+
+          Please provide your response based on the conversation above.
+        PROMPT
+      rescue StandardError
+        goal_text
+      end
+
+      def is_echo?(text)
+        return false if text.to_s.strip.empty?
+
+        # Check for multiple prompt markers
+        hits = 0
+        hits += 1 if text.include?('Conversation History:')
+        hits += 1 if text.include?('CURRENT CONTEXT:')
+        hits += 1 if text.include?('CURRENT USER QUERY:')
+        hits += 1 if text.include?('Please provide your response')
+        hits >= 2
+      end
+
+      def env_falsy(val)
+        return false if val.nil?
+
+        %w[false 0 no off f].include?(val.to_s.downcase.strip)
+      end
+
       def execute_initial_positions(run)
         # Use demo mode if reasoning API not available
-        if demo_mode?
-          return generate_demo_positions(run)
-        end
+        return generate_demo_positions(run) if demo_mode?
 
         client = council_reasoning_client
         unless client.available?
@@ -756,24 +1289,25 @@ module Savant
           return generate_demo_positions(run)
         end
 
-        positions = []
         members = session_agents_for_run(run)
 
-        # In a real implementation, these would run in parallel
-        members.each do |agent_name|
-          prompt = build_agent_position_prompt(run, agent_name)
-          begin
-            result = with_retries("positions:#{agent_name}") do
-              payload = build_agent_payload(goal_text: prompt, agent_name: agent_name, session_id: run[:session_id])
-              client.agent_intent(payload)
+        # Execute agents in parallel to avoid sequential timeout bottlenecks
+        threads = members.map do |agent_name|
+          Thread.new do
+            prompt = build_agent_position_prompt(run, agent_name)
+            begin
+              result = with_retries("positions:#{agent_name}") do
+                payload = build_agent_payload(goal_text: prompt, agent_name: agent_name, session_id: run[:session_id])
+                client.agent_intent(payload)
+              end
+              { agent: agent_name, position: parse_agent_response(result, agent_name) }
+            rescue StandardError => e
+              { agent: agent_name, position: skipped_agent_payload(agent_name, e) }
             end
-            positions << { agent: agent_name, position: parse_agent_response(result, agent_name) }
-          rescue StandardError => e
-            positions << { agent: agent_name, position: skipped_agent_payload(agent_name, e) }
           end
         end
 
-        positions
+        threads.map(&:value)
       end
 
       # Generate demo positions without calling the reasoning API
@@ -802,14 +1336,10 @@ module Savant
       # Execute a debate round
       def execute_debate_round(run, positions, round_number, prior_rounds = [])
         # Use demo mode if reasoning API not available
-        if demo_mode?
-          return generate_demo_debate(run, positions, round_number)
-        end
+        return generate_demo_debate(run, positions, round_number) if demo_mode?
 
         client = council_reasoning_client
-        unless client.available?
-          return generate_demo_debate(run, positions, round_number)
-        end
+        return generate_demo_debate(run, positions, round_number) unless client.available?
 
         # Build summary of all positions for debate
         positions_summary = positions.map do |entry|
@@ -823,38 +1353,43 @@ module Savant
           "Round #{round[:round] || round['round']}:\n#{JSON.generate(items)}"
         end.join("\n\n")
 
-        items = []
         members = session_agents_for_run(run)
-        members.each do |agent_name|
-          debate_prompt = <<~PROMPT
-            This is debate round #{round_number} of a maximum of 3. Review the positions from all council members and respond.
 
-            Current positions:
-            #{positions_summary}
+        # Execute debate agents in parallel
+        threads = members.map do |agent_name|
+          Thread.new do
+            debate_prompt = <<~PROMPT
+              This is debate round #{round_number} of a maximum of 3. Review the positions from all council members and respond.
 
-            Previous rounds:
-            #{prior_summary.presence || 'None'}
+              Current positions:
+              #{positions_summary}
 
-            Original query: #{run[:query]}
+              Previous rounds:
+              #{prior_summary.presence || 'None'}
 
-            Provide your feedback in this order:
-            1. Your updated position based on the current information.
-            2. Review other agents' responses and explicitly call out any contradictions or disagreements.
-            3. If you disagree, argue your position briefly and propose a resolution. If you agree, say "no disagreements".
+              Original query: #{run[:query]}
 
-            Keep it concise. This process repeats for up to 3 rounds total.
-          PROMPT
+              Provide your feedback in this order:
+              1. Your updated position based on the current information.
+              2. Review other agents' responses and explicitly call out any contradictions or disagreements.
+              3. If you disagree, argue your position briefly and propose a resolution. If you agree, say "no disagreements".
 
-          begin
-            result = with_retries("debate:#{round_number}:#{agent_name}") do
-              payload = build_agent_payload(goal_text: debate_prompt, agent_name: agent_name, session_id: run[:session_id])
-              client.agent_intent(payload)
+              Keep it concise. This process repeats for up to 3 rounds total.
+            PROMPT
+
+            begin
+              result = with_retries("debate:#{round_number}:#{agent_name}") do
+                payload = build_agent_payload(goal_text: debate_prompt, agent_name: agent_name, session_id: run[:session_id])
+                client.agent_intent(payload)
+              end
+              { agent: agent_name, text: (result.final_text || result.reasoning || '').to_s }
+            rescue StandardError => e
+              { agent: agent_name, text: skipped_agent_payload(agent_name, e) }
             end
-            items << { agent: agent_name, text: (result.final_text || result.reasoning || '').to_s }
-          rescue StandardError => e
-            items << { agent: agent_name, text: skipped_agent_payload(agent_name, e) }
           end
         end
+
+        items = threads.map(&:value)
 
         # Check for consensus
         consensus = check_consensus_from_items(items)
@@ -877,14 +1412,10 @@ module Savant
       # Execute synthesis by Moderator
       def execute_synthesis(run, positions, debate_rounds)
         # Use demo mode if reasoning API not available
-        if demo_mode?
-          return generate_demo_synthesis(run, positions, debate_rounds)
-        end
+        return generate_demo_synthesis(run, positions, debate_rounds) if demo_mode?
 
         client = council_reasoning_client
-        unless client.available?
-          return generate_demo_synthesis(run, positions, debate_rounds)
-        end
+        return generate_demo_synthesis(run, positions, debate_rounds) unless client.available?
 
         role = COUNCIL_ROLES['moderator']
 
@@ -920,11 +1451,11 @@ module Savant
         begin
           result = with_retries('synthesis:moderator') do
             client.agent_intent({
-              session_id: "council-#{run[:run_id]}-synthesis",
-              persona: { name: 'council-moderator', system_prompt: role[:system_prompt] },
-              goal_text: synthesis_prompt,
-              correlation_id: "#{run[:run_id]}-synthesis"
-            })
+                                  session_id: "council-#{run[:run_id]}-synthesis",
+                                  persona: { name: 'council-moderator', system_prompt: role[:system_prompt] },
+                                  goal_text: synthesis_prompt,
+                                  correlation_id: "#{run[:run_id]}-synthesis"
+                                })
           end
 
           synthesis = parse_role_response(result, 'moderator')
@@ -962,11 +1493,11 @@ module Savant
       end
 
       def council_role_retries
-        (ENV['COUNCIL_ROLE_RETRIES'] || '2').to_i
+        (ENV['COUNCIL_ROLE_RETRIES'] || '3').to_i
       end
 
       def council_role_timeout_ms
-        (ENV['COUNCIL_ROLE_TIMEOUT_MS'] || '30000').to_i
+        (ENV['COUNCIL_ROLE_TIMEOUT_MS'] || '60000').to_i
       end
 
       def council_reasoning_client
@@ -998,9 +1529,10 @@ module Savant
         attempts = 0
         begin
           attempts += 1
-          return yield
+          yield
         rescue StandardError => e
           raise e if attempts > retries
+
           sleep(0.4 * attempts)
           retry
         end
@@ -1088,8 +1620,10 @@ module Savant
 
       def check_consensus_from_items(items)
         return false unless items.is_a?(Array) && !items.empty?
+
         texts = items.map { |i| i[:text] || i['text'] || '' }.map(&:to_s)
         return false if texts.any?(&:empty?)
+
         texts.all? { |t| t.downcase.include?('no disagreements') || t.downcase.include?('agree') }
       end
 
@@ -1152,7 +1686,7 @@ module Savant
           debate_rounds: safe_json_parse(row['debate_rounds']),
           synthesis: safe_json_parse(row['synthesis']),
           votes: safe_json_parse(row['votes']),
-          veto: row['veto'] == true || row['veto'] == 't',
+          veto: [true, 't'].include?(row['veto']),
           veto_reason: row['veto_reason'],
           started_at: row['started_at'],
           completed_at: row['completed_at'],
@@ -1164,22 +1698,38 @@ module Savant
       # Build full chat history without truncation for council context
       def build_full_chat_history(messages)
         return '' if messages.empty?
-        total = messages.size
-        header = 'Note: Older messages carry less weight; newest messages are most important.'
-        lines = messages.map.with_index do |m, idx|
+
+        # Filter system messages; keep only user and non-system agent messages
+        filtered = messages.select do |m|
+          r = (m[:role] || '').to_s
+          agent = (m[:agent_name] || '').to_s.downcase
+          r == 'user' || (r == 'agent' && agent != 'system')
+        end
+        total = filtered.size
+        return '' if total.zero?
+
+        # Build chronological history
+        ordered = filtered.sort_by { |m| m[:created_at].to_s }
+        lines = ordered.map do |m|
           role = m[:role] == 'user' ? 'User' : (m[:agent_name] || 'Agent')
           text = (m[:text] || '').to_s
-          denom = [total - 1, 1].max.to_f
-          recency_ratio = (total - 1 - idx) / denom
-          weight = (0.2 + (recency_ratio * 0.8)).round(2)
-          "#{role} (weight: #{weight}): #{text}"
+          "#{role}: #{text}"
         end
-        ([header] + lines).join("\n\n")
+        lines.join("\n")
       end
 
       def summarize_conversation(messages)
         return '' if messages.empty?
-        messages.map do |m|
+
+        filtered = messages.select do |m|
+          r = (m[:role] || '').to_s
+          agent = (m[:agent_name] || '').to_s.downcase
+          r == 'user' || (r == 'agent' && agent != 'system')
+        end
+        return '' if filtered.empty?
+
+        # Oldest -> newest, brief lines
+        filtered.sort_by { |m| m[:created_at].to_s }.map do |m|
           role = m[:role] == 'user' ? 'User' : (m[:agent_name] || 'Agent')
           text = (m[:text] || '').to_s[0, 200]
           "#{role}: #{text}"
@@ -1191,9 +1741,7 @@ module Savant
         constraints = []
         messages.each do |m|
           text = (m[:text] || '').to_s.downcase
-          if text.include?('must') || text.include?('require') || text.include?('constraint')
-            constraints << (m[:text] || '').to_s[0, 100]
-          end
+          constraints << (m[:text] || '').to_s[0, 100] if text.include?('must') || text.include?('require') || text.include?('constraint')
         end
         constraints.uniq
       end
@@ -1203,9 +1751,7 @@ module Savant
         options = []
         messages.each do |m|
           text = (m[:text] || '').to_s.downcase
-          if text.include?('option') || text.include?('could') || text.include?('alternative')
-            options << (m[:text] || '').to_s[0, 100]
-          end
+          options << (m[:text] || '').to_s[0, 100] if text.include?('option') || text.include?('could') || text.include?('alternative')
         end
         options.uniq
       end
@@ -1219,20 +1765,25 @@ module Savant
       def safe_json_parse(val)
         return nil if val.nil?
         return val if val.is_a?(Hash) || val.is_a?(Array)
+
         JSON.parse(val.to_s)
       rescue JSON::ParserError
         nil
       end
+
       def env_truthy(v)
         return false if v.nil?
+
         %w[1 true yes on].include?(v.to_s.strip.downcase)
       end
 
       def session_agents_for_run(run)
         sid = run[:session_id] || run['session_id']
         return [] unless sid
+
         data = @db.get_council_session(sid.to_i)
         return [] unless data && data[:session]
+
         parse_text_array(data[:session]['agents'])
       rescue StandardError
         []
@@ -1241,11 +1792,14 @@ module Savant
       def parse_text_array(val)
         # postgres text[] arrives as String like {a,b}
         return [] if val.nil?
+
         s = val.to_s
         return [] if s.empty?
+
         s = s.strip
         s = s[1..-2] if s.start_with?('{') && s.end_with?('}')
         return [] if s.empty?
+
         s.split(',')
       rescue StandardError
         []
@@ -1253,11 +1807,14 @@ module Savant
 
       def parse_int_array(val)
         return [] if val.nil?
+
         s = val.to_s
         return [] if s.empty?
+
         s = s.strip
         s = s[1..-2] if s.start_with?('{') && s.end_with?('}')
         return [] if s.empty?
+
         s.split(',').map(&:to_i)
       rescue StandardError
         []
@@ -1294,9 +1851,7 @@ module Savant
         driver_data = nil
         begin
           dname = row['driver_name'] || row['driver_prompt']
-          if dname && !dname.to_s.strip.empty?
-            driver_data = Savant::Drivers::Ops.new.get(name: dname)
-          end
+          driver_data = Savant::Drivers::Ops.new.get(name: dname) if dname && !dname.to_s.strip.empty?
         rescue StandardError
           driver_data = nil
         end
@@ -1328,6 +1883,7 @@ module Savant
         instr = row['instructions']
         {
           session_id: "council-#{session_id}",
+          agent_name: agent_name || row['name'] || row['agent_name'] || 'agent',
           persona: persona_data || { name: 'savant-engineer' },
           driver: driver_data,
           rules: { agent_rulesets: rules_data, global_amr: {} },
@@ -1360,6 +1916,7 @@ module Savant
           n = (s[:name] || s['name']).to_s
           d = (s[:description] || s['description'] || '').to_s
           next nil if n.empty?
+
           "- #{n} — #{d}"
         end.compact
         { available: (names + names.map { |n| n.tr('/', '.') }).uniq.sort, catalog: catalog }
@@ -1394,6 +1951,7 @@ module Savant
       def council_reasoning_callback_url
         base = ENV['COUNCIL_ASYNC_CALLBACK_URL'].to_s.strip
         return base unless base.empty?
+
         hub = ENV['SAVANT_HUB_URL'].to_s.strip
         if hub.empty?
           host = ENV.fetch('SAVANT_HUB_HOST', '127.0.0.1').to_s.strip
@@ -1401,7 +1959,8 @@ module Savant
           hub = "http://#{host}:#{port}"
         end
         return nil if hub.empty?
-        "#{hub.sub(%r{\/+$}, '')}/callbacks/reasoning/agent_intent"
+
+        "#{hub.sub(%r{/+$}, '')}/callbacks/reasoning/agent_intent"
       end
     end
   end

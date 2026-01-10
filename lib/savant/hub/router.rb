@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require 'json'
+require 'securerandom'
 require 'rack/request'
 
 require_relative '../framework/middleware/user_header'
@@ -63,6 +64,12 @@ module Savant
         list << { module: 'hub', method: 'GET', path: '/', description: 'Hub dashboard' }
         list << { module: 'hub', method: 'GET', path: '/diagnostics', description: 'Env, mounts, repos visibility, DB checks' }
         list << { module: 'hub', method: 'GET', path: '/diagnostics/reasoning', description: 'Reasoning API diagnostics (reachability, usage)' }
+        list << { module: 'hub', method: 'GET', path: '/diagnostics/reasoning/jobs', description: 'Reasoning jobs summary (queue, running, recent)' }
+        list <<({ module: 'hub', method: 'GET', path: '/diagnostics/reasoning/jobs/:id', description: 'Reasoning job result by id' })
+        list <<({ module: 'hub', method: 'POST', path: '/diagnostics/reasoning/jobs/:id/cancel', description: 'Cancel a queued or running job' })
+        list <<({ module: 'hub', method: 'POST', path: '/diagnostics/reasoning/jobs/:id/retry', description: 'Retry a job using saved meta' })
+        list <<({ module: 'hub', method: 'DELETE', path: '/diagnostics/reasoning/jobs/:id', description: 'Delete a job from queue/history/results' })
+        list <<({ module: 'hub', method: 'DELETE', path: '/diagnostics/reasoning/workers/:id', description: 'Delete a dead worker with no jobs' })
         list << { module: 'hub', method: 'DELETE', path: '/diagnostics/reasoning', description: 'Clear Reasoning activity (Mongo + in-memory)' }
         list << { module: 'hub', method: 'GET', path: '/diagnostics/jira', description: 'Jira credentials presence (no secrets leaked)' }
         list << { module: 'hub', method: 'GET', path: '/diagnostics/connections', description: 'Active SSE/stdio connections' }
@@ -78,6 +85,7 @@ module Savant
         list << { module: 'hub', method: 'GET', path: '/routes', description: 'Routes list (add ?expand=1 to include tool calls)' }
         list << { module: 'hub', method: 'GET', path: '/logs', description: 'Aggregated recent events from Mongo (?n=100,&mcp=,&since=ISO8601)' }
         list << { module: 'hub', method: 'GET', path: '/callbacks/reasoning/agent_intent/status', description: 'Fetch async reasoning intent result by correlation_id' }
+        list << { module: 'hub', method: 'GET', path: '/db/cleanup', description: 'Terminate idle DB connections (?older=60s)' }
 
         mounts.keys.sort.each do |engine_name|
           base = "/#{engine_name}"
@@ -142,7 +150,8 @@ module Savant
         return @mongo_client if defined?(@mongo_client) && @mongo_client
 
         begin
-          uri = ENV.fetch('MONGO_URI', "mongodb://#{mongo_host}/#{mongo_db_name}")
+          # Prefer Rails-style MONGODB_URI for consistency with the Blackboard app.
+          uri = ENV['MONGODB_URI'] || ENV['MONGO_URI'] || "mongodb://#{mongo_host}/#{mongo_db_name}"
           client = Mongo::Client.new(uri, server_selection_timeout: 1.5, connect_timeout: 1.5, socket_timeout: 2)
           # Lightweight ping to ensure connectivity
           client.database.collections # probes server
@@ -349,7 +358,21 @@ module Savant
         return hub_routes(req) if req.get? && req.path_info == '/routes'
         return diagnostics(req) if req.get? && req.path_info == '/diagnostics'
         return diagnostics_reasoning(req) if req.get? && req.path_info == '/diagnostics/reasoning'
+        return diagnostics_reasoning_jobs(req) if req.get? && req.path_info == '/diagnostics/reasoning/jobs'
+        # Single job: GET (detail), POST /cancel, POST /retry, DELETE
+        if (m = req.path_info.match(%r{^/diagnostics/reasoning/jobs/([^/]+)(?:/(cancel|retry))?$}))
+          job_id = CGI.unescape(m[1])
+          action = m[2]
+          return diagnostics_reasoning_job(req, job_id) if req.get? && action.nil?
+          return diagnostics_reasoning_job_cancel(req, job_id) if req.post? && action == 'cancel'
+          return diagnostics_reasoning_job_retry(req, job_id) if req.post? && action == 'retry'
+          return diagnostics_reasoning_job_delete(req, job_id) if req.delete? && action.nil?
+        end
         return diagnostics_reasoning_clear(req) if req.delete? && req.path_info == '/diagnostics/reasoning'
+        if req.delete?
+          m = req.path_info.match(%r{^/diagnostics/reasoning/workers/(.+)$})
+          return diagnostics_reasoning_worker_delete(req, CGI.unescape(m[1])) if m
+        end
         return diagnostics_jira(req) if req.get? && req.path_info == '/diagnostics/jira'
         # Reasoning callbacks (webhook)
         return callbacks_reasoning_agent_intent(req) if req.post? && req.path_info == '/callbacks/reasoning/agent_intent'
@@ -467,6 +490,24 @@ module Savant
 
       def update_council_message_from_intent(payload)
         correlation_id = payload['correlation_id'] || payload[:correlation_id]
+        job_id = payload['job_id'] || payload[:job_id]
+        db_session_id = nil
+        agent_name = nil
+        # Fallback: if correlation_id missing, try to locate via job_id
+        if (correlation_id.nil? || correlation_id.to_s.strip.empty?) && job_id && !job_id.to_s.strip.empty?
+          begin
+            require_relative '../framework/db'
+            db_tmp = Savant::Framework::DB.new
+            res = db_tmp.exec_params('SELECT session_id, correlation_id, agent_name FROM council_messages WHERE job_id=$1 ORDER BY id DESC LIMIT 1', [job_id.to_s])
+            if res.ntuples > 0
+              correlation_id = res[0]['correlation_id']
+              db_session_id = res[0]['session_id']&.to_i
+              agent_name = res[0]['agent_name']
+            end
+          rescue StandardError
+            # ignore lookup errors
+          end
+        end
         return if correlation_id.to_s.strip.empty?
         return unless correlation_id.to_s.start_with?('council-')
 
@@ -514,12 +555,83 @@ module Savant
           correlation_id: correlation_id,
           job_id: job_id
         }
-        db_client.update_council_message_by_correlation_id(
-          correlation_id: correlation_id,
-          text: JSON.generate(message),
-          status: finish ? 'done' : 'pending',
-          job_id: job_id
-        )
+        begin
+          db_client.update_council_message_by_correlation_id(
+            correlation_id: correlation_id,
+            text: JSON.generate(message),
+            status: finish ? 'done' : 'pending',
+            job_id: job_id
+          )
+          # Try to fetch agent_name for Blackboard actor_id
+          begin
+            res2 = db_client.exec_params('SELECT agent_name, session_id FROM council_messages WHERE correlation_id=$1 ORDER BY id DESC LIMIT 1', [correlation_id.to_s])
+            if res2.ntuples > 0
+              agent_name ||= res2[0]['agent_name']
+              db_session_id ||= res2[0]['session_id']&.to_i
+            end
+          rescue StandardError
+            # ignore
+          end
+        rescue StandardError
+          # As a last resort, update by job_id when correlation_id mapping fails
+          begin
+            db_client.exec_params(
+              'UPDATE council_messages SET text=$1, status=$2 WHERE job_id=$3',
+              [JSON.generate(message), (finish ? 'done' : 'pending'), job_id.to_s]
+            ) if job_id
+          rescue StandardError
+            # ignore
+          end
+        end
+
+        # Also mirror to Blackboard for unified state + UI refresh
+        begin
+          # Extract numeric session id from correlation id like "council-<session_id>-..."
+          m = correlation_id.to_s.match(/^council-(\d+)/)
+          if m || db_session_id
+            bb_session_id = m ? "council-#{m[1]}" : "council-#{db_session_id}"
+            # Create session if missing
+            begin
+              if defined?(::Blackboard::Session)
+              sess = ::Blackboard::Session.find_by(session_id: bb_session_id)
+              unless sess
+                  ::Blackboard::Session.create!(session_id: bb_session_id, type: 'council', state: 'active', actors: [])
+                end
+              end
+            rescue StandardError
+              # ignore session create errors
+            end
+
+            # Append event
+            if defined?(::Blackboard::Event)
+              # Only record final responses or errors; ignore non-final intents
+              if (finish == true) || (status == 'error')
+                payload_ev = if status == 'error'
+                               { schema: 'council.v1.agent_intent', type: 'error', error: (payload['error'] || payload[:error]).to_s }
+                             else
+                               { text: (message[:final_text] || message['final_text'] || message[:reasoning] || message['reasoning']).to_s, run_id: message[:run_id] || message['run_id'] }
+                             end
+                ::Blackboard::Event.create!(
+                  event_id: SecureRandom.uuid,
+                  session_id: bb_session_id,
+                  type: 'agent_reply',
+                  actor_id: (agent_name || 'agent').to_s,
+                  actor_type: 'agent',
+                  visibility: 'public',
+                  payload: payload_ev
+                )
+              end
+            end
+          end
+        rescue StandardError
+          # best-effort; ignore Blackboard mirror failures
+        end
+      ensure
+        begin
+          db_client&.close
+        rescue StandardError
+          # ignore close errors
+        end
       end
 
       # GET /diagnostics/jira -> presence/shape of Jira credentials for current user
@@ -639,6 +751,34 @@ module Savant
           logs = mongo_fetch_service(service_prefix: 'hub', n: n, since: (since.empty? ? nil : since))
           lines = logs.map { |doc| JSON.generate(doc) }
           respond(200, { engine: 'hub', count: lines.length, lines: lines })
+        when ['db', 'cleanup']
+          # Terminate idle DB connections older than N seconds (default: 60; min:10, max:3600)
+          threshold = (req.params['older'] || '60').to_i
+          threshold = 10 if threshold < 10
+          threshold = 3600 if threshold > 3600
+          begin
+            require_relative '../framework/db'
+            db = Savant::Framework::DB.new
+            before_count = after_count = nil
+            terminated = nil
+            db.with_connection do |conn|
+              before_count = conn.exec("SELECT COUNT(*) AS c FROM pg_stat_activity WHERE datname = current_database()")[0]['c'].to_i rescue nil
+              conn.exec(
+                "SELECT pg_terminate_backend(pid)\n                 FROM pg_stat_activity\n                 WHERE datname = current_database()\n                   AND pid <> pg_backend_pid()\n                   AND state = 'idle'\n                   AND state_change < now() - interval '#{threshold} seconds'"
+              )
+              # cmd_tuples isn't reliable for SELECT; compute difference instead
+              after_count = conn.exec("SELECT COUNT(*) AS c FROM pg_stat_activity WHERE datname = current_database()")[0]['c'].to_i rescue nil
+              terminated = before_count && after_count ? [before_count - after_count, 0].max : nil
+            end
+            respond(200, { ok: true, threshold_seconds: threshold, terminated: terminated, before_count: before_count, after_count: after_count })
+          rescue StandardError => e
+            respond(200, { ok: false, error: e.message, threshold_seconds: threshold })
+          ensure
+            begin
+              db&.close
+            rescue StandardError
+            end
+          end
         when ['requests']
           # Recent HTTP requests pulled from Mongo logs (preferred source)
           n = (req.params['n'] || '100').to_i
@@ -1008,6 +1148,12 @@ module Savant
           end
         rescue StandardError => e
           db[:error] = e.message
+        ensure
+          begin
+            db_client&.close
+          rescue StandardError
+            # ignore close errors
+          end
         end
         info[:db] = db
 
@@ -1054,9 +1200,15 @@ module Savant
       end
 
       # DELETE /diagnostics/reasoning -> clear Reasoning activity (Mongo + in-memory)
-      def diagnostics_reasoning_clear(_req)
+      def diagnostics_reasoning_clear(req)
         cleared = []
         errors = []
+        worker = nil
+        begin
+          worker = req.params['worker'] if req && req.respond_to?(:params)
+        rescue StandardError
+          worker = nil
+        end
 
         # Best-effort: clear Mongo collections used by Reasoning
         begin
@@ -1074,6 +1226,104 @@ module Savant
           errors << { step: 'mongo_clear', error: e.message }
         end
 
+        # Best-effort: clear Redis job artifacts (queue, running, history, results)
+        begin
+          require 'redis'
+          redis_url = ENV['REDIS_URL'] || 'redis://localhost:6379/0'
+          r = ::Redis.new(url: redis_url, timeout: 1.0)
+          if worker && !worker.to_s.empty?
+            %w[savant:jobs:completed savant:jobs:failed savant:jobs:canceled].each do |list_key|
+              begin
+                items = r.lrange(list_key, 0, 999)
+                to_remove = []
+                keep = items.select do |j|
+                  begin
+                    js = JSON.parse(j)
+                    match = (js['worker_id'] || js[:worker_id]) == worker
+                    to_remove << (js['job_id'] || js[:job_id]).to_s if match
+                    !match
+                  rescue StandardError
+                    true
+                  end
+                end
+                r.del(list_key)
+                keep.reverse_each { |it| r.lpush(list_key, it) }
+                to_remove.each do |jid|
+                  begin r.del("savant:result:#{jid}") rescue StandardError end
+                  begin r.del("savant:job:meta:#{jid}") rescue StandardError end
+                end
+                cleared << { redis_list: list_key, removed_count: (items.length - keep.length), worker: worker }
+              rescue StandardError => e
+                errors <<({ redis_list: list_key, worker: worker, error: e.message })
+              end
+            end
+          else
+            # No worker filter: clear all jobs
+            begin
+              queued_items = r.lrange('savant:queue:reasoning', 0, -1)
+              queued_ids = queued_items.map { |j| (JSON.parse(j)['job_id'] rescue nil) }.compact
+              running_ids = r.smembers('savant:jobs:running') || []
+              completed_items = r.lrange('savant:jobs:completed', 0, -1)
+              completed_ids = completed_items.map { |j| (JSON.parse(j)['job_id'] rescue nil) }.compact
+              failed_items = r.lrange('savant:jobs:failed', 0, -1)
+              failed_ids = failed_items.map { |j| (JSON.parse(j)['job_id'] rescue nil) }.compact
+              canceled_items = r.lrange('savant:jobs:canceled', 0, -1)
+              canceled_ids = canceled_items.map { |j| (JSON.parse(j)['job_id'] rescue nil) }.compact
+
+              all_ids = (queued_ids + running_ids + completed_ids + failed_ids + canceled_ids).uniq
+
+              # Ask running jobs to cancel
+              running_ids.each do |jid|
+                begin r.sadd('savant:jobs:cancel:requested', jid) rescue StandardError end
+              end
+
+              %w[savant:queue:reasoning savant:jobs:running savant:jobs:completed savant:jobs:failed savant:jobs:canceled savant:jobs:cancel:requested].each do |key|
+                begin r.del(key) rescue StandardError end
+              end
+
+              all_ids.each do |jid|
+                begin r.del("savant:result:#{jid}") rescue StandardError end
+                begin r.del("savant:job:meta:#{jid}") rescue StandardError end
+              end
+
+              cleared << { redis: 'jobs_all_cleared', counts: { queued: queued_ids.length, running: running_ids.length, completed: completed_ids.length, failed: failed_ids.length, canceled: canceled_ids.length } }
+            rescue StandardError => e
+              errors <<({ step: 'redis_clear_all_jobs', error: e.message })
+            end
+          end
+
+          # After clearing jobs, prune dead workers from registry
+          begin
+            now = Time.now.to_f
+            ttl = 60.0
+            reg_ids = r.smembers('savant:workers:registry') || []
+            removed = []
+            reg_ids.each do |wid|
+              begin
+                hb = r.get("savant:workers:heartbeat:#{wid}")
+                ls = r.get("savant:workers:last_seen:#{wid}")
+                ls_f = ls.to_f
+                alive = (!hb.nil?) || (ls_f > 0 && (now - ls_f) < ttl)
+                unless alive
+                  r.srem('savant:workers:registry', wid)
+                  begin r.del("savant:workers:last_seen:#{wid}") rescue StandardError end
+                  begin r.del("savant:workers:heartbeat:#{wid}") rescue StandardError end
+                  removed << wid
+                end
+              rescue StandardError
+                # ignore per-worker errors
+              end
+            end
+            cleared << { removed_dead_workers: removed.length, workers: removed } if removed.any?
+          rescue StandardError => e
+            errors <<({ step: 'redis_prune_dead_workers', error: e.message })
+          end
+        rescue LoadError
+          # ignore if redis not available
+        rescue StandardError => e
+          errors <<({ step: 'redis_clear', error: e.message })
+        end
+
         # Best-effort: clear in-memory recorder events for reasoning
         begin
           @recorder.clear(mcp: 'reasoning') if @recorder.respond_to?(:clear)
@@ -1081,7 +1331,459 @@ module Savant
           # ignore
         end
 
-        respond(200, { cleared: cleared, errors: errors, message: "Cleared Reasoning activity from #{cleared.length} collection(s)" })
+        respond(200, { cleared: cleared, errors: errors, message: "Cleared Reasoning activity#{worker ? " for #{worker}" : ' (all jobs)'}" })
+      end
+
+      # GET /diagnostics/reasoning/jobs -> Redis-backed jobs view (JSON)
+      def diagnostics_reasoning_jobs(_req)
+        require 'json'
+        require 'redis'
+        redis_url = ENV['REDIS_URL'] || 'redis://localhost:6379/0'
+        r = ::Redis.new(url: redis_url, timeout: 1.0)
+        # Stats
+        queue_length = r.llen('savant:queue:reasoning')
+        queued = r.lrange('savant:queue:reasoning', 0, 99).map do |j|
+          begin
+            js = JSON.parse(j)
+            { job_id: js['job_id'] || js[:job_id], ts: js['ts'] || js['created_at'] }
+          rescue StandardError
+            { raw: j }
+          end
+        end
+        running_ids = r.smembers('savant:jobs:running')
+        # Recent
+        recent_completed = r.lrange('savant:jobs:completed', 0, 99).map { |j| JSON.parse(j) rescue({ raw: j }) }
+        recent_failed = r.lrange('savant:jobs:failed', 0, 99).map { |j| JSON.parse(j) rescue({ raw: j }) }
+        recent_canceled = r.lrange('savant:jobs:canceled', 0, 99).map { |j| JSON.parse(j) rescue({ raw: j }) }
+
+        # Enrich with job meta (agent_name, goal_text, session_id, correlation_id)
+        begin
+          enrich = lambda do |arr|
+            (arr || []).map do |obj|
+              begin
+                h = obj.is_a?(Hash) ? obj : {}
+                jid = (h['job_id'] || h[:job_id]).to_s
+                next h if jid.empty?
+                mr = r.get("savant:job:meta:#{jid}")
+                next h unless mr
+                m = JSON.parse(mr) rescue nil
+                next h unless m
+                payload = (m['payload'] || m[:payload] || {})
+                persona = (payload['persona'] || payload[:persona] || {})
+                agent_name = (payload['agent_name'] || payload[:agent_name]) || (persona.is_a?(Hash) ? (persona['name'] || persona[:name]) : nil)
+                goal_text = payload['goal_text'] || payload[:goal_text]
+                session_id = payload['session_id'] || payload[:session_id]
+                correlation_id = payload['correlation_id'] || payload[:correlation_id]
+                h.merge('agent_name' => agent_name, 'goal_text' => goal_text, 'session_id' => session_id, 'correlation_id' => correlation_id)
+              rescue StandardError
+                obj
+              end
+            end
+          end
+          queued = enrich.call(queued)
+          recent_completed = enrich.call(recent_completed)
+          recent_failed = enrich.call(recent_failed)
+          recent_canceled = enrich.call(recent_canceled)
+        rescue StandardError
+          # ignore enrichment failures
+        end
+        respond(200, {
+          queue_length: queue_length,
+          queued: queued,
+          running_ids: running_ids,
+          recent_completed: recent_completed,
+          recent_failed: recent_failed,
+          recent_canceled: recent_canceled
+        })
+      rescue LoadError
+        respond(500, { error: 'redis gem not available' })
+      rescue StandardError => e
+        respond(500, { error: e.message })
+      end
+
+      # POST /diagnostics/reasoning/jobs/:id/cancel
+      def diagnostics_reasoning_job_cancel(_req, job_id)
+        require 'json'
+        require 'redis'
+        redis_url = ENV['REDIS_URL'] || 'redis://localhost:6379/0'
+        r = ::Redis.new(url: redis_url, timeout: 1.0)
+        summary = { job_id: job_id, queued_removed: 0, cancel_requested: false, was_running: false }
+        # Remove from queue (if present)
+        summary[:queued_removed] = redis_remove_job_from_queue(r, job_id)
+        # Signal cancel for running workers
+        begin
+          summary[:was_running] = r.sismember('savant:jobs:running', job_id)
+        rescue StandardError
+          summary[:was_running] = false
+        end
+        begin
+          r.sadd('savant:jobs:cancel:requested', job_id)
+          summary[:cancel_requested] = true
+        rescue StandardError
+          summary[:cancel_requested] = false
+        end
+        respond(200, summary)
+      rescue LoadError
+        respond(500, { error: 'redis gem not available' })
+      rescue StandardError => e
+        respond(500, { error: e.message })
+      end
+
+      # POST /diagnostics/reasoning/jobs/:id/retry
+      def diagnostics_reasoning_job_retry(_req, job_id)
+        require 'json'
+        require 'redis'
+        redis_url = ENV['REDIS_URL'] || 'redis://localhost:6379/0'
+        r = ::Redis.new(url: redis_url, timeout: 1.0)
+        meta_raw = r.get("savant:job:meta:#{job_id}")
+        return respond(404, { error: 'job_meta_not_found', job_id: job_id }) unless meta_raw
+
+        begin
+          meta = JSON.parse(meta_raw)
+        rescue StandardError
+          return respond(500, { error: 'job_meta_parse_error', job_id: job_id })
+        end
+
+        new_id = "agent-#{Time.now.to_i}-#{rand(100_000)}"
+        job = {
+          job_id: new_id,
+          payload: meta['payload'],
+          callback_url: meta['callback_url'],
+          created_at: Time.now.utc.iso8601,
+          retry_of: job_id
+        }.compact
+
+        ttl = (ENV['REASONING_JOB_META_TTL'] || '3600').to_i
+        r.setex("savant:job:meta:#{new_id}", ttl, JSON.generate(job))
+        r.rpush('savant:queue:reasoning', JSON.generate(job))
+
+        respond(200, { status: 'accepted', job_id: new_id, retry_of: job_id })
+      rescue LoadError
+        respond(500, { error: 'redis gem not available' })
+      rescue StandardError => e
+        respond(500, { error: e.message })
+      end
+
+      # DELETE /diagnostics/reasoning/jobs/:id
+      def diagnostics_reasoning_job_delete(_req, job_id)
+        require 'json'
+        require 'redis'
+        redis_url = ENV['REDIS_URL'] || 'redis://localhost:6379/0'
+        r = ::Redis.new(url: redis_url, timeout: 1.0)
+        result = { job_id: job_id, removed: {} }
+        # Queue
+        result[:removed][:queue] = redis_remove_job_from_queue(r, job_id)
+        # Running
+        begin
+          result[:removed][:running] = (r.srem('savant:jobs:running', job_id) || 0)
+        rescue StandardError
+          result[:removed][:running] = 0
+        end
+        # History lists
+        %w[savant:jobs:completed savant:jobs:failed savant:jobs:canceled].each do |list_key|
+          result[:removed][list_key.to_sym] = redis_list_remove_items_by_job_id(r, list_key, job_id)
+        end
+        # Result key
+        begin
+          result[:removed][:result_key] = r.del("savant:result:#{job_id}")
+        rescue StandardError
+          result[:removed][:result_key] = 0
+        end
+        # Cancel request set
+        begin
+          result[:removed][:cancel_request] = r.srem('savant:jobs:cancel:requested', job_id)
+        rescue StandardError
+          result[:removed][:cancel_request] = 0
+        end
+        respond(200, result)
+      rescue LoadError
+        respond(500, { error: 'redis gem not available' })
+      rescue StandardError => e
+        respond(500, { error: e.message })
+      end
+
+      # Remove a job from the queue list by job_id while preserving order.
+      def redis_remove_job_from_queue(r, job_id)
+        begin
+          items = r.lrange('savant:queue:reasoning', 0, -1)
+          keep = items.select do |j|
+            begin
+              js = JSON.parse(j)
+              (js['job_id'] || js[:job_id]).to_s != job_id.to_s
+            rescue StandardError
+              true
+            end
+          end
+          removed = items.length - keep.length
+          if removed > 0
+            r.del('savant:queue:reasoning')
+            keep.reverse_each { |it| r.lpush('savant:queue:reasoning', it) }
+          end
+          removed
+        rescue StandardError
+          0
+        end
+      end
+
+      # Remove items with job_id from a list key, preserving order; returns removed count.
+      def redis_list_remove_items_by_job_id(r, key, job_id)
+        begin
+          items = r.lrange(key, 0, -1)
+          keep = items.select do |j|
+            begin
+              js = JSON.parse(j)
+              (js['job_id'] || js[:job_id]).to_s != job_id.to_s
+            rescue StandardError
+              true
+            end
+          end
+          removed = items.length - keep.length
+          if removed > 0
+            r.del(key)
+            keep.reverse_each { |it| r.lpush(key, it) }
+          end
+          removed
+        rescue StandardError
+          0
+        end
+      end
+
+      # GET /diagnostics/reasoning/jobs/:id -> fetch job result JSON from Redis
+      def diagnostics_reasoning_job(_req, job_id)
+        require 'json'
+        require 'redis'
+        redis_url = ENV['REDIS_URL'] || 'redis://localhost:6379/0'
+        r = ::Redis.new(url: redis_url, timeout: 1.0)
+        summarize = lambda do |req, body|
+          begin
+            s = req.params['summary'].to_s
+            if !s.empty? && s != '0' && s.downcase != 'false'
+              h = body.is_a?(Hash) ? body : {}
+              {
+                agent_name: (h[:agent_name] || h['agent_name']),
+                goal_text: (h[:goal_text] || h['goal_text']),
+                session_id: (h[:session_id] || h['session_id']),
+                correlation_id: (h[:correlation_id] || h['correlation_id']),
+                job_id: (h[:job_id] || h['job_id'] || job_id),
+                status: (h[:status] || h['status'])
+              }
+            else
+              body
+            end
+          rescue StandardError
+            body
+          end
+        end
+        raw = r.get("savant:result:#{job_id}")
+        if raw
+          begin
+            js = JSON.parse(raw)
+            # Load meta to expose agent and input params
+            meta = nil
+            begin
+              meta_raw = r.get("savant:job:meta:#{job_id}")
+              meta = JSON.parse(meta_raw) if meta_raw
+            rescue StandardError
+              meta = nil
+            end
+            payload = (meta && (meta['payload'] || meta[:payload])) || {}
+            persona = (payload && (payload['persona'] || payload[:persona])) || {}
+            agent_name = (payload['agent_name'] || payload[:agent_name]) || (persona.is_a?(Hash) ? (persona['name'] || persona[:name]) : nil)
+            goal_text = (payload['goal_text'] || payload[:goal_text]) rescue nil
+            sess = (payload['session_id'] || payload[:session_id]) rescue nil
+            corr = (payload['correlation_id'] || payload[:correlation_id]) rescue nil
+            respond(200, summarize.call(_req, { job_id: job_id, status: js['status'] || js[:status], result: js, meta: meta, agent_name: agent_name, goal_text: goal_text, session_id: sess, correlation_id: corr }))
+          rescue StandardError
+            # Still try to load meta for context
+            meta = nil
+            begin
+              meta_raw = r.get("savant:job:meta:#{job_id}")
+              meta = JSON.parse(meta_raw) if meta_raw
+            rescue StandardError
+              meta = nil
+            end
+            payload = (meta && (meta['payload'] || meta[:payload])) || {}
+            persona = (payload && (payload['persona'] || payload[:persona])) || {}
+            agent_name = (payload['agent_name'] || payload[:agent_name]) || (persona.is_a?(Hash) ? (persona['name'] || persona[:name]) : nil)
+            goal_text = (payload['goal_text'] || payload[:goal_text]) rescue nil
+            sess = (payload['session_id'] || payload[:session_id]) rescue nil
+            corr = (payload['correlation_id'] || payload[:correlation_id]) rescue nil
+            respond(200, summarize.call(_req, { job_id: job_id, result_raw: raw, meta: meta, agent_name: agent_name, goal_text: goal_text, session_id: sess, correlation_id: corr }))
+          end
+        else
+          # Fallbacks: look up status across running/queued/history/meta
+          begin
+            # Running?
+            if r.sismember('savant:jobs:running', job_id)
+              # include meta if available
+              meta = nil
+              begin
+                meta_raw = r.get("savant:job:meta:#{job_id}")
+                meta = JSON.parse(meta_raw) if meta_raw
+              rescue StandardError
+                meta = nil
+              end
+              payload = (meta && (meta['payload'] || meta[:payload])) || {}
+              persona = (payload && (payload['persona'] || payload[:persona])) || {}
+              agent_name = (payload['agent_name'] || payload[:agent_name]) || (persona.is_a?(Hash) ? (persona['name'] || persona[:name]) : nil)
+              goal_text = (payload['goal_text'] || payload[:goal_text]) rescue nil
+              sess = (payload['session_id'] || payload[:session_id]) rescue nil
+              corr = (payload['correlation_id'] || payload[:correlation_id]) rescue nil
+              return respond(200, summarize.call(_req, { job_id: job_id, status: 'running', meta: meta, agent_name: agent_name, goal_text: goal_text, session_id: sess, correlation_id: corr }))
+            end
+
+            # Queued?
+            begin
+              q_items = r.lrange('savant:queue:reasoning', 0, -1)
+              q_items.each do |j|
+                begin
+                  js = JSON.parse(j)
+                  if (js['job_id'] || js[:job_id]).to_s == job_id.to_s
+                    meta = nil
+                    begin
+                      meta_raw = r.get("savant:job:meta:#{job_id}")
+                      meta = JSON.parse(meta_raw) if meta_raw
+                    rescue StandardError
+                      meta = nil
+                    end
+                    payload = (meta && (meta['payload'] || meta[:payload])) || {}
+                    persona = (payload && (payload['persona'] || payload[:persona])) || {}
+                    agent_name = (payload['agent_name'] || payload[:agent_name]) || (persona.is_a?(Hash) ? (persona['name'] || persona[:name]) : nil)
+                    goal_text = (payload['goal_text'] || payload[:goal_text]) rescue nil
+                    sess = (payload['session_id'] || payload[:session_id]) rescue nil
+                    corr = (payload['correlation_id'] || payload[:correlation_id]) rescue nil
+                    return respond(200, summarize.call(_req, { job_id: job_id, status: 'queued', created_at: (js['created_at'] || js[:created_at]), meta: meta, agent_name: agent_name, goal_text: goal_text, session_id: sess, correlation_id: corr }))
+                  end
+                rescue StandardError
+                  next
+                end
+              end
+            rescue StandardError
+              # ignore queue check errors
+            end
+
+            # History lists
+            { ok: 'savant:jobs:completed', error: 'savant:jobs:failed', canceled: 'savant:jobs:canceled' }.each do |status, key|
+              begin
+                arr = r.lrange(key, 0, 999)
+                arr.each do |j|
+                  begin
+                    js = JSON.parse(j)
+                    if (js['job_id'] || js[:job_id]).to_s == job_id.to_s
+                      # Include meta and extracted fields if available
+                      meta = nil
+                      begin
+                        meta_raw = r.get("savant:job:meta:#{job_id}")
+                        meta = JSON.parse(meta_raw) if meta_raw
+                      rescue StandardError
+                        meta = nil
+                      end
+                      payload = (meta && (meta['payload'] || meta[:payload])) || {}
+                      persona = (payload && (payload['persona'] || payload[:persona])) || {}
+                      agent_name = (payload['agent_name'] || payload[:agent_name]) || (persona.is_a?(Hash) ? (persona['name'] || persona[:name]) : nil)
+                      goal_text = (payload['goal_text'] || payload[:goal_text]) rescue nil
+                      sess = (payload['session_id'] || payload[:session_id]) rescue nil
+                      corr = (payload['correlation_id'] || payload[:correlation_id]) rescue nil
+                      return respond(200, summarize.call(_req, { job_id: job_id, status: status.to_s, worker_id: (js['worker_id'] || js[:worker_id]), meta: meta, agent_name: agent_name, goal_text: goal_text, session_id: sess, correlation_id: corr }))
+                  end
+                rescue StandardError
+                  next
+                end
+              end
+              rescue StandardError
+                # ignore
+              end
+            end
+
+            # Meta?
+            begin
+              meta_raw = r.get("savant:job:meta:#{job_id}")
+              if meta_raw
+                meta = JSON.parse(meta_raw) rescue nil
+                if meta
+                  payload = (meta['payload'] || {})
+                  persona = payload['persona'] || {}
+                  agent_name = (payload['agent_name']) || (persona.is_a?(Hash) ? persona['name'] : nil)
+                  goal_text = payload['goal_text'] rescue nil
+                  sess = payload['session_id'] rescue nil
+                  corr = payload['correlation_id'] rescue nil
+                  return respond(200, summarize.call(_req, { job_id: job_id, status: 'submitted', meta: meta, agent_name: agent_name, goal_text: goal_text, session_id: sess, correlation_id: corr }))
+                end
+              end
+            rescue StandardError
+              # ignore meta errors
+            end
+          rescue StandardError
+            # ignore fallback errors
+          end
+          respond(404, { error: 'not found', job_id: job_id })
+        end
+      rescue LoadError
+        respond(500, { error: 'redis gem not available' })
+      rescue StandardError => e
+        respond(500, { error: e.message })
+      end
+
+      # DELETE /diagnostics/reasoning/workers/:id -> delete dead worker with no jobs
+      def diagnostics_reasoning_worker_delete(_req, worker_id)
+        require 'redis'
+        redis_url = ENV['REDIS_URL'] || 'redis://localhost:6379/0'
+        r = ::Redis.new(url: redis_url, timeout: 1.0)
+
+        # Determine alive/dead from heartbeat/last_seen
+        now = Time.now.to_f
+        hb = r.get("savant:workers:heartbeat:#{worker_id}")
+        ls = r.get("savant:workers:last_seen:#{worker_id}")
+        alive = false
+        begin
+          alive = (!hb.nil?) || (ls && (now - ls.to_f) < 60.0)
+        rescue StandardError
+          alive = false
+        end
+        return respond(409, { error: 'worker_alive', worker_id: worker_id }) if alive
+
+        # Check for jobs across running and history lists
+        running = r.smembers('savant:jobs:running') || []
+        running_for_worker = []
+        running.each do |jid|
+          begin
+            wid = r.get("savant:job:worker:#{jid}")
+            running_for_worker << jid if wid && wid.to_s == worker_id.to_s
+          rescue StandardError
+            # ignore
+          end
+        end
+
+        # History lists annotated with worker_id
+        hist_counts = {}
+        %w[savant:jobs:completed savant:jobs:failed savant:jobs:canceled].each do |key|
+          begin
+            arr = r.lrange(key, 0, 999)
+            cnt = arr.count do |j|
+              begin
+                js = JSON.parse(j)
+                (js['worker_id'] || js[:worker_id]).to_s == worker_id.to_s
+              rescue StandardError
+                false
+              end
+            end
+            hist_counts[key.to_sym] = cnt
+          rescue StandardError
+            hist_counts[key.to_sym] = 0
+          end
+        end
+        has_jobs = running_for_worker.any? || hist_counts.values.any? { |c| c.to_i > 0 }
+        return respond(409, { error: 'worker_has_jobs', worker_id: worker_id, running: running_for_worker, history: hist_counts }) if has_jobs
+
+        # Safe to remove from registry
+        r.srem('savant:workers:registry', worker_id)
+        begin r.del("savant:workers:last_seen:#{worker_id}") rescue StandardError end
+        begin r.del("savant:workers:heartbeat:#{worker_id}") rescue StandardError end
+        respond(200, { ok: true, worker_id: worker_id, removed: true })
+      rescue LoadError
+        respond(500, { error: 'redis gem not available' })
+      rescue StandardError => e
+        respond(500, { error: e.message })
       end
 
       # Helper: Build Reasoning diagnostics payload
@@ -1106,13 +1808,29 @@ module Savant
           r.ping
           reasoning[:redis] = 'connected'
 
-          # Collect worker heartbeats
-          worker_keys = r.keys('savant:workers:heartbeat:*')
-          reasoning[:workers] = worker_keys.map do |k|
-            name = k.split(':').last
-            last_seen = r.get(k).to_f
-            status = Time.now.to_f - last_seen < 60 ? 'alive' : 'dead'
-            { id: name, last_seen: Time.at(last_seen).utc.iso8601, status: status }
+          # Collect workers from registry plus live heartbeats for better visibility
+          registry = []
+          begin
+            registry = r.smembers('savant:workers:registry') || []
+          rescue StandardError
+            registry = []
+          end
+          hb_keys = r.keys('savant:workers:heartbeat:*')
+          hb_ids = hb_keys.map { |k| k.sub('savant:workers:heartbeat:', '') }
+          all_ids = (registry + hb_ids).uniq
+
+          reasoning[:workers] = all_ids.map do |id|
+            # last_seen from persistent key, fallback to heartbeat value
+            ls = nil
+            begin
+              ls = r.get("savant:workers:last_seen:#{id}")
+            rescue StandardError
+              ls = nil
+            end
+            ls ||= r.get("savant:workers:heartbeat:#{id}")
+            ts_f = ls.to_f
+            status = (Time.now.to_f - ts_f) < 60 ? 'alive' : 'dead'
+            { id: id, last_seen: Time.at(ts_f).utc.iso8601, status: status }
           end
 
           # Queue stats
@@ -1427,6 +2145,7 @@ module Savant
       end
 
       # Load fresh engine + tools for the given engine and dispatch the tool call.
+      # Ensure any ad-hoc DB connections created for hot-reload engines are closed to avoid leaks.
       def hot_reload_and_call(engine_name, tool, params, user_id)
         camel = engine_name.split(/[^a-zA-Z0-9]/).map { |seg| seg.empty? ? '' : seg[0].upcase + seg[1..] }.join
         require File.join(__dir__, '..', 'engines', engine_name, 'engine')
@@ -1435,7 +2154,16 @@ module Savant
         engine = mod.const_get(:Engine).new
         tools_mod = mod.const_get(:Tools)
         reg = tools_mod.build_registrar(engine)
-        reg.call(tool, params, ctx: { service: engine_name, engine: engine_name, user_id: user_id })
+        begin
+          reg.call(tool, params, ctx: { service: engine_name, engine: engine_name, user_id: user_id })
+        ensure
+          begin
+            db = engine.instance_variable_get(:@db)
+            db.close if db && db.respond_to?(:close)
+          rescue StandardError
+            # best-effort close
+          end
+        end
       end
 
       def sse_headers

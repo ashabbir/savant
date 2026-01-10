@@ -11,30 +11,24 @@ export default function ContextLogs() {
   const [lines, setLines] = useState<string[]>([]);
   const [n, setN] = useState<number>(() => Number(localStorage.getItem('ctx.logs.n')||'100')||100);
   const [following, setFollowing] = useState<boolean>(false);
-  const esRef = useRef<EventSource | null>(null);
+  const pollRef = useRef<number | null>(null);
 
   function baseUrl() { return loadConfig().baseUrl || 'http://localhost:9999'; }
   function start() {
     stop();
-    const url = `${baseUrl()}/context/logs?stream=1&n=${n}&user=${encodeURIComponent(getUserId())}`;
-    const es = new EventSource(url);
-    es.onmessage = (ev) => {
-      try {
-        const data = JSON.parse(ev.data);
-        if (data && data.line) setLines(prev => [...prev, data.line]);
-      } catch { /* ignore */ }
-    };
-    es.onerror = () => { stop(); };
-    esRef.current = es;
+    // Initial fetch and then poll every 2s
+    tailOnce();
+    pollRef.current = window.setInterval(() => { tailOnce(); }, 2000);
     setFollowing(true);
   }
   function stop() {
-    esRef.current?.close();
-    esRef.current = null;
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
     setFollowing(false);
   }
   async function tailOnce() {
-    stop();
     const url = `${baseUrl()}/context/logs?n=${n}`;
     const res = await fetch(url, { headers: { 'x-savant-user-id': getUserId() } });
     const js = await res.json();
@@ -42,7 +36,7 @@ export default function ContextLogs() {
     setLines(arr);
   }
 
-  useEffect(()=>{ tailOnce(); }, []);
+  useEffect(()=>{ tailOnce(); return () => { if (pollRef.current) clearInterval(pollRef.current); }; }, []);
   useEffect(()=>{ localStorage.setItem('ctx.logs.n', String(n)); }, [n]);
 
   return (

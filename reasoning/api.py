@@ -108,7 +108,15 @@ def _extract_search_history(history: Optional[List[Dict[str, Any]]]):
     return searches, pairs, tried_queries, tried_tools
 
 
-def _keywords_variant(text: str) -> str:
+def _is_echo_of_prompt(text: str) -> bool:
+    if not text:
+        return False
+    # If the LLM repeats its instructions/context rather than answering
+    markers = ["Conversation History:", "CURRENT CONTEXT:", "Goal:", "Decision Rules:", "Available Tools:", "Respond with ONLY:"]
+    hit_count = sum(1 for m in markers if m in text)
+    return hit_count >= 2
+
+def _mask_pii(text: str) -> str:
     """Generate a simple keyword-only variant of a query by removing common stopwords."""
     stop = {
         'the', 'a', 'an', 'to', 'for', 'and', 'or', 'in', 'of', 'on', 'with', 'by', 'from', 'about', 'into', 'over',
@@ -128,22 +136,10 @@ def _filter_search_tools(tools: Optional[List[str]]) -> Optional[List[str]]:
     return search_tools
 
 
-def _history_weights(count: int) -> List[float]:
-    if count <= 0:
-        return []
-    if count == 1:
-        return [1.0]
-    last_weight = 0.7
-    remainder = 0.3
-    denom = (count - 1) * count / 2.0
-    weights = []
-    for i in range(1, count):
-        weights.append(remainder * (i / denom))
-    weights.append(last_weight)
-    return weights
+# Removed _history_weights as part of cleanup to prevent LLM confusion.
 
 
-def _history_item_line(item: Dict[str, Any], index: int, weight: float) -> str:
+def _history_item_line(item: Dict[str, Any], index: int) -> str:
     action_obj = item.get('action')
     if isinstance(action_obj, dict):
         action_type = action_obj.get('action') or 'tool'
@@ -173,7 +169,7 @@ def _history_item_line(item: Dict[str, Any], index: int, weight: float) -> str:
         elif result_preview:
             result_preview = str(result_preview)[:200]
 
-    base = f"{index}. (weight {weight:.2f}) {action_type} {tool}".rstrip()
+    base = f"{index}. {action_type} {tool}".rstrip()
     if result_preview:
         return f"{base}: {result_preview}..."
     return base
@@ -182,16 +178,11 @@ def _history_item_line(item: Dict[str, Any], index: int, weight: float) -> str:
 def _history_context_with_weights(history: Optional[List[Dict[str, Any]]]) -> str:
     if not (history and isinstance(history, list)):
         return ""
-    weights = _history_weights(len(history))
-    try:
-        log_event('history_weights', count=len(history), first=weights[0] if weights else None, last=weights[-1] if weights else None)
-    except Exception:
-        pass
-    lines = ["Note: Newer items have higher weight; older items have lower weight."]
+    
+    lines = []
     for i, item in enumerate(history, 1):
         if isinstance(item, dict):
-            weight = weights[i - 1] if i - 1 < len(weights) else 0.0
-            lines.append(_history_item_line(item, i, weight))
+            lines.append(_history_item_line(item, i))
     return "\n## Previous Actions and Results:\n" + "\n".join(lines)
 
 
@@ -362,6 +353,7 @@ class AgentIntentRequest(BaseModel):
     agent_state: Optional[Dict[str, Any]] = None
     callback_url: Optional[str] = None
     correlation_id: Optional[str] = None
+    is_reaction: bool = False
 
 
 class AgentIntentResponse(BaseModel):
@@ -374,10 +366,12 @@ class AgentIntentResponse(BaseModel):
     finish: bool
     final_text: Optional[str] = None
     trace: Optional[List[Dict[str, Any]]] = None
+    llm_input: Optional[str] = None
+    llm_output: Optional[str] = None
 
 
-def _call_google_api(model: str, goal: str, instructions: Optional[str], api_key: str, history: Optional[List[Dict[str, Any]]] = None, persona: Optional[Dict[str, Any]] = None, driver: Optional[Dict[str, Any]] = None) -> str:
-    """Call Google Generative AI API directly."""
+def _call_google_api(model: str, goal: str, instructions: Optional[str], api_key: str, history: Optional[List[Dict[str, Any]]] = None, persona: Optional[Dict[str, Any]] = None, driver: Optional[Dict[str, Any]] = None, is_reaction: bool = False) -> tuple:
+    """Call Google Generative AI API directly. Returns (response_text, prompt)."""
     # Combine instructions, persona, and driver for a comprehensive system prompt
     system_parts = []
     if persona and (persona.get('prompt_md') or persona.get('summary')):
@@ -405,7 +399,27 @@ def _call_google_api(model: str, goal: str, instructions: Optional[str], api_key
             log_event('history_received_error', history_count=len(history), goal_text=goal, error=str(e))
         history_context = _history_context_with_weights(history)
 
-    prompt = f"""{system_prompt}
+    if is_reaction:
+        prompt = f"""{system_prompt}
+
+## REACTION MODE
+You are evaluating a message in the conversation. Decide if you want to AGREE, DISAGREE, or IGNORE.
+
+Rules:
+1. If you AGREE, provide your comments and reasoning.
+2. If you DISAGREE, provide your counter-arguments and reasoning.
+3. If you have nothing significant to add or find the message irrelevant to your role, choose ACTION: ignore.
+
+{history_context}
+
+Goal: {goal}
+
+Respond with ONLY:
+ACTION: [agree | disagree | ignore]
+RESULT: [your comments if agree/disagree]
+REASONING: [why you chose this reaction]"""
+    else:
+        prompt = f"""{system_prompt}
 
 You are analyzing a task and deciding how to proceed.
 
@@ -459,15 +473,17 @@ REASONING: why you need this tool"""
             if 'content' in candidate and 'parts' in candidate['content']:
                 text_parts = candidate['content']['parts']
                 if len(text_parts) > 0 and 'text' in text_parts[0]:
-                    return text_parts[0]['text']
+                    return (text_parts[0]['text'], prompt)
 
         raise Exception(f"Unexpected Google API response: {result}")
     except requests.exceptions.RequestException as e:
         raise Exception(f"Google API request failed: {str(e)}")
 
 
-def _use_llm_for_reasoning(goal_text: str, instructions: Optional[str], llm_provider: Optional[str], llm_model: Optional[str], api_key: Optional[str] = None, history: Optional[List[Dict[str, Any]]] = None, available_tools: Optional[List[str]] = None, persona: Optional[Dict[str, Any]] = None, driver: Optional[Dict[str, Any]] = None) -> tuple:
-    """Use LLM to reason about what tool to call or action to take."""
+def _use_llm_for_reasoning(goal_text: str, instructions: Optional[str], llm_provider: Optional[str], llm_model: Optional[str], api_key: Optional[str] = None, history: Optional[List[Dict[str, Any]]] = None, available_tools: Optional[List[str]] = None, persona: Optional[Dict[str, Any]] = None, driver: Optional[Dict[str, Any]] = None, is_reaction: bool = False) -> tuple:
+    """Use LLM to reason about what tool to call or action to take. Returns (tool_name, tool_args, final_text, reasoning, finish, prompt, response)."""
+    prompt_out = ""
+    response_out = ""
     try:
         from langchain.prompts import PromptTemplate
 
@@ -488,7 +504,7 @@ def _use_llm_for_reasoning(goal_text: str, instructions: Optional[str], llm_prov
         if provider_name in ['google api', 'google']:
             if not api_key:
                 raise Exception('API key not provided for Google API provider')
-            response = _call_google_api(model_name, goal_text, instructions, api_key, history, persona, driver)
+            response_out, prompt_out = _call_google_api(model_name, goal_text, instructions, api_key, history, persona, driver, is_reaction=is_reaction)
         else:
             from langchain_community.llms import Ollama
             llm_base_url = os.environ.get('OLLAMA_BASE_URL', 'http://localhost:11434')
@@ -509,9 +525,27 @@ def _use_llm_for_reasoning(goal_text: str, instructions: Optional[str], llm_prov
             if available_tools is not None:
                 tools_line = ", ".join(available_tools) if available_tools else "none"
 
-            prompt_template = PromptTemplate(
-                input_variables=["goal"],
-                template=f"""{system_prompt}
+            if is_reaction:
+                template = f"""{system_prompt}
+
+## REACTION MODE
+You are evaluating a message in the conversation. Decide if you want to AGREE, DISAGREE, or IGNORE.
+
+Rules:
+1. If you AGREE, provide your comments and reasoning.
+2. If you DISAGREE, provide your counter-arguments and reasoning.
+3. If you have nothing significant to add or find the message irrelevant to your role, choose ACTION: ignore.
+
+{history_context}
+
+Goal: {{goal}}
+
+Respond with ONLY:
+ACTION: [agree | disagree | ignore]
+RESULT: [your comments if agree/disagree]
+REASONING: [why you chose this reaction]"""
+            else:
+                template = f"""{system_prompt}
 
 You are analyzing a task and deciding how to proceed.
 
@@ -537,15 +571,22 @@ OR
 ACTION: tool_name
 RESULT: tool arguments (query or JQL)
 REASONING: why you need this tool"""
+
+            prompt_template = PromptTemplate(
+                input_variables=["goal"],
+                template=template
             )
 
             chain = prompt_template | llm
-            response = chain.invoke({"goal": goal_text})
+            prompt_out = prompt_template.format(goal=goal_text)
+            response_out = chain.invoke({"goal": goal_text})
 
+        response = response_out
         lines = response.strip().split('\n')
         action = None
         result = None
         reasoning = response[:200]
+
 
         for line in lines:
             if line.startswith('ACTION:'):
@@ -554,20 +595,24 @@ REASONING: why you need this tool"""
                 result = line.replace('RESULT:', '').strip()
             elif line.startswith('REASONING:'):
                 reasoning = line.replace('REASONING:', '').strip()
+        if result and _is_echo_of_prompt(result):
+            result = "🤷"
+        if response and _is_echo_of_prompt(response):
+            response = "🤷"
 
         if action and action.lower() == 'finish':
-            return (None, None, result or goal_text, reasoning, True)
+            return (None, None, result or goal_text, reasoning, True, prompt_out, response_out)
         elif action:
             a = action.lower()
             if a.startswith('context.fts_search'):
-                return ("context.fts_search", {"query": result or goal_text}, None, reasoning, False)
+                return ("context.fts_search", {"query": result or goal_text}, None, reasoning, False, prompt_out, response_out)
             if a.startswith('context.memory_search'):
-                return ("context.memory_search", {"query": result or goal_text}, None, reasoning, False)
+                return ("context.memory_search", {"query": result or goal_text}, None, reasoning, False, prompt_out, response_out)
             if a.startswith('jira.jira_search'):
-                return ("jira.jira_search", {"jql": result or goal_text}, None, reasoning, False)
+                return ("jira.jira_search", {"jql": result or goal_text}, None, reasoning, False, prompt_out, response_out)
             
             # Generic tool fallback
-            return (action, {"query": result or goal_text}, None, reasoning, False)
+            return (action, {"query": result or goal_text}, None, reasoning, False, prompt_out, response_out)
         else:
             # Fallback: Check if response is JSON despite line-based instructions
             try:
@@ -586,27 +631,28 @@ REASONING: why you need this tool"""
                 
                 if action_val:
                     if str(action_val).lower() == 'finish':
-                        return (None, None, result_val or goal_text, reason_val, True)
-                    return (str(action_val), {"query": result_val or goal_text}, None, reason_val, False)
+                        return (None, None, result_val or goal_text, reason_val, True, prompt_out, response_out)
+                    return (str(action_val), {"query": result_val or goal_text}, None, reason_val, False, prompt_out, response_out)
             except:
                 pass
 
-            return (None, None, result or response[:500], reasoning, True)
+            final_txt = result or response[:500]
+            if _is_echo_of_prompt(final_txt):
+                final_txt = "🤷"
+            return (None, None, final_txt, reasoning, True, prompt_out, response_out)
 
     except Exception as e:
         try:
             log_event('llm_reasoning_error', error=str(e), goal_text=goal_text)
         except:
             pass
-        return (None, None, None, f"LLM error: {str(e)}", False)
+        return (None, None, None, f"LLM error: {str(e)}", False, prompt_out, response_out)
 
 
 def _compute_intent_sync(req: AgentIntentRequest) -> Dict[str, Any]:
-    tool_name = None
-    tool_args: Optional[Dict[str, Any]] = None
-    final_text = None
-    reasoning = None
     finish = False
+    prompt_used = ""
+    response_received = ""
     tools_available = _filter_search_tools(req.tools_available)
     tools_disabled = req.tools_available is not None and not tools_available
 
@@ -620,7 +666,7 @@ def _compute_intent_sync(req: AgentIntentRequest) -> Dict[str, Any]:
         llm_model = (req.llm or {}).get('model') if isinstance(req.llm, dict) else None
 
         llm_api_key = (req.llm or {}).get('api_key') if isinstance(req.llm, dict) else None
-        tool_name, tool_args, final_text, reasoning, finish = _use_llm_for_reasoning(
+        tool_name, tool_args, final_text, reasoning, finish, prompt_used, response_received = _use_llm_for_reasoning(
             req.goal_text,
             req.instructions,
             llm_provider,
@@ -629,8 +675,25 @@ def _compute_intent_sync(req: AgentIntentRequest) -> Dict[str, Any]:
             req.history,
             tools_available,
             req.persona,
-            req.driver
+            req.driver,
+            is_reaction=req.is_reaction
         )
+
+        if req.is_reaction:
+            # Handle reaction actions
+            a = (tool_name or '').lower()
+            if a in ['agree', 'disagree']:
+                finish = True
+                final_text = final_text or tool_args.get('query') if isinstance(tool_args, dict) else tool_args
+                if _is_echo_of_prompt(final_text):
+                    final_text = "🤷"
+                tool_name = None
+                tool_args = None
+            elif a == 'ignore':
+                finish = True
+                final_text = None
+                tool_name = None
+                tool_args = None
 
         if tool_name is None and not finish and not tools_disabled:
             has_search_results = False
@@ -701,8 +764,9 @@ def _compute_intent_sync(req: AgentIntentRequest) -> Dict[str, Any]:
             except Exception:
                 pass
 
-    # Post-process: If we are finishing and the final_text looks like it might be a hallucinated math result
     if finish and final_text:
+        if _is_echo_of_prompt(final_text):
+            final_text = "🤷"
         # If the result is a short string (like "4") but the goal has a complex math expression
         # that doesn't equal that number, try to correct it.
         goal_math = _math_fallback(req.goal_text)
@@ -725,5 +789,7 @@ def _compute_intent_sync(req: AgentIntentRequest) -> Dict[str, Any]:
         "reasoning": reasoning,
         "finish": finish,
         "final_text": final_text,
-        "trace": []
+        "trace": [],
+        "llm_input": prompt_used,
+        "llm_output": response_received
     }

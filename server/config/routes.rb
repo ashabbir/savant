@@ -25,9 +25,16 @@ Rails.application.routes.draw do
 
   # Blackboard API
   scope :blackboard do
+    get 'sessions', to: 'blackboard#list_sessions'
+    post 'sessions/kill_all', to: 'blackboard#kill_all'
+    delete 'sessions', to: 'blackboard#delete_all'
+    post 'sessions/:id/kill', to: 'blackboard#kill_session'
+    post 'sessions/:id/clear', to: 'blackboard#clear_session'
+    delete 'sessions/:id', to: 'blackboard#delete_session'
     post 'sessions', to: 'blackboard#create_session'
     post 'events', to: 'blackboard#append_event'
     get 'events', to: 'blackboard#replay'
+    get 'events/recent', to: 'blackboard#recent_events'
     get 'subscribe', to: 'blackboard#subscribe'
     get 'stats', to: 'blackboard#stats'
     get 'artifacts/:id', to: 'blackboard#get_artifact'

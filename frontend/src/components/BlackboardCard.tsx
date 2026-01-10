@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import CardActions from '@mui/material/CardActions';
@@ -17,6 +18,7 @@ import { useBlackboardStats } from '../api';
 
 export default function BlackboardCard() {
   const { data, isLoading, isError } = useBlackboardStats();
+  const navigate = useNavigate();
 
   return (
     <Card
@@ -95,7 +97,7 @@ export default function BlackboardCard() {
         <Button
           size="small"
           onClick={() => {
-            window.open('/engine/blackboard', '_blank');
+            navigate('/diagnostics/blackboard');
           }}
           startIcon={<HistoryIcon />}
         >

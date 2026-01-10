@@ -162,10 +162,10 @@ module Savant
         { agent_yaml: YAML.dump(stringify_keys(payload)) }
       end
 
-      def create(name:, persona:, driver:, rules: [], favorite: false, instructions: nil, allowed_tools: nil)
+      def create(name:, persona:, driver:, rules: [], favorite: false, instructions: nil, allowed_tools: nil, model_id: nil)
         persona_id = ensure_persona(name: persona)
         rule_ids = ensure_rules(rules)
-        id = @db.create_agent(name: name, persona_id: persona_id, driver_name: driver, rule_set_ids: rule_ids, favorite: favorite, instructions: instructions, allowed_tools: allowed_tools)
+        id = @db.create_agent(name: name, persona_id: persona_id, driver_name: driver, rule_set_ids: rule_ids, favorite: favorite, instructions: instructions, allowed_tools: allowed_tools, model_id: model_id)
         row = @db.get_agent(id)
         to_agent_hash(row)
       end
@@ -210,6 +210,21 @@ module Savant
           instructions: instructions.nil? ? row['instructions'] : instructions,
           model_id: final_model_id
         )
+        got = @db.get_agent(id)
+        to_agent_hash(got)
+      end
+
+      def rename(old_name:, new_name:)
+        raise 'invalid_name' if old_name.to_s.strip.empty? || new_name.to_s.strip.empty?
+        # Ensure old exists
+        row = @db.find_agent_by_name(old_name)
+        raise 'not_found' unless row
+        # Ensure new does not exist
+        if @db.find_agent_by_name(new_name)
+          raise 'duplicate_agent_name'
+        end
+        id = @db.rename_agent(old_name: old_name, new_name: new_name)
+        raise 'not_found' unless id
         got = @db.get_agent(id)
         to_agent_hash(got)
       end

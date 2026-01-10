@@ -66,7 +66,10 @@ RSpec.describe Savant::Council::Ops do
           agent_name: params[2],
           run_id: params[3],
           status: params[4],
-          text: params[5],
+          correlation_id: params[5],
+          job_id: params[6],
+          run_key: params[7],
+          text: params[8],
           created_at: Time.now.utc.iso8601
         }
         FakeRes.new([{ 'id' => @seq.to_s }])
@@ -250,11 +253,12 @@ RSpec.describe Savant::Council::Ops do
     def get_council_session(id)
       sess = @sessions.find { |s| s[:id] == id.to_i }
       return nil unless sess
+
       msgs = @messages.select { |m| m[:session_id] == id.to_i }.sort_by { |m| m[:id] }
       { session: stringify(sess), messages: msgs.map { |m| stringify(m) } }
     end
 
-    def add_council_message(session_id:, role:, agent_name: nil, run_id: nil, text:, status: nil)
+    def add_council_message(session_id:, role:, text:, agent_name: nil, run_id: nil, status: nil, correlation_id: nil, job_id: nil, run_key: nil)
       @seq += 1
       @messages << {
         id: @seq,
@@ -263,6 +267,9 @@ RSpec.describe Savant::Council::Ops do
         agent_name: agent_name,
         run_id: run_id,
         status: status,
+        correlation_id: correlation_id,
+        job_id: job_id,
+        run_key: run_key,
         text: text,
         created_at: Time.now.utc.iso8601
       }
@@ -272,6 +279,7 @@ RSpec.describe Savant::Council::Ops do
     def update_council_session(id:, title: nil, agents: nil)
       sess = @sessions.find { |s| s[:id] == id.to_i }
       return false unless sess
+
       sess[:title] = title if title
       sess[:agents] = "{#{agents.join(',')}}" if agents
       sess[:updated_at] = Time.now.utc.iso8601
@@ -281,6 +289,7 @@ RSpec.describe Savant::Council::Ops do
     def update_council_description(id:, description: nil)
       sess = @sessions.find { |s| s[:id] == id.to_i }
       return false unless sess
+
       sess[:description] = description if description
       sess[:updated_at] = Time.now.utc.iso8601
       true
@@ -341,10 +350,10 @@ RSpec.describe Savant::Council::Ops do
 
   describe '#session_create' do
     it 'creates a new council session' do
-      result = ops.session_create(title: 'Test Council', agents: ['agent1', 'agent2'], user_id: 'user1')
+      result = ops.session_create(title: 'Test Council', agents: %w[agent1 agent2], user_id: 'user1')
       expect(result[:id]).to be > 0
       expect(result[:title]).to eq('Test Council')
-      expect(result[:agents]).to eq(['agent1', 'agent2'])
+      expect(result[:agents]).to eq(%w[agent1 agent2])
     end
 
     it 'creates session with description' do
@@ -384,7 +393,7 @@ RSpec.describe Savant::Council::Ops do
     end
 
     it 'raises for non-existent session' do
-      expect { ops.session_get(id: 99999) }.to raise_error('not_found')
+      expect { ops.session_get(id: 99_999) }.to raise_error('not_found')
     end
   end
 
@@ -423,7 +432,7 @@ RSpec.describe Savant::Council::Ops do
   end
 
   describe '#escalate_to_council' do
-    let(:session) { ops.session_create(title: 'Escalate Test', agents: ['a1', 'a2']) }
+    let(:session) { ops.session_create(title: 'Escalate Test', agents: %w[a1 a2]) }
 
     before do
       ops.append_user(session_id: session[:id], text: 'Should we use microservices or monolith?')
@@ -459,7 +468,7 @@ RSpec.describe Savant::Council::Ops do
   end
 
   describe '#current_council_run' do
-    let(:session) { ops.session_create(title: 'Run Test', agents: ['a1', 'a2']) }
+    let(:session) { ops.session_create(title: 'Run Test', agents: %w[a1 a2]) }
 
     it 'returns nil when no runs exist' do
       run = ops.current_council_run(session[:id])
@@ -477,7 +486,7 @@ RSpec.describe Savant::Council::Ops do
   end
 
   describe '#list_council_runs' do
-    let(:session) { ops.session_create(title: 'List Runs Test', agents: ['a1', 'a2']) }
+    let(:session) { ops.session_create(title: 'List Runs Test', agents: %w[a1 a2]) }
 
     before do
       3.times do |i|
@@ -498,7 +507,7 @@ RSpec.describe Savant::Council::Ops do
   end
 
   describe '#return_to_chat' do
-    let(:session) { ops.session_create(title: 'Return Test', agents: ['a1', 'a2']) }
+    let(:session) { ops.session_create(title: 'Return Test', agents: %w[a1 a2]) }
 
     before do
       ops.escalate_to_council(session_id: session[:id], query: 'Test')
@@ -519,7 +528,7 @@ RSpec.describe Savant::Council::Ops do
   end
 
   describe '#council_status' do
-    let(:session) { ops.session_create(title: 'Status Test', agents: ['a1', 'a2']) }
+    let(:session) { ops.session_create(title: 'Status Test', agents: %w[a1 a2]) }
 
     it 'returns status for chat mode session' do
       status = ops.council_status(session_id: session[:id])
@@ -538,7 +547,7 @@ RSpec.describe Savant::Council::Ops do
 
   describe '#session_delete' do
     it 'deletes session and all related data' do
-      session = ops.session_create(title: 'Delete Test', agents: ['a1', 'a2'])
+      session = ops.session_create(title: 'Delete Test', agents: %w[a1 a2])
       ops.append_user(session_id: session[:id], text: 'Test')
       ops.escalate_to_council(session_id: session[:id], query: 'Test')
 

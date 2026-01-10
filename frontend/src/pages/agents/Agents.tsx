@@ -37,6 +37,7 @@ import { useQueryClient, useQuery } from '@tanstack/react-query';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import ArticleIcon from '@mui/icons-material/Article';
 import Viewer from '../../components/Viewer';
+import yaml from 'js-yaml';
 
 const PANEL_HEIGHT = 'calc(100vh - 260px)';
 
@@ -58,6 +59,10 @@ export default function Agents() {
   const [yamlText, setYamlText] = useState('');
   const [yamlError, setYamlError] = useState<string | null>(null);
   const [yamlLoading, setYamlLoading] = useState(false);
+  const [copyOpen, setCopyOpen] = useState(false);
+  const [copyName, setCopyName] = useState('');
+  const [copyInstructions, setCopyInstructions] = useState('');
+  const [copyLoading, setCopyLoading] = useState(false);
   const { data, isLoading, isError, error, refetch } = useAgents();
   const details = useAgent(sel);
   const runs = useAgentRuns(sel);
@@ -183,6 +188,34 @@ export default function Agents() {
                 <span>
                   <IconButton size="small" color="primary" disabled={!sel} onClick={() => sel && nav(`/agents/edit/${sel}`)}>
                     <EditIcon fontSize="small" />
+                  </IconButton>
+                </span>
+              </Tooltip>
+              <Tooltip title={sel ? 'Copy Agent' : 'Select an agent'}>
+                <span>
+                  <IconButton
+                    size="small"
+                    color="primary"
+                    disabled={!sel}
+                    onClick={() => {
+                      if (!sel) return;
+                      setCopyName(`${sel}-copy`);
+                      setCopyInstructions('');
+                      setCopyOpen(true);
+                      (async () => {
+                        try {
+                          setCopyLoading(true);
+                          const res = await callEngineTool('agents', 'agents_read', { name: sel });
+                          const txt = (res && (res as any).agent_yaml) || '';
+                          const obj: any = (txt && yaml.load(txt)) || {};
+                          const instr = (obj?.instructions || '').toString();
+                          setCopyInstructions(instr);
+                        } catch {}
+                        finally { setCopyLoading(false); }
+                      })();
+                    }}
+                  >
+                    <ContentCopyIcon fontSize="small" />
                   </IconButton>
                 </span>
               </Tooltip>
@@ -501,6 +534,94 @@ export default function Agents() {
           }}>Delete</Button>
         </DialogActions>
       </Dialog>
+      <Dialog open={copyOpen} onClose={() => setCopyOpen(false)}>
+        <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          Copy Agent
+          <IconButton size="small" onClick={() => setCopyOpen(false)}>
+            <CloseIcon fontSize="small" />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent dividers>
+          <Stack spacing={2} sx={{ mt: 1 }}>
+            <TextField
+              label="New Agent Name"
+              value={copyName}
+              onChange={(e) => setCopyName(e.target.value)}
+              fullWidth
+              size="small"
+              autoFocus
+              placeholder="my-agent-copy"
+            />
+            <TextField
+              label="Instructions (Reason)"
+              value={copyInstructions}
+              onChange={(e) => setCopyInstructions(e.target.value)}
+              fullWidth
+              size="small"
+              multiline
+              minRows={3}
+              placeholder="Optional instructions for the copied agent"
+            />
+            <Typography variant="caption" color="text.secondary">
+              A duplicate will be created with the same persona, driver, rules, tools, and instructions.
+            </Typography>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCopyOpen(false)}>Cancel</Button>
+          <Button
+            variant="contained"
+            disabled={!sel || !copyName.trim() || copyLoading}
+            onClick={async () => {
+              if (!sel || !copyName.trim()) return;
+              try {
+                // Read YAML for the source agent
+                const res = await callEngineTool('agents', 'agents_read', { name: sel });
+                const txt = (res && (res as any).agent_yaml) || '';
+                const obj: any = (txt && yaml.load(txt)) || {};
+                // Also fetch agent record to get model_id
+                let modelId: number | undefined = undefined;
+                try {
+                  const rec = await callEngineTool('agents', 'agents_get', { name: sel });
+                  const mid = Number((rec && (rec as any).model_id) || NaN);
+                  if (Number.isFinite(mid)) modelId = mid;
+                } catch {}
+                // Extract fields for creation
+                const persona = (obj?.persona?.name || obj?.persona || 'savant-engineer').toString();
+                let driver = '';
+                if (obj?.driver) {
+                  if (typeof obj.driver === 'string') driver = obj.driver;
+                  else driver = (obj.driver.name || obj.driver.prompt_md || '').toString();
+                }
+                if (!driver) driver = 'developer';
+                const rulesArr = Array.isArray(obj?.rules) ? obj.rules : [];
+                const rules = rulesArr.map((r: any) => (r && (r.name || r)).toString()).filter((s: string) => !!s);
+                const allowedTools = Array.isArray(obj?.tools?.allowlist) ? obj.tools.allowlist : [];
+                const instructions = copyInstructions.trim() || (obj?.instructions || '').toString();
+
+                await callEngineTool('agents', 'agents_create', {
+                  name: copyName.trim(),
+                  persona,
+                  driver,
+                  rules,
+                  favorite: false,
+                  instructions,
+                  allowed_tools: allowedTools,
+                  model_id: modelId,
+                });
+                setToast('Agent copied');
+                setCopyOpen(false);
+                setSel(copyName.trim());
+                await refetch();
+              } catch (e: any) {
+                setToast(`Copy failed: ${getErrorMessage(e)}`);
+              }
+            }}
+          >
+            Create Copy
+          </Button>
+        </DialogActions>
+      </Dialog>
       <Dialog open={yamlOpen} onClose={() => setYamlOpen(false)} maxWidth="md" fullWidth>
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           Agent YAML
@@ -528,7 +649,7 @@ export default function Agents() {
           {yamlLoading && <LinearProgress />}
           {yamlError && <Alert severity="error" sx={{ m: 2 }}>{yamlError}</Alert>}
           {!yamlError && (
-            <Viewer content={yamlText || ''} language="yaml" height="70vh" />
+            <Viewer content={yamlText || ''} language="yaml" height="70vh" yamlCollapsible />
           )}
         </DialogContent>
         <DialogActions>

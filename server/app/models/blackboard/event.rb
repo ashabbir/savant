@@ -28,16 +28,23 @@ module Blackboard
     private
 
     def publish_to_redis
-      # Fan-out event_id to Redis
-      redis_url = ENV.fetch('REDIS_URL', 'redis://localhost:6379/0')
-      redis = Redis.new(url: redis_url)
-      
-      # Channel naming: blackboard:session:<session_id>:events
-      # And a global channel: blackboard:events
-      redis.publish("blackboard:events", { event_id: event_id, session_id: session_id, type: type }.to_json)
-      redis.publish("blackboard:session:#{session_id}:events", { event_id: event_id, type: type }.to_json)
-    ensure
-      redis&.close
+      # Best-effort fan-out to Redis; do not fail persistence if Redis is unavailable
+      begin
+        redis_url = ENV.fetch('REDIS_URL', 'redis://localhost:6379/0')
+        r = Redis.new(url: redis_url)
+        # Channel naming: blackboard:session:<session_id>:events and global: blackboard:events
+        payload = { event_id: event_id, session_id: session_id, type: type }
+        r.publish('blackboard:events', payload.to_json)
+        r.publish("blackboard:session:#{session_id}:events", { event_id: event_id, type: type }.to_json)
+      rescue StandardError => e
+        begin
+          Rails.logger.warn("blackboard.redis_publish_failed error=#{e.class} msg=#{e.message}") if defined?(Rails)
+        rescue StandardError
+          # ignore logger errors
+        end
+      ensure
+        begin r&.close rescue StandardError end
+      end
     end
   end
 end
