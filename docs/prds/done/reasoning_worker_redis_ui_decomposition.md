@@ -35,12 +35,8 @@
   - Worker status table with heartbeat monitoring
 - Created Rails controller tests (13 tests total)
 
-### Phase 3: Remove Reasoning API ✅
-- Completely refactored `reasoning/api.py`:
-  - Removed all FastAPI HTTP server code
-  - Removed all MongoDB queue management code
-  - Kept only core reasoning logic (`_compute_intent_sync` and helpers)
-  - Now serves as pure Python library for worker
+### Phase 3: Redis Worker Only ✅
+- Deleted `reasoning/api.py`; intent computation now lives directly in `reasoning/worker.py` (no HTTP server, no external module dependency)
 - Updated `lib/savant/reasoning/client.rb`:
   - Removed MongoDB transport code
   - Removed HTTP transport code
@@ -55,7 +51,7 @@
 - `server/Gemfile` - Added redis gem  
 - `reasoning/requirements.txt` - Added redis
 - `reasoning/worker.py` - Complete rewrite for Redis
-- `reasoning/api.py` - Stripped to logic-only module
+- `reasoning/api.py` - Removed (logic embedded in worker)
 - `lib/savant/reasoning/client.rb` - Redis-only transport
 - `server/config/routes.rb` - Added engine routes
 - `spec/savant/reasoning/client_spec.rb` - Rewrote for Redis
@@ -82,12 +78,12 @@
 ### Architecture Change:
 **Before:**
 ```
-Rails → HTTP → FastAPI (reasoning/api.py) → MongoDB Queue → Worker
+Rails → Redis Queue → Worker (no external API)
 ```
 
 **After:**
 ```
-Rails → Redis Queue → Worker (reasoning/worker.py) → reasoning/api.py (library)
+Rails → Redis Queue → Worker (reasoning/worker.py)
                 ↓
             Result/Callback
 ```
@@ -108,7 +104,7 @@ This PRD defines a three-phase refactor of the Savant Reasoning Worker stack to:
 
 1. Migrate job execution from MongoDB to Redis
 2. Add a minimal, Engine-owned UI for worker and job observability
-3. Remove the Reasoning API entirely and simplify the architecture
+3. Eliminate external APIs and simplify the architecture (Redis worker only)
 
 The end state is a clean, local-first system with:
 - Rails as the control plane
@@ -278,7 +274,7 @@ Browser → Rails Engine UI → Redis + Log Files
 
 ## Acceptance Criteria
 
-- UI renders without Reasoning API
+- UI renders without external API
 - Job state reflects Redis accurately
 - Logs visible per job
 - Local-only access
@@ -295,11 +291,11 @@ Browser → Rails Engine UI → Redis + Log Files
 
 ---
 
-# Phase 3 — Remove Reasoning API
+# Phase 3 — Redis Worker Only
 
 ## Objective
 
-Eliminate the Reasoning API service and collapse all job coordination around Redis.
+Eliminate any external API service and collapse all job coordination around Redis.
 
 ---
 
@@ -314,7 +310,7 @@ Browser → Rails Engine UI → Redis + Logs
 ## Removal Scope
 
 Delete:
-- Reasoning API service code
+- External API service code
 - Controllers and routes
 - Auth and middleware
 - Health checks
@@ -324,7 +320,7 @@ Delete:
 
 ## Acceptance Criteria
 
-- No HTTP calls to Reasoning API
+- No HTTP calls to an external API
 - Rails enqueues jobs directly to Redis
 - Worker consumes Redis directly
 - Engine UI works unchanged
@@ -333,7 +329,7 @@ Delete:
 
 ## Phase 3 Definition of Done
 
-- Reasoning API removed from repo
+- External API removed from repo
 - Redis is the only job transport
 - End-to-end execution verified
 - System has fewer services than before
@@ -368,4 +364,3 @@ After completion:
 - Log format standardization
 - Job retry and backoff policy
 - Hub observability API extraction
-

@@ -28,7 +28,7 @@ import HubIcon from '@mui/icons-material/Hub';
 import HttpIcon from '@mui/icons-material/Http';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
-import { useHubInfo, useDiagnostics, useHubStats, testDbQuery, DbQueryTest } from '../../api';
+import { useHubInfo, useDiagnostics, useHubStats, testDbQuery, DbQueryTest, loadConfig } from '../../api';
 import SmallMultiples, { SmallSeries } from '../../components/SmallMultiples';
 import SmallMultiplesMulti, { MultiSeries } from '../../components/SmallMultiplesMulti';
 
@@ -276,7 +276,7 @@ export default function DiagnosticsOverview() {
         {/* Left Column - Quick Cards + Requests (scrollable) */}
         <Grid xs={12} md={4}>
           <Stack spacing={1.5} sx={{ height: '100%', overflow: 'auto' }}>
-            {/* Quick Cards: Workflows + API Health */}
+            {/* Quick Cards: Workflows + Workers + API Health */}
             <Paper sx={{ p: 1.5, cursor: 'pointer' }} onClick={() => navigate('/diagnostics/workflows')}>
               <Typography variant="subtitle2" sx={{ mb: 0.5, fontWeight: 600 }}>Workflows</Typography>
               <Typography variant="body2" color="text.secondary">
@@ -285,6 +285,20 @@ export default function DiagnosticsOverview() {
               <Box sx={{ mt: 1 }}>
                 <Tooltip title="Open Workflows Telemetry">
                   <IconButton size="small" onClick={(e)=>{ e.stopPropagation(); navigate('/diagnostics/workflows'); }}>
+                    <OpenInNewIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              </Box>
+            </Paper>
+
+            <Paper sx={{ p: 1.5, cursor: 'pointer' }} onClick={() => navigate('/diagnostics/reasoning/workers')}>
+              <Typography variant="subtitle2" sx={{ mb: 0.5, fontWeight: 600 }}>Workers</Typography>
+              <Typography variant="body2" color="text.secondary">
+                Inspect Reasoning workers, running jobs, and recent completions/failures.
+              </Typography>
+              <Box sx={{ mt: 1 }}>
+                <Tooltip title="Open Workers">
+                  <IconButton size="small" onClick={(e)=>{ e.stopPropagation(); navigate('/diagnostics/reasoning/workers'); }}>
                     <OpenInNewIcon fontSize="small" />
                   </IconButton>
                 </Tooltip>
@@ -800,14 +814,14 @@ export default function DiagnosticsOverview() {
                 <Stack direction="row" spacing={1}>
                   {diag.data?.reasoning?.dashboard_url && (
                     <Tooltip title="View Job Dashboard">
-                      <IconButton size="small" component="a" href={diag.data.reasoning.dashboard_url}>
+                      <IconButton size="small" component="a" href={diag.data.reasoning.dashboard_url.startsWith('/') ? `${loadConfig().baseUrl}${diag.data.reasoning.dashboard_url}` : diag.data.reasoning.dashboard_url} target="_blank">
                         <OpenInNewIcon fontSize="small" />
                       </IconButton>
                     </Tooltip>
                   )}
                   {diag.data?.reasoning?.workers_url && (
                     <Tooltip title="View Active Workers">
-                      <IconButton size="small" component="a" href={diag.data.reasoning.workers_url}>
+                      <IconButton size="small" component="a" href={diag.data.reasoning.workers_url.startsWith('/') ? `${loadConfig().baseUrl}${diag.data.reasoning.workers_url}` : diag.data.reasoning.workers_url} target="_blank">
                         <StorageIcon fontSize="small" />
                       </IconButton>
                     </Tooltip>

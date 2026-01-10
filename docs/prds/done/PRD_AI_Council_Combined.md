@@ -292,7 +292,7 @@ Mode semantics (v1)
 Implemented deltas
 - Enforced ≥2 agents to escalate; else `insufficient_agents`.
 - Safety veto with short‑circuit and explicit explanation.
-- Demo mode for offline/dev testing without Reasoning API.
+- Demo mode for offline/dev testing without the Reasoning Worker.
 
 ---
 
@@ -381,7 +381,7 @@ Mongo (optional; best‑effort)
 
 ## 22. Env and Flags
 
-- `COUNCIL_DEMO_MODE=1` → demo positions/synthesis without Reasoning API.
+- `COUNCIL_DEMO_MODE=1` → demo positions/synthesis without the Reasoning Worker.
 - `COUNCIL_AUTO_AGENT_STEP=1` → optional auto single‑step agent reasoning on user append (chat mode).
 
 ---

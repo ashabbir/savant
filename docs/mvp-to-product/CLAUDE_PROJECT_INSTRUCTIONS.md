@@ -49,7 +49,7 @@ Savant is an **Agent Infrastructure Platform (AIP)** - a developer-first, local-
 │  │   Agent    │◄────────────────────────►│   Engines     │  │
 │  │  Runtime   │  (routes via mux)        │ Context Think │  │
 │  │            │                          │ Jira Personas │  │
-│  │ Reasoning API│                         │     Rules     │  │
+│  │ Reasoning Worker│                      │     Rules     │  │
 │  └────────────┘                          └───────────────┘  │
 │        │                                                     │
 │        ▼                                                     │
@@ -87,7 +87,7 @@ Savant is an **Agent Infrastructure Platform (AIP)** - a developer-first, local-
 - **Indexer:** Repository scanning and chunking
 
 **Module 4: Agent Runtime** (`lib/savant/agent/`)
-- Autonomous reasoning loop (decisions via Reasoning API)
+- Autonomous reasoning loop (decisions via Reasoning Worker)
 - Prompt builder with telemetry snapshots
 - Action parsing and policy enforcement
 - Memory system (ephemeral + persistent)
@@ -110,7 +110,7 @@ Savant is an **Agent Infrastructure Platform (AIP)** - a developer-first, local-
 ### Agent Runtime
 
 **Autonomous Reasoning Loop:**
-- **Reasoning API decisions:** Externalized intent selection (v1)
+- **Reasoning Worker decisions:** Externalized intent selection
 - **LLM support:** Complex tool outputs may use LLMs as configured
 - **Step-based execution:** Configurable max steps (default 25)
 - **Tool routing:** Via MCP multiplexer to all engines
@@ -119,7 +119,7 @@ Savant is an **Agent Infrastructure Platform (AIP)** - a developer-first, local-
 **Execution Flow:**
 1. Load goal and runtime context (persona, driver, rules)
 2. Build prompt with token budget management
-3. Call Reasoning API (decide action)
+3. Enqueue job to Reasoning Worker (decide action)
 4. Parse output (JSON extraction, schema validation)
 5. Route tool calls via multiplexer
 6. Update memory and telemetry
@@ -527,7 +527,7 @@ npm run type-check
 
 ### Current MVP Capabilities
 
-✅ Agent execution (Reasoning API decisions)
+✅ Agent execution (Reasoning Worker decisions)
 ✅ Workflow execution (YAML-based)
 ✅ Repository indexing (local)
 ✅ Code search (FTS)

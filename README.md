@@ -4,7 +4,7 @@ Savant is a lightweight Ruby framework for building and running local MCP servic
 
 **Key Features:**
 - **Multiplexer**: Unified MCP surface merging tools from all engines (Context, Git, Think, Jira, Personas, Rules)
-- **Agent Runtime**: Autonomous reasoning loops powered by the Reasoning API
+- **Agent Runtime**: Autonomous reasoning loops powered by the Redis Reasoning Worker
 - **Boot System**: RuntimeContext with persona loading, AMR rules, and repo detection
 - **React UI**: Real-time diagnostics with agent monitoring, logs, and route exploration
 
@@ -22,7 +22,7 @@ Savant is a lightweight Ruby framework for building and running local MCP servic
 │  │   Agent    │◄────────────────────────►│   Engines     │  │
 │  │  Runtime   │  (routes via mux)        │ Context Think │  │
 │  │            │                          │ Jira Personas │  │
-│  │ Reasoning API│                         │     Rules     │  │
+│  │ Reasoning Worker│                      │     Rules     │  │
 │  └────────────┘                          └───────────────┘  │
 │        │                                                     │
 │        ▼                                                     │
@@ -58,7 +58,7 @@ AI Council enables explicit escalation from lightweight chat to a structured, mu
 - UI: open the Hub and click the Council tab (`/council`). Left panel lists sessions; right panel shows transcript and live council status.
 - API: Council is exposed as MCP tools under the `council` engine via Hub HTTP routes: `/{engine}/tools/{tool}/call`.
 - Minimum to escalate: at least two agents in the session.
-- Env: `COUNCIL_DEMO_MODE=1` to run without a Reasoning API; `COUNCIL_AUTO_AGENT_STEP=1` to append an auto agent step on user messages in chat.
+- Env: `COUNCIL_DEMO_MODE=1` to run without the Reasoning Worker; `COUNCIL_AUTO_AGENT_STEP=1` to append an auto agent step on user messages in chat.
 
 Quick examples (HTTP via Hub)
 ```
@@ -115,7 +115,7 @@ Notes
 | [Framework](memory_bank/framework.md) | Core concepts, lifecycle, and configuration surface. |
 | [Architecture](memory_bank/architecture.md) | System topology, data model, and component responsibilities. |
 | [Boot Runtime](memory_bank/engine_boot.md) | Boot initialization, RuntimeContext, AMR system, and CLI commands. |
-| **[Agent Runtime](memory_bank/runtime.md)** | **Autonomous reasoning loop via Reasoning API, memory system, and telemetry.** |
+| **[Agent Runtime](memory_bank/runtime.md)** | **Autonomous reasoning loop via the Redis Reasoning Worker, memory system, and telemetry.** |
 | [Multiplexer](memory_bank/multiplexer.md) | Unified tool surface across engines; process model and routing. |
 | [Hub](memory_bank/hub.md) | HTTP endpoints, UI mounting, diagnostics, logs, and routes. |
 | [Database](memory_bank/database.md) | Schema, FTS index, migrations, and context engine queries. |
@@ -265,9 +265,9 @@ steps:
 
 - The Think engine ships a Workflow Editor (Engines → Think → Workflows) that allows graph editing, validation, YAML preview, and diagram rendering.
 
-### Agent Runtime (Reasoning API)
+### Agent Runtime (Reasoning Worker)
 
-The Agent Runtime orchestrates autonomous reasoning loops by delegating decisions to the external Reasoning API.
+The Agent Runtime orchestrates autonomous reasoning loops by delegating decisions to the Redis‑backed Reasoning Worker.
 
 **Architecture Overview:**
 ```
@@ -275,7 +275,7 @@ The Agent Runtime orchestrates autonomous reasoning loops by delegating decision
 │                    AGENT RUNTIME LOOP                       │
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
-│  Prompt Builder  ──► Reasoning API  ──► Action Parser      │
+│  Prompt Builder  ──► Reasoning Worker ──► Action Parser    │
 │       │                                    │                │
 │       ▼                                    ▼                │
 │  Memory System ◄────── Multiplexer ◄── Tool Router         │
@@ -287,7 +287,7 @@ The Agent Runtime orchestrates autonomous reasoning loops by delegating decision
 │  • logs/agent_trace.log    (telemetry per step)            │
 │  • .savant/session.json    (persistent memory)             │
 │                                                             │
-│  Decisions: Reasoning API (v1)                             │
+│  Decisions: Reasoning Worker                               │
 │  Budget:   LLM context as configured (tools may use LLM)   │
 └─────────────────────────────────────────────────────────────┘
 ```
@@ -401,10 +401,7 @@ Agent Management:
 # Set the encryption key (required for API key storage)
 export SAVANT_ENC_KEY=$(ruby -e "require 'securerandom'; puts SecureRandom.hex(32)")
 
-# Optional environment variables
-export REASONING_API_URL="http://localhost:9000"  # For LangChain/LangGraph integration
-export REASONING_API_TIMEOUT_MS="5000"
-export REASONING_API_RETRIES="2"
+
 ```
 
 **Database:**
@@ -573,7 +570,7 @@ lib/savant/
 - `memory.rb` - Ephemeral state + `.savant/session.json` persistence
 
 **Key Concepts**:
-- **Reasoning API decisions**: Externalized intent selection (v1)
+- **Reasoning Worker decisions**: Externalized intent selection (Redis worker)
 - **LLM support**: Heavy analysis for tool outputs where needed
 - **Token budgets**: LLM context budgets with LRU trimming as applicable
 - **Memory persistence**: Session snapshots with summarization
@@ -595,7 +592,7 @@ lib/savant/
 **Configuration**:
 ```ruby
 ENV['LLM_PROVIDER']  # ollama|anthropic|openai
-# SLM_MODEL deprecated (decisions via Reasoning API)
+# SLM_MODEL deprecated (decisions handled by Reasoning Worker)
 ENV['LLM_MODEL']     # llama3:latest (default)
 ENV['OLLAMA_HOST']   # http://127.0.0.1:11434 (default)
 ```
@@ -674,22 +671,7 @@ Key test files:
 - Connections list: `GET /diagnostics/connections`
 - Per-engine diagnostics: `GET /diagnostics/mcp/:name`
 
-### Reasoning API Quickstart
-
-- Start locally:
-  - `make reasoning-setup && make reasoning-api`
-- Health check:
-  - `curl -s http://127.0.0.1:9000/healthz`
-- Example (finish):
-  - `curl -sX POST http://127.0.0.1:9000/agent_intent -H 'Accept-Version: v1' -H 'Content-Type: application/json' -d '{"session_id":"s1","persona":{},"goal_text":"Say hello"}' | jq .`
-  - Sample response:
-    - `{ "status": "ok", "duration_ms": 12, "intent_id": "agent-173...", "finish": true, "final_text": "Completed: Say hello", "reasoning": "Task completed. No additional tool calls required.", "trace": [] }`
-- Example (search tool):
-  - `curl -sX POST http://127.0.0.1:9000/agent_intent -H 'Accept-Version: v1' -H 'Content-Type: application/json' -d '{"session_id":"s1","persona":{},"goal_text":"Find indexer pipeline docs"}' | jq .`
-  - Sample response:
-    - `{ "status": "ok", "intent_id": "agent-173...", "tool_name": "context.fts_search", "tool_args": {"query":"Find indexer pipeline docs"}, "finish": false, "reasoning": "Analyzing codebase requires searching documentation and code" }`
-
-
+ 
 ## Memory Bank (Detailed Docs)
 
 All detailed docs (with visual diagrams) live under `memory_bank/`. Use the table above (and the direct links below) to jump into the source of truth:
@@ -697,7 +679,7 @@ All detailed docs (with visual diagrams) live under `memory_bank/`. Use the tabl
 - Framework + architecture: [`framework.md`](memory_bank/framework.md), [`architecture.md`](memory_bank/architecture.md)
 - Boot Runtime: [`engine_boot.md`](memory_bank/engine_boot.md) - RuntimeContext, boot sequence, AMR system, CLI reference
 - **Agent Runtime: [`runtime.md`](memory_bank/runtime.md) - Reasoning loop, LLM adapters, memory system, token budgets, telemetry**
-- Reasoning API: [`reasoning_api.md`](memory_bank/reasoning_api.md) - Stack, transport modes, endpoints, queue/callback flows, and diagrams
+
 - Engines: [`engine_context.md`](memory_bank/engine_context.md), [`engine_think.md`](memory_bank/engine_think.md), [`engine_jira.md`](memory_bank/engine_jira.md), [`engine_personas.md`](memory_bank/engine_personas.md)
 - Guardrails + patterns: [`engine_rules.md`](memory_bank/engine_rules.md)
 

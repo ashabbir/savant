@@ -15,7 +15,7 @@ require_relative 'state_machine'
 
 module Savant
   module Agent
-    # Orchestrates the reasoning loop using the external Reasoning API for decisions.
+    # Orchestrates the reasoning loop using the Redis Reasoning Worker for decisions.
     class Runtime
       DEFAULT_MAX_STEPS = (ENV['AGENT_MAX_STEPS'] || '25').to_i
 
@@ -57,9 +57,9 @@ module Savant
       def run(max_steps: @max_steps, dry_run: false)
         @logger.info(event: 'agent_runtime_start', run_id: @run_id, goal_len: @goal.length, max_steps: max_steps, dry_run: dry_run)
         steps = 0
-        model = 'reasoning_api/v1'
+        model = 'reasoning_worker/v1'
         # AMR shortcut: if goal clearly requests a workflow, auto-trigger workflow_run once.
-        # Default: ENABLED (AGENT_ENABLE_WORKFLOW_AUTODETECT=1 implicit). You can disable with AGENT_DISABLE_WORKFLOW_AUTODETECT=1 or FORCE_REASONING_API=1.
+        # Default: ENABLED (AGENT_ENABLE_WORKFLOW_AUTODETECT=1 implicit). You can disable with AGENT_DISABLE_WORKFLOW_AUTODETECT=1.
         autodetect = true
         begin
           env_true  = ->(v) { v && %w[1 true yes on].include?(v.to_s.strip.downcase) }
@@ -67,10 +67,9 @@ module Savant
 
           en = ENV['AGENT_ENABLE_WORKFLOW_AUTODETECT']
           dis = ENV['AGENT_DISABLE_WORKFLOW_AUTODETECT']
-          force = ENV['FORCE_REASONING_API']
 
           # Explicit disables take precedence
-          autodetect = if env_true.call(dis) || env_true.call(force)
+          autodetect = if env_true.call(dis)
                          false
                        elsif env_false.call(en)
                          false
@@ -198,10 +197,10 @@ module Savant
 
             "- #{n} — #{d}#{req_info}"
           end.compact
-          # Persist tool lists for Reasoning API payload
+          # Persist tool lists for Reasoning Worker payload
           @last_tools_available = tools_hint
           @last_tools_catalog = catalog
-          # Compose a system note communicating tool policy so the Reasoning API avoids disallowed tools.
+          # Compose a system note communicating tool policy so the Reasoning Worker avoids disallowed tools.
           pol = instruction_tool_policy
           policy_note = if pol[:disable_all]
                           'Tool Policy: Tools are disabled by instruction. Always choose action="reason" or "finish"; do not select any tool.'
@@ -289,8 +288,8 @@ module Savant
             @memory.append_step(index: steps, action: action, output: res)
             @memory.snapshot!
           when 'reason'
-            # Log as Reasoning API; no local LLM calls here
-            model = 'reasoning_api/v1'
+            # Log as Reasoning Worker; no local LLM calls here
+            model = 'reasoning_worker/v1'
             @state_machine.transition_to(:analyzing, reason: 'deep_reasoning')
             @last_output = action['reasoning']
             @memory.append_step(index: steps, action: action, note: 'deep_reasoning')
@@ -421,7 +420,7 @@ module Savant
         File.file?(path)
       end
 
-      def decide_and_parse(_prompt: nil, model: nil, _allowed_tools: [], step: nil, dry_run: false)
+      def decide_and_parse(prompt: nil, model: nil, allowed_tools: [], step: nil, dry_run: false)
         usage = { prompt_tokens: nil, output_tokens: nil }
         # In dry-run, do not hit external services; finish immediately
         if dry_run
@@ -435,7 +434,7 @@ module Savant
         started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
         @logger.info(event: 'reasoning_start', run_id: @run_id, step: step, model: model, mcp: 'reasoning')
 
-        # Build payload for Reasoning API / Worker
+        # Build payload for Reasoning Worker
         payload = build_agent_payload
 
         # Call Reasoning Worker via Redis
@@ -519,7 +518,7 @@ module Savant
           max_steps: 1,
           llm: llm_obj,
           agent_state: @state_machine&.to_h,
-          correlation_id: @run_id
+          correlation_id: @run_id.to_s
         }
       end
 
@@ -527,7 +526,7 @@ module Savant
         @reasoning_client ||= Savant::Reasoning::Client.new
       end
 
-      # Removed model-based repair path; Reasoning API must return a valid action.
+      # Removed model-based repair path; Reasoning Worker must return a valid action.
 
       # If action is 'tool' but tool_name is not allowed, normalize or convert to error/reason.
       def ensure_valid_action(action, valid_tools)
@@ -557,7 +556,7 @@ module Savant
         # Only accept corrected canonical name with '/'
         return action.merge('tool_name' => norm1) if valid_tools.include?(norm1)
 
-        # Skip model-based correction; rely on Reasoning API/tool policy and simple heuristics only
+        # Skip model-based correction; rely on Reasoning Worker/tool policy and simple heuristics only
         # Heuristic fallback intentionally disabled per no_mcp policy enforcement.
         # unless env_bool('AGENT_DISABLE_CONTEXT_TOOLS') || env_bool('AGENT_DISABLE_SEARCH_TOOLS') || pol[:disable_context] || pol[:disable_search]
         #   return action.merge('tool_name' => 'context.fts_search') if @goal =~ /\b(search|fts|find|lookup|README)\b/i && valid_tools.include?('context.fts_search')
@@ -664,7 +663,7 @@ module Savant
         { error: 'tool_call_error', message: e.message }
       end
 
-      # Removed local LLM call wrapper; decisions are handled by the Reasoning API.
+      # Removed local LLM call wrapper; decisions are handled by the Reasoning Worker.
 
       def emit_step_event(steps:, model:, usage:, action:)
         summary = (action['reasoning'] || action[:reasoning] || '').to_s

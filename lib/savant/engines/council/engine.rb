@@ -58,6 +58,11 @@ module Savant
         @ops.agent_step(session_id: session_id, goal_text: goal_text, agent_name: agent_name)
       end
 
+      # Delete a single message/event (and associated DB row where possible)
+      def delete_message_event(session_id:, event_id:, scope: 'single')
+        @ops.delete_message_event(session_id: session_id, event_id: event_id, scope: scope)
+      end
+
       # =========================
       # Council Protocol Operations
       # =========================

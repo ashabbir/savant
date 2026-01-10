@@ -71,7 +71,7 @@ curl -s -H 'content-type: application/json' -H 'x-savant-user-id: me' \
 ```
 
 Environment flags:
-- `COUNCIL_DEMO_MODE=1` → demo positions/synthesis without Reasoning API
+- `COUNCIL_DEMO_MODE=1` → demo positions/synthesis without the Reasoning Worker
 - `COUNCIL_AUTO_AGENT_STEP=1` → optional auto agent step on user messages (chat mode)
 
 ## 3.1) Dev Mode (Rails + Vite, hot reload)

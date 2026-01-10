@@ -1,112 +1,99 @@
-# Reasoning Queue Worker (Mongo Transport)
+# Reasoning Queue Worker (Redis Architecture)
 
-The Reasoning Queue Worker consumes queued intent requests from Mongo, computes decisions, and writes results back for the Agent Runtime to poll. It exists to decouple agent execution from reasoning compute and to support cancellation/queue control.
+The Reasoning Queue Worker is a high-performance Python service that handles LLM reasoning tasks. It uses **Redis** as a low-latency message broker to decouple agent execution from reasoning compute, supporting parallel execution, cancellation, and detailed diagnostic tracing.
 
-- Location: `reasoning/`
-- Queue transport: `REASONING_TRANSPORT=mongo`
-- Queue DB: `reasoning_queue` (Mongo)
-- Client: `lib/savant/reasoning/client.rb`
+- **Location**: `reasoning/`
+- **Queue Transport**: Redis (`BRPOP`/`BLPOP` flow)
+- **Primary Keys**:
+  - Queue: `savant:queue:reasoning`
+  - Results: `savant:result:{job_id}`
+  - Metadata: `savant:job:meta:{job_id}`
+  - Cancellation: `savant:jobs:cancel:requested` (Set)
+- **Client**: `lib/savant/reasoning/client.rb`
 
 ## Responsibilities
 
-- Poll queued intent requests from Mongo.
-- Execute the reasoning model / workflow to produce `{action, tool_name, args, finish?, reasoning}`.
-- Write results back to the queue for client polling.
-- Honor cancellation signals and timeouts when configured.
+- **High-Speed Polling**: Uses Redis `BLPOP` for sub-millisecond job pickup.
+- **Agent Reasoning**: Executes persona-based reasoning to decide between taking an action (tool call) or finishing with a result.
+- **Parallel Execution**: Supports multiple concurrent jobs (orchestrated by the Ruby engine using threads).
+- **Traced Output**: Captures the raw `llm_input` (prompt) and `llm_output` (response) for every step.
+- **Job Lifecycle**: Manages status transitions from `queued` to `processing` to `completed/failed/canceled`.
 
 ## Architecture
 
-Description: The Agent Runtime enqueues intent requests via the Reasoning client, the worker processes them, and the client polls the result to resume the loop.
+The Agent Runtime (Ruby) enqueues jobs into Redis. One or more Python workers consume these jobs, interact with the configured LLM (Gemini or Ollama), and write back the structured result.
 
 ```mermaid
 sequenceDiagram
-  participant RT as Agent Runtime
+  participant RT as Agent Runtime (Ruby)
   participant RC as Reasoning::Client
-  participant MQ as Mongo Queue
-  participant QW as Reasoning Worker
+  participant RD as Redis (Queue/Results)
+  participant QW as Reasoning Worker (Python)
+  participant LLM as LLM (Gemini/Ollama)
 
   RT->>RC: agent_intent(payload)
-  RC->>MQ: enqueue intent
-  QW->>MQ: poll queued intent
-  QW->>QW: compute intent
-  QW->>MQ: write result
-  RC->>MQ: poll result
-  RC-->>RT: intent {action, tool_name, args}
+  RC->>RD: RPUSH savant:queue:reasoning {job_id, payload}
+  QW->>RD: BLPOP savant:queue:reasoning
+  QW->>LLM: call_llm(prompt)
+  LLM-->>QW: raw_response
+  QW->>RD: SET savant:result:job_id {status: ok, llm_input, llm_output...}
+  RC->>RD: GET/BLPOP savant:result:job_id
+  RC-->>RT: Intent object
 ```
 
-## Queue Data Model
+## Data Model
 
-Each queue entry contains the request payload and a result slot. Fields vary by version, but the pattern is stable.
+### Job Result (`savant:result:{job_id}`)
+
+The worker produces a detailed JSON snapshot of the reasoning step:
 
 ```json
 {
-  "_id": "...",
-  "status": "queued|processing|done|error|canceled",
-  "payload": {
-    "session_id": "session_...",
-    "step": 3,
-    "goal": "Find where Framework is defined",
-    "context": {"persona": "savant-engineer"}
-  },
-  "result": {
-    "action": "tool",
-    "tool_name": "savant-context.fts_search",
-    "args": {"query": "Framework", "limit": 10},
-    "reasoning": "Search for Framework definitions"
-  },
-  "error": null,
-  "created_at": "...",
-  "updated_at": "..."
+  "status": "ok",
+  "intent_id": "agent-123456789",
+  "tool_name": "context.fts_search",
+  "tool_args": {"query": "how to deploy"},
+  "reasoning": "Need to find deployment docs to answer the user inquiry.",
+  "finish": false,
+  "final_text": null,
+  "llm_input": "Full formatted prompt seen by the LLM...",
+  "llm_output": "Raw response received from the LLM...",
+  "worker_id": "hostname:pid"
 }
 ```
 
-Description: Status transitions move from queued to processing to done (or error/canceled) as the worker progresses.
+## Process Flow
 
 ```mermaid
 stateDiagram-v2
-  [*] --> queued
-  queued --> processing
-  processing --> done
-  processing --> error
-  queued --> canceled
-  processing --> canceled
-  done --> [*]
-  error --> [*]
-  canceled --> [*]
-```
-
-## Lifecycle (Worker Loop)
-
-Description: The worker continuously polls, locks one item, processes it, and writes the result.
-
-```mermaid
-flowchart TD
-  START[Worker start] --> POLL[Poll for queued intent]
-  POLL -->|none| WAIT[Sleep/backoff]
-  WAIT --> POLL
-  POLL -->|found| LOCK[Mark as processing]
-  LOCK --> RUN[Compute intent]
-  RUN -->|ok| WRITE[Write result]
-  RUN -->|error| FAIL[Write error]
-  WRITE --> POLL
-  FAIL --> POLL
+  [*] --> Enqueued: RPUSH to savant:queue:reasoning
+  Enqueued --> Processing: Worker BLPOP
+  Processing --> Done: LLM Success & Result SET
+  Processing --> Error: Exception caught
+  Processing --> Canceled: Cancel flag detected in Redis
+  Done --> [*]
+  Error --> [*]
+  Canceled --> [*]
 ```
 
 ## Configuration
 
-- `REASONING_TRANSPORT=mongo` enables queue usage.
-- `REASONING_QUEUE_WORKER=1` enables the worker in the Reasoning service.
-- `MONGO_URI` or `MONGO_HOST` selects the Mongo instance.
-- `REASONING_API_TIMEOUT_MS` and `REASONING_API_RETRIES` affect client polling behavior.
+- **`REDIS_URL`**: Connection string for the Redis instance.
+- **`REASONING_RESULT_TTL`**: Time-to-live for job results in Redis (Default: 300s).
+- **`OLLAMA_BASE_URL`**: URL for local Ollama instance if using the local provider.
+- **`GOOGLE_API_KEY`**: Required for Gemini-based reasoning.
+- **`COUNCIL_ROLE_TIMEOUT_MS`**: Client-side timeout for waiting on Redis results.
+
+## Tracing and Debugging
+
+The new architecture prioritizes visibility:
+
+1. **LLM Input/Output**: Every job stores the exact prompt (`llm_input`) and raw response (`llm_output`).
+2. **Hub Diagnostics**: The Hub UI fetches these keys directly from Redis to show a side-by-side comparison of what the agent "thought" vs what was parsed.
+3. **Worker Registry**: Live workers are tracked in `savant:workers:registry` with heartbeats for monitoring cluster health.
 
 ## Failure Modes
 
-- Queue item stuck in `processing`: investigate worker logs and restart.
-- `error` result: the runtime records the error and exits the step.
-- Mongo unavailable: client falls back to error and runtime stops the loop.
-
-## Operational Notes
-
-- The queue transport is preferred when cancellation and multi-run coordination are needed.
-- Use HTTP transport (`REASONING_TRANSPORT=http`) for simple local runs.
-- Worker should be supervised in dev/prod to avoid orphaned processing states.
+- **Timeout**: If no result appears in Redis within `timeout_ms`, the client raises a Ruby `StandardError`.
+- **Worker Crash**: If a worker dies while processing, the job ID remains in `savant:jobs:running` but the result never appears; the system handles this via client-side timeouts.
+- **LLM Error**: The worker catches API failures and writes an `error` status to `savant:result:{job_id}`.

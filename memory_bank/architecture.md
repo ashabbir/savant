@@ -16,7 +16,7 @@
 - **Transport Layer (`lib/savant/framework/transports/`):** Dual-protocol support with HTTP (`transports/http/rack_app.rb` for Hub + UI) and MCP (`transports/mcp/stdio.rb` + `transports/mcp/websocket.rb` for stdio/ws connections).
 - **Indexer (`lib/savant/engines/indexer/*`):** Runner orchestrates repo scans, merges ignore files, skips hidden/binary/unchanged files (tracked in `.cache/indexer.json`), dedupes blobs via SHA256, chunks code vs. markdown differently, and maintains file↔blob associations plus cleanup for deleted files.
 - **Database Layer (`lib/savant/framework/db.rb`):** Wraps `pg` with helpers to migrate schema, ensure FTS, upsert repos/files/blobs, replace chunks, and drop data for deleted repos.
-- **Reasoning API + Queue Worker (`reasoning/`):** External service the Agent Runtime calls for intent. When `REASONING_TRANSPORT=mongo`, a background worker consumes the queue, computes intent, and writes results back for polling.
+- **Reasoning Worker (`reasoning/`):** Redis‑backed worker the Agent Runtime uses for intent. A background worker consumes the queue (`savant:queue:reasoning`), computes intent, and writes results back (`savant:result:{job_id}`) for low‑latency polling.
 - **Context MCP Engine:** Uses chunk search via `lib/savant/engines/context/fts.rb`, operations defined in `ops.rb`, tools registered in `tools.rb`, and orchestrated by `engine.rb`.
 - **Git MCP Engine:** Local, read‑only Git intelligence. Provides `repo_status`, `changed_files`, `diff`, `hunks`, `read_file`, and `file_context`. Implementation under `lib/savant/engines/git/{engine,ops,tools,repo_detector,diff_parser,hunk_parser,file_context}.rb`.
 - **Jira MCP Engine:** REST v3 client in `lib/savant/engines/jira/client.rb`, operations + engine orchestrate ticket queries/actions exposed via `jira/tools.rb`.
@@ -176,23 +176,26 @@ sequenceDiagram
   Hub-->>UI: JSON
 ```
 
-### Reasoning Queue Worker (Mongo)
-Description: Shows the async intent flow when the Agent Runtime uses the Mongo queue transport, including enqueue, worker processing, and result polling.
+### Reasoning Queue Worker (Redis)
+
+Description: Shows the async intent flow when the Agent Runtime uses the Redis queue transport, including enqueue, worker processing, and result polling.
+
 ```mermaid
 sequenceDiagram
   participant RT as Agent Runtime
   participant RC as Reasoning::Client
-  participant MQ as Mongo Queue
+  participant RD as Redis (Queue)
   participant QW as Reasoning Worker
 
   RT->>RC: agent_intent(payload)
-  RC->>MQ: enqueue intent
-  QW->>MQ: poll queued intent
+  RC->>RD: RPUSH savant:queue:reasoning
+  QW->>RD: BLPOP savant:queue:reasoning
   QW->>QW: compute intent
-  QW->>MQ: write result
-  RC->>MQ: poll result
+  QW->>RD: SET savant:result:job_id
+  RC->>RD: GET/BLPOP result
   RC-->>RT: intent {action, tool_name, args}
 ```
+
 
 ### Personas / Rules / Drivers Data Flow (DB)
 Description: Illustrates which RPC calls load personas, rulesets, and driver prompts, which engines/ops handle them, and the Postgres tables that persist each catalog.

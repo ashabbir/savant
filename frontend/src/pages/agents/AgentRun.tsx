@@ -608,7 +608,7 @@ export default function AgentRun() {
         <DialogContent dividers sx={{ p: 0 }}>
           {yamlLoading && <LinearProgress />}
           {yamlError && <Alert severity="error" sx={{ m: 2 }}>{yamlError}</Alert>}
-          {!yamlError && <Viewer content={yamlText || ''} language="yaml" height="70vh" />}
+          {!yamlError && <Viewer content={yamlText || ''} language="yaml" height="70vh" yamlCollapsible />}
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setYamlOpen(false)}>Close</Button>

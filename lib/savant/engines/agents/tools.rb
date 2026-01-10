@@ -41,9 +41,10 @@ module Savant
                                   rules: { type: 'array', items: { type: 'string' } },
                                   favorite: { type: 'boolean' },
                                   instructions: { type: 'string' },
-                                  allowed_tools: { type: 'array', items: { type: 'string' } }
+                                  allowed_tools: { type: 'array', items: { type: 'string' } },
+                                  model_id: { type: 'integer' }
                                 }, required: %w[name persona driver] } do |_ctx, a|
-            eng.create(name: a['name'], persona: a['persona'], driver: a['driver'], rules: a['rules'] || [], favorite: a['favorite'] || false, instructions: a['instructions'], allowed_tools: a['allowed_tools'])
+            eng.create(name: a['name'], persona: a['persona'], driver: a['driver'], rules: a['rules'] || [], favorite: a['favorite'] || false, instructions: a['instructions'], allowed_tools: a['allowed_tools'], model_id: a['model_id'])
           end
 
           tool 'agents_update', description: 'Update an agent (partial)',
@@ -78,6 +79,11 @@ module Savant
             res = eng.update(name: a['name'], persona: a['persona'], driver: a['driver'], rules: a['rules'], favorite: favorite_param, instructions: a['instructions'], model_id: a['model_id'], allowed_tools: a['allowed_tools'])
             logger&.info(event: 'agents_update finish', name: a['name'], favorite: res[:favorite]) rescue nil
             res
+          end
+
+          tool 'agents_rename', description: 'Rename an agent',
+                                 schema: { type: 'object', properties: { name: { type: 'string' }, new_name: { type: 'string' } }, required: %w[name new_name] } do |_ctx, a|
+            eng.rename(old_name: a['name'], new_name: a['new_name'])
           end
 
           tool 'agents_delete', description: 'Delete an agent', schema: { type: 'object', properties: { name: { type: 'string' } }, required: ['name'] } do |_ctx, a|

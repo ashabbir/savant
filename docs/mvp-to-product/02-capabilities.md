@@ -24,7 +24,7 @@ This document defines the complete capability set for the Savant Agent Infrastru
 - Create autonomous agents from scratch or templates
 - Configure agent personas (behavior, tone, expertise)
 - Define agent goals and constraints
- - Use Reasoning API for decisions; select LLM for heavy tasks
+- Use Reasoning Worker for decisions; select LLM for heavy tasks
 - Set token budgets and execution limits
 - Assign tools and permissions
 - Apply guardrails via rulesets

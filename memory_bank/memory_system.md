@@ -92,7 +92,7 @@ sequenceDiagram
 ## Runtime Integration
 
 - The runtime appends tool output and reasoning results to `steps`.
-- Errors from tool calls or the Reasoning API are appended to `errors`.
+- Errors from tool calls or the Reasoning Worker are appended to `errors`.
 - The snapshot is written after each step to support replay/debugging.
 
 ## Testing

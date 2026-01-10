@@ -190,6 +190,13 @@ export type Diagnostics = {
   llm_models?: LLMDiagnostics;
   llm_runtime?: LLMDiagnosticRuntime;
   reasoning?: ReasoningDiagnostics;
+  blackboard?: BlackboardStats;
+};
+
+export type BlackboardStats = {
+  sessions: number;
+  events: number;
+  artifacts: number;
 };
 
 export function useDiagnostics() {
@@ -235,9 +242,55 @@ export function useReasoningDiagnostics() {
   });
 }
 
-export async function clearReasoning() {
-  const res = await client().delete('/diagnostics/reasoning');
+export async function clearReasoning(worker?: string | null) {
+  const res = await client().delete('/diagnostics/reasoning', { params: worker ? { worker } : {} });
   return res.data as { cleared: any[]; errors: any[]; message: string };
+}
+
+// Reasoning jobs (queue + running + recents)
+export type ReasoningJobs = {
+  queue_length: number;
+  running_ids: string[];
+  recent_completed: any[];
+  recent_failed: any[];
+  recent_canceled?: any[];
+  queued?: { job_id?: string; ts?: string | number; raw?: string }[];
+};
+
+export function useReasoningJobs() {
+  return useQuery<ReasoningJobs>({
+    queryKey: ['diagnostics', 'reasoning', 'jobs'],
+    queryFn: async () => {
+      const res = await client().get('/diagnostics/reasoning/jobs');
+      return res.data as ReasoningJobs;
+    },
+    refetchInterval: 4000,
+  });
+}
+
+export async function getReasoningJob(jobId: string) {
+  const res = await client().get(`/diagnostics/reasoning/jobs/${encodeURIComponent(jobId)}`, { params: { summary: 1 } });
+  return res.data as { job_id: string; status?: string; agent_name?: string; goal_text?: string; session_id?: string; correlation_id?: string };
+}
+
+export async function cancelReasoningJob(jobId: string) {
+  const res = await client().post(`/diagnostics/reasoning/jobs/${encodeURIComponent(jobId)}/cancel`);
+  return res.data as { job_id: string; queued_removed: number; cancel_requested: boolean; was_running: boolean };
+}
+
+export async function deleteReasoningJob(jobId: string) {
+  const res = await client().delete(`/diagnostics/reasoning/jobs/${encodeURIComponent(jobId)}`);
+  return res.data as { job_id: string; removed: any };
+}
+
+export async function retryReasoningJob(jobId: string) {
+  const res = await client().post(`/diagnostics/reasoning/jobs/${encodeURIComponent(jobId)}/retry`);
+  return res.data as { status: string; job_id: string; retry_of: string };
+}
+
+export async function deleteReasoningWorker(workerId: string) {
+  const res = await client().delete(`/diagnostics/reasoning/workers/${encodeURIComponent(workerId)}`);
+  return res.data as { ok: boolean; worker_id: string; removed: boolean };
 }
 
 // THINK engine API
@@ -541,6 +594,129 @@ export async function callEngineTool(engine: string, name: string, params: any):
   return res.data;
 }
 
+// Blackboard API
+export function useBlackboardStats() {
+  return useQuery<BlackboardStats>({
+    queryKey: ['blackboard', 'stats'],
+    queryFn: async () => {
+      const res = await client().get('/blackboard/stats');
+      return res.data as BlackboardStats;
+    },
+    refetchInterval: 5000
+  });
+}
+
+export type BlackboardSession = {
+  session_id: string;
+  type: 'chat' | 'council' | 'workflow' | string;
+  state: 'active' | 'paused' | 'completed' | string;
+  actors?: string[];
+  created_at?: string;
+  updated_at?: string;
+};
+
+export function useBlackboardSessions() {
+  return useQuery<BlackboardSession[]>({
+    queryKey: ['blackboard', 'sessions'],
+    queryFn: async () => {
+      const res = await client().get('/blackboard/sessions');
+      const rows = (res.data as any[]).map((r) => ({
+        ...r,
+        created_at: r.created_at ? new Date(r.created_at).toISOString() : undefined,
+        updated_at: r.updated_at ? new Date(r.updated_at).toISOString() : undefined,
+      }));
+      return rows as BlackboardSession[];
+    },
+    refetchInterval: 5000
+  });
+}
+
+export async function killBlackboardSession(session_id: string) {
+  const res = await client().post(`/blackboard/sessions/${encodeURIComponent(session_id)}/kill`);
+  return res.data as BlackboardSession;
+}
+
+export function useKillBlackboardSession() {
+  return useMutation({ mutationFn: killBlackboardSession });
+}
+
+export async function clearBlackboardSession(session_id: string) {
+  const res = await client().post(`/blackboard/sessions/${encodeURIComponent(session_id)}/clear`);
+  return res.data as { session_id: string; deleted_events: number };
+}
+
+export function useClearBlackboardSession() {
+  return useMutation({ mutationFn: clearBlackboardSession });
+}
+
+export async function deleteBlackboardSession(session_id: string) {
+  const res = await client().delete(`/blackboard/sessions/${encodeURIComponent(session_id)}`);
+  return res.data as { session_id: string; deleted_session: boolean; deleted_events: number };
+}
+
+export function useDeleteBlackboardSession() {
+  return useMutation({ mutationFn: deleteBlackboardSession });
+}
+
+export async function killAllBlackboardSessions() {
+  const res = await client().post('/blackboard/sessions/kill_all');
+  return res.data as { ok: boolean; killed: number; total: number };
+}
+
+export async function deleteAllBlackboardSessions() {
+  const res = await client().delete('/blackboard/sessions');
+  return res.data as { ok: boolean; deleted_sessions: number; deleted_events: number };
+}
+
+export type BlackboardEvent = {
+  event_id: string;
+  session_id: string;
+  type: string;
+  actor_id?: string;
+  actor_type?: string;
+  visibility?: string;
+  parent_event_id?: string | null;
+  payload?: any;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export function useBlackboardReplay(session_id: string | null, options?: { pollMs?: number }) {
+  return useQuery<BlackboardEvent[]>({
+    queryKey: ['blackboard', 'replay', session_id],
+    queryFn: async () => {
+      const res = await client().get(`/blackboard/events`, { params: { session_id } });
+      const rows = (res.data as any[]).map((r) => ({
+        ...r,
+        created_at: r.created_at ? new Date(r.created_at).toISOString() : undefined,
+        updated_at: r.updated_at ? new Date(r.updated_at).toISOString() : undefined,
+      }));
+      return rows as BlackboardEvent[];
+    },
+    enabled: !!session_id,
+    refetchOnWindowFocus: false,
+    refetchInterval: options?.pollMs || false,
+  });
+}
+
+export function useBlackboardRecentEvents(limit: number, enabled: boolean, options?: { pollMs?: number }) {
+  return useQuery<BlackboardEvent[]>({
+    queryKey: ['blackboard', 'recent', limit],
+    queryFn: async () => {
+      const res = await client().get(`/blackboard/events/recent`, { params: { limit } });
+      const rows = (res.data as any[]).map((r) => ({
+        ...r,
+        created_at: r.created_at ? new Date(r.created_at).toISOString() : undefined,
+        updated_at: r.updated_at ? new Date(r.updated_at).toISOString() : undefined,
+      }));
+      return rows as BlackboardEvent[];
+    },
+    enabled,
+    refetchOnWindowFocus: false,
+    refetchInterval: options?.pollMs || false,
+  });
+}
+
 // PERSONAS engine API
 export type PersonaSummary = { name: string; version: number; summary: string; tags?: string[] };
 export type PersonasList = { personas: PersonaSummary[] };
@@ -692,6 +868,11 @@ export async function agentsCreate(payload: { name: string; persona: string; dri
 
 export async function agentsUpdate(payload: { name: string; persona?: string; driver?: string; rules?: string[]; favorite?: boolean; instructions?: string; model_id?: number; allowed_tools?: string[] }) {
   const res = await client().post('/agents/tools/agents_update/call', { params: payload });
+  return res.data as Agent;
+}
+
+export async function agentsRename(payload: { name: string; new_name: string }) {
+  const res = await client().post('/agents/tools/agents_rename/call', { params: payload });
   return res.data as Agent;
 }
 

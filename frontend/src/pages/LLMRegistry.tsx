@@ -104,6 +104,7 @@ export default function LLMRegistry() {
   const [providerForm, setProviderForm] = useState({ name: '', type: 'google', apiKey: '', baseUrl: '' });
   const [discoverProvider, setDiscoverProvider] = useState('');
   const [providerEditForm, setProviderEditForm] = useState({ baseUrl: '', apiKey: '' });
+  const [providerEditMeta, setProviderEditMeta] = useState<{ hasApiKey: boolean; apiKeyPreview: string }>({ hasApiKey: false, apiKeyPreview: '' });
   const [selectedProvider, setSelectedProvider] = useState<Provider | null>(null);
   const [discoveredModels, setDiscoveredModels] = useState<any[]>([]);
   const [selectedDiscoverIds, setSelectedDiscoverIds] = useState<string[]>([]);
@@ -231,10 +232,21 @@ const updateProviderMutation = useMutation({
   },
 });
 
-const openEditProviderDialogWith = (provider: Provider) => {
+const openEditProviderDialogWith = async (provider: Provider) => {
   setSelectedProvider(provider);
   setProviderEditForm({ baseUrl: provider.base_url || '', apiKey: '' });
+  setProviderEditMeta({ hasApiKey: false, apiKeyPreview: '' });
   setOpenEditProviderDialog(true);
+  try {
+    const res: any = await callEngineTool('llm', 'llm_providers_read', { name: provider.name });
+    setProviderEditMeta({
+      hasApiKey: !!res?.has_api_key,
+      apiKeyPreview: res?.api_key_preview || ''
+    });
+    // base_url non-sensitive; keep prefilled from provider
+  } catch (_) {
+    // best-effort; leave defaults
+  }
 };
 
   const registerDiscoveredMutation = useMutation({
@@ -640,20 +652,42 @@ const openEditProviderDialogWith = (provider: Provider) => {
         <DialogTitle>Edit Provider</DialogTitle>
         <DialogContent sx={{ pt: 2 }}>
           <Stack spacing={2}>
+            {/* Read-only context to align with Add dialog */}
             <TextField
-              label="Base URL"
-              value={providerEditForm.baseUrl}
-              onChange={(e) => setProviderEditForm({ ...providerEditForm, baseUrl: e.target.value })}
+              label="Provider Name"
+              value={selectedProvider?.name || ''}
+              disabled
               fullWidth
             />
             <TextField
-              label="API Key"
-              type="password"
-              value={providerEditForm.apiKey}
-              onChange={(e) => setProviderEditForm({ ...providerEditForm, apiKey: e.target.value })}
-              helperText="Leave blank to keep existing key"
+              label="Provider Type"
+              value={selectedProvider?.provider_type || ''}
+              disabled
               fullWidth
             />
+
+            {/* Type-specific editable fields */}
+            {selectedProvider?.provider_type === 'ollama' && (
+              <TextField
+                label="Base URL"
+                placeholder="http://localhost:11434"
+                value={providerEditForm.baseUrl}
+                onChange={(e) => setProviderEditForm({ ...providerEditForm, baseUrl: e.target.value })}
+                fullWidth
+              />
+            )}
+            {selectedProvider?.provider_type === 'google' && (
+              <TextField
+                label="API Key"
+                type="password"
+                value={providerEditForm.apiKey}
+                onChange={(e) => setProviderEditForm({ ...providerEditForm, apiKey: e.target.value })}
+                placeholder={providerEditMeta.hasApiKey ? (providerEditMeta.apiKeyPreview || '********') : ''}
+                helperText={providerEditMeta.hasApiKey ? 'A key is saved (masked). Leave blank to keep existing key.' : 'Enter an API key'}
+                fullWidth
+                autoComplete="off"
+              />
+            )}
           </Stack>
         </DialogContent>
         <DialogActions>

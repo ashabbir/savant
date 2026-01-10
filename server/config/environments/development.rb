@@ -55,6 +55,9 @@ Rails.application.configure do
   # Enable server timing.
   config.server_timing = true
 
+  # Ensure concurrent requests in dev (needed for SSE streams not to block).
+  config.allow_concurrency = true
+
   # Serve files in /public (for static UI under /ui)
   config.public_file_server.enabled = true
 

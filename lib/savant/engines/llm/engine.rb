@@ -48,6 +48,24 @@ module Savant::Llm
       @registry.update_provider(name: name, base_url: base_url, api_key: api_key)
     end
 
+    def provider_read(name:)
+      provider = @registry.get_provider(name)
+      raise "Provider not found: #{name}" unless provider
+
+      has_key = !provider[:api_key].to_s.strip.empty?
+      preview = has_key ? '********' : ''
+      {
+        id: provider[:id],
+        name: provider[:name],
+        provider_type: provider[:provider_type],
+        base_url: provider[:base_url],
+        status: provider[:status],
+        last_validated_at: provider[:last_validated_at],
+        has_api_key: has_key,
+        api_key_preview: preview
+      }
+    end
+
     # Model operations
     def models_discover(provider_name:)
       provider = @registry.get_provider(provider_name)

@@ -75,6 +75,20 @@ module Savant
             eng.agent_step(session_id: a['session_id'], goal_text: a['goal_text'], agent_name: a['agent_name'])
           end
 
+          # Delete a single chat event/message from a session's timeline
+          tool 'council_message_delete', description: 'Delete a single chat event (and matching DB row when possible). Optional scope=turn deletes from this user message until the next user message.' ,
+               schema: {
+                 type: 'object',
+                 properties: {
+                   session_id: { type: 'integer', description: 'Council session id' },
+                   event_id: { type: 'string', description: 'Blackboard event id to delete' },
+                   scope: { type: 'string', enum: ['single', 'turn'], description: 'single (default) or turn' }
+                 },
+                 required: ['session_id', 'event_id']
+               } do |_ctx, a|
+            eng.delete_message_event(session_id: a['session_id'], event_id: a['event_id'], scope: (a['scope'] || 'single'))
+          end
+
           # =========================
           # Council Protocol Tools
           # =========================

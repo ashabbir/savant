@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState, useRef, useCallback } from 'react';
-import { agentRun, agentRunContinue, agentRunRead, useAgents, useCouncilSessions, councilSessionCreate, councilSessionGet, councilAppendUser, councilAppendAgent, councilSessionDelete, councilSessionClear, councilSessionUpdate, councilEscalate, councilRun as runCouncilApi, councilReturnToChat, councilRunGet, councilRunsList, CouncilRun, callEngineTool } from '../../api';
+import { agentRun, agentRunContinue, agentRunRead, useAgents, useCouncilSessions, councilSessionCreate, councilSessionGet, councilAppendUser, councilAppendAgent, councilSessionDelete, councilSessionClear, councilSessionUpdate, councilEscalate, councilRun as runCouncilApi, councilReturnToChat, councilRunGet, councilRunsList, CouncilRun, callEngineTool, useBlackboardReplay, BlackboardEvent } from '../../api';
 import { useTheme, alpha } from '@mui/material/styles';
 import Grid from '@mui/material/Unstable_Grid2';
 import Paper from '@mui/material/Paper';
@@ -56,8 +56,9 @@ type AgentReply = {
   finishedAt?: number;
   durationMs?: number;
   at?: number;
+  eventId?: string;
 };
-type ChatTurn = { id: number; user: string; replies: AgentReply[]; at?: number };
+type ChatTurn = { id: number; user: string; replies: AgentReply[]; at?: number; userEventId?: string };
 
 const PANEL_HEIGHT = 'calc(100vh - 260px)';
 const LS_LAST_OPEN = 'councilLastOpen';
@@ -110,6 +111,15 @@ export default function Council() {
   const [expandedPosition, setExpandedPosition] = useState<string | false>(false);
   const [expandedRunSection, setExpandedRunSection] = useState<'positions' | 'debate' | 'result' | false>('positions');
   const [expandedDebateRound, setExpandedDebateRound] = useState<number | false>(false);
+  // Blackboard refresh: watch council events for this session
+  const bbSessionId = useMemo(() => (sessionId ? `council-${sessionId}` : null), [sessionId]);
+  const bbReplay = useBlackboardReplay(bbSessionId, { pollMs: 1500 });
+  useEffect(() => {
+    if (!sessionId) return;
+    const events = bbReplay.data || [];
+    const turnsFromBB = buildTurnsFromEvents(events);
+    setTurns(turnsFromBB);
+  }, [bbReplay.data, sessionId]);
 
   useEffect(() => {
     const map: Record<string, AgentSession> = {};
@@ -130,19 +140,35 @@ export default function Council() {
   function buildHistoryString(history: ChatTurn[]): string {
     try {
       const lines: string[] = [];
-      history.forEach((t) => {
-        if (t.user?.trim()) lines.push(`User: ${t.user.trim()}`);
+      // Newest turn first
+      const turnsDesc = [...history].reverse();
+      turnsDesc.forEach((t) => {
+        const userLine = (t.user || '').toString().trim();
+        if (userLine) lines.push(`User: ${userLine}`);
         (t.replies || []).forEach((r) => {
+          const who = (r.agent || '').toString();
+          if (who.toLowerCase() === 'system') return; // drop system messages
           const bodyStr = toDisplayText(r.text).trim();
           if (r.status !== 'running' && (bodyStr || r.status === 'error')) {
             const body = bodyStr;
-            if (body) lines.push(`${r.agent}: ${body}`);
+            if (body) lines.push(`${who}: ${body}`);
           }
         });
       });
       return lines.join('\n');
     } catch {
       return '';
+    }
+  }
+
+  async function deleteChatEvent(eventId?: string, scope: 'single' | 'turn' = 'single') {
+    try {
+      if (!eventId || !sessionId) return;
+      await callEngineTool('council', 'council_message_delete', { session_id: sessionId, event_id: eventId, scope });
+      try { await bbReplay.refetch(); } catch {}
+      try { await sessions.refetch(); } catch {}
+    } catch (e: any) {
+      try { console.error('delete message failed', e?.message || e); } catch {}
     }
   }
 
@@ -170,6 +196,81 @@ export default function Council() {
     } catch { return name; }
   }
 
+  // Build chat turns from Blackboard replay events
+  function buildTurnsFromEvents(events: BlackboardEvent[]): ChatTurn[] {
+    try {
+      const sorted = [...(events || [])].sort((a: any, b: any) => {
+        const ta = a.created_at ? Date.parse(a.created_at as any) : 0;
+        const tb = b.created_at ? Date.parse(b.created_at as any) : 0;
+        return ta - tb;
+      });
+      const out: ChatTurn[] = [];
+      let cur: ChatTurn | null = null;
+      let replyIndexByAgent: Record<string, number> = {};
+      for (const ev of sorted) {
+        const t = (ev.type || '').toString();
+        const p: any = (ev as any).payload || {};
+        if (t === 'session_created') continue;
+        if (t === 'message_posted') {
+          if (cur) out.push(cur);
+          cur = {
+            id: Date.parse((ev.created_at as any) || String(Date.now())),
+            user: toDisplayText((p && p.text) || ''),
+            replies: [],
+            at: ev.created_at ? Date.parse(ev.created_at as any) : undefined,
+            userEventId: (ev as any).event_id || undefined,
+          };
+          replyIndexByAgent = {};
+        } else if (t === 'agent_reply') {
+          if (!cur) { cur = { id: Date.now(), user: '', replies: [] }; replyIndexByAgent = {}; }
+          const agent = (((ev as any).actor_id as any) || 'agent').toString();
+          if (agent.toLowerCase() === 'system') continue; // drop system replies from chat turns
+          const idx = replyIndexByAgent[agent] ?? -1;
+          const text = toDisplayText((p && p.text) || '');
+          const status = ((p && p.status || '').toString().toLowerCase() === 'error') ? 'error' as const : 'ok' as const;
+          const base = { agent, runId: (p && p.run_id) || 0, text, status, at: ev.created_at ? Date.parse(ev.created_at as any) : undefined, eventId: (ev as any).event_id || undefined };
+          if (idx >= 0) {
+            cur.replies[idx] = { ...cur.replies[idx], ...base };
+          } else {
+            cur.replies.push(base);
+            replyIndexByAgent[agent] = cur.replies.length - 1;
+          }
+        } else if (t === 'result_emitted') {
+          if (!cur) { cur = { id: Date.now(), user: '', replies: [] }; replyIndexByAgent = {}; }
+          const agent = (((ev as any).actor_id as any) || 'agent').toString();
+          if (agent.toLowerCase() === 'system') continue; // drop system 
+          const idx = replyIndexByAgent[agent] ?? -1;
+          const text = toDisplayText((p && p.text) || '');
+          if (text) {
+            const base = { agent, runId: (p && p.run_id) || 0, text, status: 'ok' as const, at: ev.created_at ? Date.parse(ev.created_at as any) : undefined, eventId: (ev as any).event_id || undefined };
+            if (idx >= 0) {
+              cur.replies[idx] = { ...cur.replies[idx], ...base };
+            } else {
+              cur.replies.push(base);
+              replyIndexByAgent[agent] = cur.replies.length - 1;
+            }
+          }
+        } else if (t === 'reasoning_job_error') {
+          if (!cur) { cur = { id: Date.now(), user: '', replies: [] }; replyIndexByAgent = {}; }
+          const agent = ((ev as any).actor_id as any) || 'agent';
+          const idx = replyIndexByAgent[agent] ?? -1;
+          const text = toDisplayText((p && p.error) || 'error');
+          const base = { agent, runId: (p && p.run_id) || 0, text, status: 'error' as const, at: ev.created_at ? Date.parse(ev.created_at as any) : undefined, eventId: (ev as any).event_id || undefined };
+          if (idx >= 0) {
+            cur.replies[idx] = { ...cur.replies[idx], ...base };
+          } else {
+            cur.replies.push(base);
+            replyIndexByAgent[agent] = cur.replies.length - 1;
+          }
+        }
+      }
+      if (cur) out.push(cur);
+      return out;
+    } catch {
+      return [];
+    }
+  }
+
   // Build a YAML export for debugging with keys: council, chat, agents
   function buildYamlExport(runs?: any[], runsByAgent?: Record<string, { run_id: number; steps: any[] }[]>, agentDefs?: Record<string, any>): string {
     try {
@@ -180,7 +281,7 @@ export default function Council() {
       const latestInteraction = lastTurn ? {
         user_message: lastTurn.user || '',
         at: lastTurn.at ? new Date(lastTurn.at).toISOString() : undefined,
-        responses: lastTurn.replies.map((r) => ({
+        responses: lastTurn.replies.filter((r) => (r.agent || '').toLowerCase() !== 'system').map((r) => ({
           agent: r.agent,
           status: r.status,
           text: (r.text ?? '').toString(),
@@ -195,7 +296,7 @@ export default function Council() {
       const transcript = turns.map((t, idx) => ({
         index: idx + 1,
         user: { text: t.user || '', at: t.at ? new Date(t.at).toISOString() : undefined },
-        responses: t.replies.map((r) => ({
+        responses: t.replies.filter((r) => (r.agent || '').toLowerCase() !== 'system').map((r) => ({
           agent: r.agent,
           status: r.status,
           text: (r.text ?? '').toString(),
@@ -243,7 +344,7 @@ export default function Council() {
       // Build agents list with their messages and per-agent steps (from council)
       const byAgentMessages: Record<string, any[]> = {};
       transcript.forEach((turn) => {
-        (turn.responses || []).forEach((r: any) => {
+        (turn.responses || []).filter((r: any) => (r.agent || '').toString().toLowerCase() !== 'system').forEach((r: any) => {
           const key = r.agent || 'unknown';
           (byAgentMessages[key] = byAgentMessages[key] || []).push({
             text: r.text,
@@ -443,26 +544,7 @@ export default function Council() {
         setCouncilRun(null);
         setLastCouncilRun(null);
       }
-      const grouped: ChatTurn[] = [];
-      let cur: ChatTurn | null = null;
-      msgs.forEach((m) => {
-        if (m.role === 'user') {
-          if (cur) grouped.push(cur);
-          cur = { id: m.id, user: m.text || '', replies: [], at: m.created_at ? Date.parse(m.created_at) : undefined };
-        } else {
-          if (!cur) cur = { id: m.id, user: '', replies: [] };
-          cur.replies.push({
-            agent: m.agent_name || '',
-            runId: m.run_id || 0,
-            runKey: m.run_key || undefined,
-            text: m.text || '',
-            status: (m.status as any) || 'ok',
-            at: m.created_at ? Date.parse(m.created_at) : undefined
-          });
-        }
-      });
-      if (cur) grouped.push(cur);
-      setTurns(grouped);
+      // Chat now renders from Blackboard replay; no need to set turns from DB messages
       // Mark as read now (update last-open timestamp)
       const now = Date.now();
       setLastOpen((prev) => {
@@ -478,63 +560,25 @@ export default function Council() {
     if (!text || selected.length === 0) return;
     setSending(true);
     setInput('');
-    const historyStr = buildHistoryString(turns);
-    const messageWithHistory = historyStr ? `Conversation so far:\n${historyStr}\n\nUser: ${text}` : text;
-    const turnId = Date.now();
-    // Create placeholders for replies (hidden while running)
-    setTurns((prev) => [
-      ...prev,
-      {
-        id: turnId,
-        user: text,
-        at: Date.now(),
-        replies: selected.map((n) => ({ agent: normalizeAgentName(n), runId: 0, text: '', status: 'running' as const })),
-      },
-    ]);
+    // Send only the latest user message; server will append filtered conversation history
+    const messageWithHistory = text;
+    // Resolve a session id reliably (avoid state race)
+    let localSid = sessionId;
     try {
-      let sid = sessionId;
-      if (!sid) { const created = await councilSessionCreate(undefined, selected); sid = created.id; setSessionId(sid); }
-      if (sid) await councilAppendUser(sid, text);
+      if (!localSid) { const created = await councilSessionCreate(undefined, selected); localSid = created.id; setSessionId(localSid); }
+      if (localSid) await councilAppendUser(localSid, text);
     } catch {}
 
+    // Use the resolved localSid (fallback to state if needed)
+    const sess = localSid || sessionId;
     await Promise.all(selected.map(async (agentRaw) => {
       const agent = normalizeAgentName(agentRaw);
-      const sess = agentSessions[agent] || { lastRunId: null };
       try {
-        const submitStartedAt = Date.now();
-        let runId: number | null = null;
-        if (sess.lastRunId) { const res = await agentRunContinue(agent, sess.lastRunId, messageWithHistory, 12); runId = res?.run_id || null; }
-        else { const res = await agentRun(agent, messageWithHistory, 12); runId = res?.run_id || null; }
-        if (runId) {
-          setAgentSessions((prev) => ({ ...prev, [agent]: { lastRunId: runId, running: true } }));
-          // Mark startedAt on the reply immediately
-          setTurns((prev) => prev.map((t) => (t.id === turnId ? { ...t, replies: t.replies.map((r) => (r.agent === agent ? { ...r, runId, startedAt: submitStartedAt } : r)) } : t)));
-          await pollRun(agent, runId, submitStartedAt, (reply) => {
-            setTurns((prev) => prev.map((t) => (
-              t.id === turnId
-                ? { ...t, replies: t.replies.map((r) => (r.agent === agent ? { ...r, ...reply } : r)) }
-                : t
-            )));
-          });
-          setAgentSessions((prev) => ({ ...prev, [agent]: { lastRunId: runId, running: false } }));
-          if (sessionId) {
-            try {
-              const d = await agentRunRead(agent, runId);
-              const text = extractAgentReplyText(d);
-              await councilAppendAgent(sessionId, agent, runId, text, 'ok');
-            } catch {}
-          }
-        } else {
-          const now = Date.now();
-          const reply: AgentReply = { agent, runId: 0, text: 'submit failed', status: 'error', startedAt: submitStartedAt, finishedAt: now, durationMs: now - submitStartedAt };
-          setTurns((prev) => prev.map((t) => (t.id === turnId ? { ...t, replies: t.replies.map((r) => (r.agent === agent ? reply : r)) } : t)));
-          if (sessionId) { try { await councilAppendAgent(sessionId, agent, null, 'submit failed', 'error'); } catch {} }
+        if (sess) {
+          await callEngineTool('council', 'council_agent_step', { session_id: sess, goal_text: messageWithHistory, agent_name: agent });
         }
       } catch (e: any) {
-        const now = Date.now();
-        const reply: AgentReply = { agent, runId: 0, text: e?.message || 'error', status: 'error', finishedAt: now };
-        setTurns((prev) => prev.map((t) => (t.id === turnId ? { ...t, replies: t.replies.map((r) => (r.agent === agent ? reply : r)) } : t)));
-        if (sessionId) { try { await councilAppendAgent(sessionId, agent, null, e?.message || 'error', 'error'); } catch {} }
+        try { console.error('council_agent_step failed', { agent, session_id: sess, error: e?.message || String(e) }); } catch {}
       }
     }));
     setSending(false);
@@ -734,31 +778,8 @@ export default function Council() {
     }
   }, [sessionId, sessions]);
 
-  const reloadMessages = (messages: any[]) => {
-    const newTurns: ChatTurn[] = [];
-    let currentTurn: ChatTurn | null = null;
-    messages.forEach((m) => {
-      if (m.role === 'user') {
-        if (currentTurn) newTurns.push(currentTurn);
-        currentTurn = {
-          id: m.id,
-          user: m.text || '',
-          replies: [],
-          at: m.created_at ? new Date(m.created_at).getTime() : undefined
-        };
-      } else if (m.role === 'agent' && currentTurn) {
-        currentTurn.replies.push({
-          agent: m.agent_name || 'Agent',
-          runId: m.run_id || 0,
-          runKey: m.run_key || undefined,
-          text: m.text || '',
-          status: m.status === 'error' ? 'error' : 'ok',
-          at: m.created_at ? new Date(m.created_at).getTime() : undefined
-        });
-      }
-    });
-    if (currentTurn) newTurns.push(currentTurn);
-    setTurns(newTurns);
+  const reloadMessages = (_messages: any[]) => {
+    // No-op: chat now renders from Blackboard replay events
   };
 
   const isDark = theme.palette.mode === 'dark';
@@ -1201,12 +1222,31 @@ export default function Council() {
                           </Stack>
                         }
                         secondary={
-                          <>
-                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                              {s.last_preview || 'No messages yet'}
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary">{formatRelative(s.last_at || s.updated_at || s.created_at)}</Typography>
-                          </>
+                          (() => {
+                            const members = Array.isArray(s.agents) ? s.agents.length : 0;
+                            const parts: string[] = [];
+                            if (members > 0) parts.push(`${members} ${members === 1 ? 'member' : 'members'}`);
+                            if (s.created_at) parts.push(`created ${formatRelative(s.created_at)}`);
+                            if (s.last_at) parts.push(`last message ${formatRelative(s.last_at)}`);
+                            if (!s.last_at && !s.updated_at) parts.push('no messages yet');
+                            const metaLine = parts.join(' • ');
+
+                            const rawDesc = ((s.description || '') as string).toString();
+                            const descLine = rawDesc ? (rawDesc.length > 80 ? rawDesc.slice(0, 80) + ' ..' : rawDesc) : '';
+
+                            return (
+                              <>
+                                {descLine && (
+                                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    {descLine}
+                                  </Typography>
+                                )}
+                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                  {metaLine}
+                                </Typography>
+                              </>
+                            );
+                          })()
                         }
                       />
                     </ListItemButton>
@@ -1312,7 +1352,7 @@ export default function Council() {
           </Stack>
         </DialogTitle>
         <DialogContent dividers sx={{ p: 0 }}>
-          <Viewer content={exportYaml || ''} language="yaml" height="70vh" />
+          <Viewer content={exportYaml || ''} language="yaml" height="70vh" yamlCollapsible />
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setExportOpen(false)}>Close</Button>
@@ -1496,9 +1536,24 @@ export default function Council() {
                   color: theme.palette.getContrastText(theme.palette.primary.main)
                 }} />
                 <Box sx={{ maxWidth: '80%' }}>
-                  <Paper elevation={0} sx={{ px: 1.25, py: 1, mt: 0.25, bgcolor: meBubbleBg, color: meBubbleFg, borderRadius: 2, borderTopLeftRadius: 4 }}>
-                    <Typography sx={{ whiteSpace: 'pre-wrap' }}>{t.user}</Typography>
-                  </Paper>
+                  <Stack direction="row" spacing={0.5} alignItems="flex-start">
+                    <Paper elevation={0} sx={{ px: 1.25, py: 1, mt: 0.25, bgcolor: meBubbleBg, color: meBubbleFg, borderRadius: 2, borderTopLeftRadius: 4 }}>
+                      <Typography sx={{ whiteSpace: 'pre-wrap' }}>{t.user}</Typography>
+                    </Paper>
+                    {t.userEventId && (
+                      <Tooltip title="Delete message">
+                        <span>
+                          <IconButton size="small" onClick={async () => {
+                            const ok = window.confirm('Delete this message?');
+                            if (!ok) return;
+                            await deleteChatEvent(t.userEventId!, 'single');
+                          }}>
+                            <DeleteOutlineIcon fontSize="small" />
+                          </IconButton>
+                        </span>
+                      </Tooltip>
+                    )}
+                  </Stack>
                   <Typography variant="caption" color="text.secondary" sx={{ ml: 0.5 }} title={t.at ? new Date(t.at).toLocaleString() : ''}>{formatRelative(t.at)}</Typography>
                 </Box>
               </Box>
@@ -1509,11 +1564,7 @@ export default function Council() {
                 while (i < replies.length) {
                   const curr = replies[i];
                   const sys = /(joined|left) the (group|council)/i.test(curr.text || '');
-                  if (sys) {
-                    groups.push({ agent: curr.agent, items: [curr], system: true });
-                    i += 1;
-                    continue;
-                  }
+                  if (sys) { i += 1; continue; } // hide join/leave system messages
                   let j = i + 1;
                   while (j < replies.length) {
                     const nxt = replies[j];
@@ -1525,27 +1576,6 @@ export default function Council() {
                   i = j;
                 }
                 return groups.map((g, gi) => {
-                  if (g.system) {
-                    return g.items.map((r, si) => {
-                      const text = toDisplayText(r.text || '');
-                      const isCouncilStart = /council deliberation started/i.test(text);
-                      return (
-                        <Box key={`${t.id}-${g.agent}-sys-${gi}-${si}`} sx={{ display: 'flex', justifyContent: 'center', my: 0.5 }}>
-                          {isCouncilStart ? (
-                            <Chip
-                              size="small"
-                              label={`${g.agent} ${text}`}
-                              variant="outlined"
-                              onClick={() => openCouncilRun(r.runKey, r.at)}
-                              sx={{ cursor: 'pointer' }}
-                            />
-                          ) : (
-                            <Chip size="small" label={`${g.agent} ${text}`} variant="outlined" />
-                          )}
-                        </Box>
-                      );
-                    });
-                  }
                   const last = g.items[g.items.length - 1];
                   const bg = agentBubbleBg(g.agent, last.status);
                   const bubbleFg = isDark ? lightBubbleFg : theme.palette.getContrastText(bg);
@@ -1565,25 +1595,39 @@ export default function Council() {
                           {g.items.map((r, ri) => {
                             const isSynthesis = isSynthesisMessage(r);
                             return (
-                              <Paper
-                                key={`${t.id}-${g.agent}-msg-${gi}-${ri}`}
-                                elevation={0}
-                                onClick={isSynthesis ? () => openCouncilRun(r.runKey, r.at) : undefined}
-                                sx={{
-                                  px: 1.25,
-                                  py: 1,
-                                  mt: 0.25,
-                                  bgcolor: bg,
-                                  color: bubbleFg,
-                                  borderRadius: 2,
-                                  borderTopRightRadius: 4,
-                                  cursor: isSynthesis ? 'pointer' : 'default',
-                                  boxShadow: isSynthesis ? '0 0 0 1px rgba(0,0,0,0.08) inset' : 'none',
-                                  '&:hover': isSynthesis ? { filter: 'brightness(0.98)' } : undefined
-                                }}
-                              >
-                                <Typography sx={{ whiteSpace: 'pre-wrap' }}>{replyDisplayText(r)}</Typography>
-                              </Paper>
+                              <Stack key={`${t.id}-${g.agent}-msg-${gi}-${ri}`} direction="row" spacing={0.5} alignItems="flex-start">
+                                <Paper
+                                  elevation={0}
+                                  onClick={isSynthesis ? () => openCouncilRun(r.runKey, r.at) : undefined}
+                                  sx={{
+                                    px: 1.25,
+                                    py: 1,
+                                    mt: 0.25,
+                                    bgcolor: bg,
+                                    color: bubbleFg,
+                                    borderRadius: 2,
+                                    borderTopRightRadius: 4,
+                                    cursor: isSynthesis ? 'pointer' : 'default',
+                                    boxShadow: isSynthesis ? '0 0 0 1px rgba(0,0,0,0.08) inset' : 'none',
+                                    '&:hover': isSynthesis ? { filter: 'brightness(0.98)' } : undefined
+                                  }}
+                                >
+                                  <Typography sx={{ whiteSpace: 'pre-wrap' }}>{replyDisplayText(r)}</Typography>
+                                </Paper>
+                                {r.eventId && (
+                                  <Tooltip title="Delete message">
+                                    <span>
+                                      <IconButton size="small" onClick={async () => {
+                                        const ok = window.confirm('Delete this message?');
+                                        if (!ok) return;
+                                        await deleteChatEvent(r.eventId!, 'single');
+                                      }}>
+                                        <DeleteOutlineIcon fontSize="small" />
+                                      </IconButton>
+                                    </span>
+                                  </Tooltip>
+                                )}
+                              </Stack>
                             );
                           })}
                         </Stack>
@@ -1834,7 +1878,7 @@ export default function Council() {
         <DialogTitle>
           <Stack direction="row" alignItems="center" spacing={1}>
             <GavelIcon color="warning" />
-            <Typography variant="h6">Start Council Deliberation</Typography>
+            <Typography variant="h6" component="span">Start Council Deliberation</Typography>
           </Stack>
         </DialogTitle>
         <DialogContent>

@@ -336,7 +336,7 @@ Icon Size:
 │ │                                                         │ │
 │ │ ── Configuration Summary ──                              │ │
 │ │ Persona:       Reviewer                                 │ │
-│ │ Reasoning API:  enabled                                  │ │
+│ │ Reasoning Worker:  enabled                                │ │
 │ │ LLM Model:     llama3:latest                            │ │
 │ │ Max Steps:     25                                       │ │
 │ │ Token Budget:  32k (LLM)                                │ │
@@ -383,7 +383,7 @@ Icon Size:
 │ │ [Code editor with syntax highlighting...          ]      │ │
 │ │                                                         │ │
 │ │ ── Model Configuration ──                                │ │
-│ │ Reasoning API: [enabled]                                 │ │
+│ │ Reasoning Worker: [enabled]                               │ │
 │ │ LLM Model:     [llama3:latest ▾]                        │ │
 │ │ Max Steps:     [25          ]                           │ │
 │ │ Token Budget:  LLM: [32000]                             │ │
@@ -498,10 +498,10 @@ Icon Size:
 │ │                                                         │ │
 │ │ ── Model Settings ──                                     │ │
 │ │ Use default models recommended for this persona         │ │
-│ │ ☑ Use defaults (Reasoning API enabled, llama3 for LLM) │ │
+│ │ ☑ Use defaults (Reasoning Worker enabled, llama3 for LLM) │ │
 │ │                                                         │ │
 │ │ □ Customize:                                            │ │
-│ │   Reasoning API: [enabled]                               │ │
+│ │   Reasoning Worker: [enabled]                             │ │
 │ │   LLM Model: [llama3:latest ▾]                          │ │
 │ │                                                         │ │
 │ │ ── Execution Limits ──                                   │ │

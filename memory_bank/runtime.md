@@ -1,15 +1,15 @@
-# Savant Agent Runtime (Reasoning API Only)
+# Savant Agent Runtime
 
-The Agent Runtime is the orchestrator that runs an autonomous reasoning loop for a given goal. It decides what to do next (call a tool, add reasoning, or finish) by delegating decisions to the external Reasoning API. It then executes MCP tools via the Multiplexer, persists transcripts, and emits structured telemetry.
+The Agent Runtime is the orchestrator that runs an autonomous reasoning loop for a given goal. It decides what to do next (call a tool, add reasoning, or finish) by delegating decisions to the Redis‑backed Reasoning Worker. It then executes MCP tools via the Multiplexer, persists transcripts, and emits structured telemetry.
 
 - Location: `lib/savant/agent/runtime.rb`
-- Decision engine: Reasoning API only (no SLM/LLM fallback inside the runtime)
-- Transports supported by Reasoning Client: HTTP or Mongo queue (see env below)
+- Decision engine: Reasoning Worker only (no SLM/LLM fallback inside the runtime)
+- Transport: Redis queue
 
 ## Responsibilities
 
 - Build step context from persona, driver, AMR rules, repo metadata, and memory state.
-- Call Reasoning API `/agent_intent` each step to obtain the next action.
+- Enqueue a reasoning job each step and await the worker result to obtain the next action.
 - Execute MCP tools via the Multiplexer when requested by the intent.
 - Persist a structured transcript and per-step snapshots to disk.
 - Enforce tool-use policy (disable/allow by environment, instructions, and state machine).
@@ -34,7 +34,7 @@ The Agent Runtime is the orchestrator that runs an autonomous reasoning loop for
    - Tick state machine; check for cancellation or stuck state.
    - Collect and filter available tools from the Multiplexer.
    - Build a policy/system note and a snapshot prompt (telemetry only).
-   - Decide via Reasoning API `/agent_intent` → one action: tool | reason | finish | error.
+   - Decide via Reasoning Worker → one action: tool | reason | finish | error.
    - If tool: call `Multiplexer.call`, record output; else record reasoning/finish/error.
    - Append to transcript and persist a snapshot.
 4. Exit on finish, error, or after `max_steps`.
@@ -57,7 +57,7 @@ graph TD
     E --> F[StateMachine.tick]
     F --> G[Collect + filter tools]
     G --> H[Build policy note and snapshot]
-    H --> I[Reasoning API agent_intent]
+    H --> I[Reasoning Worker intent]
     I --> J{Action}
     J -->|tool| K["Multiplexer.call(tool, args)"]
     K --> M[Append output to memory]
@@ -85,7 +85,7 @@ sequenceDiagram
   participant Ctx as RuntimeContext
   participant RT as Agent::Runtime
   participant RC as Reasoning::Client
-  participant API as Reasoning API
+  participant QW as Reasoning Worker (Redis)
   participant Mux as Multiplexer
   participant Eng as Engine/Tool
   participant Mem as Memory/Trace
@@ -97,13 +97,8 @@ sequenceDiagram
   RT->>Mem: open transcript + trace
   loop Per step
     RT->>RC: agent_intent(payload)
-    alt HTTP transport
-      RC->>API: POST /agent_intent (JSON)
-      API-->>RC: {action, tool_name, args, finish?, reasoning}
-    else Mongo queue
-      RC->>API: enqueue intent (reasoning_queue)
-      API-->>RC: poll result {action, ...}
-    end
+    RC->>QW: enqueue intent (Redis queue)
+    QW-->>RC: result {action, tool_name, args, finish?, reasoning}
     RC-->>RT: Intent → Action
     alt action = tool
       RT->>Mux: call(tool_name, args)
@@ -149,25 +144,21 @@ sequenceDiagram
 - File trace: `logs/agent_trace.log` contains NDJSON of step-by-step events.
 - Memory snapshot: `.savant/session.json` per run with all steps, actions, results, and final.
 
-## Reasoning API Configuration
+## Reasoning Worker Configuration (Redis)
 
-- HTTP:
-  - `REASONING_API_URL` (e.g., `http://127.0.0.1:9000`)
-  - `REASONING_API_TOKEN` (optional)
-  - `REASONING_API_TIMEOUT_MS` (default 5000), `REASONING_API_RETRIES` (default 2)
-- Mongo Queue:
-  - `REASONING_TRANSPORT=mongo`
-  - `MONGO_URI` (or `MONGO_HOST`), DB auto-selects by env (`savant_development`/`savant_test`)
+- `REDIS_URL` (e.g., `redis://localhost:6379/0`)
+- `REASONING_TIMEOUT_MS` (default 60000; 0 = wait indefinitely)
+- `REASONING_RETRIES` (default 2; reserved for future use)
 
 ## Error Handling
 
-- If the Reasoning API is unreachable or returns invalid data, the runtime emits a structured error, records it, and exits.
+- If the Reasoning Worker is unavailable or returns invalid data, the runtime emits a structured error, records it, and exits.
 - Tool invocation errors are captured and recorded with the step’s output.
 
 ## Quick Start
 
 - Prepare DB and index repos per the main docs.
-- Start the Reasoning API (HTTP or queue worker).
+- Start the Reasoning Worker (Redis queue).
 - Run: `savant run --agent-input="Summarize the design of the indexer."`
 - Inspect: `logs/agent_trace.log` and the transcript JSON for the step-by-step record.
 
@@ -208,7 +199,7 @@ The content below is preserved from the former `memory_bank/agent_runtime.md` an
 
 ### Agent Runtime (Legacy)
 
-Note: This document contains legacy details about an SLM-first strategy. As of v0.1.x, the Agent Runtime uses the Reasoning API for decisions (no local SLM fallback). See the Current Design section above for the current design. The examples below are historical and may reference deprecated flags like `--slm`.
+Note: This document contains legacy details about an SLM-first strategy. As of v0.1.x, the Agent Runtime uses the Redis Reasoning Worker for decisions (no local SLM fallback). See the Current Design section above for the current design. The examples below are historical and may reference deprecated flags like `--slm`.
 
 **Status**: MVP Complete
 **Version**: 1.0
@@ -216,7 +207,7 @@ Note: This document contains legacy details about an SLM-first strategy. As of v
 
 #### Overview
 
-The Agent Runtime is Savant's autonomous reasoning loop system. It orchestrates tool execution with memory persistence and comprehensive telemetry. Decisions are made by an external Reasoning API.
+The Agent Runtime is Savant's autonomous reasoning loop system. It orchestrates tool execution with memory persistence and comprehensive telemetry. Decisions are made by the Redis Reasoning Worker.
 
 #### Architecture
 

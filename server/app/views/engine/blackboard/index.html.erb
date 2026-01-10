@@ -1,0 +1,45 @@
+<div style="font-family: sans-serif; padding: 20px; background: #f4f4f9; color: #333;">
+  <h1 style="color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px;">Savant Blackboard Explorer</h1>
+
+  <section style="margin-bottom: 40px;">
+    <h2>Recent Sessions</h2>
+    <table style="width: 100%; border-collapse: collapse; background: white; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+      <thead>
+        <tr style="background: #3498db; color: white;">
+          <th style="padding: 10px; text-align: left;">Session ID</th>
+          <th style="padding: 10px; text-align: left;">Type</th>
+          <th style="padding: 10px; text-align: left;">State</th>
+          <th style="padding: 10px; text-align: left;">Created At</th>
+          <th style="padding: 10px; text-align: left;">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <% @sessions.each do |session| %>
+          <tr style="border-bottom: 1px solid #eee;">
+            <td style="padding: 10px;"><%= session.session_id %></td>
+            <td style="padding: 10px;"><span style="background: #e1f5fe; padding: 2px 6px; border-radius: 4px;"><%= session.type %></span></td>
+            <td style="padding: 10px;"><%= session.state %></td>
+            <td style="padding: 10px;"><%= session.created_at.strftime("%Y-%m-%d %H:%M:%S") %></td>
+            <td style="padding: 10px;"><a href="/engine/blackboard/sessions/<%= session.session_id %>" style="color: #3498db; text-decoration: none;">View Timeline</a></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </section>
+
+  <section>
+    <h2>Global Event Stream (Last 100)</h2>
+    <div style="background: #2c3e50; color: #ecf0f1; padding: 15px; border-radius: 8px; font-family: monospace; max-height: 500px; overflow-y: auto;">
+      <% @events.each do |event| %>
+        <div style="margin-bottom: 8px; border-bottom: 1px solid #34495e; padding-bottom: 4px;">
+          <span style="color: #95a5a6;">[<%= event.created_at.strftime("%H:%M:%S") %>]</span>
+          <strong style="color: #f1c40f;"><%= event.type %></strong>
+          <span style="color: #2ecc71;">session:<%= event.session_id[0..7] %>...</span>
+          <span style="color: #3498db;">actor:<%= event.actor_id %></span>
+          <br>
+          <small style="color: #bdc3c7;"><%= event.payload.to_json %></small>
+        </div>
+      <% end %>
+    </div>
+  </section>
+</div>

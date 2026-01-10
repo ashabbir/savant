@@ -189,7 +189,7 @@ module Savant
 
           info[:secrets] = secrets_info(base)
 
-          # Reasoning API + usage/agents stats
+          # Reasoning Worker + usage/agents stats
           begin
             info[:reasoning] = reasoning_diagnostics
           rescue StandardError => e
@@ -297,58 +297,55 @@ module Savant
           out
         end
 
-        # --- Reasoning API diagnostics ---
+        # --- Reasoning Worker diagnostics ---
         def reasoning_diagnostics
           require 'time'
-          require 'uri'
-          res = { configured: false }
-          # Default to local Reasoning API if not explicitly configured
+          require 'json'
+          reasoning = {
+            architecture: 'worker-based',
+            redis: 'disconnected',
+            workers: [],
+            queue_length: 0,
+            running_jobs: 0,
+            dashboard_url: '/engine/jobs',
+            workers_url: '/engine/workers',
+            configured: true
+          }
+
+          # Check Redis connectivity and collect stats
           begin
-            require_relative '../../../reasoning/client'
-            default_base = Savant::Reasoning::Client::DEFAULT_BASE_URL
-          rescue StandardError
-            default_base = 'http://127.0.0.1:9000'
-          end
-          env_url = ENV['REASONING_API_URL'].to_s
-          base_url = env_url.empty? ? default_base : env_url
-          res[:configured] = !base_url.to_s.empty?
-          res[:base_url] = begin
-            uri = URI.parse(base_url)
-            uri.host ? "#{uri.scheme}://#{uri.host}#{uri.port && ![80,443].include?(uri.port) ? ":#{uri.port}" : ''}" : base_url
-          rescue StandardError
-            base_url
+            require 'redis'
+            redis_url = ENV['REDIS_URL'] || 'redis://localhost:6379/0'
+            r = ::Redis.new(url: redis_url, timeout: 1.0)
+            r.ping
+            reasoning[:redis] = 'connected'
+
+            # Collect worker heartbeats
+            worker_keys = r.keys('savant:workers:heartbeat:*')
+            reasoning[:workers] = worker_keys.map do |k|
+              name = k.split(':').last
+              last_seen = r.get(k).to_f
+              status = Time.now.to_f - last_seen < 60 ? 'alive' : 'dead'
+              { id: name, last_seen: Time.at(last_seen).utc.iso8601, status: status }
+            end
+
+            # Queue stats
+            reasoning[:queue_length] = r.llen('savant:queue:reasoning')
+            reasoning[:running_jobs] = r.scard('savant:jobs:running')
+
+            # Recent jobs
+            reasoning[:recent_completed] = r.lrange('savant:jobs:completed', 0, 9).map { |j| JSON.parse(j) rescue j }
+            reasoning[:recent_failed] = r.lrange('savant:jobs:failed', 0, 9).map { |j| JSON.parse(j) rescue j }
+          rescue LoadError
+            reasoning[:redis] = 'missing gem'
+          rescue Exception => e
+            reasoning[:redis] = "error: #{e.class} - #{e.message}"
           end
 
-          # Reachability probe (best-effort, very short timeouts)
-          if res[:configured]
-            begin
-              require 'net/http'
-              require 'uri'
-              uri = URI.parse(base_url)
-              path_candidates = []
-              path_candidates << '/health' << '/version' << uri.path.to_s
-              http = Net::HTTP.new(uri.host, uri.port)
-              http.use_ssl = (uri.scheme == 'https')
-              http.read_timeout = 1.5
-              http.open_timeout = 1.5
-              code = nil
-              path_candidates.each do |p|
-                begin
-                  req = Net::HTTP::Get.new(p.nil? || p.empty? ? '/' : p)
-                  resp = http.request(req)
-                  code = resp.code.to_i
-                  break if code && code > 0
-                rescue StandardError
-                  # try next
-                end
-              end
-              res[:reachable] = !code.nil? && code < 500
-              res[:status_code] = code if code
-            rescue StandardError => e
-              res[:reachable] = false
-              res[:error] = e.message
-            end
-          end
+          # Worker transport details
+          reasoning[:transport] = 'redis'
+          reasoning[:redis_url] = ENV['REDIS_URL'] || 'redis://localhost:6379/0'
+          reasoning[:reachable] = reasoning[:redis] == 'connected'
 
           # Usage stats via Mongo logs (service = 'reasoning')
           if mongo_available? && (cli = mongo_client)
@@ -357,46 +354,25 @@ module Savant
               now = Time.now
               since_1h = now - 3600
               since_24h = now - 86_400
-              calls_total = nil
-              calls_1h = nil
-              calls_24h = nil
-              last_at = nil
-              begin
-                calls_total = col.estimated_document_count
-              rescue StandardError
-                calls_total = nil
-              end
-              begin
-                calls_1h = col.count_documents({ 'timestamp' => { '$gt' => since_1h } })
-              rescue StandardError
-                calls_1h = nil
-              end
-              begin
-                calls_24h = col.count_documents({ 'timestamp' => { '$gt' => since_24h } })
-              rescue StandardError
-                calls_24h = nil
-              end
-              begin
+              calls_total = col.estimated_document_count rescue nil
+              calls_1h = col.count_documents({ 'timestamp' => { '$gt' => since_1h } }) rescue nil
+              calls_24h = col.count_documents({ 'timestamp' => { '$gt' => since_24h } }) rescue nil
+              last_at = begin
                 doc = col.find({}, { sort: { timestamp: -1 }, projection: { timestamp: 1 } }).limit(1).first
-                last_at = doc && doc['timestamp'] ? (doc['timestamp'].respond_to?(:iso8601) ? doc['timestamp'].iso8601 : doc['timestamp'].to_s) : nil
+                doc && doc['timestamp'] ? (doc['timestamp'].respond_to?(:iso8601) ? doc['timestamp'].iso8601 : doc['timestamp'].to_s) : nil
               rescue StandardError
-                last_at = nil
+                nil
               end
 
-              # Event breakdown
               events = %w[agent_intent workflow_intent reasoning_timeout reasoning_post_error]
               by_event = {}
               events.each do |ev|
-                begin
-                  by_event[ev] = col.count_documents({ 'event' => ev })
-                rescue StandardError
-                  by_event[ev] = nil
-                end
+                by_event[ev] = col.count_documents({ 'event' => ev }) rescue nil
               end
 
-              res[:calls] = { total: calls_total, last_1h: calls_1h, last_24h: calls_24h, last_at: last_at, by_event: by_event }
+              reasoning[:calls] = { total: calls_total, last_1h: calls_1h, last_24h: calls_24h, last_at: last_at, by_event: by_event }
             rescue StandardError => e
-              res[:calls] = { error: e.message }
+              reasoning[:calls] = { error: e.message }
             end
           end
 
@@ -412,12 +388,12 @@ module Savant
               runs_24h = @db.exec("SELECT COUNT(*) AS c FROM agent_runs WHERE created_at > NOW() - interval '24 hours'")[0]['c'].to_i rescue nil
               last_run_at = @db.exec('SELECT MAX(created_at) AS m FROM agent_runs')[0]['m'] rescue nil
             end
-            res[:agents] = { total: agents_total, runs_total: runs_total, runs_24h: runs_24h, last_run_at: last_run_at }
+            reasoning[:agents] = { total: agents_total, runs_total: runs_total, runs_24h: runs_24h, last_run_at: last_run_at }
           rescue StandardError => e
-            res[:agents] = { error: e.message }
+            reasoning[:agents] = { error: e.message }
           end
 
-          res
+          reasoning
         end
 
         def secrets_info(base_path)

@@ -16,6 +16,7 @@ import DiagnosticsOverview from './pages/diagnostics/Overview';
 import DiagnosticsRequests from './pages/diagnostics/Requests';
 import DiagnosticsLogs from './pages/diagnostics/Logs';
 import DiagnosticsRoutes from './pages/diagnostics/Routes';
+import DiagnosticsBlackboard from './pages/diagnostics/Blackboard';
 import DiagnosticsWorkflows from './pages/diagnostics/Workflows';
 import APIHealth from './pages/diagnostics/APIHealth';
 import Dashboard from './pages/Dashboard';
@@ -199,6 +200,7 @@ function useDiagnosticsSubIndex() {
   if (pathname.includes('/diagnostics/workflows')) return 5;
   if (pathname.includes('/diagnostics/routes')) return 6;
   if (pathname.includes('/diagnostics/api')) return 7;
+  if (pathname.includes('/diagnostics/blackboard')) return 8;
   return 0;
 }
 
@@ -225,6 +227,7 @@ function componentNameFromPath(pathname: string): string {
   if (pathname.startsWith('/diagnostics/workflows')) return 'Diagnostics: Workflows';
   if (pathname.startsWith('/diagnostics/requests')) return 'Diagnostics: Requests';
   if (pathname.startsWith('/diagnostics/logs')) return 'Diagnostics: Logs';
+  if (pathname.startsWith('/diagnostics/blackboard')) return 'Diagnostics: Blackboard';
   if (pathname.startsWith('/diagnostics/routes')) return 'Diagnostics: Routes';
   if (pathname.startsWith('/diagnostics/api')) return 'Diagnostics: API Health';
   if (pathname.startsWith('/diagnostics')) return 'Diagnostics: Overview';
@@ -573,6 +576,7 @@ export default function App() {
           <Tab label="Workflows" component={Link} to="/diagnostics/workflows" />
           <Tab label="Routes" component={Link} to="/diagnostics/routes" />
           <Tab label="API Health" component={Link} to="/diagnostics/api" />
+          <Tab label="Blackboard" component={Link} to="/diagnostics/blackboard" />
         </Tabs>
       )}
 
@@ -671,8 +675,11 @@ export default function App() {
           <Route path="/diagnostics/logs" element={<DiagnosticsLogs />} />
           <Route path="/diagnostics/agent-runs" element={<DiagnosticsAgentRuns />} />
           <Route path="/diagnostics/reasoning" element={<DiagnosticsReasoning />} />
+          <Route path="/diagnostics/reasoning/workers" element={<Navigate to="/diagnostics/reasoning#workers" replace />} />
+          <Route path="/diagnostics/workers" element={<Navigate to="/diagnostics/reasoning#workers" replace />} />
           <Route path="/diagnostics/workflows" element={<DiagnosticsWorkflows />} />
           <Route path="/diagnostics/api" element={<APIHealth />} />
+          <Route path="/diagnostics/blackboard" element={<DiagnosticsBlackboard />} />
           <Route path="/diagnostics/routes" element={<DiagnosticsRoutes />} />
           <Route path="/qorum" element={<Council />} />
           <Route path="/council" element={<Council />} />

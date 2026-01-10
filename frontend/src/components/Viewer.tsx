@@ -26,6 +26,7 @@ type ViewerProps = {
   language?: string;    // override language (e.g., 'rb', 'java', 'scala', 'md')
   height?: number | string;
   className?: string;
+  yamlCollapsible?: boolean; // when kind is yaml, render as collapsible tree
 };
 
 function escapeHtml(str: string): string {
@@ -220,7 +221,9 @@ function detectType({ contentType, filename, language }: { contentType?: string;
   return 'text';
 }
 
-export default function Viewer({ content, contentType, filename, language, height = 420, className }: ViewerProps) {
+import yaml from 'js-yaml';
+
+export default function Viewer({ content, contentType, filename, language, height = 420, className, yamlCollapsible = false }: ViewerProps) {
   const kind = useMemo(() => detectType({ contentType, filename, language }), [contentType, filename, language]);
   const markdownRef = useRef<HTMLDivElement>(null);
 
@@ -482,6 +485,88 @@ export default function Viewer({ content, contentType, filename, language, heigh
   }
 
   if (kind === 'yaml') {
+    // Collapsible tree view (details/summary) for YAML when requested
+    if (yamlCollapsible) {
+      type Node = any;
+      function isObject(v: any) { return v && typeof v === 'object' && !Array.isArray(v); }
+      function isArray(v: any) { return Array.isArray(v); }
+      function Scalar({ value }: { value: any }) {
+        if (value === null || value === undefined) return <span className="tok-kw">null</span>;
+        if (typeof value === 'string') return <span className="tok-str">{value}</span>;
+        if (typeof value === 'number') return <span className="tok-num">{String(value)}</span>;
+        if (typeof value === 'boolean') return <span className="tok-kw">{String(value)}</span>;
+        return <span>{String(value)}</span>;
+      }
+      function Item({ k, v, depth }: { k?: string | number; v: Node; depth: number }) {
+        const keyLabel = k === undefined ? '' : String(k);
+        if (isObject(v)) {
+          const entries = Object.entries(v as Record<string, Node>);
+          return (
+            <details open={depth <= 1} style={{ marginLeft: depth ? 8 : 0 }}>
+              <summary style={{ cursor: 'pointer' }}>
+                {k !== undefined && (<><span className="tok-key">{keyLabel}</span>: </>)}
+                <span className="tok-type">{'{ }'}</span>
+              </summary>
+              <div style={{ paddingLeft: 12 }}>
+                {entries.length === 0 ? (
+                  <div><span className="tok-com">empty</span></div>
+                ) : entries.map(([ck, cv]) => (
+                  <Item key={ck} k={ck} v={cv} depth={depth + 1} />
+                ))}
+              </div>
+            </details>
+          );
+        }
+        if (isArray(v)) {
+          const arr = v as Node[];
+          return (
+            <details open={depth <= 1} style={{ marginLeft: depth ? 8 : 0 }}>
+              <summary style={{ cursor: 'pointer' }}>
+                {k !== undefined && (<><span className="tok-key">{keyLabel}</span>: </>)}
+                <span className="tok-type">[{arr.length}]</span>
+              </summary>
+              <div style={{ paddingLeft: 12 }}>
+                {arr.length === 0 ? (
+                  <div><span className="tok-com">empty</span></div>
+                ) : arr.map((cv, idx) => (
+                  <Item key={idx} k={idx} v={cv} depth={depth + 1} />
+                ))}
+              </div>
+            </details>
+          );
+        }
+        return (
+          <div style={{ marginLeft: depth ? 8 : 0 }}>
+            {k !== undefined && (<><span className="tok-key">{keyLabel}</span>: </>)}
+            <Scalar value={v} />
+          </div>
+        );
+      }
+      let root: Node = null;
+      try {
+        root = yaml.load(content);
+      } catch {
+        root = null;
+      }
+      return (
+        <Box className={className} sx={{ ...baseSx, backgroundColor: '#0f1320', color: '#e6e6e6', height, p: 1.25 }}>
+          {root === null ? (
+            <pre><code dangerouslySetInnerHTML={{ __html: yamlHtml }} /></pre>
+          ) : (
+            <div>
+              {isObject(root) ? (
+                Object.entries(root).map(([k, v]) => (<Item key={k} k={k} v={v} depth={0} />))
+              ) : isArray(root) ? (
+                (root as Node[]).map((v, i) => (<Item key={i} k={i} v={v} depth={0} />))
+              ) : (
+                <Item v={root} depth={0} />
+              )}
+            </div>
+          )}
+        </Box>
+      );
+    }
+    // Default YAML highlighted block
     return (
       <Box className={className} sx={{ ...baseSx, backgroundColor: '#0f1320', color: '#e6e6e6', height }}>
         <pre><code dangerouslySetInnerHTML={{ __html: yamlHtml }} /></pre>

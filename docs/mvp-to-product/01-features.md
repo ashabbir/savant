@@ -25,7 +25,7 @@ This document outlines the complete feature set for Savant's evolution from MVP 
 
 #### 2.1.1 Agent Runtime System
 - **Autonomous Reasoning Loop**
-  - Reasoning API–driven decisions
+  - Reasoning Worker–driven decisions
   - LLM support for complex tool outputs
   - Token budget management for LLM contexts
   - Step-based execution with configurable limits

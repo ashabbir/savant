@@ -35,7 +35,7 @@ This PRD introduced **phase-aware agent execution** by implementing a State Mach
   - Records tool calls via `@state_machine.record_tool_call(tool_name, args)`
   - Transitions states based on tool selection
 - **Stuck Handling**: Automatically finishes execution with summary when stuck state detected
-- **Direct LLM Integration**: Migrated from external Reasoning API to direct `Savant::LLM.call` (Phase 3 of Worker PRD)
+- **Direct LLM Integration**: Migrated from external API to direct `Savant::LLM.call` (Phase 3 of Worker PRD)
 - **State Context Injection**: Passes `@state_machine.to_h` to PromptBuilder for LLM awareness
 
 #### 3. **Prompt Builder Enhancement** (`lib/savant/agent/prompt_builder.rb`)
@@ -48,7 +48,7 @@ This PRD introduced **phase-aware agent execution** by implementing a State Mach
 - **LLM Guidance**: Provides explicit context to help LLM make phase-appropriate decisions
 
 #### 4. **Architecture Migration**
-- **Removed Reasoning API Dependencies**: 
+- **Removed external API Dependencies**: 
   - Eliminated `agent_intent_async`, `agent_reasoning_callback_url`, `agent_reasoning_status_url`
   - Removed `intent_to_action` conversion logic
   - Deleted async/callback infrastructure
@@ -99,13 +99,13 @@ Advice: Searched 3 times. Try finishing with the results you found.
 ### Files Modified
 
 - `lib/savant/agent/state_machine.rb` (already existed, now fully integrated)
-- `lib/savant/agent/runtime.rb` (major refactor: removed Reasoning API, added state integration)
+- `lib/savant/agent/runtime.rb` (major refactor: removed external API, added state integration)
 - `lib/savant/agent/prompt_builder.rb` (added `agent_state` parameter and rendering)
 - `docs/prds/agent-state-machine.md` (updated to reflect Worker architecture)
 
 ### Migration Notes
 
-This implementation aligns with the **Reasoning Worker Optimization PRD** (Phase 3: Remove Reasoning API). The agent now operates entirely within the Ruby Worker process, with state management and LLM calls happening locally rather than through an external service.
+This implementation aligns with the **Reasoning Worker Optimization PRD** (Phase 3). The agent now operates entirely within the Ruby Worker process, with state management and LLM calls happening locally rather than through an external service.
 
 ### Future Enhancements
 
@@ -208,7 +208,7 @@ Implement a **State Machine** that tracks agent execution phases and enforces tr
 
 ### 3.1 System Context
 
-The State Machine lives entirely within the Ruby `Reasoning Worker`. There is no longer an external "Reasoning API". The state is injected directly into the LLM prompt via `PromptBuilder`.
+The State Machine lives entirely within the Ruby `Reasoning Worker`. There is no longer an external API. The state is injected directly into the LLM prompt via `PromptBuilder`.
 
 ```ascii
 +----------------+       +--------------------------------------------+
@@ -292,7 +292,7 @@ Suggestion: (if stuck) "You have searched 3 times. Move to analysis."
 ### Phase 2: Worker Integration (Done)
 - [x] Ensure `Runtime` correctly updates `StateMachine` after every step.
 - [x] Connect `PromptBuilder` to render the `agent_state` hash into Markdown.
-- [x] Removing the legacy `Reasoning API` calls (Move logic to local `LLM::Adapter`).
+- [x] Removing the legacy external API calls (Move logic to local `LLM::Adapter`).
 
 ### Phase 3: Validation (Done)
 - [x] Verify "Stuck" agents actually stop.
