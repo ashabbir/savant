@@ -5,6 +5,7 @@ module Savant::Llm::Adapters
     BASE_URL = 'https://generativelanguage.googleapis.com/v1beta'
 
     def test_connection!
+      ensure_api_key!
       uri = URI.parse("#{BASE_URL}/models?key=#{@provider[:api_key]}")
       res = http_get(uri)
       { status: 'valid', message: 'Connection successful' }
@@ -13,6 +14,7 @@ module Savant::Llm::Adapters
     end
 
     def list_models
+      ensure_api_key!
       uri = URI.parse("#{BASE_URL}/models?key=#{@provider[:api_key]}")
       res = http_get(uri)
       data = JSON.parse(res.body)
@@ -38,6 +40,11 @@ module Savant::Llm::Adapters
       modes << 'vision' if model.dig('inputCapabilities', 'images') || model['name'].include?('vision')
       modes << 'tools' if model.dig('capabilities', 'toolUse')
       modes
+    end
+
+    def ensure_api_key!
+      key = @provider[:api_key].to_s.strip
+      raise "Missing API key for provider #{@provider[:name]}" if key.empty?
     end
   end
 end

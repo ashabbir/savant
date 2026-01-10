@@ -70,6 +70,15 @@ module Savant::Llm::Tools
         )
       end
 
+      tool 'llm_providers_read', description: 'Read provider details (includes api_key)',
+           schema: {
+             type: 'object',
+             properties: { name: { type: 'string' } },
+             required: ['name']
+           } do |_ctx, a|
+        engine.provider_read(name: a['name'])
+      end
+
       tool 'llm_providers_delete', description: 'Delete a provider',
            schema: {
              type: 'object',

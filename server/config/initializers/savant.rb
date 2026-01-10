@@ -1,10 +1,15 @@
 # frozen_string_literal: true
 
-# Load .env file manually since Rails 7.2 doesn't do it automatically
-env_file = File.expand_path('../../.env', __dir__)
-if File.exist?(env_file)
+# Load .env files manually since Rails 7.2 doesn't do it automatically.
+# Preference: repo-root .env first, then server/.env to allow server-specific overrides.
+root_env = File.expand_path('../../../.env', __dir__)
+server_env = File.expand_path('../../.env', __dir__)
+
+[root_env, server_env].each do |env_file|
+  next unless File.exist?(env_file)
+
   File.readlines(env_file).each do |line|
-    line.strip!
+    line = line.to_s.strip
     next if line.empty? || line.start_with?('#')
 
     key, value = line.split('=', 2)

@@ -2082,9 +2082,14 @@ module Savant
             logger&.info(event: 'tool.call finish', name: name_variant, duration_ms: dur)
             return result
           rescue StandardError => e
-            # Record the last seen error to surface if no variant succeeds
-            last_error = e
-            # try next strategy
+            # Only try next variant if this looks like an unknown-tool resolution issue.
+            if unknown_tool_error?(e)
+              last_error = e
+              # try next strategy
+            else
+              # Surface real tool execution errors immediately (e.g., provider/API failures).
+              raise e
+            end
           end
 
           # Try public registrar accessor
@@ -2095,7 +2100,11 @@ module Savant
               logger&.info(event: 'tool.call finish', name: name_variant, duration_ms: dur)
               return result
             rescue StandardError => e
-              last_error = e
+              if unknown_tool_error?(e)
+                last_error = e
+              else
+                raise e
+              end
               # Hot reload fallback
               begin
                 result = hot_reload_and_call(engine_name, name_variant, params, user_id)
@@ -2103,7 +2112,11 @@ module Savant
                 logger&.info(event: 'tool.call finish', name: name_variant, duration_ms: dur)
                 return result
               rescue StandardError => e2
-                last_error = e2
+                if unknown_tool_error?(e2)
+                  last_error = e2
+                else
+                  raise e2
+                end
                 # try next candidate
               end
             end
@@ -2116,20 +2129,43 @@ module Savant
             logger&.info(event: 'tool.call finish', name: name_variant, duration_ms: dur)
             return result
           rescue StandardError => e
-            last_error = e
+            if unknown_tool_error?(e)
+              last_error = e
+            else
+              raise e
+            end
             begin
               result = hot_reload_and_call(engine_name, name_variant, params, user_id)
               dur = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round
               logger&.info(event: 'tool.call finish', name: name_variant, duration_ms: dur)
               return result
             rescue StandardError => e2
-              last_error = e2
+              if unknown_tool_error?(e2)
+                last_error = e2
+              else
+                raise e2
+              end
               # continue loop
             end
           end
         end
         # All variants failed; surface the most recent error if available for better diagnostics
         raise(last_error || StandardError.new('Unknown tool'))
+      end
+
+      # Identify errors that indicate the tool name did not resolve, so trying a
+      # different name variant makes sense. For all other errors, we should
+      # propagate immediately to avoid masking real failures (e.g., HTTP 400 from providers).
+      def unknown_tool_error?(error)
+        msg = begin
+          error&.message&.to_s
+        rescue StandardError
+          nil
+        end
+        return true if msg && msg =~ /\bUnknown tool\b/i
+        return true if msg && msg =~ /missing method name/i
+
+        false
       end
 
       # Reuse a single file-backed logger per engine to avoid leaking file descriptors.
