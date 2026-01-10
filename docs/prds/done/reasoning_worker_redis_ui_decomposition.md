@@ -36,7 +36,7 @@
 - Created Rails controller tests (13 tests total)
 
 ### Phase 3: Redis Worker Only ✅
-- Deleted `reasoning/api.py` (removed FastAPI HTTP server and related code)
+- Deleted `reasoning/api.py`; intent computation now lives directly in `reasoning/worker.py` (no HTTP server, no external module dependency)
 - Updated `lib/savant/reasoning/client.rb`:
   - Removed MongoDB transport code
   - Removed HTTP transport code
@@ -51,7 +51,7 @@
 - `server/Gemfile` - Added redis gem  
 - `reasoning/requirements.txt` - Added redis
 - `reasoning/worker.py` - Complete rewrite for Redis
-- `reasoning/api.py` - Removed
+- `reasoning/api.py` - Removed (logic embedded in worker)
 - `lib/savant/reasoning/client.rb` - Redis-only transport
 - `server/config/routes.rb` - Added engine routes
 - `spec/savant/reasoning/client_spec.rb` - Rewrote for Redis
@@ -78,7 +78,7 @@
 ### Architecture Change:
 **Before:**
 ```
-Rails → HTTP → FastAPI (reasoning/api.py) → MongoDB Queue → Worker
+Rails → Redis Queue → Worker (no external API)
 ```
 
 **After:**

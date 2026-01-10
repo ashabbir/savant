@@ -18,14 +18,95 @@ import requests
 import traceback
 from datetime import datetime
 
-# Disable Mongo worker auto-start in api.py
-os.environ['REASONING_QUEUE_WORKER'] = '0'
+# No external API module dependency; compute intent locally in this worker.
 
-try:
-    from reasoning import api as api_mod
-except Exception as e:
-    print(f"[reasoning-worker] Failed to import API module: {e}", file=sys.stderr)
-    sys.exit(1)
+from typing import Any, Dict, List, Optional
+
+
+def _intent_id() -> str:
+    return f"agent-{int(time.time())}-{random.randint(10000, 99999)}"
+
+
+class AgentIntentRequest:
+    def __init__(
+        self,
+        session_id: str,
+        persona: Optional[Dict[str, Any]] = None,
+        driver: Optional[Dict[str, Any]] = None,
+        rules: Optional[Dict[str, Any]] = None,
+        instructions: Optional[str] = None,
+        llm: Optional[Dict[str, Any]] = None,
+        repo_context: Optional[Dict[str, Any]] = None,
+        memory_state: Optional[Dict[str, Any]] = None,
+        history: Optional[List[Dict[str, Any]]] = None,
+        tools_available: Optional[List[str]] = None,
+        tools_catalog: Optional[List[str]] = None,
+        goal_text: str = "",
+        forced_tool: Optional[str] = None,
+        max_steps: Optional[int] = None,
+        agent_state: Optional[Dict[str, Any]] = None,
+        correlation_id: Optional[str] = None,
+        is_reaction: bool = False,
+    ) -> None:
+        self.session_id = session_id
+        self.persona = persona or {}
+        self.driver = driver or {}
+        self.rules = rules or {}
+        self.instructions = instructions
+        self.llm = llm or {}
+        self.repo_context = repo_context or {}
+        self.memory_state = memory_state or {}
+        self.history = history or []
+        self.tools_available = tools_available or []
+        self.tools_catalog = tools_catalog or []
+        self.goal_text = goal_text or ""
+        self.forced_tool = forced_tool
+        self.max_steps = max_steps or 1
+        self.agent_state = agent_state or {}
+        self.correlation_id = correlation_id
+        self.is_reaction = bool(is_reaction)
+
+
+def _compute_intent_sync(req: AgentIntentRequest) -> Dict[str, Any]:
+    goal = (req.goal_text or "").strip()
+
+    # 1) Forced tool takes precedence
+    if req.forced_tool:
+        return {
+            "intent_id": _intent_id(),
+            "tool_name": str(req.forced_tool),
+            "tool_args": {"query": goal} if goal else {},
+            "finish": False,
+            "final_text": None,
+            "reasoning": "Forced tool from runtime",
+            "trace": [],
+        }
+
+    tools = [str(t) for t in (req.tools_available or [])]
+
+    # 2) Prefer contextual search when available
+    if "context.fts_search" in tools:
+        return {
+            "intent_id": _intent_id(),
+            "tool_name": "context.fts_search",
+            "tool_args": {"query": goal or ""},
+            "finish": False,
+            "final_text": None,
+            "reasoning": "Targeted search required to find specific information.",
+            "trace": [],
+        }
+
+    # 3) Fallback: finish with a direct response placeholder
+    final = goal if goal else "Acknowledged."
+    return {
+        "intent_id": _intent_id(),
+        "tool_name": None,
+        "tool_args": {},
+        "finish": True,
+        "final_text": final,
+        "reasoning": "No suitable tools available; providing a direct response.",
+        "trace": [],
+    }
 
 # Redis Configuration
 REDIS_URL = os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
@@ -88,7 +169,7 @@ def process_job(r, job_json, worker_id: str = None):
         # api.AgentIntentRequest requires: session_id, persona, goal_text
         # We wrap in try/except to catch validation errors
         
-        req = api_mod.AgentIntentRequest(**{
+        req = AgentIntentRequest(**{
             'session_id': payload.get('session_id') or 'dev',
             'persona': payload.get('persona') or {'name': 'savant-engineer'},
             'driver': payload.get('driver'),
@@ -108,8 +189,8 @@ def process_job(r, job_json, worker_id: str = None):
             'is_reaction': payload.get('is_reaction', False)
         })
 
-        # Execute Logic
-        result = api_mod._compute_intent_sync(req)
+        # Execute Logic (local)
+        result = _compute_intent_sync(req)
         
         # Success or post-cancel override
         if job_id and r.sismember(CANCEL_REQUESTED_SET, job_id):

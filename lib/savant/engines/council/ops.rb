@@ -1944,8 +1944,8 @@ module Savant
       end
 
       def council_intent_async?
-        mode = ENV.fetch('COUNCIL_INTENT_MODE', 'async').to_s.strip.downcase
-        mode != 'sync'
+        # Always async: council steps submit jobs and return immediately.
+        true
       end
 
       def council_reasoning_callback_url

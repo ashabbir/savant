@@ -1564,11 +1564,7 @@ export default function Council() {
                 while (i < replies.length) {
                   const curr = replies[i];
                   const sys = /(joined|left) the (group|council)/i.test(curr.text || '');
-                  if (sys) {
-                    groups.push({ agent: curr.agent, items: [curr], system: true });
-                    i += 1;
-                    continue;
-                  }
+                  if (sys) { i += 1; continue; } // hide join/leave system messages
                   let j = i + 1;
                   while (j < replies.length) {
                     const nxt = replies[j];
@@ -1580,27 +1576,6 @@ export default function Council() {
                   i = j;
                 }
                 return groups.map((g, gi) => {
-                  if (g.system) {
-                    return g.items.map((r, si) => {
-                      const text = toDisplayText(r.text || '');
-                      const isCouncilStart = /council deliberation started/i.test(text);
-                      return (
-                        <Box key={`${t.id}-${g.agent}-sys-${gi}-${si}`} sx={{ display: 'flex', justifyContent: 'center', my: 0.5 }}>
-                          {isCouncilStart ? (
-                            <Chip
-                              size="small"
-                              label={`${g.agent} ${text}`}
-                              variant="outlined"
-                              onClick={() => openCouncilRun(r.runKey, r.at)}
-                              sx={{ cursor: 'pointer' }}
-                            />
-                          ) : (
-                            <Chip size="small" label={`${g.agent} ${text}`} variant="outlined" />
-                          )}
-                        </Box>
-                      );
-                    });
-                  }
                   const last = g.items[g.items.length - 1];
                   const bg = agentBubbleBg(g.agent, last.status);
                   const bubbleFg = isDark ? lightBubbleFg : theme.palette.getContrastText(bg);

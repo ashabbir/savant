@@ -68,6 +68,6 @@ Secrets / Licensing (optional)
 Notes
 - Reasoning uses Redis exclusively; ensure `REDIS_URL` is reachable from the Hub and worker.
 - Agent cancellation uses per‑run keys and checks before tools/LLM, so Stop is responsive. Tool engines may need cooperative cancel for long‑running calls.
-- Council intent mode defaults to async; set COUNCIL_INTENT_MODE=sync to keep Council reasoning steps blocking.
+- Council intent is always async; callbacks use COUNCIL_ASYNC_CALLBACK_URL or SAVANT_HUB_URL (base) to reach `/callbacks/reasoning/agent_intent`.
 - For async Council intent callbacks, set COUNCIL_ASYNC_CALLBACK_URL or SAVANT_HUB_URL (base) so callbacks can reach `/callbacks/reasoning/agent_intent`.
 - Council protocol role calls use COUNCIL_ROLE_TIMEOUT_MS (default 30000) before timing out.
