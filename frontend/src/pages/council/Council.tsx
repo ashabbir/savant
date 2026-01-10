@@ -1222,12 +1222,31 @@ export default function Council() {
                           </Stack>
                         }
                         secondary={
-                          <>
-                            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                              {s.last_preview || 'No messages yet'}
-                            </Typography>
-                            <Typography variant="caption" color="text.secondary">{formatRelative(s.last_at || s.updated_at || s.created_at)}</Typography>
-                          </>
+                          (() => {
+                            const members = Array.isArray(s.agents) ? s.agents.length : 0;
+                            const parts: string[] = [];
+                            if (members > 0) parts.push(`${members} ${members === 1 ? 'member' : 'members'}`);
+                            if (s.created_at) parts.push(`created ${formatRelative(s.created_at)}`);
+                            if (s.last_at) parts.push(`last message ${formatRelative(s.last_at)}`);
+                            if (!s.last_at && !s.updated_at) parts.push('no messages yet');
+                            const metaLine = parts.join(' • ');
+
+                            const rawDesc = ((s.description || '') as string).toString();
+                            const descLine = rawDesc ? (rawDesc.length > 80 ? rawDesc.slice(0, 80) + ' ..' : rawDesc) : '';
+
+                            return (
+                              <>
+                                {descLine && (
+                                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    {descLine}
+                                  </Typography>
+                                )}
+                                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                  {metaLine}
+                                </Typography>
+                              </>
+                            );
+                          })()
                         }
                       />
                     </ListItemButton>
