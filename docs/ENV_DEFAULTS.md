@@ -25,18 +25,15 @@ MongoDB (Telemetry/Logs/Queue)
 - MONGO_HOST: default 'localhost:27017'
 - SAVANT_ENV / RACK_ENV / RAILS_ENV: default 'development'; test -> DB 'savant_test' else 'savant_development'
 
-Reasoning API
-- REASONING_API_URL: default 'http://127.0.0.1:9000'
-- REASONING_API_TIMEOUT_MS: default 30000
-- REASONING_API_RETRIES: default 2
-- REASONING_API_VERSION: default 'v1'
-- REASONING_TRANSPORT: default 'mongo' (use 'http' to force HTTP transport)
-- REASONING_QUEUE_WORKER: default '1' (Reasoning service starts background worker)
+Reasoning Worker (Redis)
+- REDIS_URL: default 'redis://localhost:6379/0'
+- REASONING_TIMEOUT_MS: default 60000 (0 = wait indefinitely)
+- REASONING_RETRIES: default 2 (reserved)
 
 Agent Runtime
 - AGENT_MAX_STEPS: default 25
-- AGENT_ENABLE_WORKFLOW_AUTODETECT: default disabled (Reasoning API used by default)
-- AGENT_DISABLE_WORKFLOW_AUTODETECT / FORCE_REASONING_API: default unset; can force disable auto-detect
+- AGENT_ENABLE_WORKFLOW_AUTODETECT: default enabled (auto-detect workflow runs)
+- AGENT_DISABLE_WORKFLOW_AUTODETECT: default unset; when '1', disables auto-detect
 - SAVANT_QUIET: default unset; when '1', reduces stdout logging
 
 LLM / Providers
@@ -44,7 +41,7 @@ LLM / Providers
 - OLLAMA_HOST: default 'http://127.0.0.1:11434'
 - ANTHROPIC_API_KEY, OPENAI_API_KEY: unset by default
 Notes:
-- SLM_MODEL is deprecated and ignored by the Agent Runtime (decisions use the Reasoning API).
+- SLM_MODEL is deprecated and ignored by the Agent Runtime.
 
 Jira (Engine)
 - JIRA_BASE_URL, JIRA_EMAIL, JIRA_API_TOKEN, JIRA_USERNAME, JIRA_PASSWORD: unset by default (read via SecretStore when present)
@@ -69,7 +66,7 @@ Secrets / Licensing (optional)
 - SAVANT_LICENSE_PATH / SAVANT_ENFORCE_LICENSE: unset by default
 
 Notes
-- Reasoning transport defaults to 'mongo' so cancel and queue processing work out of the box. Set REASONING_TRANSPORT=http to use direct HTTP for /agent_intent.
+- Reasoning uses Redis exclusively; ensure `REDIS_URL` is reachable from the Hub and worker.
 - Agent cancellation uses per‑run keys and checks before tools/LLM, so Stop is responsive. Tool engines may need cooperative cancel for long‑running calls.
 - Council intent mode defaults to async; set COUNCIL_INTENT_MODE=sync to keep Council reasoning steps blocking.
 - For async Council intent callbacks, set COUNCIL_ASYNC_CALLBACK_URL or SAVANT_HUB_URL (base) so callbacks can reach `/callbacks/reasoning/agent_intent`.

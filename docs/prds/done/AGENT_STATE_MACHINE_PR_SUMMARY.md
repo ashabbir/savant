@@ -2,7 +2,7 @@
 
 ## Overview
 
-This PR implements a **State Machine** for agent execution that provides phase-awareness, stuck detection, and automatic exit strategies. It also completes **Phase 3 of the Reasoning Worker PRD** by removing the external Reasoning API and migrating to direct LLM calls within the Ruby Worker.
+This PR implements a **State Machine** for agent execution that provides phase-awareness, stuck detection, and automatic exit strategies. It also completes **Phase 3 of the Reasoning Worker PRD** by removing external API dependencies and migrating to direct LLM calls within the Ruby Worker.
 
 ## Problem Solved
 
@@ -31,7 +31,7 @@ Agents were experiencing:
 
 ### 2. Runtime Integration (`lib/savant/agent/runtime.rb`)
 
-**Major refactor - removed Reasoning API, added state integration.**
+**Major refactor - removed external API dependency, added state integration.**
 
 **Changes:**
 - **State Machine Initialization**: Creates `@state_machine` instance at startup
@@ -71,7 +71,7 @@ Agents were experiencing:
 **Changes:**
 - Added comprehensive implementation summary
 - Updated architecture diagrams to reflect Worker-based system
-- Removed references to external Reasoning API
+- Removed references to external API
 - Marked all phases as completed
 - Added technical details and examples
 
@@ -111,9 +111,9 @@ Advice: Searched 3 times. Try finishing with the results you found.
 
 ### Architecture Flow
 
-**Before (with Reasoning API):**
+**Before (legacy external API):**
 ```
-Agent::Runtime → build_agent_payload → Reasoning API (HTTP/Redis) → Intent → Runtime
+Agent::Runtime → build_agent_payload → Reasoning Worker (Redis) → Intent → Runtime
 ```
 
 **After (direct LLM):**
@@ -134,7 +134,7 @@ Agent::Runtime → PromptBuilder (with state) → Savant::LLM.call → OutputPar
 ## Files Modified
 
 - ✅ `lib/savant/agent/state_machine.rb` (already existed, now fully integrated)
-- ✅ `lib/savant/agent/runtime.rb` (major refactor: -56 lines, removed Reasoning API)
+- ✅ `lib/savant/agent/runtime.rb` (major refactor: -56 lines, removed external API)
 - ✅ `lib/savant/agent/prompt_builder.rb` (+15 lines, added state rendering)
 - ✅ `docs/prds/done/agent-state-machine.md` (updated and moved to done)
 
@@ -173,7 +173,7 @@ Expected: INIT → DECIDING → FINISHING
 
 ## Migration Notes
 
-This implementation aligns with the **Reasoning Worker Optimization PRD** (Phase 3: Remove Reasoning API). The agent now operates entirely within the Ruby Worker process, with state management and LLM calls happening locally rather than through an external service.
+This implementation aligns with the **Reasoning Worker Optimization PRD** (Phase 3). The agent now operates entirely within the Ruby Worker process, with state management and LLM calls happening locally rather than through an external service.
 
 ### Breaking Changes
 

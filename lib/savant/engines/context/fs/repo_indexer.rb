@@ -189,7 +189,7 @@ module Savant
 
           info[:secrets] = secrets_info(base)
 
-          # Reasoning API + usage/agents stats
+          # Reasoning Worker + usage/agents stats
           begin
             info[:reasoning] = reasoning_diagnostics
           rescue StandardError => e
@@ -297,7 +297,7 @@ module Savant
           out
         end
 
-        # --- Reasoning API diagnostics ---
+        # --- Reasoning Worker diagnostics ---
         def reasoning_diagnostics
           require 'time'
           require 'json'
@@ -342,8 +342,9 @@ module Savant
             reasoning[:redis] = "error: #{e.class} - #{e.message}"
           end
 
-          # Support legacy base_url/reachable fields for compatibility
-          reasoning[:base_url] = ENV['REASONING_API_URL'] || 'http://127.0.0.1:9000'
+          # Worker transport details
+          reasoning[:transport] = 'redis'
+          reasoning[:redis_url] = ENV['REDIS_URL'] || 'redis://localhost:6379/0'
           reasoning[:reachable] = reasoning[:redis] == 'connected'
 
           # Usage stats via Mongo logs (service = 'reasoning')

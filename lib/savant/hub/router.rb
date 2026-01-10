@@ -63,7 +63,7 @@ module Savant
         list = []
         list << { module: 'hub', method: 'GET', path: '/', description: 'Hub dashboard' }
         list << { module: 'hub', method: 'GET', path: '/diagnostics', description: 'Env, mounts, repos visibility, DB checks' }
-        list << { module: 'hub', method: 'GET', path: '/diagnostics/reasoning', description: 'Reasoning API diagnostics (reachability, usage)' }
+        list << { module: 'hub', method: 'GET', path: '/diagnostics/reasoning', description: 'Reasoning Worker diagnostics (Redis status, usage)' }
         list << { module: 'hub', method: 'GET', path: '/diagnostics/reasoning/jobs', description: 'Reasoning jobs summary (queue, running, recent)' }
         list <<({ module: 'hub', method: 'GET', path: '/diagnostics/reasoning/jobs/:id', description: 'Reasoning job result by id' })
         list <<({ module: 'hub', method: 'POST', path: '/diagnostics/reasoning/jobs/:id/cancel', description: 'Cancel a queued or running job' })
@@ -436,7 +436,7 @@ module Savant
         end
       end
 
-      # POST /callbacks/reasoning/agent_intent -> receive async intent from Reasoning API
+      # POST /callbacks/reasoning/agent_intent -> receive async intent from Reasoning Worker (optional)
       def callbacks_reasoning_agent_intent(req)
         js = parse_json_body(req)
         begin
@@ -1846,9 +1846,10 @@ module Savant
           reasoning[:redis] = "error: #{e.class} - #{e.message}"
         end
 
-        # Support legacy base_url/reachable fields for compatibility
-        reasoning[:base_url] = ENV['REASONING_API_URL'] || 'http://127.0.0.1:9000'
-        reasoning[:reachable] = reasoning[:redis] == 'connected'
+          # Worker transport details
+          reasoning[:transport] = 'redis'
+          reasoning[:redis_url] = ENV['REDIS_URL'] || 'redis://localhost:6379/0'
+          reasoning[:reachable] = reasoning[:redis] == 'connected'
 
         # Usage stats via Mongo logs (service 'reasoning'); fallback to recorder if Mongo unavailable
         if mongo_client

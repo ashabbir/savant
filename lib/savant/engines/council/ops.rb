@@ -585,7 +585,7 @@ module Savant
         { ok: true }
       end
 
-      # Perform a single reasoning step for this session by delegating to the Reasoning API (mongo transport by default).
+      # Perform a single reasoning step for this session by delegating to the Reasoning Worker (Redis transport).
       # Appends the result to Council messages as a structured JSON payload (in text) for easy UI rendering.
       def agent_step(session_id:, goal_text:, agent_name: nil)
         client = council_reasoning_client

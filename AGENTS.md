@@ -70,7 +70,7 @@ Makefile Highlights
 - DB: `make db-create`, `make db-migrate`, `make db-fts`, `make db-smoke`, `make db-reset` (see DB_ENV)
 - Indexing: `make repo-index-all`, `make repo-index repo=<name>`, `make repo-delete-all`, `make repo-delete repo=<name>`, `make repo-status`
 - Utilities: `make pg`, `make mongosh`, `make ls`, `make ps`
-- Reasoning API: `make reasoning-setup`, `make reasoning-api`
+- Reasoning Worker: `make reasoning-setup`, `make reasoning-worker`
 
 Data Model (Postgres)
 - `repos(id,name,root_path)`

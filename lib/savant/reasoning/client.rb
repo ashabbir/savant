@@ -17,8 +17,8 @@ module Savant
 
     class Client
       DEFAULT_TRANSPORT = 'redis'
-      DEFAULT_TIMEOUT_MS = (ENV['REASONING_API_TIMEOUT_MS'] || '60000').to_i
-      DEFAULT_RETRIES = (ENV['REASONING_API_RETRIES'] || '2').to_i
+      DEFAULT_TIMEOUT_MS = (ENV['REASONING_TIMEOUT_MS'] || '60000').to_i
+      DEFAULT_RETRIES = (ENV['REASONING_RETRIES'] || '2').to_i
 
       def initialize(_base_url: nil, _token: nil, timeout_ms: nil, retries: nil, _version: nil, logger: nil, _transport: nil) # rubocop:disable Metrics/ParameterLists
         # legacy args ignored

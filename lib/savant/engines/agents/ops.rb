@@ -382,7 +382,7 @@ module Savant
         rescue StandardError
           rt.agent_instructions = nil
         end
-        # Pass through agent-specific rulesets content to runtime for Reasoning API context
+        # Pass through agent-specific rulesets content to runtime for Reasoning Worker context
         begin
           rule_ids = parse_int_array(agent['rule_set_ids'])
           unless rule_ids.empty?
@@ -407,7 +407,7 @@ module Savant
         rescue StandardError
           rt.allowed_tools = nil
         end
-        # Carry provider, model, and API key for reasoning API
+        # Carry provider, model, and API key for reasoning worker
         begin
           if llm_model_name
             rt.agent_llm = { llm_model: llm_model_name, provider: llm_provider }
